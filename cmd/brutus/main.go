@@ -730,6 +730,7 @@ func runSingleTarget(target, protocol string, base *baseConfigOptions) ([]brutus
 		Usernames:     base.usernames,
 		Passwords:     base.passwords,
 		Keys:          base.keys,
+		UseDefaults:   true,
 		Threads:       base.threads,
 		Timeout:       base.timeout,
 		StopOnSuccess: base.stopOnSuccess,
@@ -769,52 +770,6 @@ func runSingleTarget(target, protocol string, base *baseConfigOptions) ([]brutus
 			return nil, false
 		}
 		config.Passwords = snmp.GetCommunityStrings(snmp.Tier(base.snmpTier))
-	}
-
-	// Handle MySQL default credentials (when no passwords provided)
-	if protocol == "mysql" && len(config.Credentials) == 0 && len(config.Passwords) == 0 {
-		config.Credentials = []brutus.Credential{
-			{Username: "root", Password: ""},
-			{Username: "root", Password: "root"},
-			{Username: "root", Password: "mysql"},
-			{Username: "root", Password: "password"},
-			{Username: "root", Password: "toor"},
-			{Username: "mysql", Password: "mysql"},
-			{Username: "admin", Password: "admin"},
-		}
-		if base.verbose {
-			fmt.Fprintf(os.Stderr, "[verbose] Loaded %d default MySQL credentials\n", len(config.Credentials))
-		}
-	}
-
-	// Handle Redis - password-only authentication (username is ignored in simple auth mode)
-	// Only test unique passwords, not username×password combinations
-	if protocol == "redis" {
-		if len(config.Passwords) == 0 {
-			// Load defaults if no passwords provided
-			config.Passwords = []string{"", "redis", "password", "admin", "root"}
-			if base.verbose {
-				fmt.Fprintf(os.Stderr, "[verbose] Loaded %d default Redis passwords\n", len(config.Passwords))
-			}
-		}
-		// Redis ignores username in simple auth mode - just use "default"
-		config.Usernames = []string{"default"}
-	}
-
-	// Handle FTP default credentials (when no passwords provided)
-	if protocol == "ftp" && len(config.Credentials) == 0 && len(config.Passwords) == 0 {
-		config.Credentials = []brutus.Credential{
-			{Username: "anonymous", Password: ""},
-			{Username: "anonymous", Password: "anonymous@"},
-			{Username: "ftp", Password: "ftp"},
-			{Username: "admin", Password: "admin"},
-			{Username: "root", Password: "root"},
-			{Username: "user", Password: "user"},
-			{Username: "ftpuser", Password: "ftpuser"},
-		}
-		if base.verbose {
-			fmt.Fprintf(os.Stderr, "[verbose] Loaded %d default FTP credentials\n", len(config.Credentials))
-		}
 	}
 
 	// Handle HTTP with AI-researched credentials

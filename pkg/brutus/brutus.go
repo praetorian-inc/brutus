@@ -373,6 +373,68 @@ func IsStandardBanner(protocol, banner string) bool {
 // Configuration Validation
 // =============================================================================
 
+// applyDefaults populates protocol-specific default credentials when
+// UseDefaults is true and no credentials have been provided.
+func (c *Config) applyDefaults() {
+	if !c.UseDefaults {
+		return
+	}
+
+	hasPairedCreds := len(c.Credentials) > 0
+	hasPasswords := len(c.Passwords) > 0
+	hasKeys := len(c.Keys) > 0
+
+	switch c.Protocol {
+	case "ssh":
+		if len(c.Usernames) == 0 {
+			c.Usernames = []string{"root", "admin"}
+		}
+		if !hasPasswords && !hasKeys && !hasPairedCreds {
+			c.Passwords = []string{"", "root", "admin", "password", "toor"}
+		}
+	case "mysql":
+		if !hasPairedCreds && !hasPasswords {
+			c.Credentials = []Credential{
+				{Username: "root", Password: ""},
+				{Username: "root", Password: "root"},
+				{Username: "root", Password: "mysql"},
+				{Username: "root", Password: "password"},
+				{Username: "root", Password: "toor"},
+				{Username: "mysql", Password: "mysql"},
+				{Username: "admin", Password: "admin"},
+			}
+		}
+	case "redis":
+		if !hasPasswords {
+			c.Passwords = []string{"", "redis", "password", "admin", "root"}
+		}
+		if len(c.Usernames) == 0 {
+			c.Usernames = []string{"default"}
+		}
+	case "ftp":
+		if !hasPairedCreds && !hasPasswords {
+			c.Credentials = []Credential{
+				{Username: "anonymous", Password: ""},
+				{Username: "anonymous", Password: "anonymous@"},
+				{Username: "ftp", Password: "ftp"},
+				{Username: "admin", Password: "admin"},
+				{Username: "root", Password: "root"},
+				{Username: "user", Password: "user"},
+				{Username: "ftpuser", Password: "ftpuser"},
+			}
+		}
+	case "postgresql":
+		if !hasPairedCreds && !hasPasswords {
+			c.Credentials = []Credential{
+				{Username: "postgres", Password: ""},
+				{Username: "postgres", Password: "postgres"},
+				{Username: "postgres", Password: "password"},
+				{Username: "admin", Password: "admin"},
+			}
+		}
+	}
+}
+
 // validate checks the configuration and applies defaults.
 func (c *Config) validate() error {
 	if c.Target == "" {
@@ -381,6 +443,9 @@ func (c *Config) validate() error {
 	if c.Protocol == "" {
 		return errors.New("protocol is required")
 	}
+
+	c.applyDefaults()
+
 	// Need either: paired Credentials OR (Usernames + Passwords/Keys)
 	hasPairedCreds := len(c.Credentials) > 0
 	hasUnpairedCreds := len(c.Usernames) > 0 && (len(c.Passwords) > 0 || len(c.Keys) > 0)

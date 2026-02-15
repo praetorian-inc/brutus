@@ -16,18 +16,14 @@ package cassandra
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gocql/gocql"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-var cassandraAuthIndicators = []string{
-	"Bad credentials",
-	"authentication failed",
-	"authentication failure",
-}
 
 func init() {
 	brutus.Register("cassandra", func() brutus.Plugin {
@@ -101,7 +97,35 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies Cassandra errors using the shared helper.
+// classifyError classifies Cassandra errors.
+//
+// Auth failure indicators (return nil):
+// - "Bad credentials"
+// - "authentication failed"
+// - "authentication failure"
+//
+// All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, cassandraAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"Bad credentials",
+		"authentication failed",
+		"authentication failure",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure, not a connection error
+			return nil
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

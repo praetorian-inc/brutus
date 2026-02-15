@@ -29,13 +29,8 @@ func parseWordlist(content string) []Credential {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		username, password, found := strings.Cut(line, ":")
-		if !found {
-			// No colon: treat as password-only (e.g., SNMP community strings)
-			creds = append(creds, Credential{Password: line})
-		} else {
-			creds = append(creds, Credential{Username: username, Password: password})
-		}
+		username, password, _ := strings.Cut(line, ":")
+		creds = append(creds, Credential{Username: username, Password: password})
 	}
 	return creds
 }

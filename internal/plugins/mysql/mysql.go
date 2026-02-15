@@ -18,6 +18,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -106,12 +107,33 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// MySQL-specific auth failure indicators
-var mysqlAuthIndicators = []string{
-	"Access denied for user",
-	"authentication failed",
-}
-
+// classifyError classifies MySQL errors.
+//
+// Auth failure indicators (return nil):
+// - "Access denied for user"
+// - "authentication failed"
+//
+// All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, mysqlAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"Access denied for user",
+		"authentication failed",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure, not a connection error
+			return nil
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

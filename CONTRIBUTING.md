@@ -190,15 +190,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
         Success:  false,
     }
 
-    // Parse target with IPv6 support (uses default port if not specified)
-    host, port := brutus.ParseTarget(target, "1234")
-
-    // TODO: Implement authentication logic using host, port, username, password
-    // On error: result.Error = classifyError(err)
-    // On success: result.Success = true
-
-    _ = host
-    _ = port
+    // TODO: Implement authentication logic
 
     result.Duration = time.Since(start)
     return result
@@ -207,24 +199,38 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 ### 3. Implement Error Classification
 
-Use the shared `brutus.ClassifyAuthError` helper to distinguish authentication failures from connection errors. Define your protocol's auth indicators and delegate to the shared classifier:
+Properly classify errors as authentication failures vs connection errors:
 
 ```go
-var yourprotocolAuthIndicators = []string{
-    "authentication failed",
-    "access denied",
-    // Add protocol-specific error patterns that indicate wrong credentials
-}
-
 // classifyError classifies protocol-specific errors.
-// Uses shared brutus.ClassifyAuthError with protocol auth indicators
-// to distinguish authentication failures from connection errors.
+//
+// Auth failure indicators (return nil):
+// - Protocol-specific auth failure messages
+//
+// All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-    return brutus.ClassifyAuthError(err, yourprotocolAuthIndicators)
+    if err == nil {
+        return nil
+    }
+
+    errStr := err.Error()
+
+    // Check for authentication failure indicators
+    authFailures := []string{
+        "authentication failed",
+        "access denied",
+        // Add protocol-specific patterns
+    }
+
+    for _, indicator := range authFailures {
+        if strings.Contains(errStr, indicator) {
+            return nil // Auth failure, not connection error
+        }
+    }
+
+    return fmt.Errorf("connection error: %w", err)
 }
 ```
-
-The shared helper handles nil checks, case-insensitive matching, and wraps non-auth errors as `"connection error: ..."`. See existing plugins (e.g., `mysql`, `ssh`, `redis`) for examples of protocol-specific indicators.
 
 ### 4. Add Unit Tests
 
@@ -237,91 +243,52 @@ import (
     "context"
     "testing"
     "time"
-
-    "github.com/stretchr/testify/assert"
 )
 
 func TestPlugin_Name(t *testing.T) {
-    p := &Plugin{}
-    assert.Equal(t, "yourprotocol", p.Name())
-}
-
-func TestPlugin_Test_ErrorClassification(t *testing.T) {
-    tests := []struct {
-        name     string
-        errStr   string
-        wantAuth bool // true if should be classified as auth error (nil)
-    }{
-        {
-            name:     "authentication failed",
-            errStr:   "authentication failed for user",
-            wantAuth: true,
-        },
-        {
-            name:     "access denied",
-            errStr:   "access denied",
-            wantAuth: true,
-        },
-        {
-            name:     "connection error",
-            errStr:   "connection refused",
-            wantAuth: false,
-        },
-        {
-            name:     "timeout error",
-            errStr:   "context deadline exceeded",
-            wantAuth: false,
-        },
-    }
-
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            err := &mockError{msg: tt.errStr}
-            result := classifyError(err)
-
-            if tt.wantAuth {
-                assert.Nil(t, result, "auth errors should return nil")
-            } else {
-                assert.NotNil(t, result, "connection errors should be wrapped")
-                assert.Contains(t, result.Error(), "connection error")
-            }
-        })
+    plugin := &Plugin{}
+    if plugin.Name() != "yourprotocol" {
+        t.Errorf("expected 'yourprotocol', got %q", plugin.Name())
     }
 }
 
-func TestPlugin_Test_ConnectionRefused(t *testing.T) {
-    p := &Plugin{}
+func TestPlugin_Test_ConnectionError(t *testing.T) {
+    plugin := &Plugin{}
+
     ctx := context.Background()
+    result := plugin.Test(ctx, "invalid-host:1234", "user", "pass", 1*time.Second)
 
-    result := p.Test(ctx, "localhost:9999", "user", "pass", 2*time.Second)
+    if result == nil {
+        t.Fatal("expected non-nil result")
+    }
 
-    assert.NotNil(t, result)
-    assert.Equal(t, "yourprotocol", result.Protocol)
-    assert.False(t, result.Success, "Expected connection failure")
-    assert.NotNil(t, result.Error, "Connection error should have non-nil error")
-    assert.Contains(t, result.Error.Error(), "connection error")
-    assert.Greater(t, result.Duration, time.Duration(0))
+    if result.Success {
+        t.Error("expected Success=false for connection error")
+    }
+
+    if result.Error == nil {
+        t.Error("expected Error!=nil for connection error")
+    }
 }
 
-func TestPlugin_Test_ValidCredentials(t *testing.T) {
-    t.Skip("Integration test - requires YourProtocol server")
+func TestPlugin_Test_ContextCancellation(t *testing.T) {
+    plugin := &Plugin{}
 
-    // TODO: Add integration test with real server
+    ctx, cancel := context.WithCancel(context.Background())
+    cancel() // Pre-cancel
+
+    result := plugin.Test(ctx, "example.com:1234", "user", "pass", 5*time.Second)
+
+    if result.Success {
+        t.Error("expected Success=false for canceled context")
+    }
 }
 
-func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-    t.Skip("Integration test - requires YourProtocol server")
+// Integration test - requires real server
+func TestPlugin_Test_Integration(t *testing.T) {
+    t.Skip("Integration test requires YourProtocol server")
 
-    // TODO: Add integration test with real server
-}
-
-// mockError is a simple error implementation for testing error classification
-type mockError struct {
-    msg string
-}
-
-func (e *mockError) Error() string {
-    return e.msg
+    // TODO: Add integration test
 }
 ```
 
@@ -337,12 +304,12 @@ admin:password
 root:root
 ```
 
-### 6. Register in Builtins Package
+### 6. Register in Plugins Package
 
-Add import to `pkg/builtins/builtins.go`:
+Add import to `internal/plugins/all.go`:
 
 ```go
-package builtins
+package plugins
 
 import (
     _ "github.com/praetorian-inc/brutus/internal/plugins/ssh"

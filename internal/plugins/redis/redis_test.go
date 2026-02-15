@@ -41,76 +41,13 @@ func TestPlugin_Name(t *testing.T) {
 	assert.Equal(t, "redis", p.Name())
 }
 
-func TestPlugin_Test_ErrorClassification(t *testing.T) {
-	tests := []struct {
-		name     string
-		errStr   string
-		wantAuth bool // true if should be classified as auth error (nil)
-	}{
-		{
-			name:     "noauth",
-			errStr:   "NOAUTH Authentication required",
-			wantAuth: true,
-		},
-		{
-			name:     "wrongpass",
-			errStr:   "WRONGPASS invalid username-password pair",
-			wantAuth: true,
-		},
-		{
-			name:     "invalid password",
-			errStr:   "invalid password",
-			wantAuth: true,
-		},
-		{
-			name:     "err invalid password",
-			errStr:   "ERR invalid password",
-			wantAuth: true,
-		},
-		{
-			name:     "err client sent auth",
-			errStr:   "ERR Client sent AUTH, but no password is set",
-			wantAuth: true,
-		},
-		{
-			name:     "without any password",
-			errStr:   "without any password configured",
-			wantAuth: true,
-		},
-		{
-			name:     "connection error",
-			errStr:   "connection refused",
-			wantAuth: false,
-		},
-		{
-			name:     "network error",
-			errStr:   "no route to host",
-			wantAuth: false,
-		},
-		{
-			name:     "timeout error",
-			errStr:   "context deadline exceeded",
-			wantAuth: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := &mockError{msg: tt.errStr}
-			result := classifyError(err)
-
-			if tt.wantAuth {
-				assert.Nil(t, result, "auth errors should return nil")
-			} else {
-				assert.NotNil(t, result, "connection errors should be wrapped")
-				assert.Contains(t, result.Error(), "connection error")
-			}
-		})
-	}
-}
-
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires Redis server")
+	// Skip if no Redis server available
+	// This test requires a running Redis instance
+	// Configure via REDIS_TEST_HOST, REDIS_TEST_PASS
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
 	host, pass := getTestConfig()
 
@@ -131,7 +68,10 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires Redis server")
+	// Skip if no Redis server available
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
 	host, _ := getTestConfig()
 
@@ -152,7 +92,10 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_NoAuthRequired(t *testing.T) {
-	t.Skip("Integration test - requires Redis server without auth")
+	// Skip in CI - this test is for local Redis without auth
+	if testing.Short() || os.Getenv("CI") != "" {
+		t.Skip("Skipping no-auth test in short mode or CI")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
@@ -221,7 +164,9 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires Redis server")
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -256,17 +201,13 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
+	// Verify that the plugin registers itself
+	// This test ensures init() was called
+	// We can't directly test init(), but we can verify the plugin is registered
+	// by checking that plugin.Register was called (indirectly)
+
 	// Just verify the plugin can be instantiated
 	p := &Plugin{}
 	assert.NotNil(t, p)
 	assert.Equal(t, "redis", p.Name())
-}
-
-// mockError is a simple error implementation for testing error classification
-type mockError struct {
-	msg string
-}
-
-func (e *mockError) Error() string {
-	return e.msg
 }

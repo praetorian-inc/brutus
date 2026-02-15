@@ -17,7 +17,6 @@ package telnet
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -26,15 +25,6 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-// telnetAuthIndicators lists response strings that indicate authentication failure
-// (wrong credentials) rather than connection issues.
-var telnetAuthIndicators = []string{
-	"incorrect",
-	"failed",
-	"denied",
-	"invalid",
-}
 
 func init() {
 	brutus.Register("telnet", func() brutus.Plugin {
@@ -147,7 +137,7 @@ func dialWithContext(ctx context.Context, network, address string,
 // classifyError classifies TCP dial errors.
 // All dial errors are connection errors.
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, telnetAuthIndicators)
+	return fmt.Errorf("connection error: %w", err)
 }
 
 // waitForPrompt reads from the connection until a prompt is detected.
@@ -203,7 +193,7 @@ func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
 
 		// Check for success or failure indicators
 		line := string(buffer)
-		if isSuccessIndicator(line) || containsAuthFailureIndicator(line) {
+		if isSuccessIndicator(line) || isFailureIndicator(line) {
 			// Read a bit more to get full response
 			time.Sleep(100 * time.Millisecond)
 			for reader.Buffered() > 0 {
@@ -226,7 +216,10 @@ func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
 // classifyTelnetResponse classifies Telnet authentication responses.
 //
 // Auth failure indicators (return nil):
-// - "incorrect", "failed", "denied", "invalid" (via shared telnetAuthIndicators)
+// - "login incorrect"
+// - "authentication failed"
+// - "access denied"
+// - "invalid credentials"
 //
 // Success indicators (return nil):
 // - Shell prompts ($ or #)
@@ -244,17 +237,13 @@ func classifyTelnetResponse(response string) error {
 		return fmt.Errorf("connection error: connection closed")
 	}
 
-	// Check for success (return nil)
-	if isSuccessIndicator(response) {
+	// Check for auth failures (return nil)
+	if isFailureIndicator(response) {
 		return nil
 	}
 
-	// Check for auth failures using shared helper (return nil for auth failures)
-	// Convert response to error for ClassifyAuthError analysis
-	responseErr := errors.New(response)
-	classifErr := brutus.ClassifyAuthError(responseErr, telnetAuthIndicators)
-	if classifErr == nil {
-		// Shared helper returned nil, indicating auth failure
+	// Check for success (return nil)
+	if isSuccessIndicator(response) {
 		return nil
 	}
 
@@ -290,13 +279,22 @@ func isSuccessIndicator(response string) bool {
 	return lastChar == '$' || lastChar == '#'
 }
 
-// containsAuthFailureIndicator checks if the response contains any auth failure indicator.
-func containsAuthFailureIndicator(response string) bool {
+// isFailureIndicator checks if the response indicates authentication failure.
+func isFailureIndicator(response string) bool {
 	lower := strings.ToLower(response)
-	for _, indicator := range telnetAuthIndicators {
+
+	failureIndicators := []string{
+		"incorrect",
+		"failed",
+		"denied",
+		"invalid",
+	}
+
+	for _, indicator := range failureIndicators {
 		if strings.Contains(lower, indicator) {
 			return true
 		}
 	}
+
 	return false
 }

@@ -6,9 +6,6 @@
 package browser
 
 import (
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -20,29 +17,6 @@ func TestFillAndSubmit_Integration(t *testing.T) {
 	if !chromeAvailable() {
 		t.Skip("Chrome not available")
 	}
-
-	// Serve form via HTTP to ensure proper layout computation in headless Chrome
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, `<html>
-<body>
-	<form id="login-form">
-		<input type="text" id="username" name="username">
-		<input type="password" id="password" name="password">
-		<button type="submit" id="submit">Login</button>
-	</form>
-	<script>
-		document.getElementById('login-form').onsubmit = function(e) {
-			e.preventDefault();
-			document.body.innerHTML = '<h1 id="result">Submitted: ' +
-				document.getElementById('username').value + ':' +
-				document.getElementById('password').value + '</h1>';
-		};
-	</script>
-</body>
-</html>`)
-	}))
-	defer srv.Close()
 
 	resetBrowserSingleton()
 	t.Cleanup(resetBrowserSingleton)
@@ -56,7 +30,27 @@ func TestFillAndSubmit_Integration(t *testing.T) {
 	tabCtx, release := b.AcquireTab()
 	defer release()
 
-	err = b.Navigate(tabCtx, srv.URL, 5*time.Second)
+	// Navigate to a data URL with a simple form
+	html := `data:text/html,
+	<html>
+	<body>
+		<form id="login-form">
+			<input type="text" id="username" name="username">
+			<input type="password" id="password" name="password">
+			<button type="submit" id="submit">Login</button>
+		</form>
+		<script>
+			document.getElementById('login-form').onsubmit = function(e) {
+				e.preventDefault();
+				document.body.innerHTML = '<h1 id="result">Submitted: ' +
+					document.getElementById('username').value + ':' +
+					document.getElementById('password').value + '</h1>';
+			};
+		</script>
+	</body>
+	</html>`
+
+	err = b.Navigate(tabCtx, html, 5*time.Second)
 	if err != nil {
 		t.Fatalf("Navigate failed: %v", err)
 	}
@@ -92,19 +86,6 @@ func TestFillAndSubmit_EmptyPassword(t *testing.T) {
 		t.Skip("Chrome not available")
 	}
 
-	// Serve form via HTTP to ensure proper layout computation in headless Chrome
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, `<html>
-<body>
-	<input type="text" id="user">
-	<input type="password" id="pass">
-	<button id="btn" onclick="document.body.innerHTML='<span id=r>'+document.getElementById('user').value+'</span>'">Go</button>
-</body>
-</html>`)
-	}))
-	defer srv.Close()
-
 	resetBrowserSingleton()
 	t.Cleanup(resetBrowserSingleton)
 
@@ -117,7 +98,16 @@ func TestFillAndSubmit_EmptyPassword(t *testing.T) {
 	tabCtx, release := b.AcquireTab()
 	defer release()
 
-	_ = b.Navigate(tabCtx, srv.URL, 5*time.Second)
+	html := `data:text/html,
+	<html>
+	<body>
+		<input type="text" id="user">
+		<input type="password" id="pass">
+		<button id="btn" onclick="document.body.innerHTML='<span id=r>'+document.getElementById('user').value+'</span>'">Go</button>
+	</body>
+	</html>`
+
+	_ = b.Navigate(tabCtx, html, 5*time.Second)
 
 	fields := &FormFields{
 		UsernameSelector: "#user",

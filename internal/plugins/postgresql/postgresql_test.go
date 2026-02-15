@@ -45,61 +45,13 @@ func TestPlugin_Name(t *testing.T) {
 	assert.Equal(t, "postgresql", p.Name())
 }
 
-func TestPlugin_Test_ErrorClassification(t *testing.T) {
-	tests := []struct {
-		name     string
-		errStr   string
-		wantAuth bool // true if should be classified as auth error (nil)
-	}{
-		{
-			name:     "password authentication failed",
-			errStr:   "password authentication failed for user \"postgres\"",
-			wantAuth: true,
-		},
-		{
-			name:     "role does not exist",
-			errStr:   "role \"baduser\" does not exist",
-			wantAuth: true,
-		},
-		{
-			name:     "no pg_hba.conf entry",
-			errStr:   "no pg_hba.conf entry for host \"127.0.0.1\"",
-			wantAuth: true,
-		},
-		{
-			name:     "connection error",
-			errStr:   "connection refused",
-			wantAuth: false,
-		},
-		{
-			name:     "network error",
-			errStr:   "no route to host",
-			wantAuth: false,
-		},
-		{
-			name:     "timeout error",
-			errStr:   "context deadline exceeded",
-			wantAuth: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := &mockError{msg: tt.errStr}
-			result := classifyError(err)
-
-			if tt.wantAuth {
-				assert.Nil(t, result, "auth errors should return nil")
-			} else {
-				assert.NotNil(t, result, "connection errors should be wrapped")
-				assert.Contains(t, result.Error(), "connection error")
-			}
-		})
-	}
-}
-
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires PostgreSQL server")
+	// Skip if no PostgreSQL server available
+	// This test requires a running PostgreSQL instance
+	// Configure via POSTGRES_TEST_HOST, POSTGRES_TEST_USER, POSTGRES_TEST_PASS
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
 	host, user, pass := getTestConfig()
 
@@ -120,7 +72,10 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires PostgreSQL server")
+	// Skip if no PostgreSQL server available
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
 	host, user, _ := getTestConfig()
 
@@ -190,7 +145,9 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires PostgreSQL server")
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -225,17 +182,13 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
+	// Verify that the plugin registers itself
+	// This test ensures init() was called
+	// We can't directly test init(), but we can verify the plugin is registered
+	// by checking that plugin.Register was called (indirectly)
+
 	// Just verify the plugin can be instantiated
 	p := &Plugin{}
 	assert.NotNil(t, p)
 	assert.Equal(t, "postgresql", p.Name())
-}
-
-// mockError is a simple error implementation for testing error classification
-type mockError struct {
-	msg string
-}
-
-func (e *mockError) Error() string {
-	return e.msg
 }

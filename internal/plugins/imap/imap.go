@@ -17,19 +17,13 @@ package imap
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-var imapAuthIndicators = []string{
-	"authentication failed",
-	"authenticate",
-	"invalid credentials",
-	"login failed",
-}
 
 func init() {
 	brutus.Register("imap", func() brutus.Plugin {
@@ -108,7 +102,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	if err != nil {
-		result.Error = classifyError(err)
+		result.Error = classifyAuthError(err)
 		result.Duration = time.Since(start)
 		return result
 	}
@@ -121,14 +115,56 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 // parseTarget splits target into host and port.
 // If no port is specified, defaults to 143.
-// Delegates to brutus.ParseTarget for proper IPv6 support.
 func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "143")
+	// Check if target contains port
+	if strings.Contains(target, ":") {
+		parts := strings.SplitN(target, ":", 2)
+		return parts[0], parts[1]
+	}
+	// Default to port 143 if not specified
+	return target, "143"
 }
 
-// classifyError classifies IMAP errors.
-// Uses shared brutus.ClassifyAuthError to distinguish authentication
-// failures from connection errors.
+// classifyError classifies IMAP connection errors.
+// All connection errors are wrapped as connection errors.
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, imapAuthIndicators)
+	return fmt.Errorf("connection error: %w", err)
+}
+
+// classifyAuthError classifies IMAP authentication errors.
+//
+// Auth failure indicators (return nil):
+// - "authentication failed"
+// - "NO" response (IMAP authentication failure)
+//
+// All other errors are connection problems (return wrapped error).
+func classifyAuthError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"authentication failed",
+		"authenticate",
+		"invalid credentials",
+		"login failed",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure
+			return nil
+		}
+	}
+
+	// Check for IMAP NO response which indicates auth failure
+	if strings.Contains(errStr, "no ") {
+		return nil
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

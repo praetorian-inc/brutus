@@ -96,8 +96,8 @@ func (c *Client) AnalyzeCredentials(ctx context.Context, banner brutus.BannerInf
 	var err error
 
 	if jsonErr := json.Unmarshal([]byte(banner.Banner), &bannerData); jsonErr != nil {
-		// Fallback: use banner as plain text (sanitize to prevent prompt injection)
-		creds, err = c.researchFromTextWithPairs(ctx, brutus.SanitizeBanner(banner.Banner))
+		// Fallback: use banner as plain text
+		creds, err = c.researchFromTextWithPairs(ctx, banner.Banner)
 	} else {
 		// Research credentials for identified application
 		creds, err = c.ResearchCredentials(ctx,

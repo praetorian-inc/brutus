@@ -19,21 +19,13 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-// ldapAuthIndicators identifies LDAP authentication failures.
-// LDAP Result Code 49 is "Invalid Credentials".
-var ldapAuthIndicators = []string{
-	"invalid credentials",
-	"result code 49",
-	"result code 32", // noSuchObject - invalid DN
-	"result code 50", // insufficientAccessRights
-}
 
 func init() {
 	brutus.Register("ldap", func() brutus.Plugin {
@@ -81,23 +73,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Connect to LDAP server with timeout
-	// Read TLS mode from context
-	tlsMode := brutus.TLSModeFromContext(ctx)
-
-	// Configure TLS based on mode
-	// Note: For LDAP, even "disable" needs TLS config for LDAPS (port 636)
+	// Use InsecureSkipVerify for LDAPS to allow self-signed certs
 	dialer := &net.Dialer{Timeout: timeout}
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false,
-		}
-	default: // "skip-verify" or "disable" - both allow self-signed for LDAPS
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true,
-		}
-	}
+	tlsConfig := &tls.Config{InsecureSkipVerify: true}
 	conn, err := ldap.DialURL(ldapURL, ldap.DialWithDialer(dialer), ldap.DialWithTLSConfig(tlsConfig))
 	if err != nil {
 		result.Error = classifyError(err)
@@ -118,9 +96,32 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// If simple bind failed with an auth error, no further fallback attempts.
-	// The previous dc=example,dc=com DN patterns were dead code that never
-	// matched real LDAP directories.
+	// Check if it was an auth error
+	if isAuthError(err) {
+		// Try constructing DN and binding again
+		// Try common DN patterns
+		dnPatterns := []string{
+			fmt.Sprintf("uid=%s,dc=example,dc=com", username),
+			fmt.Sprintf("cn=%s,dc=example,dc=com", username),
+			fmt.Sprintf("uid=%s,ou=users,dc=example,dc=com", username),
+			fmt.Sprintf("cn=%s,ou=users,dc=example,dc=com", username),
+		}
+
+		for _, dn := range dnPatterns {
+			err = conn.Bind(dn, password)
+			if err == nil {
+				// Success with DN
+				result.Success = true
+				result.Duration = time.Since(start)
+				return result
+			}
+
+			// If not an auth error, break (it's a connection problem)
+			if !isAuthError(err) {
+				break
+			}
+		}
+	}
 
 	// Classify the error
 	result.Error = classifyError(err)
@@ -130,15 +131,57 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 // parseTarget splits target into host and port.
 // If no port is specified, defaults to 389.
-// Delegates to brutus.ParseTarget for IPv6 support.
 func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "389")
+	// Check if target contains port
+	if strings.Contains(target, ":") {
+		parts := strings.SplitN(target, ":", 2)
+		return parts[0], parts[1]
+	}
+	// Default to port 389 if not specified
+	return target, "389"
 }
 
-// classifyError classifies LDAP errors using the shared brutus helper.
+// isAuthError checks if the error is an authentication error.
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// LDAP Result Code 49 is "Invalid Credentials"
+	authFailures := []string{
+		"invalid credentials",
+		"result code 49",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// classifyError classifies LDAP errors.
 //
-// Delegates to brutus.ClassifyAuthError with LDAP-specific auth indicators.
-// Returns nil for authentication failures, wrapped error for connection problems.
+// Auth failure indicators (return nil):
+// - "Invalid Credentials"
+// - LDAP Result Code 49
+//
+// All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, ldapAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	// Check if it's an authentication failure
+	if isAuthError(err) {
+		// This is an authentication failure, not a connection error
+		return nil
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

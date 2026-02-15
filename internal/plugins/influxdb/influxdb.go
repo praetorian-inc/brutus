@@ -56,19 +56,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		Success:  false,
 	}
 
-	// Read TLS mode from context
-	tlsMode := brutus.TLSModeFromContext(ctx)
-
-	// Determine URL scheme based on TLS mode
-	scheme := "http"
-	if tlsMode == "verify" || tlsMode == "skip-verify" {
-		scheme = "https"
-	}
-
 	// Build InfluxDB signin endpoint URL
 	// POST /api/v2/signin accepts HTTP Basic Auth for username/password authentication
 	// Returns 204 No Content on success, 401 Unauthorized on failure
-	url := fmt.Sprintf("%s://%s/api/v2/signin", scheme, target)
+	url := fmt.Sprintf("http://%s/api/v2/signin", target)
 
 	// Create HTTP POST request with context
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, http.NoBody)
@@ -81,26 +72,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Set HTTP Basic Auth
 	req.SetBasicAuth(username, password)
 
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
-		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
-	}
-
-	// Create HTTP client with timeout and TLS config
+	// Create HTTP client with timeout and TLS config to skip cert verification
 	client := &http.Client{
 		Timeout: timeout,
 		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
 

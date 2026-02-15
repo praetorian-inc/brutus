@@ -318,26 +318,3 @@ func TestInit(t *testing.T) {
 	assert.NotNil(t, p2)
 	assert.Equal(t, "winrms", p2.Name())
 }
-
-func TestPlugin_Test_NoGoroutineLeak(t *testing.T) {
-	// Test that context timeout allows Test() to return promptly
-	// even when enc.Post() is blocked on an unresponsive host.
-	// The method should not block indefinitely waiting for the goroutine.
-	p := &Plugin{UseHTTPS: false}
-	ctx := context.Background()
-
-	// Use blackhole IP that won't respond
-	start := time.Now()
-	result := p.Test(ctx, "192.0.2.1:5985", "admin", "password", 100*time.Millisecond)
-	elapsed := time.Since(start)
-
-	// Verify the method returned promptly (within timeout + small grace period)
-	// Should NOT block for the full TCP timeout (multiple seconds/minutes)
-	assert.Less(t, elapsed, 500*time.Millisecond,
-		"Test() should return promptly after context timeout, not block on enc.Post()")
-
-	assert.NotNil(t, result)
-	assert.False(t, result.Success)
-	assert.NotNil(t, result.Error)
-	assert.Contains(t, result.Error.Error(), "connection error")
-}

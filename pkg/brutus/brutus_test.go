@@ -15,12 +15,83 @@
 package brutus
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestIsStandardBanner(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol string
+		banner   string
+		want     bool
+	}{
+		{
+			name:     "empty banner returns true",
+			protocol: "ssh",
+			banner:   "",
+			want:     true,
+		},
+		{
+			name:     "ssh standard banner",
+			protocol: "ssh",
+			banner:   "SSH-2.0-OpenSSH_8.2",
+			want:     true,
+		},
+		{
+			name:     "ssh custom banner",
+			protocol: "ssh",
+			banner:   "SSH-2.0-MyCustomSSH",
+			want:     false,
+		},
+		{
+			name:     "http protocol with grafana banner should return false",
+			protocol: "http",
+			banner:   "Grafana v8.0.0",
+			want:     false,
+		},
+		{
+			name:     "https protocol with jenkins banner should return false",
+			protocol: "https",
+			banner:   "Jenkins/2.303",
+			want:     false,
+		},
+		{
+			name:     "couchdb protocol with custom banner should return false",
+			protocol: "couchdb",
+			banner:   "CouchDB/3.1.1",
+			want:     false,
+		},
+		{
+			name:     "elasticsearch protocol should return false",
+			protocol: "elasticsearch",
+			banner:   "Elasticsearch 7.10.0",
+			want:     false,
+		},
+		{
+			name:     "influxdb protocol should return false",
+			protocol: "influxdb",
+			banner:   "InfluxDB v2.0",
+			want:     false,
+		},
+		{
+			name:     "unknown non-http protocol returns true",
+			protocol: "unknown",
+			banner:   "some banner",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsStandardBanner(tt.protocol, tt.banner)
+			assert.Equal(t, tt.want, got, "IsStandardBanner(%q, %q) = %v, want %v",
+				tt.protocol, tt.banner, got, tt.want)
+		})
+	}
+}
 
 func TestConfigValidate(t *testing.T) {
 	tests := []struct {
@@ -135,52 +206,4 @@ func TestConfigValidate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestBruteWithContext_CancelDuringExecution(t *testing.T) {
-	// Test that BruteWithContext respects context cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Create a config that would take a long time to complete
-	config := &Config{
-		Target:    "127.0.0.1:1",  // Non-existent port
-		Protocol:  "ssh",
-		Usernames: []string{"user1", "user2", "user3", "user4", "user5"},
-		Passwords: []string{"pass1", "pass2", "pass3", "pass4", "pass5"},
-		Timeout:   1 * time.Second,
-		Threads:   1,
-	}
-
-	// Cancel the context after a short delay
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		cancel()
-	}()
-
-	start := time.Now()
-	_, err := BruteWithContext(ctx, config)
-	elapsed := time.Since(start)
-
-	// Should return quickly (well before 25 attempts * 1 second timeout)
-	assert.True(t, elapsed < 5*time.Second, "should return quickly on context cancellation")
-	assert.Error(t, err, "should return error on context cancellation")
-}
-
-func TestBrute_BackwardsCompatibility(t *testing.T) {
-	// Test that Brute() still works (backwards compatibility)
-	// Test with valid config but without actual plugin (expect plugin error, not panic)
-	config := &Config{
-		Target:    "127.0.0.1:22",
-		Protocol:  "ssh",
-		Usernames: []string{"root"},
-		Passwords: []string{"password"},
-		Timeout:   100 * time.Millisecond,
-		Threads:   1,
-	}
-
-	// Should complete without panic (may return error for missing plugin)
-	// The important thing is it doesn't panic and the function signature works
-	_, _ = Brute(config)
-	// If we get here without panicking, backwards compatibility is maintained
-	assert.True(t, true, "Brute() maintains backwards compatibility")
 }

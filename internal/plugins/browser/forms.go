@@ -118,9 +118,9 @@ func FillAndSubmitWithNavigate(tabCtx context.Context, url, username, password s
 	// All operations in ONE chromedp.Run call to avoid context issues
 	err := chromedp.Run(ctx,
 		chromedp.Navigate(url),
-		chromedp.WaitVisible(`input[type="password"]`, chromedp.ByQuery),
+		chromedp.Sleep(1*time.Second), // Wait for page load
 		chromedp.Evaluate(fillJS, &fillResult),
-		chromedp.Sleep(1*time.Second), // Wait for form submission + redirect
+		chromedp.Sleep(2*time.Second), // Wait for form submission + redirect
 		chromedp.Evaluate(checkJS, &checkResult),
 	)
 
@@ -200,8 +200,9 @@ func FillAndSubmit(tabCtx context.Context, fields *FormFields, username, passwor
 
 	var result string
 	err := chromedp.Run(ctx,
-		chromedp.WaitVisible(`input[type="password"]`, chromedp.ByQuery),
+		chromedp.Sleep(500*time.Millisecond),
 		chromedp.Evaluate(jsCode, &result),
+		chromedp.Sleep(1*time.Second),
 	)
 
 	if err != nil {

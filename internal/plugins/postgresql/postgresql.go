@@ -18,19 +18,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-var postgresqlAuthIndicators = []string{
-	"password authentication failed",
-	"role \"", // More specific: 'role "username" does not exist'
-	"does not exist",
-	"no pg_hba.conf entry", // Server config rejects connection for this user/host
-}
 
 func init() {
 	brutus.Register("postgresql", func() brutus.Plugin {
@@ -65,7 +59,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Parse target to extract host and port
-	host, port := brutus.ParseTarget(target, "5432")
+	host, port := parseTarget(target)
 
 	// Build PostgreSQL connection string
 	connStr := fmt.Sprintf("user=%s password=%s host=%s port=%s sslmode=disable connect_timeout=%d",
@@ -87,7 +81,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Test connection with Ping
 	err = db.PingContext(pingCtx)
 	if err != nil {
-		result.Error = classifyError(err)
+		result.Error = classifyAuthError(err)
 		result.Duration = time.Since(start)
 		return result
 	}
@@ -98,9 +92,58 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies database errors.
-// Uses shared brutus.ClassifyAuthError with PostgreSQL auth indicators
-// to distinguish authentication failures from connection errors.
+// parseTarget splits target into host and port.
+// If no port is specified, defaults to 5432.
+func parseTarget(target string) (host, port string) {
+	// Check if target contains port
+	if strings.Contains(target, ":") {
+		parts := strings.SplitN(target, ":", 2)
+		return parts[0], parts[1]
+	}
+	// Default to port 5432 if not specified
+	return target, "5432"
+}
+
+// classifyError classifies database connection errors.
+// All connection errors are wrapped as connection errors.
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, postgresqlAuthIndicators)
+	return fmt.Errorf("connection error: %w", err)
+}
+
+// classifyAuthError classifies PostgreSQL authentication errors.
+//
+// Auth failure indicators (return nil):
+// - "password authentication failed"
+// - "role" + "does not exist"
+//
+// All other errors are connection problems (return wrapped error).
+func classifyAuthError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"password authentication failed",
+		"role",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// Check for "does not exist" which indicates invalid username
+			if strings.Contains(errStr, "does not exist") {
+				// Username doesn't exist - this is still an auth failure
+				return nil
+			}
+			// Password authentication failed - this is an auth failure
+			if strings.Contains(errStr, "password authentication failed") {
+				return nil
+			}
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

@@ -17,7 +17,7 @@ package mongodb
 import (
 	"context"
 	"fmt"
-	"net/url"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -74,9 +74,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Build MongoDB connection string
 	// Format: mongodb://username:password@host/
-	// URL-encode username and password to handle special characters (@, :, /, %, #)
-	connStr := fmt.Sprintf("mongodb://%s:%s@%s/?%s",
-		url.QueryEscape(username), url.QueryEscape(password), target, tlsParam)
+	connStr := fmt.Sprintf("mongodb://%s:%s@%s/?%s", username, password, target, tlsParam)
 
 	// Create client options with timeout
 	clientOpts := options.Client().
@@ -116,12 +114,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// mongodbAuthIndicators defines authentication failure indicators for MongoDB.
-var mongodbAuthIndicators = []string{
-	"Authentication failed",
-	"auth error",
-}
-
 // classifyError classifies MongoDB errors.
 //
 // Auth failure indicators (return nil):
@@ -130,5 +122,25 @@ var mongodbAuthIndicators = []string{
 //
 // All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, mongodbAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"Authentication failed",
+		"auth error",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure, not a connection error
+			return nil
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

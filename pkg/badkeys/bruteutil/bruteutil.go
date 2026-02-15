@@ -18,7 +18,6 @@
 package bruteutil
 
 import (
-	"context"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/badkeys"
@@ -155,24 +154,12 @@ func GetSSHKeyCredentials() []SSHKeyCredential {
 	return creds
 }
 
-// BruteSSHWithContext performs SSH key brute forcing using all known bad keys with context support.
-func BruteSSHWithContext(ctx context.Context, target string) ([]brutus.Result, error) {
-	return brutus.BruteWithContext(ctx, NewSSHConfig(target))
-}
-
 // BruteSSH performs SSH key brute forcing using all known bad keys.
-// This is a convenience wrapper around BruteSSHWithContext that uses context.Background().
 func BruteSSH(target string) ([]brutus.Result, error) {
-	return BruteSSHWithContext(context.Background(), target)
-}
-
-// BruteSSHProductWithContext performs SSH key brute forcing for a specific product with context support.
-func BruteSSHProductWithContext(ctx context.Context, target, product string) ([]brutus.Result, error) {
-	return brutus.BruteWithContext(ctx, NewSSHConfigForProduct(target, product))
+	return brutus.Brute(NewSSHConfig(target))
 }
 
 // BruteSSHProduct performs SSH key brute forcing for a specific product.
-// This is a convenience wrapper around BruteSSHProductWithContext that uses context.Background().
 func BruteSSHProduct(target, product string) ([]brutus.Result, error) {
-	return BruteSSHProductWithContext(context.Background(), target, product)
+	return brutus.Brute(NewSSHConfigForProduct(target, product))
 }

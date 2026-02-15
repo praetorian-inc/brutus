@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -25,12 +26,6 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-var neo4jAuthIndicators = []string{
-	"authentication failure",
-	"invalid credentials",
-	"authentication failed",
-}
 
 func init() {
 	brutus.Register("neo4j", func() brutus.Plugin {
@@ -70,27 +65,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create authentication token
 	auth := neo4j.BasicAuth(username, password, "")
 
-	// Read TLS mode from context
-	tlsMode := brutus.TLSModeFromContext(ctx)
-
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
-		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
-	}
-
-	// Create driver with TLS config
+	// Create driver with timeout context
+	// Skip TLS verification to allow self-signed certs
 	driver, err := neo4j.NewDriverWithContext(uri, auth, func(c *config.Config) {
-		c.TlsConfig = tlsConfig
+		c.TlsConfig = &tls.Config{InsecureSkipVerify: true}
 	})
 	if err != nil {
 		result.Error = classifyError(err)
@@ -119,8 +97,33 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 // classifyError classifies Neo4j errors.
 //
-// Uses shared brutus.ClassifyAuthError with Neo4j auth indicators
-// to distinguish authentication failures from connection errors.
+// Auth failure indicators (return nil):
+// - "authentication failure"
+// - "invalid credentials"
+//
+// All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, neo4jAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"authentication failure",
+		"invalid credentials",
+		"authentication failed",
+		"auth",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure, not a connection error
+			return nil
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

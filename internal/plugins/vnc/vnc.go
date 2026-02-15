@@ -18,19 +18,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/mitchellh/go-vnc"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-// vncAuthIndicators defines authentication failure strings returned by VNC servers
-var vncAuthIndicators = []string{
-	"authentication failed",
-	"invalid password",
-	"auth failed",
-}
 
 func init() {
 	brutus.Register("vnc", func() brutus.Plugin {
@@ -101,7 +95,35 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies VNC errors using the shared brutus helper.
+// classifyError classifies VNC errors.
+//
+// Auth failure indicators (return nil):
+// - "authentication failed"
+// - "invalid password"
+// - "auth failed"
+//
+// All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, vncAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"authentication failed",
+		"invalid password",
+		"auth failed",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure, not a connection error
+			return nil
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

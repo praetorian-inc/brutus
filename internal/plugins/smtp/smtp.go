@@ -20,19 +20,11 @@ import (
 	"fmt"
 	"net"
 	"net/smtp"
+	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-// smtpAuthIndicators contains strings that indicate SMTP authentication failures.
-// Used by ClassifyAuthError to distinguish auth failures from connection errors.
-var smtpAuthIndicators = []string{
-	"535",                                // SMTP auth failure code
-	"authentication failed",              // Common error message
-	"Authentication credentials invalid", // Alternative wording
-	"invalid username or password",       // Alternative wording
-}
 
 func init() {
 	brutus.Register("smtp", func() brutus.Plugin {
@@ -100,23 +92,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer client.Close()
 
 	// Try STARTTLS if available
-	// Read TLS mode from context
-	tlsMode := brutus.TLSModeFromContext(ctx)
-	if tlsMode != "disable" {
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			var tlsConfig *tls.Config
-			switch tlsMode {
-			case "verify":
-				tlsConfig = &tls.Config{InsecureSkipVerify: false, ServerName: host}
-			default: // "skip-verify"
-				tlsConfig = &tls.Config{InsecureSkipVerify: true, ServerName: host}
-			}
-			if tlsErr := client.StartTLS(tlsConfig); tlsErr != nil {
-				// STARTTLS failure is a connection error, not auth failure
-				result.Error = fmt.Errorf("connection error: STARTTLS failed: %w", tlsErr)
-				result.Duration = time.Since(start)
-				return result
-			}
+	// Use InsecureSkipVerify to allow self-signed certs
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		tlsConfig := &tls.Config{InsecureSkipVerify: true, ServerName: host}
+		if tlsErr := client.StartTLS(tlsConfig); tlsErr != nil {
+			// STARTTLS failure is a connection error, not auth failure
+			result.Error = fmt.Errorf("connection error: STARTTLS failed: %w", tlsErr)
+			result.Duration = time.Since(start)
+			return result
 		}
 	}
 
@@ -137,8 +120,37 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies SMTP errors using the shared helper.
-// Returns nil for authentication failures, wrapped error for connection problems.
+// classifyError classifies SMTP errors.
+//
+// Auth failure indicators (return nil):
+// - "535" response code (authentication failed)
+// - "authentication failed"
+// - "Authentication credentials invalid"
+// - "invalid username or password"
+//
+// All other errors are connection problems (return wrapped error).
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, smtpAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"535",                                // SMTP auth failure code
+		"authentication failed",              // Common error message
+		"Authentication credentials invalid", // Alternative wording
+		"invalid username or password",       // Alternative wording
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure, not a connection error
+			return nil
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

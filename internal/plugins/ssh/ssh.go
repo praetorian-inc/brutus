@@ -26,16 +26,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// sshAuthIndicators lists error strings that indicate authentication failure
-// (wrong credentials) rather than connection issues.
-var sshAuthIndicators = []string{
-	"unable to authenticate",
-	"permission denied",
-	"no supported methods remain",
-	"keyboard-interactive",            // Some SSH servers use this for password auth failures
-	"publickey authentication failed", // Key-based auth rejection
-}
-
 func init() {
 	brutus.Register("ssh", func() brutus.Plugin {
 		return &Plugin{}
@@ -206,9 +196,6 @@ func dialWithContext(ctx context.Context, network, address string,
 // classifyError classifies TCP dial errors.
 // All dial errors are connection errors.
 func classifyError(err error) error {
-	if err == nil {
-		return nil
-	}
 	return fmt.Errorf("connection error: %w", err)
 }
 
@@ -221,5 +208,26 @@ func classifyError(err error) error {
 //
 // All other errors are connection problems (return wrapped error).
 func classifyAuthError(err error) error {
-	return brutus.ClassifyAuthError(err, sshAuthIndicators)
+	if err == nil {
+		return nil
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	// Check for authentication failure indicators
+	authFailures := []string{
+		"unable to authenticate",
+		"permission denied",
+		"no supported methods remain",
+	}
+
+	for _, indicator := range authFailures {
+		if strings.Contains(errStr, indicator) {
+			// This is an authentication failure, not a connection error
+			return nil
+		}
+	}
+
+	// All other errors are connection problems
+	return fmt.Errorf("connection error: %w", err)
 }

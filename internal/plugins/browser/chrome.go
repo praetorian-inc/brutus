@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/chromedp/chromedp"
@@ -18,7 +17,7 @@ var (
 	browserInstance *Browser
 	browserErr      error
 	browserMu       sync.Mutex
-	browserVisible  atomic.Bool // Global flag for visible mode (set before first GetBrowser call)
+	browserVisible  bool // Global flag for visible mode (set before first GetBrowser call)
 )
 
 // Browser manages a Chrome instance with a pool of tabs
@@ -33,13 +32,13 @@ type Browser struct {
 
 // SetBrowserVisible sets whether the browser should be visible (must be called before GetBrowser)
 func SetBrowserVisible(visible bool) {
-	browserVisible.Store(visible)
+	browserVisible = visible
 }
 
 // GetBrowser returns the singleton browser instance
 func GetBrowser(tabCount int) (*Browser, error) {
 	browserOnce.Do(func() {
-		browserInstance, browserErr = startBrowser(tabCount, browserVisible.Load())
+		browserInstance, browserErr = startBrowser(tabCount, browserVisible)
 	})
 	return browserInstance, browserErr
 }
@@ -138,7 +137,7 @@ func (b *Browser) NavigateAndScreenshot(tabCtx context.Context, url string, time
 	var buf []byte
 	err := chromedp.Run(ctx,
 		chromedp.Navigate(url),
-		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.Sleep(500*time.Millisecond),
 		chromedp.CaptureScreenshot(&buf),
 	)
 	return buf, err

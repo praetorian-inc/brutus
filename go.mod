@@ -15,7 +15,7 @@ require (
 	github.com/masterzen/winrm v0.0.0-20250927112105-5f8e6c707321
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
-	github.com/redis/go-redis/v9 v9.17.2
+	github.com/redis/go-redis/v9 v9.17.3
 	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver v1.17.6
 	golang.org/x/crypto v0.47.0

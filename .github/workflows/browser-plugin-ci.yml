@@ -125,6 +125,7 @@ jobs:
   vision-api-tests:
     name: Vision API Tests
     runs-on: ubuntu-latest
+    environment: internal
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -161,6 +162,7 @@ jobs:
   full-pipeline-test:
     name: Full Pipeline Test
     runs-on: ubuntu-latest
+    environment: internal
     needs: [unit-tests, integration-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:

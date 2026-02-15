@@ -86,6 +86,7 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
+    environment: internal
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     services:
       # SSH server for password testing

@@ -75,7 +75,7 @@ jobs:
 
       - name: Run GoReleaser (tag push)
         if: github.event_name == 'push'
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
           distribution: goreleaser
           version: '~> v2'
@@ -85,7 +85,7 @@ jobs:
 
       - name: Run GoReleaser (workflow dispatch)
         if: github.event_name == 'workflow_dispatch'
-        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
         with:
           distribution: goreleaser
           version: '~> v2'

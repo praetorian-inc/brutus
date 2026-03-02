@@ -23,12 +23,12 @@
 
 Brutus is a multi-protocol authentication testing tool designed to address a critical gap in offensive security tooling: efficient credential validation across diverse network services. While HTTP-focused tools are abundant, penetration testers and red team operators frequently encounter databases, SSH, SMB, and other network services that require purpose-built authentication testing capabilities.
 
-Built in Go as a single binary with zero external dependencies, Brutus integrates seamlessly with [fingerprintx](https://github.com/praetorian-inc/fingerprintx) for automated service discovery, enabling operators to rapidly identify and test authentication vectors across entire network ranges.
+Built in Go as a single binary with zero external dependencies, Brutus integrates seamlessly with [Nerva](https://github.com/praetorian-inc/nerva) for automated service discovery, enabling operators to rapidly identify and test authentication vectors across entire network ranges.
 
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
 - **24 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
-- **Pipeline integration:** Native support for fingerprintx and naabu workflows
+- **Pipeline integration:** Native support for Nerva and naabu workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
 - **Go library:** Import directly into your security automation tools
 - **Production ready:** Rate limiting, connection pooling, and comprehensive error handling
@@ -43,7 +43,7 @@ Traditional tools like **THC Hydra** have served the security community well, bu
 
 - **True zero-dependency deployment:** Download a single binary and run. No `libssh-dev`, no `libmysqlclient-dev`, no compilation errors. Works identically on Linux, macOS, and Windows.
 
-- **Native pipeline integration:** Brutus speaks JSON and integrates directly with [fingerprintx](https://github.com/praetorian-inc/fingerprintx) and [naabu](https://github.com/projectdiscovery/naabu). Pipe discovered services straight into credential testing without format conversion or scripting.
+- **Native pipeline integration:** Brutus speaks JSON and integrates directly with [Nerva](https://github.com/praetorian-inc/nerva) and [naabu](https://github.com/projectdiscovery/naabu). Pipe discovered services straight into credential testing without format conversion or scripting.
 
 - **Embedded intelligence:** Known SSH bad keys (Vagrant, F5 BIG-IP, ExaGrid, etc.) are compiled into the binary and tested automatically for SSH targets.
 
@@ -51,7 +51,7 @@ Traditional tools like **THC Hydra** have served the security community well, bu
 
 ```bash
 # Full network credential audit in one pipeline
-naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | fingerprintx --json | brutus --json
+naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | nerva --json | brutus --json
 ```
 
 ---
@@ -75,11 +75,11 @@ Found a private key on a compromised system? Spray it across the network to find
 ```bash
 # Discover SSH services and spray a found private key
 naabu -host 10.0.0.0/24 -p 22 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus -u root,admin,ubuntu,deploy -k /path/to/found_key --json
 ```
 
-This pipeline discovers all SSH services, identifies them with fingerprintx, and tests the compromised key against common usernames—revealing lateral movement opportunities in seconds.
+This pipeline discovers all SSH services, identifies them with Nerva, and tests the compromised key against common usernames—revealing lateral movement opportunities in seconds.
 
 ### Web Admin Panel Testing
 
@@ -88,7 +88,7 @@ Discover HTTP services with Basic Auth and test default credentials:
 ```bash
 # Discover and test admin panels across a network
 naabu -host 10.0.0.0/24 -p 80,443,3000,8080,9090 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus --json
 ```
 
@@ -189,7 +189,7 @@ $ brutus --target 192.168.1.100:22 --protocol ssh -u root -p toor --json
 
 ## Pipeline Integration
 
-Brutus integrates seamlessly with **[fingerprintx](https://github.com/praetorian-inc/fingerprintx)** and **[naabu](https://github.com/projectdiscovery/naabu)** for complete network reconnaissance.
+Brutus integrates seamlessly with **[Nerva](https://github.com/praetorian-inc/nerva)** and **[naabu](https://github.com/projectdiscovery/naabu)** for complete network reconnaissance.
 
 ### Real-World Scenarios
 
@@ -198,7 +198,7 @@ Brutus integrates seamlessly with **[fingerprintx](https://github.com/praetorian
 ```bash
 # Discover all open ports, identify services, test default credentials
 naabu -host 10.10.10.0/24 -p 22,23,21,3306,5432,6379,27017,445 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus --json -o results.json
 
 # Review findings (all output is successful credentials)
@@ -210,11 +210,11 @@ cat results.json | jq '.'
 ```bash
 # Full pipeline against a single target
 naabu -host target.example.com -top-ports 1000 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus
 
 # Or scan a list of subdomains
-cat subdomains.txt | naabu -silent | fingerprintx --json | brutus
+cat subdomains.txt | naabu -silent | nerva --json | brutus
 ```
 
 #### Scenario 3: Database Hunting in an Internal Assessment
@@ -222,7 +222,7 @@ cat subdomains.txt | naabu -silent | fingerprintx --json | brutus
 ```bash
 # Find and test all databases in a range
 naabu -host 192.168.0.0/16 -p 3306,5432,1433,27017,6379,9042 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus -t 5 --json | \
   tee database-findings.json
 
@@ -236,7 +236,7 @@ jq -r '"\(.target) \(.username):\(.password)"' database-findings.json
 # Test embedded bad keys (Vagrant, F5 BIG-IP, ExaGrid, etc.) across a range
 # Badkeys are tested by default for SSH services
 naabu -host 10.0.0.0/8 -p 22 -rate 1000 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus --json -o ssh-key-findings.json
 
 # Find systems using SSH keys (key field is true)
@@ -248,24 +248,24 @@ cat ssh-key-findings.json | jq 'select(.key == true)'
 ```bash
 # Test only Redis instances found in the network
 naabu -host 172.16.0.0/12 -p 6379 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus
 
 # Test only MongoDB with custom credentials
 naabu -host 10.0.0.0/24 -p 27017 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus -u admin,root,mongodb -p admin,password,mongodb
 ```
 
 ### Pipeline Input Format
 
-Brutus accepts input from fingerprintx in JSON format:
+Brutus accepts input from Nerva in JSON format:
 
 ```bash
-# fingerprintx JSON output
-{"ip":"192.168.1.100","port":22,"service":"ssh","version":"OpenSSH_8.9p1"}
-{"ip":"192.168.1.101","port":3306,"service":"mysql","version":"8.0.32"}
-{"ip":"192.168.1.102","port":6379,"service":"redis","version":"7.0.5"}
+# nerva JSON output
+{"ip":"192.168.1.100","port":22,"protocol":"ssh","tls":false,"transport":"tcp","version":"OpenSSH_8.9p1"}
+{"ip":"192.168.1.101","port":3306,"protocol":"mysql","tls":false,"transport":"tcp","version":"8.0.32"}
+{"ip":"192.168.1.102","port":6379,"protocol":"redis","tls":false,"transport":"tcp","version":"7.0.5"}
 ```
 
 Brutus automatically:
@@ -295,7 +295,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 |---------|:-----:|:------:|:------:|:----------:|
 | Single Binary | ❌ | ❌ | ❌ | ✅ |
 | Zero Dependencies | ❌ | ❌ | ❌ | ✅ |
-| fingerprintx Pipeline | ❌ | ❌ | ❌ | ✅ |
+| Nerva Pipeline | ❌ | ❌ | ❌ | ✅ |
 | JSON Streaming | ⚠️ | ❌ | ❌ | ✅ |
 | Cross-Platform | ⚠️ | ⚠️ | ⚠️ | ✅ |
 | Consistent Errors | ⚠️ | ⚠️ | ⚠️ | ✅ |
@@ -366,7 +366,7 @@ Brutus carries the **[rapid7/ssh-badkeys](https://github.com/rapid7/ssh-badkeys)
 brutus --target 192.168.1.100:22 --protocol ssh
 
 # Combine with pipeline for network-wide key testing
-naabu -host 10.0.0.0/24 -p 22 -silent | fingerprintx --json | brutus
+naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus
 ```
 
 ### Embedded Key Collection
@@ -444,7 +444,7 @@ export PERPLEXITY_API_KEY="your-perplexity-key"  # Optional: additional web sear
 
 # AI-powered credential testing against HTTP services
 naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus --experimental-ai
 ```
 
@@ -568,7 +568,7 @@ brutus --target 10.0.0.50:3389 --nla-check
 
 # Pipeline: scan a /24 for non-NLA RDP targets
 naabu -host 10.0.0.0/24 -p 3389 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus --nla-check --json
 ```
 
@@ -584,7 +584,7 @@ brutus --target 10.0.0.50:3389 --sticky-keys-scan
 
 # Pipeline: scan only non-NLA targets
 naabu -host 10.0.0.0/24 -p 3389 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus --sticky-keys-scan --json
 ```
 
@@ -593,7 +593,7 @@ naabu -host 10.0.0.0/24 -p 3389 -silent | \
 ```bash
 # Phase 1: Find non-NLA targets
 naabu -host 10.0.0.0/16 -p 3389 -rate 1000 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus --nla-check --json -o nla-results.json
 
 # Filter non-NLA targets
@@ -616,7 +616,7 @@ jq 'select(.finding == "[CRITICAL]")' sticky-keys-findings.json
 {"protocol":"rdp","target":"10.0.0.50:3389","scan_type":"sticky_keys_scan","finding":"[CRITICAL]","banner":"[CRITICAL] Sticky keys backdoor CONFIRMED (confidence: 85%)","success":true}
 ```
 
-Both flags can be combined (`--nla-check --sticky-keys-scan`) to run both checks in a single pass. Both accept stdin from fingerprintx (filtering to RDP targets automatically) or a single `--target`.
+Both flags can be combined (`--nla-check --sticky-keys-scan`) to run both checks in a single pass. Both accept stdin from nerva (filtering to RDP targets automatically) or a single `--target`.
 
 **Technical implementation:** RDP protocol support uses [IronRDP](https://github.com/Devolutions/IronRDP) (Rust) compiled to WebAssembly and executed via [wazero](https://github.com/tetragonalworks/wazero), maintaining Brutus's zero-CGO, single-binary design.
 

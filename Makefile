@@ -92,13 +92,13 @@ DEMO_COMPOSE := $(DEMO_DIR)/docker-compose.yml
 
 .PHONY: demo-up demo-down demo demo-ssh-key demo-wait demo-deps demo-simple
 
-# Install demo dependencies (naabu + fingerprintx from ProjectDiscovery)
+# Install demo dependencies (naabu + nerva)
 demo-deps:
 	@echo "Installing demo dependencies..."
 	@echo "Installing naabu (port scanner)..."
 	go install github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
-	@echo "Installing fingerprintx (service fingerprinter)..."
-	go install github.com/projectdiscovery/fingerprintx/cmd/fingerprintx@latest
+	@echo "Installing nerva (service fingerprinter)..."
+	go install github.com/praetorian-inc/nerva/cmd/nerva@latest
 	@echo ""
 	@echo "Done! Make sure $(shell go env GOPATH)/bin is in your PATH."
 
@@ -146,26 +146,26 @@ demo-down:
 	docker compose -f $(DEMO_COMPOSE) down -v
 	@echo "Demo environment stopped."
 
-# Run full pipeline demo: naabu -> fingerprintx -> brutus
+# Run full pipeline demo: naabu -> nerva -> brutus
 demo: build demo-up
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════════════════"
-	@echo "  Brutus Demo: naabu -> fingerprintx -> brutus pipeline"
+	@echo "  Brutus Demo: naabu -> nerva -> brutus pipeline"
 	@echo "═══════════════════════════════════════════════════════════════════"
 	@echo ""
 	@command -v naabu >/dev/null 2>&1 || { echo "ERROR: naabu not found. Run: make demo-deps"; exit 1; }
-	@command -v fingerprintx >/dev/null 2>&1 || { echo "ERROR: fingerprintx not found. Run: make demo-deps"; exit 1; }
-	@echo "Running: naabu | fingerprintx --json | brutus (uses built-in default credentials)"
+	@command -v nerva >/dev/null 2>&1 || { echo "ERROR: nerva not found. Run: make demo-deps"; exit 1; }
+	@echo "Running: naabu | nerva --json | brutus (uses built-in default credentials)"
 	@echo ""
 	naabu -host 127.0.0.1 -p 21,2222,3306,6379 -silent | \
-		fingerprintx --json | \
+		nerva --json | \
 		./brutus
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════════════════"
 	@echo "  Demo complete! Run 'make demo-down' to stop the environment."
 	@echo "═══════════════════════════════════════════════════════════════════"
 
-# Simple demo without naabu/fingerprintx (direct brutus testing)
+# Simple demo without naabu/nerva (direct brutus testing)
 demo-simple: build demo-up
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════════════════"
@@ -220,11 +220,11 @@ help:
 	@echo "  version          Show version info"
 	@echo ""
 	@echo "Demo targets:"
-	@echo "  demo-deps    Install naabu + fingerprintx (required for full demo)"
+	@echo "  demo-deps    Install naabu + nerva (required for full demo)"
 	@echo "  demo-up      Start demo environment (vulnerable containers)"
 	@echo "  demo-down    Stop demo environment"
-	@echo "  demo         Run full pipeline: naabu -> fingerprintx -> brutus"
-	@echo "  demo-simple  Run demo without naabu/fingerprintx (direct testing)"
+	@echo "  demo         Run full pipeline: naabu -> nerva -> brutus"
+	@echo "  demo-simple  Run demo without naabu/nerva (direct testing)"
 	@echo "  demo-ssh-key Quick SSH private key demo only"
 	@echo ""
 	@echo "Cleanup targets:"

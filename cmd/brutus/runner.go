@@ -30,7 +30,7 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// runFromStdin reads fingerprintx JSON from stdin and tests each target
+// runFromStdin reads nerva JSON from stdin and tests each target
 func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
@@ -42,19 +42,19 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 			continue
 		}
 
-		// Parse fingerprintx JSON
-		var fpx FingerprintxResult
-		if err := json.Unmarshal([]byte(line), &fpx); err != nil {
+		// Parse nerva JSON
+		var nrv NervaResult
+		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
 			warnMsg(base.useColor, "failed to parse JSON: %v", err)
 			continue
 		}
 
-		// Determine protocol: use override if specified, otherwise map from fingerprintx
+		// Determine protocol: use override if specified, otherwise map from nerva
 		var protocol string
 		if base.protocolOverride != "" {
 			protocol = base.protocolOverride
 		} else {
-			protocol = mapServiceToProtocol(fpx.Protocol)
+			protocol = mapServiceToProtocol(nrv.Protocol)
 			if protocol == "" {
 				// Unsupported service, skip
 				continue
@@ -62,10 +62,13 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		}
 
 		// Determine TLS mode for this specific target
-		targetTLSMode := detectTLSFromMetadata(base.tlsMode, fpx.Metadata, base.verbose)
+		targetTLSMode := detectTLS(base.tlsMode, nrv.TLS, base.verbose)
 
 		// Build target string
-		target := fmt.Sprintf("%s:%d", fpx.IP, fpx.Port)
+		target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
+		if nrv.Host != "" {
+			target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
+		}
 
 		// AI mode: For HTTP services, detect auth type and route appropriately
 		var aiCreds []brutus.Credential
@@ -235,16 +238,14 @@ func configureAICredentials(config *brutus.Config, aiCreds []brutus.Credential, 
 	config.LLMConfig = nil
 }
 
-// detectTLSFromMetadata checks if TLS is detected in fingerprintx metadata and upgrades the TLS mode.
-func detectTLSFromMetadata(baseTLSMode string, metadata map[string]interface{}, verbose bool) string {
+// detectTLS checks if TLS was detected by nerva and upgrades the TLS mode.
+func detectTLS(baseTLSMode string, tlsDetected bool, verbose bool) string {
 	if baseTLSMode != "disable" {
 		return baseTLSMode
 	}
-	if tlsMeta, ok := metadata["tls"]; ok {
-		if tlsEnabled, ok := tlsMeta.(bool); ok && tlsEnabled {
-			logVerbose(verbose, "TLS detected in fingerprintx metadata, auto-upgrading to skip-verify mode")
-			return "skip-verify"
-		}
+	if tlsDetected {
+		logVerbose(verbose, "TLS detected by nerva, auto-upgrading to skip-verify mode")
+		return "skip-verify"
 	}
 	return baseTLSMode
 }
@@ -372,7 +373,7 @@ func runStickyKeysDetectionOnly(target string, base *baseConfigOptions) ([]brutu
 	return []brutus.Result{result}, result.Success
 }
 
-// runScanFromStdin reads fingerprintx JSON from stdin and runs scan checks on RDP targets.
+// runScanFromStdin reads nerva JSON from stdin and runs scan checks on RDP targets.
 func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
@@ -384,19 +385,22 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 			continue
 		}
 
-		var fpx FingerprintxResult
-		if err := json.Unmarshal([]byte(line), &fpx); err != nil {
+		var nrv NervaResult
+		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
 			warnMsg(base.useColor, "failed to parse JSON: %v", err)
 			continue
 		}
 
 		// Filter to RDP targets only
-		protocol := mapServiceToProtocol(fpx.Protocol)
+		protocol := mapServiceToProtocol(nrv.Protocol)
 		if protocol != "rdp" && base.protocolOverride != "rdp" {
 			continue
 		}
 
-		target := fmt.Sprintf("%s:%d", fpx.IP, fpx.Port)
+		target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
+		if nrv.Host != "" {
+			target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
+		}
 		results, success := runScanSingleTarget(target, base)
 		allResults = append(allResults, results...)
 		if success {

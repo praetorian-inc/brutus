@@ -119,7 +119,7 @@ func outputValidOnly(results []brutus.Result, useColor bool) {
 }
 
 // outputJSONL streams successful results as JSONL (one JSON object per line)
-// This matches the output format of naabu and fingerprintx for easy piping
+// This matches the output format of naabu and nerva for easy piping
 func outputJSONL(w io.Writer, results []brutus.Result) {
 	type JSONResult struct {
 		Protocol     string `json:"protocol"`

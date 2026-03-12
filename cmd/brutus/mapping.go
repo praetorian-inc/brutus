@@ -16,16 +16,19 @@ package main
 
 import "strings"
 
-// FingerprintxResult represents the JSON output from fingerprintx
-type FingerprintxResult struct {
+// NervaResult represents the JSON output from nerva
+type NervaResult struct {
+	Host      string                 `json:"host,omitempty"`
 	IP        string                 `json:"ip"`
 	Port      int                    `json:"port"`
 	Protocol  string                 `json:"protocol"`
+	TLS       bool                   `json:"tls"`
 	Transport string                 `json:"transport"`
+	Version   string                 `json:"version,omitempty"`
 	Metadata  map[string]interface{} `json:"metadata"`
 }
 
-// mapServiceToProtocol maps fingerprintx service names to brutus protocol names
+// mapServiceToProtocol maps nerva service names to brutus protocol names
 func mapServiceToProtocol(service string) string {
 	// Normalize to lowercase
 	service = strings.ToLower(service)

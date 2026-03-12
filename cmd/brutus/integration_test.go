@@ -31,16 +31,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestFingerprintxIntegration tests the full pipeline: fingerprintx -> brutus
-// This test requires fingerprintx to be installed.
-func TestFingerprintxIntegration(t *testing.T) {
+// TestNervaIntegration tests the full pipeline: nerva -> brutus
+// This test requires nerva to be installed.
+func TestNervaIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// Check if fingerprintx is installed
-	if _, err := exec.LookPath("fingerprintx"); err != nil {
-		t.Skip("Skipping: fingerprintx not installed (run: go install github.com/praetorian-inc/fingerprintx/cmd/fingerprintx@latest)")
+	// Check if nerva is installed
+	if _, err := exec.LookPath("nerva"); err != nil {
+		t.Skip("Skipping: nerva not installed (run: go install github.com/praetorian-inc/nerva/cmd/nerva@latest)")
 	}
 
 	// Start a test HTTP server with Basic Auth
@@ -61,22 +61,22 @@ func TestFingerprintxIntegration(t *testing.T) {
 	// Extract host:port from server URL
 	serverAddr := strings.TrimPrefix(server.URL, "http://")
 
-	// Run fingerprintx against the test server
-	fpxCmd := exec.Command("fingerprintx", "-t", serverAddr, "--json")
-	fpxOutput, err := fpxCmd.Output()
+	// Run nerva against the test server
+	nrvCmd := exec.Command("nerva", "-t", serverAddr, "--json")
+	nrvOutput, err := nrvCmd.Output()
 	if err != nil {
-		t.Fatalf("fingerprintx failed: %v", err)
+		t.Fatalf("nerva failed: %v", err)
 	}
 
-	t.Logf("fingerprintx output: %s", string(fpxOutput))
+	t.Logf("nerva output: %s", string(nrvOutput))
 
-	// Verify fingerprintx detected the HTTP service
-	var fpxResult FingerprintxResult
-	if err := json.Unmarshal(bytes.TrimSpace(fpxOutput), &fpxResult); err != nil {
-		t.Fatalf("Failed to parse fingerprintx JSON: %v (output: %s)", err, string(fpxOutput))
+	// Verify nerva detected the HTTP service
+	var nrvResult NervaResult
+	if err := json.Unmarshal(bytes.TrimSpace(nrvOutput), &nrvResult); err != nil {
+		t.Fatalf("Failed to parse nerva JSON: %v (output: %s)", err, string(nrvOutput))
 	}
 
-	assert.Equal(t, "http", fpxResult.Protocol, "fingerprintx should detect HTTP protocol")
+	assert.Equal(t, "http", nrvResult.Protocol, "nerva should detect HTTP protocol")
 
 	// Build brutus binary
 	buildCmd := exec.Command("go", "build", "-o", "brutus_test", ".")
@@ -87,9 +87,9 @@ func TestFingerprintxIntegration(t *testing.T) {
 	}
 	defer os.Remove("brutus_test")
 
-	// Run brutus with fingerprintx output via stdin
-	brutusCmd := exec.Command("./brutus_test", "--fingerprintx", "-p", "admin", "--json")
-	brutusCmd.Stdin = bytes.NewReader(fpxOutput)
+	// Run brutus with nerva output via stdin
+	brutusCmd := exec.Command("./brutus_test", "--nerva", "-p", "admin", "--json")
+	brutusCmd.Stdin = bytes.NewReader(nrvOutput)
 	brutusOutput, err := brutusCmd.CombinedOutput()
 
 	t.Logf("brutus output: %s", string(brutusOutput))
@@ -110,8 +110,8 @@ func TestFingerprintxIntegration(t *testing.T) {
 	assert.Contains(t, result["target"], serverAddr, "target should match")
 }
 
-// TestFingerprintxJSONParsing tests parsing of fingerprintx JSON format
-func TestFingerprintxJSONParsing(t *testing.T) {
+// TestNervaJSONParsing tests parsing of nerva JSON format
+func TestNervaJSONParsing(t *testing.T) {
 	tests := []struct {
 		name         string
 		json         string
@@ -121,35 +121,35 @@ func TestFingerprintxJSONParsing(t *testing.T) {
 	}{
 		{
 			name:         "HTTP protocol",
-			json:         `{"ip":"192.168.1.1","port":80,"protocol":"http","transport":"tcp"}`,
+			json:         `{"ip":"192.168.1.1","port":80,"protocol":"http","tls":false,"transport":"tcp"}`,
 			wantProtocol: "http",
 			wantIP:       "192.168.1.1",
 			wantPort:     80,
 		},
 		{
 			name:         "SSH protocol",
-			json:         `{"ip":"10.0.0.1","port":22,"protocol":"ssh","transport":"tcp","metadata":{"version":"OpenSSH_8.9"}}`,
+			json:         `{"ip":"10.0.0.1","port":22,"protocol":"ssh","tls":false,"transport":"tcp","version":"OpenSSH_8.9","metadata":{"banner":"SSH-2.0-OpenSSH_8.9"}}`,
 			wantProtocol: "ssh",
 			wantIP:       "10.0.0.1",
 			wantPort:     22,
 		},
 		{
 			name:         "MySQL protocol",
-			json:         `{"ip":"db.example.com","port":3306,"protocol":"mysql","transport":"tcp"}`,
+			json:         `{"ip":"db.example.com","port":3306,"protocol":"mysql","tls":false,"transport":"tcp"}`,
 			wantProtocol: "mysql",
 			wantIP:       "db.example.com",
 			wantPort:     3306,
 		},
 		{
 			name:         "HTTPS protocol",
-			json:         `{"ip":"secure.example.com","port":443,"protocol":"https","transport":"tcp"}`,
+			json:         `{"ip":"secure.example.com","port":443,"protocol":"https","tls":true,"transport":"tcp"}`,
 			wantProtocol: "https",
 			wantIP:       "secure.example.com",
 			wantPort:     443,
 		},
 		{
 			name:         "SNMP protocol",
-			json:         `{"ip":"192.168.1.1","port":161,"protocol":"snmp","transport":"udp"}`,
+			json:         `{"ip":"192.168.1.1","port":161,"protocol":"snmp","tls":false,"transport":"udp"}`,
 			wantProtocol: "snmp",
 			wantIP:       "192.168.1.1",
 			wantPort:     161,
@@ -158,22 +158,22 @@ func TestFingerprintxJSONParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var fpx FingerprintxResult
-			err := json.Unmarshal([]byte(tt.json), &fpx)
+			var nrv NervaResult
+			err := json.Unmarshal([]byte(tt.json), &nrv)
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.wantProtocol, fpx.Protocol)
-			assert.Equal(t, tt.wantIP, fpx.IP)
-			assert.Equal(t, tt.wantPort, fpx.Port)
+			assert.Equal(t, tt.wantProtocol, nrv.Protocol)
+			assert.Equal(t, tt.wantIP, nrv.IP)
+			assert.Equal(t, tt.wantPort, nrv.Port)
 
 			// Verify protocol mapping works
-			protocol := mapServiceToProtocol(fpx.Protocol)
+			protocol := mapServiceToProtocol(nrv.Protocol)
 			assert.NotEmpty(t, protocol, "protocol should map to a brutus protocol")
 		})
 	}
 }
 
-// TestServiceToProtocolMapping tests the fingerprintx service to brutus protocol mapping
+// TestServiceToProtocolMapping tests the nerva service to brutus protocol mapping
 func TestServiceToProtocolMapping(t *testing.T) {
 	tests := []struct {
 		service  string
@@ -220,7 +220,7 @@ func TestServiceToProtocolMapping(t *testing.T) {
 	}
 }
 
-// TestStdinMode tests the --fingerprintx flag with simulated fingerprintx output
+// TestStdinMode tests the --nerva flag with simulated nerva output
 func TestStdinMode(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -244,8 +244,8 @@ func TestStdinMode(t *testing.T) {
 	host := parts[0]
 	port := parts[1]
 
-	// Create fingerprintx-style JSON input
-	fpxJSON := fmt.Sprintf(`{"ip":"%s","port":%s,"protocol":"http","transport":"tcp"}`, host, port)
+	// Create nerva-style JSON input
+	nrvJSON := fmt.Sprintf(`{"ip":"%s","port":%s,"protocol":"http","tls":false,"transport":"tcp"}`, host, port)
 
 	// Build brutus
 	buildCmd := exec.Command("go", "build", "-o", "brutus_test", ".")
@@ -256,8 +256,8 @@ func TestStdinMode(t *testing.T) {
 	defer os.Remove("brutus_test")
 
 	// Run brutus with stdin and valid credentials
-	brutusCmd := exec.Command("./brutus_test", "--fingerprintx", "-u", "testuser", "-p", "testpass", "--json")
-	brutusCmd.Stdin = strings.NewReader(fpxJSON)
+	brutusCmd := exec.Command("./brutus_test", "--nerva", "-u", "testuser", "-p", "testpass", "--json")
+	brutusCmd.Stdin = strings.NewReader(nrvJSON)
 	output, err := brutusCmd.CombinedOutput()
 
 	t.Logf("Output: %s", string(output))

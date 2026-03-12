@@ -1,7 +1,7 @@
 # Brutus Demo Environment
 
 This directory contains a demo environment for showcasing the full Brutus pipeline:
-**naabu** (port scan) -> **fingerprintx** (service fingerprint) -> **brutus** (credential test)
+**naabu** (port scan) -> **nerva** (service fingerprint) -> **brutus** (credential test)
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ brutus -target 127.0.0.1:2222 -u vagrant -k testdata/demo/vulnerable_key
 ```bash
 # Port scan -> Service fingerprint -> Credential test (badkeys enabled by default)
 naabu -host 127.0.0.1 -p 21,2222,3306,6379 -silent | \
-  fingerprintx --json | \
+  nerva --json | \
   brutus -u root,vagrant,ftpuser -p "rootpass,vagrant,ftppass,redispass"
 ```
 

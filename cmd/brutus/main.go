@@ -80,7 +80,7 @@ func main() {
 	// Command-line flags
 	target := flag.String("target", "", "Target host:port")
 	showVersion := flag.Bool("version", false, "Show version information")
-	protocol := flag.String("protocol", "", "Protocol to use (auto-detected from fingerprintx)")
+	protocol := flag.String("protocol", "", "Protocol to use (auto-detected from nerva)")
 	usernames := flag.String("u", "root,admin", "Comma-separated usernames")
 	usernameFile := flag.String("U", "", "Username file (one per line)")
 	passwords := flag.String("p", "", "Comma-separated passwords")
@@ -94,7 +94,7 @@ func main() {
 	snmpTier := flag.String("snmp-tier", "default", "SNMP community string tier: default (20), extended (50), full (120)")
 	rateLimit := flag.Float64("rate-limit", 0, "Max requests per second (0 = unlimited)")
 	jitter := flag.Duration("jitter", 0, "Random delay variance for rate limiting (e.g., 100ms)")
-	stdinMode := flag.Bool("fingerprintx", false, "Read targets from fingerprintx JSON on stdin")
+	stdinMode := flag.Bool("nerva", false, "Read targets from nerva JSON on stdin")
 	maxAttempts := flag.Int("max-attempts", 0, "Max password attempts per user (0 = unlimited)")
 	sprayMode := flag.Bool("spray", false, "Password spraying: try each password across all users")
 	retries := flag.Int("retries", 2, "Max retries per credential on connection error (0 = no retry)")
@@ -146,10 +146,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Auto-detect fingerprintx mode: if stdin has data and no target specified, use fingerprintx mode
+	// Auto-detect nerva mode: if stdin has data and no target specified, use nerva mode
 	useStdin := detectStdinMode(*stdinMode, *target)
 
-	// Show banner (unless in JSON mode, fingerprintx mode, or quiet mode)
+	// Show banner (unless in JSON mode, nerva mode, or quiet mode)
 	if shouldShowBanner(*showBanner, *jsonOutput, useStdin, *quiet, useColor) {
 		printBanner(useColor)
 	}
@@ -250,7 +250,7 @@ func main() {
 			scanResults, hasSuccess = runScanFromStdin(&baseConfig)
 		} else {
 			if *target == "" {
-				errMsg(useColor, "--target is required for scan modes (or pipe fingerprintx JSON to stdin)")
+				errMsg(useColor, "--target is required for scan modes (or pipe nerva JSON to stdin)")
 				closeOutput()
 				os.Exit(1)
 			}
@@ -280,7 +280,7 @@ func main() {
 		allResults, hasSuccess = runSingleTargetMode(*target, *protocol, &baseConfig, *jsonOutput, jsonWriter)
 	}
 
-	// Final JSON output for fingerprintx mode
+	// Final JSON output for nerva mode
 	if *jsonOutput && useStdin {
 		outputJSONL(jsonWriter, allResults)
 	}
@@ -333,7 +333,7 @@ func validateKeyFileFlags(keyFile string, usernameFlagSet bool, usernameFile str
 // validateTargetFlags checks that required flags are provided for single-target mode.
 func validateTargetFlags(target, protocol string) error {
 	if target == "" {
-		return fmt.Errorf("--target is required (or pipe fingerprintx JSON to stdin)")
+		return fmt.Errorf("--target is required (or pipe nerva JSON to stdin)")
 	}
 	if protocol == "" {
 		return fmt.Errorf("--protocol is required when using --target\nExample: brutus --target %s --protocol ssh", target)

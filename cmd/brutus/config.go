@@ -38,7 +38,7 @@ type baseConfigOptions struct {
 	quiet            bool
 	verbose          bool
 	useBadkeys       bool
-	protocolOverride string        // Override fingerprintx-detected protocol
+	protocolOverride string        // Override nerva-detected protocol
 	aiMode           bool          // Enable AI-powered credential detection for HTTP
 	aiVerify         bool          // Use Claude Vision to verify login success
 	tlsMode          string        // TLS verification mode: "disable", "verify", "skip-verify"

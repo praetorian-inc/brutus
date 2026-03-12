@@ -25,12 +25,12 @@ func customUsage() {
 
 Usage:
   brutus --target <host:port> --protocol <proto> [options]                # Single target mode
-  naabu ... | fingerprintx --json | brutus [options]                      # Pipeline mode (stdin auto-detected)
-  naabu ... | fingerprintx --json | brutus --experimental-ai [options]                 # AI-powered credential detection
+  naabu ... | nerva --json | brutus [options]                      # Pipeline mode (stdin auto-detected)
+  naabu ... | nerva --json | brutus --experimental-ai [options]                 # AI-powered credential detection
 
 Target Options:
   --target <host:port>   Target host and port (requires --protocol)
-  --fingerprintx         Read targets from fingerprintx JSON on stdin
+  --nerva         Read targets from nerva JSON on stdin
   --protocol <proto>     Protocol to use (auto-detected in pipeline mode)
 
 Credential Options:
@@ -73,7 +73,7 @@ SNMP Options:
 TLS Options:
   --verify-tls           Require strict TLS certificate verification (default: disabled)
                          Note: Default is no TLS/SSL validation since we're testing
-                         default credentials. fingerprintx TLS detection auto-upgrades
+                         default credentials. nerva TLS detection auto-upgrades
                          to skip-verify mode when TLS is detected.
   --snmp-tier <tier>     SNMP community string tier: default (20), extended (50), full (120)
 
@@ -99,18 +99,18 @@ Other Options:
   --version              Show version information
   -h, --help             Show this help message
 
-Fingerprintx Integration:
-  Brutus integrates seamlessly with fingerprintx for automated service discovery
-  and credential testing. Use naabu for port discovery, fingerprintx for service
+Nerva Integration:
+  Brutus integrates seamlessly with nerva for automated service discovery
+  and credential testing. Use naabu for port discovery, nerva for service
   fingerprinting (with --json output), then pipe to Brutus:
 
-    naabu -host <targets> -silent | fingerprintx --json | brutus --fingerprintx [options]
+    naabu -host <targets> -silent | nerva --json | brutus --nerva [options]
 
-  For known open ports, pipe directly to fingerprintx:
+  For known open ports, pipe directly to nerva:
 
-    echo "host:port" | fingerprintx --json | brutus --fingerprintx [options]
+    echo "host:port" | nerva --json | brutus --nerva [options]
 
-  Brutus automatically detects protocols from fingerprintx JSON output,
+  Brutus automatically detects protocols from nerva JSON output,
   eliminating the need to specify -protocol manually.
 
 Supported Protocols:
@@ -125,13 +125,13 @@ Supported Protocols:
 
 Examples:
   # Scan network range with naabu, fingerprint services, and test credentials
-  naabu -host 192.168.1.0/24 -silent | fingerprintx --json | brutus --fingerprintx -P passwords.txt
+  naabu -host 192.168.1.0/24 -silent | nerva --json | brutus --nerva -P passwords.txt
 
   # Targeted port scan with service fingerprinting and credential testing
-  naabu -host 10.0.0.1 -p 22,3306 -silent | fingerprintx --json | brutus --fingerprintx -u root -p "toor,admin"
+  naabu -host 10.0.0.1 -p 22,3306 -silent | nerva --json | brutus --nerva -u root -p "toor,admin"
 
   # Fingerprint known open ports and test with private keys
-  echo "192.168.1.10:22" | fingerprintx --json | brutus --fingerprintx -u root,ubuntu -k ~/.ssh/id_rsa
+  echo "192.168.1.10:22" | nerva --json | brutus --nerva -u root,ubuntu -k ~/.ssh/id_rsa
 
   # Single target mode
   brutus --target 192.168.1.10:22 --protocol ssh -p "password,Password1"
@@ -152,13 +152,13 @@ Examples:
   brutus --target 192.168.1.10:22 --protocol ssh --no-badkeys -p "password"
 
   # Pipeline mode with output to file
-  naabu -host 10.0.0.0/8 -p 22,3306 -rate 1000 -silent | fingerprintx --json | brutus -t 20 -o findings.json
+  naabu -host 10.0.0.0/8 -p 22,3306 -rate 1000 -silent | nerva --json | brutus -t 20 -o findings.json
 
   # AI-powered credential detection for HTTP services (auto-detects Basic Auth vs form)
   brutus --target 192.168.1.1:80 --protocol http --experimental-ai -u admin -p "admin,password"
 
   # AI mode in pipeline - auto-login to any HTTP service with default device credentials
-  naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | fingerprintx --json | brutus --experimental-ai
+  naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | nerva --json | brutus --experimental-ai
 
   # RDP credential testing with sticky keys backdoor detection (heuristic only)
   brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys -u administrator -p "Password1"

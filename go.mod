@@ -1,6 +1,6 @@
 module github.com/praetorian-inc/brutus
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/chromedp/chromedp v0.14.2
@@ -20,7 +20,7 @@ require (
 	github.com/tetratelabs/wazero v1.11.0
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.48.0
-	golang.org/x/sync v0.19.0
+	golang.org/x/sync v0.20.0
 	golang.org/x/time v0.14.0
 )
 

@@ -135,6 +135,7 @@ type Config struct {
 	Credentials   []Credential  // pre-paired credentials (no Cartesian product)
 	UseDefaults   bool          // load protocol-specific default credentials from embedded wordlists
 	NoBadkeys     bool          // skip embedded bad SSH keys when UseDefaults is true
+	BadkeysOnly   bool          // only test embedded bad SSH keys (skip password wordlists)
 	Timeout       time.Duration // per-credential timeout (default: 10s)
 	Threads       int           // concurrent workers (default: 10)
 	StopOnSuccess bool          // stop after first valid cred (default: true)
@@ -255,6 +256,16 @@ func (c *Config) applyDefaults() {
 	hasCreds := len(c.Credentials) > 0
 	hasPasswords := len(c.Passwords) > 0
 	hasKeys := len(c.Keys) > 0
+
+	// BadkeysOnly mode: only load bad SSH keys, skip wordlists entirely
+	if c.BadkeysOnly {
+		if c.Protocol == "ssh" && !hasCreds && !hasKeys {
+			for _, k := range badkeys.GetSSHCredentials() {
+				c.Credentials = append(c.Credentials, Credential{Username: k.Username, Key: k.Key})
+			}
+		}
+		return
+	}
 
 	// Load SSH badkeys as paired credentials when no keys/creds were provided
 	if c.Protocol == "ssh" && !c.NoBadkeys && !hasCreds && !hasKeys {

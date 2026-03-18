@@ -61,6 +61,11 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 			}
 		}
 
+		// --badkeys-only: skip non-SSH targets entirely
+		if base.badkeysOnly && protocol != "ssh" {
+			continue
+		}
+
 		// Determine TLS mode for this specific target
 		targetTLSMode := detectTLS(base.tlsMode, nrv.TLS, base.verbose)
 
@@ -121,6 +126,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 		Keys:          base.keys,
 		UseDefaults:   true,
 		NoBadkeys:     !base.useBadkeys,
+		BadkeysOnly:   base.badkeysOnly,
 		Threads:       base.threads,
 		Timeout:       base.timeout,
 		StopOnSuccess: base.stopOnSuccess,

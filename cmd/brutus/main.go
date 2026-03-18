@@ -102,8 +102,8 @@ func main() {
 	noColor := flag.Bool("no-color", false, "Disable colored output")
 	quiet := flag.Bool("q", false, "Quiet mode - only show successful credentials")
 	verbose := flag.Bool("v", false, "Verbose mode - show detailed progress to stderr")
-	badkeys := flag.Bool("badkeys", true, "Test embedded bad SSH keys (rapid7/ssh-badkeys, vagrant)")
 	noBadkeys := flag.Bool("no-badkeys", false, "Disable embedded bad key testing")
+	badkeysOnly := flag.Bool("badkeys-only", false, "Only test embedded bad SSH keys (skip password wordlists and non-SSH protocols)")
 	verifyTLS := flag.Bool("verify-tls", false, "Require strict TLS certificate verification (default: disabled)")
 
 	// Custom usage
@@ -164,8 +164,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Determine if badkeys should be used (--no-badkeys overrides --badkeys)
-	useBadkeys := resolveBadkeys(*badkeys, *noBadkeys)
+	// Determine if badkeys should be used (enabled by default, --no-badkeys disables)
+	useBadkeys := !*noBadkeys
 
 	// Validate: -k requires explicit -u or -U (not default usernames)
 	if err := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); err != nil {
@@ -220,6 +220,7 @@ func main() {
 		quiet:            *quiet,
 		verbose:          *verbose,
 		useBadkeys:       useBadkeys,
+		badkeysOnly:      *badkeysOnly,
 		protocolOverride: *protocol,
 		aiMode:           *aiMode,
 		aiVerify:         *aiVerify,
@@ -315,11 +316,6 @@ func runSingleTargetMode(target, protocol string, baseConfig *baseConfigOptions,
 	}
 
 	return results, success
-}
-
-// resolveBadkeys determines if bad SSH keys should be tested (--no-badkeys overrides --badkeys).
-func resolveBadkeys(badkeys, noBadkeys bool) bool {
-	return badkeys && !noBadkeys
 }
 
 // validateKeyFileFlags checks that -k is used with explicit -u or -U.

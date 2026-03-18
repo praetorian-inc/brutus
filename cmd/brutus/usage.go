@@ -41,8 +41,8 @@ Credential Options:
   -k <keyfile>           SSH private key file
 
 SSH Options:
-  --badkeys              Test embedded bad SSH keys (rapid7/ssh-badkeys, vagrant) [default: true]
-  --no-badkeys           Disable embedded bad key testing
+  --badkeys-only         Only test bad SSH keys (skip password wordlists and non-SSH protocols)
+  --no-badkeys           Disable embedded bad key testing (badkeys are tested by default for SSH)
 
 RDP Options:
   --sticky-keys          Enable sticky keys backdoor detection for RDP targets
@@ -145,8 +145,11 @@ Examples:
   # Quiet mode (only show valid credentials)
   brutus --target 192.168.1.10:22 --protocol ssh -p "pass123" -q
 
-  # SSH with embedded bad keys (enabled by default for SSH)
+  # SSH with embedded bad keys (tested by default for SSH)
   brutus --target 192.168.1.10:22 --protocol ssh
+
+  # Test ONLY bad keys (skip password wordlists and non-SSH protocols)
+  naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus --badkeys-only
 
   # Disable bad key testing
   brutus --target 192.168.1.10:22 --protocol ssh --no-badkeys -p "password"

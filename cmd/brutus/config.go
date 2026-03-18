@@ -38,6 +38,7 @@ type baseConfigOptions struct {
 	quiet            bool
 	verbose          bool
 	useBadkeys       bool
+	badkeysOnly      bool
 	protocolOverride string        // Override nerva-detected protocol
 	aiMode           bool          // Enable AI-powered credential detection for HTTP
 	aiVerify         bool          // Use Claude Vision to verify login success

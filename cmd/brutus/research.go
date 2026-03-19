@@ -16,11 +16,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"fmt"
-	"io"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/internal/analyzers/vision"
@@ -32,7 +27,7 @@ import (
 // Returns the resolved protocol ("browser" for form-based, original for basic auth) and any AI-researched credentials.
 func routeHTTPWithAI(target, protocol string, base *baseConfigOptions) (string, []brutus.Credential) {
 	useHTTPS := protocol == "https"
-	authType, banner := detectHTTPAuthTypeWithBanner(target, useHTTPS, base.timeout, base.tlsMode, base.verbose)
+	authType, banner := brutus.DetectHTTPAuthType(target, useHTTPS, base.timeout, base.tlsMode)
 	if authType == "basic" {
 		logVerbose(base.verbose, "AI mode: %s uses Basic Auth, using LLM analysis", target)
 		if base.llmConfig != nil && base.llmConfig.Enabled {
@@ -48,76 +43,6 @@ func routeHTTPWithAI(target, protocol string, base *baseConfigOptions) (string, 
 	return "browser", nil
 }
 
-// detectHTTPAuthTypeWithBanner probes an HTTP target to determine the authentication type.
-// Returns auth type ("basic", "form", or "" if not HTTP) and the banner text for LLM analysis.
-func detectHTTPAuthTypeWithBanner(target string, useHTTPS bool, timeout time.Duration, tlsMode string, verbose bool) (authType, banner string) {
-	scheme := "http"
-	if useHTTPS {
-		scheme = "https"
-	}
-	url := fmt.Sprintf("%s://%s/", scheme, target)
-
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: tlsMode != "verify",
-			},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	defer client.CloseIdleConnections()
-
-	req, err := http.NewRequest("GET", url, http.NoBody)
-	if err != nil {
-		logVerbose(verbose, "HTTP probe error creating request: %v", err)
-		return "", "" // Not HTTP or error
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		logVerbose(verbose, "HTTP probe error: %v", err)
-		return "", "" // Not HTTP or error
-	}
-	defer resp.Body.Close()
-
-	// Build banner from response headers and body
-	var bannerBuilder strings.Builder
-	bannerBuilder.WriteString(fmt.Sprintf("HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status))
-
-	// Include relevant headers
-	for _, header := range []string{"Server", "WWW-Authenticate", "X-Powered-By", "X-Server", "X-AspNet-Version"} {
-		if val := resp.Header.Get(header); val != "" {
-			bannerBuilder.WriteString(fmt.Sprintf("%s: %s\n", header, val))
-		}
-	}
-
-	// Read body (limited to avoid memory issues)
-	body := make([]byte, 4096)
-	n, _ := io.ReadFull(resp.Body, body)
-	if n > 0 {
-		bannerBuilder.WriteString("\n")
-		bannerBuilder.Write(body[:n])
-	}
-
-	banner = bannerBuilder.String()
-
-	// Check for WWW-Authenticate header (indicates Basic Auth)
-	if authHeader := resp.Header.Get("WWW-Authenticate"); authHeader != "" {
-		logVerbose(verbose, "HTTP probe: WWW-Authenticate header found: %s", authHeader)
-		return "basic", banner
-	}
-
-	// Check for 401 status without WWW-Authenticate (some servers don't send it)
-	if resp.StatusCode == http.StatusUnauthorized {
-		logVerbose(verbose, "HTTP probe: 401 without WWW-Authenticate, assuming basic")
-		return "basic", banner
-	}
-
-	return "form", banner
-}
 
 // configureVisionAnalyzer sets up Claude Vision for screenshot analysis on the browser plugin.
 func configureVisionAnalyzer(plugin *browser.Plugin, apiKey string, verbose bool) {

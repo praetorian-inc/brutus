@@ -237,60 +237,6 @@ func (c *Client) researchFromTextWithPairs(ctx context.Context, text string) ([]
 	return parseCredentials(apiResp.Choices[0].Message.Content), nil
 }
 
-// researchFromText handles plain text banner (legacy - returns passwords only)
-//
-//nolint:unused // Kept for potential future use with password-only analysis
-func (c *Client) researchFromText(ctx context.Context, text string) ([]string, error) {
-	reqBody := apiRequest{
-		Model: c.getModel(),
-		Messages: []message{
-			{
-				Role:    "user",
-				Content: fmt.Sprintf("What are the default credentials for this device/application? %s", text),
-			},
-		},
-	}
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, "POST", c.getEndpoint(), bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.APIKey)
-
-	client := &http.Client{Timeout: c.getTimeout()}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("api error: status %d", resp.StatusCode)
-	}
-
-	var apiResp apiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if len(apiResp.Choices) == 0 {
-		return []string{}, nil
-	}
-
-	creds := parseCredentials(apiResp.Choices[0].Message.Content)
-	passwords := make([]string, 0, len(creds))
-	for _, cred := range creds {
-		passwords = append(passwords, cred.Password)
-	}
-
-	return passwords, nil
-}
-
 func (c *Client) getModel() string {
 	if c.Model != "" {
 		return c.Model

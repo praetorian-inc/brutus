@@ -115,7 +115,6 @@ func main() {
 	browserVisible := flag.Bool("browser-visible", false, "Show browser window (demo mode)")
 	useHTTPS := flag.Bool("https", false, "Use HTTPS for browser connections")
 	aiMode := flag.Bool("experimental-ai", false, "Enable AI-powered credential detection for HTTP services (experimental)")
-	aiVerify := flag.Bool("experimental-ai-verify", false, "Use Claude Vision to verify login success (more accurate but slower)")
 	stickyKeys := flag.Bool("sticky-keys", false, "Enable sticky keys backdoor detection for RDP targets")
 	stickyKeysExec := flag.String("sticky-keys-exec", "", "Execute command via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysWeb := flag.Bool("sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor (requires --sticky-keys)")
@@ -223,7 +222,6 @@ func main() {
 		badkeysOnly:      *badkeysOnly,
 		protocolOverride: *protocol,
 		aiMode:           *aiMode,
-		aiVerify:         *aiVerify,
 		tlsMode:          determineTLSMode(*verifyTLS),
 		rateLimit:        *rateLimit,
 		jitter:           *jitter,

@@ -4,13 +4,9 @@
 package browser
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
-
-	"github.com/chromedp/chromedp"
 )
 
 // FormFields contains CSS selectors for login form elements
@@ -175,102 +171,6 @@ func detectUsernameField(html string) string {
 	}
 
 	return ""
-}
-
-// DetectFormFieldsFromDOM uses chromedp to find login form elements by querying the rendered DOM.
-// This finds elements by their visible text (button labels) and input types.
-// If buttonText is provided (from Vision), it searches for that specific text first.
-func DetectFormFieldsFromDOM(tabCtx context.Context, buttonText string) (*FormFields, error) {
-	ctx, cancel := context.WithTimeout(tabCtx, 10*time.Second)
-	defer cancel()
-
-	fields := &FormFields{}
-
-	// Password field is always reliable - just find input type="password"
-	fields.PasswordSelector = `input[type="password"]`
-
-	// Find username: first visible text input (before password typically)
-	var usernameSelector string
-	err := chromedp.Run(ctx, chromedp.Evaluate(`
-		(function() {
-			const pwd = document.querySelector('input[type="password"]');
-			if (!pwd) return '';
-
-			const form = pwd.closest('form');
-			if (form) {
-				const textInputs = form.querySelectorAll('input[type="text"], input[type="email"], input:not([type])');
-				for (const inp of textInputs) {
-					if (inp.offsetParent !== null) {
-						if (inp.id) return '#' + inp.id;
-						if (inp.name) return 'input[name="' + inp.name + '"]';
-					}
-				}
-			}
-
-			const allText = document.querySelectorAll('input[type="text"], input[type="email"]');
-			for (const inp of allText) {
-				if (inp.offsetParent !== null) {
-					if (inp.id) return '#' + inp.id;
-					if (inp.name) return 'input[name="' + inp.name + '"]';
-				}
-			}
-			return 'input[type="text"]';
-		})()
-	`, &usernameSelector))
-	if err == nil && usernameSelector != "" {
-		fields.UsernameSelector = usernameSelector
-	} else {
-		fields.UsernameSelector = `input[type="text"]`
-	}
-
-	// Find submit button - use Vision-provided text if available, otherwise common patterns
-	var submitSelector string
-	searchText := buttonText
-	if searchText == "" {
-		searchText = "log in|login|sign in|signin|submit|enter"
-	}
-
-	jsCode := fmt.Sprintf(`
-		(function() {
-			const searchTexts = '%s'.toLowerCase().split('|');
-
-			// Check buttons for matching text
-			const buttons = document.querySelectorAll('button, input[type="submit"]');
-			for (const btn of buttons) {
-				const text = (btn.textContent || btn.value || '').toLowerCase().trim();
-				for (const searchText of searchTexts) {
-					if (text.includes(searchText.trim())) {
-						if (btn.id) return '#' + btn.id;
-						if (btn.className) return btn.tagName.toLowerCase() + '.' + btn.className.split(' ')[0];
-						return btn.tagName.toLowerCase() + '[type="submit"]';
-					}
-				}
-			}
-
-			// Fallback: button in form with password
-			const pwd = document.querySelector('input[type="password"]');
-			if (pwd) {
-				const form = pwd.closest('form');
-				if (form) {
-					const btn = form.querySelector('button, input[type="submit"]');
-					if (btn) {
-						if (btn.id) return '#' + btn.id;
-						return 'button, input[type="submit"]';
-					}
-				}
-			}
-			return 'button[type="submit"], input[type="submit"], button';
-		})()
-	`, strings.ReplaceAll(searchText, "'", "\\'"))
-
-	err = chromedp.Run(ctx, chromedp.Evaluate(jsCode, &submitSelector))
-	if err == nil && submitSelector != "" {
-		fields.SubmitSelector = submitSelector
-	} else {
-		fields.SubmitSelector = `button[type="submit"], input[type="submit"], button`
-	}
-
-	return fields, nil
 }
 
 // detectSubmitButton finds the submit button selector

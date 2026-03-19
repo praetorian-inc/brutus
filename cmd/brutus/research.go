@@ -156,13 +156,11 @@ func researchBrowserCredentials(target string, base *baseConfigOptions) ([]brutu
 
 	// Create the browser plugin with configured analyzers
 	browserPlugin := &browser.Plugin{
-		Timeout:         60 * time.Second,
 		TabCount:        base.browserTabs,
 		PageLoadTimeout: 15 * time.Second,
 		UseHTTPS:        base.useHTTPS,
 		Visible:         base.browserVisible,
 		Verbose:         base.verbose,
-		AIVerify:        base.aiVerify,
 	}
 
 	configureVisionAnalyzer(browserPlugin, base.anthropicKey, base.verbose)

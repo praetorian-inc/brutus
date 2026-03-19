@@ -41,7 +41,6 @@ type baseConfigOptions struct {
 	badkeysOnly      bool
 	protocolOverride string        // Override nerva-detected protocol
 	aiMode           bool          // Enable AI-powered credential detection for HTTP
-	aiVerify         bool          // Use Claude Vision to verify login success
 	tlsMode          string        // TLS verification mode: "disable", "verify", "skip-verify"
 	rateLimit         float64             // Max requests per second (0 = unlimited)
 	jitter            time.Duration       // Random delay variance for rate limiting

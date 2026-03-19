@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/praetorian-inc/brutus/internal/analyzers/vision"
+	"github.com/praetorian-inc/brutus/internal/analyzers/claude"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
@@ -58,7 +58,7 @@ type Plugin struct {
 	Visible bool
 
 	// VisionAnalyzer is the optional AI analyzer for screenshot analysis (Claude Vision)
-	VisionAnalyzer *vision.Client
+	VisionAnalyzer *claude.Client
 
 	// CredentialResearcher is the optional analyzer for credential research (Perplexity)
 	CredentialResearcher brutus.CredentialAnalyzer
@@ -161,7 +161,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 // AnalyzePage performs AI analysis on a page without attempting login.
 // Returns the page analysis and researched credentials (if any).
 // This is used by the orchestrator to get credentials before brute forcing.
-func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*vision.PageAnalysis, []brutus.Credential, error) {
+func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAnalysis, []brutus.Credential, error) {
 	browserMode := "headless"
 	if p.Visible {
 		browserMode = "visible"

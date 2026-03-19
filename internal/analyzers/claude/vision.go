@@ -1,8 +1,7 @@
 // Copyright 2026 Praetorian Security, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package vision implements Claude Vision API integration for screenshot analysis
-package vision
+package claude
 
 import (
 	"bytes"
@@ -12,15 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
-)
-
-const (
-	DefaultModel    = "claude-3-haiku-20240307"
-	DefaultEndpoint = "https://api.anthropic.com/v1/messages"
-	DefaultTimeout  = 30 * time.Second
 )
 
 func init() {
@@ -31,14 +23,6 @@ func init() {
 			Model:  cfg.Model,
 		}
 	})
-}
-
-// Client implements VisionAnalyzer using Claude API
-type Client struct {
-	APIKey   string
-	Model    string
-	Endpoint string        // Optional: override endpoint for testing
-	Timeout  time.Duration // Optional: request timeout
 }
 
 // visionRequest is the Claude API request with image support
@@ -72,14 +56,6 @@ type visionResponse struct {
 type responseContent struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
-}
-
-// Analyze implements brutus.BannerAnalyzer (text-based analysis)
-// For vision analysis, use AnalyzeScreenshot instead
-func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]string, error) {
-	// Vision analyzer doesn't support text-based analysis
-	// Return empty suggestions
-	return []string{}, nil
 }
 
 // AnalyzeScreenshot analyzes a page screenshot using Claude Vision
@@ -267,61 +243,6 @@ func (c *Client) VerifyLogin(ctx context.Context, beforeScreenshot, afterScreens
 	return &verification, nil
 }
 
-// buildVerificationPrompt creates the prompt for login verification
-func buildVerificationPrompt() string {
-	return `Compare these two screenshots: BEFORE a login attempt and AFTER a login attempt.
-
-Determine if the login was SUCCESSFUL or FAILED.
-
-Signs of SUCCESS:
-- Page changed to a dashboard, admin panel, or home page
-- Login form is no longer visible
-- Welcome message, user profile, or "Logged in as..." text appeared
-- Navigation menu or settings options became available
-- Logout/Sign Out button appeared
-
-Signs of FAILURE:
-- Error message visible (red text, alert box, "Invalid credentials", "Login failed")
-- Login form still showing with same fields
-- Page looks nearly identical to before
-- Warning icons or error styling appeared
-
-Return ONLY valid JSON in this exact format:
-{
-  "success": false,
-  "confidence": 0.95,
-  "reason": "Error message 'Invalid password' visible on the page"
-}
-
-Rules:
-- success: true if login succeeded, false if it failed
-- confidence: 0.0-1.0 how confident you are in this determination
-- reason: brief explanation of what visual evidence led to this conclusion
-
-NO commentary. NO explanations. ONLY the JSON object.`
-}
-
-func (c *Client) getModel() string {
-	if c.Model != "" {
-		return c.Model
-	}
-	return DefaultModel
-}
-
-func (c *Client) getEndpoint() string {
-	if c.Endpoint != "" {
-		return c.Endpoint
-	}
-	return DefaultEndpoint
-}
-
-func (c *Client) getTimeout() time.Duration {
-	if c.Timeout > 0 {
-		return c.Timeout
-	}
-	return DefaultTimeout
-}
-
 // ReadTerminalOutput sends a screenshot of a terminal/command prompt to Claude Vision
 // and returns the text content visible on the screen.
 func (c *Client) ReadTerminalOutput(ctx context.Context, screenshot []byte) (string, error) {
@@ -388,6 +309,40 @@ func (c *Client) ReadTerminalOutput(ctx context.Context, screenshot []byte) (str
 	}
 
 	return apiResp.Content[0].Text, nil
+}
+
+// buildVerificationPrompt creates the prompt for login verification
+func buildVerificationPrompt() string {
+	return `Compare these two screenshots: BEFORE a login attempt and AFTER a login attempt.
+
+Determine if the login was SUCCESSFUL or FAILED.
+
+Signs of SUCCESS:
+- Page changed to a dashboard, admin panel, or home page
+- Login form is no longer visible
+- Welcome message, user profile, or "Logged in as..." text appeared
+- Navigation menu or settings options became available
+- Logout/Sign Out button appeared
+
+Signs of FAILURE:
+- Error message visible (red text, alert box, "Invalid credentials", "Login failed")
+- Login form still showing with same fields
+- Page looks nearly identical to before
+- Warning icons or error styling appeared
+
+Return ONLY valid JSON in this exact format:
+{
+  "success": false,
+  "confidence": 0.95,
+  "reason": "Error message 'Invalid password' visible on the page"
+}
+
+Rules:
+- success: true if login succeeded, false if it failed
+- confidence: 0.0-1.0 how confident you are in this determination
+- reason: brief explanation of what visual evidence led to this conclusion
+
+NO commentary. NO explanations. ONLY the JSON object.`
 }
 
 // buildTerminalReadPrompt creates the prompt for reading terminal output

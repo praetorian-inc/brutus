@@ -29,8 +29,10 @@ import (
 const (
 	// DefaultModel is the default Claude model to use
 	DefaultModel = "claude-3-haiku-20240307"
-	// APIEndpoint is the Claude API endpoint
-	APIEndpoint = "https://api.anthropic.com/v1/messages"
+	// DefaultEndpoint is the Claude API endpoint
+	DefaultEndpoint = "https://api.anthropic.com/v1/messages"
+	// DefaultTimeout is the default request timeout
+	DefaultTimeout = 30 * time.Second
 )
 
 func init() {
@@ -43,11 +45,12 @@ func init() {
 	})
 }
 
-// Client implements the BannerAnalyzer interface for Claude API
+// Client implements the BannerAnalyzer and VisionAnalyzer interfaces for Claude API
 type Client struct {
-	APIKey  string
-	Model   string
-	Timeout time.Duration
+	APIKey   string
+	Model    string
+	Endpoint string        // Optional: override endpoint for testing
+	Timeout  time.Duration
 }
 
 type apiRequest struct {
@@ -62,10 +65,10 @@ type message struct {
 }
 
 type apiResponse struct {
-	Content []contentBlock `json:"content"`
+	Content []textBlock `json:"content"`
 }
 
-type contentBlock struct {
+type textBlock struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
@@ -92,7 +95,7 @@ func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]strin
 	}
 
 	// 4. Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", APIEndpoint, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.getEndpoint(), bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -141,9 +144,16 @@ func (c *Client) getModel() string {
 	return DefaultModel
 }
 
+func (c *Client) getEndpoint() string {
+	if c.Endpoint != "" {
+		return c.Endpoint
+	}
+	return DefaultEndpoint
+}
+
 func (c *Client) getTimeout() time.Duration {
 	if c.Timeout > 0 {
 		return c.Timeout
 	}
-	return 30 * time.Second
+	return DefaultTimeout
 }

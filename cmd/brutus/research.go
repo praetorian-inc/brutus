@@ -18,7 +18,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/praetorian-inc/brutus/internal/analyzers/vision"
+	"github.com/praetorian-inc/brutus/internal/analyzers/claude"
 	"github.com/praetorian-inc/brutus/internal/plugins/browser"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -47,7 +47,7 @@ func routeHTTPWithAI(target, protocol string, base *baseConfigOptions) (string, 
 // configureVisionAnalyzer sets up Claude Vision for screenshot analysis on the browser plugin.
 func configureVisionAnalyzer(plugin *browser.Plugin, apiKey string, verbose bool) {
 	if apiKey != "" {
-		plugin.VisionAnalyzer = &vision.Client{APIKey: apiKey}
+		plugin.VisionAnalyzer = &claude.Client{APIKey: apiKey}
 		logVerbose(verbose, "Configured Claude Vision for screenshot analysis")
 	} else {
 		logVerbose(verbose, "No ANTHROPIC_API_KEY - skipping vision analysis")

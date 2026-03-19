@@ -1,7 +1,7 @@
 // Copyright 2026 Praetorian Security, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package vision
+package claude
 
 import (
 	"context"
@@ -130,7 +130,7 @@ func TestClient_AnalyzeScreenshot_WithFormHints(t *testing.T) {
 	}
 }
 
-func TestClient_Registration(t *testing.T) {
+func TestClient_VisionRegistration(t *testing.T) {
 	// Vision analyzer should be registered
 	factory := brutus.GetAnalyzerFactory("claude-vision")
 	if factory == nil {

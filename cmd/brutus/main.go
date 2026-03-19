@@ -115,12 +115,11 @@ func main() {
 	browserVisible := flag.Bool("browser-visible", false, "Show browser window (demo mode)")
 	useHTTPS := flag.Bool("https", false, "Use HTTPS for browser connections")
 	aiMode := flag.Bool("experimental-ai", false, "Enable AI-powered credential detection for HTTP services (experimental)")
-	stickyKeys := flag.Bool("sticky-keys", false, "Enable sticky keys backdoor detection for RDP targets")
+	stickyKeys := flag.Bool("sticky-keys", false, "Sticky keys backdoor detection mode for RDP (no brute force)")
 	stickyKeysExec := flag.String("sticky-keys-exec", "", "Execute command via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysWeb := flag.Bool("sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysOpen := flag.Bool("sticky-keys-open", false, "Auto-open browser when sticky keys web terminal starts")
 	nlaCheck := flag.Bool("nla-check", false, "NLA fingerprint scan: check if RDP targets require NLA (no auth, fast)")
-	stickyKeysScan := flag.Bool("sticky-keys-scan", false, "Sticky keys scan-only mode: detect backdoor without brute force")
 
 	flag.Parse()
 
@@ -235,15 +234,16 @@ func main() {
 		stickyKeysWeb:    *stickyKeysWeb,
 		stickyKeysOpen:   *stickyKeysOpen,
 		nlaCheck:         *nlaCheck,
-		stickyKeysScan:   *stickyKeysScan,
 	}
 
 	var allResults []brutus.Result
 	var hasSuccess bool
 
 
-	// Scan-only modes: bypass normal brute force entirely
-	if baseConfig.nlaCheck || baseConfig.stickyKeysScan {
+	// Scan/detection modes: bypass normal brute force entirely
+	// --sticky-keys (without --sticky-keys-exec or --sticky-keys-web) is detection-only
+	stickyKeysDetect := baseConfig.stickyKeys && baseConfig.stickyKeysExec == "" && !baseConfig.stickyKeysWeb
+	if baseConfig.nlaCheck || stickyKeysDetect {
 		var scanResults []brutus.Result
 		if useStdin {
 			scanResults, hasSuccess = runScanFromStdin(&baseConfig)

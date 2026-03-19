@@ -45,7 +45,7 @@ SSH Options:
   --no-badkeys           Disable embedded bad key testing (badkeys are tested by default for SSH)
 
 RDP Options:
-  --sticky-keys          Enable sticky keys backdoor detection for RDP targets
+  --sticky-keys          Sticky keys backdoor detection mode for RDP (no brute force)
   --sticky-keys-exec <cmd>  Execute a command via sticky keys backdoor (demo/pentest)
   --sticky-keys-web      Start interactive web terminal via sticky keys backdoor
   --sticky-keys-open     Auto-open default browser for sticky keys web terminal

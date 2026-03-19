@@ -166,11 +166,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 		return runStickyKeysInteractive(target, protocol, base)
 	}
 
-	// Sticky keys detection-only mode: no explicit credentials means skip brute force
-	if protocol == "rdp" && base.stickyKeys && len(base.passwords) == 0 && len(base.keys) == 0 {
-		return runStickyKeysDetectionOnly(target, base)
-	}
-
 	// Verbose: print config summary before starting
 	logVerbose(base.verbose, "Target: %s (protocol: %s)", target, protocol)
 	logVerbose(base.verbose, "Paired credentials: %d, Usernames: %d, Passwords: %d, Keys: %d",
@@ -325,26 +320,6 @@ func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) 
 	return nil, false
 }
 
-// runStickyKeysDetectionOnly runs sticky keys detection without brute force.
-// Used when --sticky-keys is set but no explicit credentials (-p/-P/-k) are provided.
-func runStickyKeysDetectionOnly(target string, base *baseConfigOptions) ([]brutus.Result, bool) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	logVerbose(base.verbose, "Sticky keys detection-only mode (no credentials provided)")
-	logVerbose(base.verbose, "Target: %s", target)
-
-	// Vision API requires --experimental-ai; disable it otherwise
-	if !base.aiMode {
-		ctx = brutus.ContextWithNoVision(ctx)
-	}
-
-	result := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
-	logVerbose(base.verbose, "Sticky keys result: %s", result.Banner)
-
-	return []brutus.Result{*result}, result.Success
-}
-
 // runScanFromStdin reads nerva JSON from stdin and runs scan checks on RDP targets.
 func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
@@ -392,6 +367,11 @@ func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Resul
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Vision API requires --experimental-ai; disable it otherwise
+	if !base.aiMode {
+		ctx = brutus.ContextWithNoVision(ctx)
+	}
+
 	var results []brutus.Result
 	hasSuccess := false
 
@@ -403,8 +383,8 @@ func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Resul
 		}
 	}
 
-	if base.stickyKeysScan {
-		result := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys-scan)")
+	if base.stickyKeys {
+		result := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
 		results = append(results, *result)
 		if result.Success {
 			hasSuccess = true

@@ -48,10 +48,10 @@ func TestDetectNLA_ConnectionError(t *testing.T) {
 
 func TestDetectStickyKeys_ResultFields(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys-scan)")
+	result := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys)")
 
 	assert.NotNil(t, result)
-	assert.Equal(t, "(sticky-keys-scan)", result.Username)
+	assert.Equal(t, "(sticky-keys)", result.Username)
 	assert.Equal(t, "rdp", result.Protocol)
 	assert.Equal(t, "192.0.2.1:3389", result.Target)
 }

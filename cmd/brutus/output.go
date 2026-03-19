@@ -201,7 +201,7 @@ func outputScanHuman(results []brutus.Result, useColor bool) {
 	for i := range results {
 		r := &results[i]
 		scanType := "NLA Check"
-		if r.Username == "(sticky-keys-scan)" {
+		if r.Username == "(sticky-keys)" {
 			scanType = "Sticky Keys Scan"
 		}
 
@@ -237,8 +237,8 @@ func outputScanJSONL(w io.Writer, results []brutus.Result) {
 	for i := range results {
 		r := &results[i]
 		scanType := "nla_check"
-		if r.Username == "(sticky-keys-scan)" {
-			scanType = "sticky_keys_scan"
+		if r.Username == "(sticky-keys)" {
+			scanType = "sticky_keys"
 		}
 		sr := ScanResult{
 			Protocol: r.Protocol,

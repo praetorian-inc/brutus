@@ -16,7 +16,6 @@ package neo4j
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -56,13 +55,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "neo4j",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("neo4j", target, username, password)
 
 	// Build Neo4j Bolt URI
 	uri := fmt.Sprintf("bolt://%s", target)
@@ -73,24 +66,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
 
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
-		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
-	}
-
 	// Create driver with TLS config
 	driver, err := neo4j.NewDriverWithContext(uri, auth, func(c *config.Config) {
-		c.TlsConfig = tlsConfig
+		c.TlsConfig = brutus.BuildTLSConfig(tlsMode)
 	})
 	if err != nil {
 		result.Error = classifyError(err)

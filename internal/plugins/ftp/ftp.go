@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
@@ -55,16 +54,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "ftp",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("ftp", target, username, password)
 
 	// Connect with context-aware timeout
-	conn, err := dialWithContext(ctx, "tcp", target, timeout)
+	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
 	if err != nil {
 		result.Error = classifyError(err)
 		result.Duration = time.Since(start)
@@ -138,15 +131,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	result.Duration = time.Since(start)
 	return result
-}
-
-// dialWithContext performs context-aware TCP dialing.
-func dialWithContext(ctx context.Context, network, address string,
-	timeout time.Duration) (net.Conn, error) {
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-	return dialer.DialContext(ctx, network, address)
 }
 
 // readResponse reads a single FTP response line.

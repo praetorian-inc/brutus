@@ -50,13 +50,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "mongodb",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("mongodb", target, username, password)
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)

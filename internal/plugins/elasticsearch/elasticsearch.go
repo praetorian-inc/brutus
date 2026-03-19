@@ -16,7 +16,6 @@ package elasticsearch
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"time"
@@ -48,13 +47,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "elasticsearch",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("elasticsearch", target, username, password)
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
@@ -79,28 +72,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Set Basic Auth
 	req.SetBasicAuth(username, password)
 
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
-		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
-	}
-
-	// Create HTTP client with timeout and TLS config
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-	}
+	// Create HTTP client with TLS config
+	client := brutus.NewHTTPClient(timeout, brutus.BuildTLSConfig(tlsMode))
 
 	// Execute request
 	resp, err := client.Do(req)

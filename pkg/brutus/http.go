@@ -23,6 +23,17 @@ import (
 	"time"
 )
 
+// NewHTTPClient creates an *http.Client with the given timeout and TLS config.
+// This is a shared helper for plugins that make HTTP requests (elasticsearch, couchdb, influxdb, http).
+func NewHTTPClient(timeout time.Duration, tlsConfig *tls.Config) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			TLSClientConfig: tlsConfig,
+		},
+	}
+}
+
 // DetectHTTPAuthType probes an HTTP target to determine the authentication type.
 // Returns auth type ("basic", "form", or "" on error) and the banner text
 // containing response headers and body for LLM analysis.
@@ -33,16 +44,9 @@ func DetectHTTPAuthType(target string, useHTTPS bool, timeout time.Duration, tls
 	}
 	url := fmt.Sprintf("%s://%s/", scheme, target)
 
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: tlsMode != "verify",
-			},
-		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	client := NewHTTPClient(timeout, BuildTLSConfig(tlsMode))
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	defer client.CloseIdleConnections()
 

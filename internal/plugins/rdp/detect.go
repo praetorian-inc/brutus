@@ -31,12 +31,7 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 	plugin := &Plugin{}
 	stickyResult := plugin.RunStickyKeysCheck(ctx, target, timeout)
 
-	result := &brutus.Result{
-		Protocol: "rdp",
-		Target:   target,
-		Username: username,
-		Success:  false,
-	}
+	result := brutus.NewResult("rdp", target, username, "")
 
 	if stickyResult == nil {
 		result.Error = fmt.Errorf("sticky keys check returned nil")

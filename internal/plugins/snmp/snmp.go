@@ -58,13 +58,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "snmp",
-		Target:   target,
-		Username: username,
-		Password: password, // Community string
-		Success:  false,
-	}
+	result := brutus.NewResult("snmp", target, username, password)
 
 	// Parse target into host and port
 	host, port, err := parseTarget(target)

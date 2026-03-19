@@ -24,7 +24,6 @@ package http
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,13 +77,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: p.Name(),
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult(p.Name(), target, username, password)
 
 	// Build URL
 	url := p.buildURL(target)
@@ -92,31 +85,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
 
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
-		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
-	}
-
-	// Create HTTP client with timeout and TLS config
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-		// Don't follow redirects - we want to see the auth response
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	// Create HTTP client with TLS config
+	client := brutus.NewHTTPClient(timeout, brutus.BuildTLSConfig(tlsMode))
+	// Don't follow redirects - we want to see the auth response
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	defer client.CloseIdleConnections()
 

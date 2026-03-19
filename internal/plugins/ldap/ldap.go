@@ -63,16 +63,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "ldap",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("ldap", target, username, password)
 
 	// Parse target to extract host and port
-	host, port := parseTarget(target)
+	host, port := brutus.ParseTarget(target, "389")
 
 	// Build LDAP URL
 	ldapURL := fmt.Sprintf("ldap://%s:%s", host, port)
@@ -126,13 +120,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result.Error = classifyError(err)
 	result.Duration = time.Since(start)
 	return result
-}
-
-// parseTarget splits target into host and port.
-// If no port is specified, defaults to 389.
-// Delegates to brutus.ParseTarget for IPv6 support.
-func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "389")
 }
 
 var classifyError = brutus.NewClassifier(ldapAuthIndicators)

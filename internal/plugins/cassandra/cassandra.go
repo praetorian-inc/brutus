@@ -53,13 +53,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "cassandra",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("cassandra", target, username, password)
 
 	// Create cluster configuration
 	cluster := gocql.NewCluster(target)

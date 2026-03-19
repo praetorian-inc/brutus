@@ -55,16 +55,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "smb",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("smb", target, username, password)
 
 	// Parse target to extract host and port
-	host, port := parseTarget(target)
+	host, port := brutus.ParseTarget(target, "445")
 
 	// Create dialer with timeout
 	dialer := &net.Dialer{
@@ -118,10 +112,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 // parseTarget splits target into host and port.
 // If no port is specified, defaults to 445 (SMB).
 // Supports IPv6 addresses with brackets: [::1]:445
-func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "445")
-}
-
 // parseDomainUsername splits username into domain and username.
 // Supports formats: DOMAIN\username or just username.
 // Returns empty string for domain if not specified.

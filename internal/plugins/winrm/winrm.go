@@ -67,13 +67,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: p.Name(),
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult(p.Name(), target, username, password)
 
 	// Parse target to extract host and port
 	host, port := parseTarget(target, p.UseHTTPS)

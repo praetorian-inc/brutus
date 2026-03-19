@@ -55,16 +55,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "imap",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("imap", target, username, password)
 
 	// Parse target to extract host and port
-	host, port := parseTarget(target)
+	host, port := brutus.ParseTarget(target, "143")
 	addr := fmt.Sprintf("%s:%s", host, port)
 
 	// Create context with timeout
@@ -117,13 +111,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result.Success = true
 	result.Duration = time.Since(start)
 	return result
-}
-
-// parseTarget splits target into host and port.
-// If no port is specified, defaults to 143.
-// Delegates to brutus.ParseTarget for proper IPv6 support.
-func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "143")
 }
 
 var classifyError = brutus.NewClassifier(imapAuthIndicators)

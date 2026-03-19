@@ -55,12 +55,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("ftp", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Connect with context-aware timeout
 	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
 	if err != nil {
-		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer conn.Close()
@@ -71,10 +71,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	reader := bufio.NewReader(conn)
 
 	// Read welcome message (220)
-	_, err = readResponse(reader)
+	_, err = brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -82,22 +81,19 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	_, err = fmt.Fprintf(conn, "USER %s\r\n", username)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Read response (331 = need password, 230 = already logged in for anonymous)
-	response, err := readResponse(reader)
+	response, err := brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Check if already logged in (anonymous with no password)
 	if strings.HasPrefix(response, "230") {
 		result.Success = true
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -105,15 +101,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	_, err = fmt.Fprintf(conn, "PASS %s\r\n", password)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Read response (230 = success, 530 = failure)
-	response, err = readResponse(reader)
+	response, err = brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -129,23 +123,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = fmt.Errorf("connection error: unexpected FTP response: %s", response)
 	}
 
-	result.Duration = time.Since(start)
 	return result
-}
-
-// readResponse reads a single FTP response line.
-func readResponse(reader *bufio.Reader) (string, error) {
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(line), nil
-}
-
-// classifyError classifies TCP dial errors.
-// All dial errors are connection errors.
-func classifyError(err error) error {
-	return fmt.Errorf("connection error: %w", err)
 }
 
 // classifyAuthError classifies FTP authentication errors.

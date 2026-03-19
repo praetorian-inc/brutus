@@ -78,6 +78,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult(p.Name(), target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Build URL
 	url := p.buildURL(target)
@@ -96,8 +97,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -110,8 +110,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Execute request
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer resp.Body.Close()
@@ -138,7 +137,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = fmt.Errorf("connection error: HTTP %d", resp.StatusCode)
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 

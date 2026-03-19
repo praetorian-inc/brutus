@@ -60,12 +60,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("telnet", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Connect with context-aware timeout
 	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer conn.Close()
@@ -78,39 +78,34 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read until login prompt (capture banner)
 	banner, err := waitForPrompt(reader, isLoginPrompt, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	result.Banner = banner
 
 	// Send username
 	if _, writeErr := fmt.Fprintf(conn, "%s\n", username); writeErr != nil {
-		result.Error = fmt.Errorf("connection error: %w", writeErr)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
 
 	// Read until password prompt
 	_, err = waitForPrompt(reader, isPasswordPrompt, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
 	// Send password
 	if _, writeErr := fmt.Fprintf(conn, "%s\n", password); writeErr != nil {
-		result.Error = fmt.Errorf("connection error: %w", writeErr)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
 
 	// Read response and check for success/failure
 	response, err := readResponse(reader, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -124,7 +119,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// If not success and Error==nil, it's auth failure
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 

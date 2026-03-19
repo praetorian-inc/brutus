@@ -59,12 +59,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("smtp", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Connect with timeout
 	conn, err := net.DialTimeout("tcp", target, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer conn.Close()
@@ -72,8 +72,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Set deadline for the entire operation
 	deadline := time.Now().Add(timeout)
 	if deadlineErr := conn.SetDeadline(deadline); deadlineErr != nil {
-		result.Error = fmt.Errorf("connection error: %w", deadlineErr)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(deadlineErr)
 		return result
 	}
 
@@ -81,14 +80,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	host, _, err := net.SplitHostPort(target)
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: invalid target format: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer client.Close()
@@ -108,7 +105,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			if tlsErr := client.StartTLS(tlsConfig); tlsErr != nil {
 				// STARTTLS failure is a connection error, not auth failure
 				result.Error = fmt.Errorf("connection error: STARTTLS failed: %w", tlsErr)
-				result.Duration = time.Since(start)
 				return result
 			}
 		}
@@ -121,13 +117,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = client.Auth(auth)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 

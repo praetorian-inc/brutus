@@ -16,7 +16,6 @@ package smb
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -56,6 +55,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("smb", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "445")
@@ -68,8 +68,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Connect with context timeout
 	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer conn.Close()
@@ -89,7 +88,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	session, err := d.DialContext(ctx, conn)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer func() { _ = session.Logoff() }()
@@ -98,14 +96,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	share, err := session.Mount("IPC$")
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer func() { _ = share.Umount() }()
 
 	// Success - authentication worked
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 

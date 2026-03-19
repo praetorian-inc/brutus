@@ -54,6 +54,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("cassandra", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Create cluster configuration
 	cluster := gocql.NewCluster(target)
@@ -72,7 +73,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	session, err := cluster.CreateSession()
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer session.Close()
@@ -85,13 +85,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	iter := session.Query("SELECT now() FROM system.local").WithContext(queryCtx).Iter()
 	if err := iter.Close(); err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 

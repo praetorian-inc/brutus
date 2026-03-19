@@ -86,6 +86,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult(p.Name(), target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Set visible mode before getting browser (must be before first GetBrowser call)
 	SetBrowserVisible(p.Visible)
@@ -94,7 +95,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	browser, err := GetBrowser(p.TabCount)
 	if err != nil {
 		result.Error = fmt.Errorf("browser error: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -119,7 +119,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	submitResult, submitErr := FillAndSubmitWithNavigate(tabCtx, url, username, password, p.PageLoadTimeout+15*time.Second)
 	if submitErr != nil {
 		result.Error = fmt.Errorf("form submission failed: %w", submitErr)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -156,7 +155,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		}
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 
@@ -169,7 +167,6 @@ func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, pa
 	submitResult, submitErr := FillSubmitAndScreenshot(tabCtx, url, username, password, p.PageLoadTimeout+15*time.Second)
 	if submitErr != nil {
 		result.Error = fmt.Errorf("form submission failed: %w", submitErr)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -220,7 +217,6 @@ func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, pa
 		time.Sleep(3 * time.Second)
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 

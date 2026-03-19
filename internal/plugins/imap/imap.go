@@ -56,6 +56,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("imap", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "143")
@@ -74,7 +75,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	client, err := imapclient.DialInsecure(addr, options)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer client.Close()
@@ -82,7 +82,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Check if context was canceled during dial
 	if dialCtx.Err() != nil {
 		result.Error = classifyError(dialCtx.Err())
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -97,19 +96,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Check if context was canceled during login
 	if loginCtx.Err() != nil {
 		result.Error = classifyError(loginCtx.Err())
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 

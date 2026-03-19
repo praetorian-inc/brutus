@@ -50,6 +50,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("mysql", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
@@ -71,8 +72,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Open database connection
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer db.Close()
@@ -90,13 +90,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 

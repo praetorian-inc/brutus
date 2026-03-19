@@ -60,6 +60,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("ssh", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Create SSH client config
 	config := &ssh.ClientConfig{
@@ -74,8 +75,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Connect with context-aware timeout
 	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
 	if err != nil {
-		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer conn.Close()
@@ -84,7 +84,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer sshConn.Close()
@@ -101,7 +100,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
@@ -116,12 +114,12 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 	start := time.Now()
 
 	result := brutus.NewResult("ssh", target, username, "")
+	defer func() { result.Duration = time.Since(start) }()
 	result.Key = key
 
 	// Validate key is provided
 	if len(key) == 0 {
 		result.Error = fmt.Errorf("connection error: empty private key")
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -134,7 +132,6 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 		} else {
 			result.Error = fmt.Errorf("connection error: failed to parse private key: %w", err)
 		}
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -151,8 +148,7 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 	// Connect with context-aware timeout
 	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
 	if err != nil {
-		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer conn.Close()
@@ -161,7 +157,6 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer sshConn.Close()
@@ -178,17 +173,7 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
-}
-
-// classifyError classifies TCP dial errors.
-// All dial errors are connection errors.
-func classifyError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("connection error: %w", err)
 }
 
 // classifyAuthError classifies SSH authentication errors.

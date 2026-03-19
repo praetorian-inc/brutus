@@ -64,6 +64,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("ldap", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "389")
@@ -95,7 +96,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	conn, err := ldap.DialURL(ldapURL, ldap.DialWithDialer(dialer), ldap.DialWithTLSConfig(tlsConfig))
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer conn.Close()
@@ -108,7 +108,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if err == nil {
 		// Success with simple username
 		result.Success = true
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -118,7 +117,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Classify the error
 	result.Error = classifyError(err)
-	result.Duration = time.Since(start)
 	return result
 }
 

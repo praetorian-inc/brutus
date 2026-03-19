@@ -34,6 +34,15 @@ func NewHTTPClient(timeout time.Duration, tlsConfig *tls.Config) *http.Client {
 	}
 }
 
+// SchemeFromTLSMode returns "https" if TLS is enabled, "http" otherwise.
+// This is a shared helper for plugins that build URLs based on TLS mode.
+func SchemeFromTLSMode(tlsMode string) string {
+	if tlsMode == "verify" || tlsMode == "skip-verify" {
+		return "https"
+	}
+	return "http"
+}
+
 // DetectHTTPAuthType probes an HTTP target to determine the authentication type.
 // Returns auth type ("basic", "form", or "" on error) and the banner text
 // containing response headers and body for LLM analysis.

@@ -48,15 +48,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("influxdb", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
 
-	// Determine URL scheme based on TLS mode
-	scheme := "http"
-	if tlsMode == "verify" || tlsMode == "skip-verify" {
-		scheme = "https"
-	}
+	scheme := brutus.SchemeFromTLSMode(tlsMode)
 
 	// Build InfluxDB signin endpoint URL
 	// POST /api/v2/signin accepts HTTP Basic Auth for username/password authentication
@@ -66,8 +63,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create HTTP POST request with context
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, http.NoBody)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -80,8 +76,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Send HTTP request
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer resp.Body.Close()
@@ -91,7 +86,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// 401 Unauthorized = authentication failure
 		result.Success = false
 		result.Error = nil
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -99,12 +93,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// 200 OK or 204 No Content = success
 		result.Success = true
 		result.Error = nil
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Any other status code is a connection error
 	result.Error = fmt.Errorf("connection error: unexpected status code %d", resp.StatusCode)
-	result.Duration = time.Since(start)
 	return result
 }

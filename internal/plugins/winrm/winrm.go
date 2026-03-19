@@ -68,6 +68,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult(p.Name(), target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
 	host, port := parseTarget(target, p.UseHTTPS)
@@ -81,8 +82,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// to wrap/unwrap SOAP messages with NTLM message-level encryption (sealing).
 	enc, err := winrm.NewEncryption("ntlm")
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -97,8 +97,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	client, err := winrm.NewClientWithParameters(endpoint, username, password, params)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -158,22 +157,18 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			if errors.Is(classified, errAuthSuccess) {
 				// NTLM auth succeeded but SOAP operation was denied — creds are valid
 				result.Success = true
-				result.Duration = time.Since(start)
 				return result
 			}
 			result.Error = classified
-			result.Duration = time.Since(start)
 			return result
 		}
 
 		// No error means the NTLM handshake and SOAP request both succeeded
 		result.Success = true
-		result.Duration = time.Since(start)
 		return result
 
 	case <-timeoutCtx.Done():
-		result.Error = fmt.Errorf("connection error: %w", timeoutCtx.Err())
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(timeoutCtx.Err())
 
 		// Wait for the Post() goroutine to exit to prevent goroutine leak.
 		// The goroutine will exit either:

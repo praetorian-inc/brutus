@@ -48,15 +48,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("couchdb", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
 
-	// Determine URL scheme based on TLS mode
-	scheme := "http"
-	if tlsMode == "verify" || tlsMode == "skip-verify" {
-		scheme = "https"
-	}
+	scheme := brutus.SchemeFromTLSMode(tlsMode)
 
 	// Build URL for CouchDB session endpoint
 	url := fmt.Sprintf("%s://%s/_session", scheme, target)
@@ -67,8 +64,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -78,8 +74,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Execute request
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer resp.Body.Close()
@@ -88,19 +83,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if resp.StatusCode == http.StatusOK {
 		// Success - valid credentials
 		result.Success = true
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		// Auth failure - invalid credentials
 		// Return Success=false, Error=nil
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// All other status codes are connection/server errors
 	result.Error = fmt.Errorf("connection error: HTTP %d", resp.StatusCode)
-	result.Duration = time.Since(start)
 	return result
 }

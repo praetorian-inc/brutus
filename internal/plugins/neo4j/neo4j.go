@@ -56,6 +56,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	start := time.Now()
 
 	result := brutus.NewResult("neo4j", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Build Neo4j Bolt URI
 	uri := fmt.Sprintf("bolt://%s", target)
@@ -72,7 +73,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	})
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer driver.Close(ctx)
@@ -85,13 +85,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = driver.VerifyConnectivity(verifyCtx)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package brutus
 
 import "strings"
 
-// NervaResult represents the JSON output from nerva
+// NervaResult represents the JSON output from nerva service discovery.
 type NervaResult struct {
 	Host      string                 `json:"host,omitempty"`
 	IP        string                 `json:"ip"`
@@ -28,26 +28,22 @@ type NervaResult struct {
 	Metadata  map[string]interface{} `json:"metadata"`
 }
 
-// mapServiceToProtocol maps nerva service names to brutus protocol names
-func mapServiceToProtocol(service string) string {
-	// Normalize to lowercase
+// MapServiceToProtocol maps nerva service names to brutus protocol names.
+// Returns an empty string if the service is not supported.
+func MapServiceToProtocol(service string) string {
 	service = strings.ToLower(service)
 
-	// Direct mappings
 	serviceMap := map[string]string{
-		// Network services
 		"ssh":    "ssh",
 		"ftp":    "ftp",
 		"telnet": "telnet",
 		"vnc":    "vnc",
 		"rdp":    "rdp",
 
-		// Enterprise
 		"smb":   "smb",
 		"ldap":  "ldap",
 		"winrm": "winrm",
 
-		// Databases
 		"mysql":         "mysql",
 		"postgresql":    "postgresql",
 		"postgres":      "postgresql",
@@ -60,19 +56,15 @@ func mapServiceToProtocol(service string) string {
 		"elasticsearch": "elasticsearch",
 		"influxdb":      "influxdb",
 
-		// Communications
 		"smtp": "smtp",
 		"imap": "imap",
 		"pop3": "pop3",
 
-		// SNMP
 		"snmp": "snmp",
 
-		// HTTP - map to our http basic auth plugin
 		"http":  "http",
 		"https": "https",
 
-		// Browser - headless browser for form-based auth
 		"browser": "browser",
 	}
 

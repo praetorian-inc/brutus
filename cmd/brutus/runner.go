@@ -43,7 +43,7 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		}
 
 		// Parse nerva JSON
-		var nrv NervaResult
+		var nrv brutus.NervaResult
 		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
 			warnMsg(base.useColor, "failed to parse JSON: %v", err)
 			continue
@@ -54,7 +54,7 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		if base.protocolOverride != "" {
 			protocol = base.protocolOverride
 		} else {
-			protocol = mapServiceToProtocol(nrv.Protocol)
+			protocol = brutus.MapServiceToProtocol(nrv.Protocol)
 			if protocol == "" {
 				// Unsupported service, skip
 				continue
@@ -391,14 +391,14 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 			continue
 		}
 
-		var nrv NervaResult
+		var nrv brutus.NervaResult
 		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
 			warnMsg(base.useColor, "failed to parse JSON: %v", err)
 			continue
 		}
 
 		// Filter to RDP targets only
-		protocol := mapServiceToProtocol(nrv.Protocol)
+		protocol := brutus.MapServiceToProtocol(nrv.Protocol)
 		if protocol != "rdp" && base.protocolOverride != "rdp" {
 			continue
 		}

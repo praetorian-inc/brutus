@@ -53,6 +53,7 @@ type baseConfigOptions struct {
 	stickyKeysExec    string              // Command to execute via sticky keys backdoor
 	stickyKeysWeb     bool                // Start web terminal for sticky keys interaction
 	stickyKeysOpen    bool                // Auto-open browser when sticky keys web terminal starts
+	aiVerify          bool                // AI-powered login verification (Claude Vision before/after screenshots)
 }
 
 // determineTLSMode returns the appropriate TLS mode based on the verify-tls flag

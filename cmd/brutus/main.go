@@ -115,6 +115,7 @@ func main() {
 	browserVisible := flag.Bool("browser-visible", false, "Show browser window (demo mode)")
 	useHTTPS := flag.Bool("https", false, "Use HTTPS for browser connections")
 	aiMode := flag.Bool("experimental-ai", false, "Enable AI-powered credential detection for HTTP services (experimental)")
+	aiVerify := flag.Bool("experimental-ai-verify", false, "Use Claude Vision to verify login success by comparing before/after screenshots")
 	stickyKeys := flag.Bool("sticky-keys", false, "Sticky keys backdoor detection mode for RDP (no brute force)")
 	stickyKeysExec := flag.String("sticky-keys-exec", "", "Execute command via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysWeb := flag.Bool("sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor (requires --sticky-keys)")
@@ -157,6 +158,11 @@ func main() {
 	aiLLMConfig, err := setupAIConfig(*aiMode, anthropicKey, perplexityKey)
 	if err != nil {
 		errMsg(useColor, "%v", err)
+		os.Exit(1)
+	}
+
+	if *aiVerify && anthropicKey == "" {
+		errMsg(useColor, "--experimental-ai-verify requires ANTHROPIC_API_KEY environment variable")
 		os.Exit(1)
 	}
 
@@ -231,6 +237,7 @@ func main() {
 		stickyKeysExec:   *stickyKeysExec,
 		stickyKeysWeb:    *stickyKeysWeb,
 		stickyKeysOpen:   *stickyKeysOpen,
+		aiVerify:         *aiVerify,
 	}
 
 	var allResults []brutus.Result

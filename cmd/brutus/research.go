@@ -85,6 +85,7 @@ func researchBrowserCredentials(target string, base *baseConfigOptions) ([]brutu
 		PageLoadTimeout: 15 * time.Second,
 		UseHTTPS:        base.useHTTPS,
 		Visible:         base.browserVisible,
+		AIVerify:        base.aiVerify,
 		Verbose:         base.verbose,
 	}
 

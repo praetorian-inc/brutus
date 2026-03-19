@@ -27,9 +27,6 @@ import (
 )
 
 const (
-	// DefaultTimeout is the total timeout for browser operations
-	DefaultTimeout = 60 * time.Second
-
 	// DefaultTabCount is the number of concurrent browser tabs
 	DefaultTabCount = 3
 
@@ -40,7 +37,6 @@ const (
 func init() {
 	brutus.Register("browser", func() brutus.Plugin {
 		return &Plugin{
-			Timeout:         DefaultTimeout,
 			TabCount:        DefaultTabCount,
 			PageLoadTimeout: DefaultPageLoadTimeout,
 		}
@@ -49,9 +45,6 @@ func init() {
 
 // Plugin implements brutus.Plugin for browser-based form authentication
 type Plugin struct {
-	// Timeout is the total timeout for all browser operations
-	Timeout time.Duration
-
 	// TabCount is the number of concurrent browser tabs
 	TabCount int
 
@@ -73,8 +66,6 @@ type Plugin struct {
 	// Verbose enables detailed logging
 	Verbose bool
 
-	// AIVerify uses Claude Vision to verify login success (more accurate but slower)
-	AIVerify bool
 }
 
 // Name returns the protocol name

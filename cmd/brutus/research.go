@@ -126,70 +126,15 @@ func researchBrowserCredentials(target string, base *baseConfigOptions) ([]brutu
 
 // researchCredentialsWithLLM uses the configured LLM to research default credentials for a target
 func researchCredentialsWithLLM(target, banner string, llmConfig *brutus.LLMConfig, verbose bool) []brutus.Credential {
-	if llmConfig == nil || !llmConfig.Enabled {
-		return nil
-	}
-
-	// Get the analyzer factory for the configured provider
-	factory := brutus.GetAnalyzerFactory(llmConfig.Provider)
-	if factory == nil {
-		logVerbose(verbose, "LLM analyzer not found for provider: %s", llmConfig.Provider)
-		return nil
-	}
-	analyzer := factory(llmConfig)
-
-	// Check if analyzer supports credential pairs (CredentialAnalyzer interface)
-	credAnalyzer, ok := analyzer.(brutus.CredentialAnalyzer)
-	if !ok {
-		logVerbose(verbose, "LLM analyzer doesn't support credential pairs, using password-only")
-		// Fall back to password-only analysis
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		bannerInfo := brutus.BannerInfo{
-			Protocol: "http",
-			Target:   target,
-			Banner:   banner,
-		}
-
-		passwords, err := analyzer.Analyze(ctx, bannerInfo)
-		if err != nil {
-			logVerbose(verbose, "LLM analysis error: %v", err)
-			return nil
-		}
-
-		// Convert passwords to credentials with common usernames
-		var creds []brutus.Credential
-		for _, pwd := range passwords {
-			creds = append(creds,
-				brutus.Credential{Username: "admin", Password: pwd},
-				brutus.Credential{Username: "root", Password: pwd})
-		}
-		return creds
-	}
-
-	// Use CredentialAnalyzer for full username:password pairs
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	bannerInfo := brutus.BannerInfo{
-		Protocol: "http",
-		Target:   target,
-		Banner:   banner,
-	}
-
-	creds, err := credAnalyzer.AnalyzeCredentials(ctx, bannerInfo)
-	if err != nil {
-		logVerbose(verbose, "LLM credential analysis error: %v", err)
-		return nil
-	}
-
+	creds := brutus.ResearchCredentials(ctx, target, banner, llmConfig)
 	if verbose && len(creds) > 0 {
 		logVerbose(verbose, "LLM suggested credentials:")
 		for _, c := range creds {
 			logVerbose(verbose, "  %s:%s", c.Username, c.Password)
 		}
 	}
-
 	return creds
 }

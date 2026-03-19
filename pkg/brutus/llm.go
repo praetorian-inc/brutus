@@ -26,6 +26,7 @@
 package brutus
 
 import (
+	"context"
 	"regexp"
 	"strings"
 )
@@ -143,4 +144,48 @@ func ValidateSuggestions(passwords []string) []string {
 func IsValidPassword(pwd string) bool {
 	// Allow: a-zA-Z0-9 and common symbols: !@#$%^&*()-_=+[]{}
 	return allowedPattern.MatchString(pwd)
+}
+
+// ResearchCredentials uses the configured LLM to research default credentials
+// for a target based on its banner. It first tries CredentialAnalyzer for full
+// username:password pairs, falling back to BannerAnalyzer with common usernames.
+func ResearchCredentials(ctx context.Context, target, banner string, llmConfig *LLMConfig) []Credential {
+	if llmConfig == nil || !llmConfig.Enabled {
+		return nil
+	}
+
+	factory := GetAnalyzerFactory(llmConfig.Provider)
+	if factory == nil {
+		return nil
+	}
+	analyzer := factory(llmConfig)
+
+	bannerInfo := BannerInfo{
+		Protocol: "http",
+		Target:   target,
+		Banner:   banner,
+	}
+
+	// Try CredentialAnalyzer first for full username:password pairs
+	if credAnalyzer, ok := analyzer.(CredentialAnalyzer); ok {
+		creds, err := credAnalyzer.AnalyzeCredentials(ctx, bannerInfo)
+		if err != nil {
+			return nil
+		}
+		return creds
+	}
+
+	// Fall back to password-only analysis with common usernames
+	passwords, err := analyzer.Analyze(ctx, bannerInfo)
+	if err != nil {
+		return nil
+	}
+
+	var creds []Credential
+	for _, pwd := range passwords {
+		creds = append(creds,
+			Credential{Username: "admin", Password: pwd},
+			Credential{Username: "root", Password: pwd})
+	}
+	return creds
 }

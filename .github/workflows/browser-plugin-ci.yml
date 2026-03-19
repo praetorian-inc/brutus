@@ -11,14 +11,14 @@ on:
     branches: [main]
     paths:
       - 'internal/plugins/browser/**'
-      - 'internal/analyzers/vision/**'
+      - 'internal/analyzers/claude/**'
       - 'internal/analyzers/perplexity/**'
       - '.github/workflows/browser-plugin-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'internal/plugins/browser/**'
-      - 'internal/analyzers/vision/**'
+      - 'internal/analyzers/claude/**'
       - 'internal/analyzers/perplexity/**'
       - '.github/workflows/browser-plugin-ci.yml'
 
@@ -42,7 +42,7 @@ jobs:
       - name: Run unit tests
         run: |
           CGO_ENABLED=0 go test -v -short ./internal/plugins/browser/...
-          CGO_ENABLED=0 go test -v -short ./internal/analyzers/vision/...
+          CGO_ENABLED=0 go test -v -short ./internal/analyzers/claude/...
           CGO_ENABLED=0 go test -v -short ./internal/analyzers/perplexity/...
 
   # Integration tests with mock devices (needs Chrome)
@@ -156,7 +156,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          CGO_ENABLED=0 go test -v -tags=vision_api ./internal/analyzers/vision/... -timeout 2m
+          CGO_ENABLED=0 go test -v -tags=vision_api ./internal/analyzers/claude/... -timeout 2m
 
   # Full pipeline test (requires API keys + Chrome)
   full-pipeline-test:

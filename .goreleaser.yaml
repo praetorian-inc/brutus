@@ -89,24 +89,6 @@ changelog:
     - title: Other
       order: 999
 
-# Docker builds - disabled until GHCR permissions are configured
-# dockers:
-#   - id: brutus-amd64
-#     image_templates:
-#       - "ghcr.io/praetorian-inc/brutus:{{ .Tag }}-amd64"
-#     use: buildx
-#     dockerfile: Dockerfile.goreleaser
-#   - id: brutus-arm64
-#     image_templates:
-#       - "ghcr.io/praetorian-inc/brutus:{{ .Tag }}-arm64"
-#     use: buildx
-#     dockerfile: Dockerfile.goreleaser
-# docker_manifests:
-#   - name_template: "ghcr.io/praetorian-inc/brutus:{{ .Tag }}"
-#     image_templates:
-#       - "ghcr.io/praetorian-inc/brutus:{{ .Tag }}-amd64"
-#       - "ghcr.io/praetorian-inc/brutus:{{ .Tag }}-arm64"
-
 release:
   github:
     owner: praetorian-inc

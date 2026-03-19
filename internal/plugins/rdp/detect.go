@@ -63,33 +63,3 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 
 	return result
 }
-
-// DetectNLA performs NLA (Network Level Authentication) fingerprinting and returns
-// a brutus.Result with the detection outcome formatted as a banner string.
-//
-// This function wraps CheckNLA and interprets the NLAResult into a standardized
-// Result format suitable for CLI output.
-func DetectNLA(ctx context.Context, target string, timeout time.Duration) *brutus.Result {
-	nlaResult := CheckNLA(ctx, target, timeout)
-
-	result := &brutus.Result{
-		Protocol: "rdp",
-		Target:   target,
-		Username: "(nla-check)",
-		Success:  false,
-	}
-
-	result.Success = nlaResult.Error == ""
-	if nlaResult.Error != "" {
-		result.Error = fmt.Errorf("%s", nlaResult.Error)
-		result.Banner = fmt.Sprintf("[INFO] NLA check error: %s", nlaResult.Error)
-	} else if nlaResult.RequiresNLA {
-		result.Banner = fmt.Sprintf("[INFO] NLA required (protocol: %s)", nlaResult.SelectedProtocol)
-		result.Success = true
-	} else {
-		result.Banner = fmt.Sprintf("[HIGH] Non-NLA target (protocol: %s) - login screen exposed pre-auth", nlaResult.SelectedProtocol)
-		result.Success = true
-	}
-
-	return result
-}

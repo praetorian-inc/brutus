@@ -34,18 +34,6 @@ func TestDetectStickyKeys_ConnectionError(t *testing.T) {
 	assert.Contains(t, result.Banner, "skipped")
 }
 
-func TestDetectNLA_ConnectionError(t *testing.T) {
-	ctx := context.Background()
-	result := DetectNLA(ctx, "invalid-host:3389", 2*time.Second)
-
-	assert.NotNil(t, result)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, "invalid-host:3389", result.Target)
-	assert.Equal(t, "(nla-check)", result.Username)
-	assert.False(t, result.Success)
-	assert.NotNil(t, result.Error)
-}
-
 func TestDetectStickyKeys_ResultFields(t *testing.T) {
 	ctx := context.Background()
 	result := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys)")

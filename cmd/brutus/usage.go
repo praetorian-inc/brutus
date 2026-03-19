@@ -69,13 +69,13 @@ Output Options:
   -v                     Verbose mode - show detailed progress (to stderr)
 
 SNMP Options:
+  --snmp-tier <tier>     SNMP community string tier: default (20), extended (50), full (120)
 
 TLS Options:
   --verify-tls           Require strict TLS certificate verification (default: disabled)
                          Note: Default is no TLS/SSL validation since we're testing
                          default credentials. nerva TLS detection auto-upgrades
                          to skip-verify mode when TLS is detected.
-  --snmp-tier <tier>     SNMP community string tier: default (20), extended (50), full (120)
 
 AI Options (automatic credential detection for HTTP services):
   --experimental-ai                          AI-powered credential detection:

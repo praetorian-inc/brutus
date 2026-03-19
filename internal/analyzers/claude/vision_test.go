@@ -97,6 +97,8 @@ func TestClient_AnalyzeScreenshot_NotLoginPage(t *testing.T) {
 	}
 }
 
+// TestClient_AnalyzeScreenshot_WithFormHints tests backward compatibility with the
+// deprecated FormHints field. Remove this test when FormHints is removed from PageAnalysis.
 func TestClient_AnalyzeScreenshot_WithFormHints(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := map[string]interface{}{

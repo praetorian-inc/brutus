@@ -58,7 +58,7 @@ type Plugin struct {
 	Visible bool
 
 	// VisionAnalyzer is the optional AI analyzer for screenshot analysis (Claude Vision)
-	VisionAnalyzer *claude.Client
+	VisionAnalyzer claude.VisionAnalyzer
 
 	// CredentialResearcher is the optional analyzer for credential research (Perplexity)
 	CredentialResearcher brutus.CredentialAnalyzer

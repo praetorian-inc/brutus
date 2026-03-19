@@ -181,8 +181,7 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 func hasSecurityFinding(banner string) bool {
 	return strings.Contains(banner, "[CRITICAL]") ||
 		strings.Contains(banner, "[HIGH]") ||
-		strings.Contains(banner, "[INFO] Sticky keys") ||
-		strings.Contains(banner, "[INFO] Non-NLA")
+		strings.Contains(banner, "[INFO] Sticky keys")
 }
 
 // splitLines splits a string into non-empty lines.
@@ -200,10 +199,7 @@ func splitLines(s string) []string {
 func outputScanHuman(results []brutus.Result, useColor bool) {
 	for i := range results {
 		r := &results[i]
-		scanType := "NLA Check"
-		if r.Username == "(sticky-keys)" {
-			scanType = "Sticky Keys Scan"
-		}
+		scanType := "Sticky Keys Scan"
 
 		finding := extractFinding(r.Banner)
 		color, symbol := ColorCyan, SymbolInfo
@@ -236,10 +232,7 @@ func outputScanJSONL(w io.Writer, results []brutus.Result) {
 	enc := json.NewEncoder(w)
 	for i := range results {
 		r := &results[i]
-		scanType := "nla_check"
-		if r.Username == "(sticky-keys)" {
-			scanType = "sticky_keys"
-		}
+		scanType := "sticky_keys"
 		sr := ScanResult{
 			Protocol: r.Protocol,
 			Target:   r.Target,

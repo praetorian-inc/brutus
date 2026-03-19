@@ -53,7 +53,6 @@ type baseConfigOptions struct {
 	stickyKeysExec    string              // Command to execute via sticky keys backdoor
 	stickyKeysWeb     bool                // Start web terminal for sticky keys interaction
 	stickyKeysOpen    bool                // Auto-open browser when sticky keys web terminal starts
-	nlaCheck          bool                // NLA fingerprint scan mode (no auth)
 }
 
 // determineTLSMode returns the appropriate TLS mode based on the verify-tls flag

@@ -362,7 +362,7 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 	return allResults, hasSuccess
 }
 
-// runScanSingleTarget runs scan-only checks (NLA and/or sticky keys) on a single target.
+// runScanSingleTarget runs sticky keys detection on a single target.
 func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Result, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -372,24 +372,9 @@ func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Resul
 		ctx = brutus.ContextWithNoVision(ctx)
 	}
 
-	var results []brutus.Result
-	hasSuccess := false
-
-	if base.nlaCheck {
-		result := rdp.DetectNLA(ctx, target, base.timeout)
-		results = append(results, *result)
-		if result.Success {
-			hasSuccess = true
-		}
-	}
-
-	if base.stickyKeys {
-		result := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
-		results = append(results, *result)
-		if result.Success {
-			hasSuccess = true
-		}
-	}
+	result := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
+	results := []brutus.Result{*result}
+	hasSuccess := result.Success
 
 	return results, hasSuccess
 }

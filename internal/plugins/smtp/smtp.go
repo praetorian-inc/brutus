@@ -137,8 +137,4 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies SMTP errors using the shared helper.
-// Returns nil for authentication failures, wrapped error for connection problems.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, smtpAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(smtpAuthIndicators)

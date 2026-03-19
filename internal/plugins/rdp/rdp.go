@@ -375,10 +375,7 @@ func parseDomainUsername(username string) (domain, user string) {
 	return "", username
 }
 
-// classifyError classifies RDP errors using the shared brutus helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, rdpAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(rdpAuthIndicators)
 
 // shouldRunStickyKeysCheck returns true if sticky keys detection is enabled.
 // The heuristic analysis (pixel comparison) always runs since it has no

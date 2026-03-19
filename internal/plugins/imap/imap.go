@@ -126,9 +126,4 @@ func parseTarget(target string) (host, port string) {
 	return brutus.ParseTarget(target, "143")
 }
 
-// classifyError classifies IMAP errors.
-// Uses shared brutus.ClassifyAuthError to distinguish authentication
-// failures from connection errors.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, imapAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(imapAuthIndicators)

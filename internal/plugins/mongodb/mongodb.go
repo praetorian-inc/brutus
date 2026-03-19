@@ -122,13 +122,4 @@ var mongodbAuthIndicators = []string{
 	"auth error",
 }
 
-// classifyError classifies MongoDB errors.
-//
-// Auth failure indicators (return nil):
-// - "Authentication failed"
-// - "auth error"
-//
-// All other errors are connection problems (return wrapped error).
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, mongodbAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(mongodbAuthIndicators)

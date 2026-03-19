@@ -101,7 +101,4 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies VNC errors using the shared brutus helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, vncAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(vncAuthIndicators)

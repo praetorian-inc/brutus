@@ -135,10 +135,4 @@ func parseTarget(target string) (host, port string) {
 	return brutus.ParseTarget(target, "389")
 }
 
-// classifyError classifies LDAP errors using the shared brutus helper.
-//
-// Delegates to brutus.ClassifyAuthError with LDAP-specific auth indicators.
-// Returns nil for authentication failures, wrapped error for connection problems.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, ldapAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(ldapAuthIndicators)

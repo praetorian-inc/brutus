@@ -34,3 +34,12 @@ func ClassifyAuthError(err error, authIndicators []string) error {
 	// All other errors are connection/network problems
 	return fmt.Errorf("connection error: %w", err)
 }
+
+// NewClassifier returns an error classifier function for the given auth indicators.
+// This is a convenience wrapper around ClassifyAuthError for plugins that need a
+// package-local classifyError function.
+func NewClassifier(authIndicators []string) func(error) error {
+	return func(err error) error {
+		return ClassifyAuthError(err, authIndicators)
+	}
+}

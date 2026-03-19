@@ -117,10 +117,4 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies Neo4j errors.
-//
-// Uses shared brutus.ClassifyAuthError with Neo4j auth indicators
-// to distinguish authentication failures from connection errors.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, neo4jAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(neo4jAuthIndicators)

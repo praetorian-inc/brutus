@@ -98,9 +98,4 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies database errors.
-// Uses shared brutus.ClassifyAuthError with PostgreSQL auth indicators
-// to distinguish authentication failures from connection errors.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, postgresqlAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(postgresqlAuthIndicators)

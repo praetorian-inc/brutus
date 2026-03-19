@@ -112,6 +112,4 @@ var mysqlAuthIndicators = []string{
 	"authentication failed",
 }
 
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, mysqlAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(mysqlAuthIndicators)

@@ -135,7 +135,4 @@ func parseDomainUsername(username string) (domain, user string) {
 	return "", username
 }
 
-// classifyError classifies SMB errors using the shared brutus helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, smbAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(smbAuthIndicators)

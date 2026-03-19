@@ -98,14 +98,4 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies Redis errors using the shared auth error classifier.
-//
-// Auth failure indicators (return nil):
-// - "noauth"
-// - "wrongpass"
-// - "invalid password"
-//
-// All other errors are connection problems (return wrapped error).
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, redisAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(redisAuthIndicators)

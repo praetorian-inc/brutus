@@ -101,7 +101,4 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// classifyError classifies Cassandra errors using the shared helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, cassandraAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(cassandraAuthIndicators)

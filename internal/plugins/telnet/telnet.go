@@ -144,11 +144,7 @@ func dialWithContext(ctx context.Context, network, address string,
 	return dialer.DialContext(ctx, network, address)
 }
 
-// classifyError classifies TCP dial errors.
-// All dial errors are connection errors.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, telnetAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(telnetAuthIndicators)
 
 // waitForPrompt reads from the connection until a prompt is detected.
 func waitForPrompt(reader *bufio.Reader, isPrompt func(string) bool, timeout time.Duration) (string, error) {

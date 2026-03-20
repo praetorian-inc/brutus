@@ -466,9 +466,6 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -483,12 +480,13 @@ jobs:
           go install github.com/securego/gosec/v2/cmd/gosec@latest
           gosec -no-fail -fmt sarif -out results.sarif ./...
 
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@89a39a4e59826350b863aa6b6252a07ad50cf83e # v4.32.4
-        with:
-          sarif_file: results.sarif
+      - name: Check SARIF results
         if: always()
         continue-on-error: true
+        run: |
+          if [ -f results.sarif ]; then
+            echo "Gosec found $(jq '.runs[0].results | length' results.sarif) issues"
+          fi
 
       - name: Run govulncheck
         run: |

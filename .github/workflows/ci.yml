@@ -84,7 +84,6 @@ jobs:
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    environment: internal
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     services:
       # SSH server for password testing
@@ -277,6 +276,7 @@ jobs:
           discovery.type: single-node
           xpack.security.enabled: 'true'
           ELASTIC_PASSWORD: elasticpass
+          ES_JAVA_OPTS: '-Xms512m -Xmx512m'
         ports:
           - 9200:9200
         options: >-
@@ -306,7 +306,7 @@ jobs:
       mailserver:
         image: greenmail/standalone:2.0.0
         env:
-          GREENMAIL_OPTS: "-Dgreenmail.setup.test.all -Dgreenmail.users=testuser:testpass@test.local"
+          GREENMAIL_OPTS: "-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.users=testuser:testpass@test.local"
         ports:
           - 3025:3025
           - 3110:3110

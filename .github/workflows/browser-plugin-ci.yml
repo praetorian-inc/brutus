@@ -83,10 +83,8 @@ jobs:
           go-version: '1.24.13'
           cache: true
 
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2.1.1
-        with:
-          chrome-version: stable
+      - name: Verify Chrome installation
+        run: google-chrome --version
 
       - name: Build and start mock services
         run: |
@@ -125,7 +123,6 @@ jobs:
   vision-api-tests:
     name: Vision API Tests
     runs-on: ubuntu-latest
-    environment: internal
     if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -136,10 +133,8 @@ jobs:
           go-version: '1.24.13'
           cache: true
 
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2.1.1
-        with:
-          chrome-version: stable
+      - name: Verify Chrome installation
+        run: google-chrome --version
 
       - name: Check for API key
         id: check-key
@@ -162,7 +157,6 @@ jobs:
   full-pipeline-test:
     name: Full Pipeline Test
     runs-on: ubuntu-latest
-    environment: internal
     needs: [unit-tests, integration-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
@@ -174,10 +168,8 @@ jobs:
           go-version: '1.24.13'
           cache: true
 
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2.1.1
-        with:
-          chrome-version: stable
+      - name: Verify Chrome installation
+        run: google-chrome --version
 
       - name: Build mock services
         run: |

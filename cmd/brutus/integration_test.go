@@ -168,7 +168,7 @@ func TestNervaJSONParsing(t *testing.T) {
 			assert.Equal(t, tt.wantPort, nrv.Port)
 
 			// Verify protocol mapping works
-			protocol := mapServiceToProtocol(nrv.Protocol)
+			protocol := brutus.MapServiceToProtocol(nrv.Protocol)
 			assert.NotEmpty(t, protocol, "protocol should map to a brutus protocol")
 		})
 	}
@@ -215,7 +215,7 @@ func TestServiceToProtocolMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.service, func(t *testing.T) {
-			got := mapServiceToProtocol(tt.service)
+			got := brutus.MapServiceToProtocol(tt.service)
 			assert.Equal(t, tt.expected, got)
 		})
 	}

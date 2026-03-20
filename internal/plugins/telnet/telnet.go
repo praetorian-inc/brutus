@@ -83,8 +83,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	result.Banner = banner
 
-	// Send username
-	if _, writeErr := fmt.Fprintf(conn, "%s\n", username); writeErr != nil {
+	// Send username (telnet protocol requires CR+LF line endings)
+	if _, writeErr := fmt.Fprintf(conn, "%s\r\n", username); writeErr != nil {
 		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
@@ -96,8 +96,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Send password
-	if _, writeErr := fmt.Fprintf(conn, "%s\n", password); writeErr != nil {
+	// Send password (telnet protocol requires CR+LF line endings)
+	if _, writeErr := fmt.Fprintf(conn, "%s\r\n", password); writeErr != nil {
 		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
@@ -160,7 +160,6 @@ func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		_, _ = reader.ReadByte()
 		b, err := reader.ReadByte()
 		if err != nil {
 			// Check what we have so far
@@ -254,8 +253,16 @@ func isPasswordPrompt(text string) bool {
 // isSuccessIndicator checks if the response indicates successful authentication.
 // Success is indicated by shell prompts ($ or #).
 func isSuccessIndicator(response string) bool {
-	// Check for $ or # at the end of response (shell prompt)
 	trimmed := strings.TrimSpace(response)
+	if trimmed == "" {
+		return false
+	}
+
+	// Strip trailing ANSI escape sequences (e.g., \x1b[6n)
+	// that some terminals send after the shell prompt
+	if idx := strings.LastIndex(trimmed, "\x1b"); idx >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
 	if trimmed == "" {
 		return false
 	}

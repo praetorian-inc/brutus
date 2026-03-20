@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -211,7 +213,7 @@ func TestParseTarget(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			host, port := parseTarget(tt.target)
+			host, port := brutus.ParseTarget(tt.target, "389")
 			assert.Equal(t, tt.expectedHost, host)
 			assert.Equal(t, tt.expectedPort, port)
 		})

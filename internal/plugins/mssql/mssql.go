@@ -54,13 +54,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "mssql",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("mssql", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Build MSSQL connection string
 	// Format: sqlserver://username:password@host:port?database=master
@@ -71,8 +66,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Open database connection
 	db, err := sql.Open("sqlserver", connStr)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer db.Close()
@@ -90,12 +84,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = brutus.ClassifyAuthError(err, mssqlAuthIndicators)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }

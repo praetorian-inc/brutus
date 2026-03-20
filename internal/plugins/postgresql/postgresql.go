@@ -56,13 +56,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "postgresql",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("postgresql", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "5432")
@@ -75,7 +70,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer db.Close()
@@ -88,19 +82,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
-// classifyError classifies database errors.
-// Uses shared brutus.ClassifyAuthError with PostgreSQL auth indicators
-// to distinguish authentication failures from connection errors.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, postgresqlAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(postgresqlAuthIndicators)

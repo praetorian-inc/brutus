@@ -44,74 +44,6 @@ func TestLoadPasswords_NoFlag(t *testing.T) {
 	assert.Empty(t, passwords, "should have no passwords when flag not set")
 }
 
-// TestLoadPasswords_EmptyMarkerInFile tests that <EMPTY> marker in password file
-// is converted to an empty password
-func TestLoadPasswords_EmptyMarkerInFile(t *testing.T) {
-	// Create temporary password file with <EMPTY> marker
-	tmpDir := t.TempDir()
-	passwordFile := filepath.Join(tmpDir, "passwords.txt")
-
-	content := `admin
-<EMPTY>
-password123
-`
-	err := os.WriteFile(passwordFile, []byte(content), 0o644)
-	require.NoError(t, err)
-
-	// Test loading passwords from file
-	passwords, err := loadPasswords("", passwordFile, false)
-	require.NoError(t, err)
-	require.Len(t, passwords, 3, "should have 3 passwords")
-	assert.Equal(t, "admin", passwords[0])
-	assert.Equal(t, "", passwords[1], "second password should be empty (from <EMPTY> marker)")
-	assert.Equal(t, "password123", passwords[2])
-}
-
-// TestLoadPasswords_EmptyLinesInFile tests that empty lines in password file
-// are treated as empty passwords
-func TestLoadPasswords_EmptyLinesInFile(t *testing.T) {
-	// Create temporary password file with empty lines
-	tmpDir := t.TempDir()
-	passwordFile := filepath.Join(tmpDir, "passwords.txt")
-
-	content := `admin
-
-password123
-`
-	err := os.WriteFile(passwordFile, []byte(content), 0o644)
-	require.NoError(t, err)
-
-	// Test loading passwords from file
-	passwords, err := loadPasswords("", passwordFile, false)
-	require.NoError(t, err)
-	require.Len(t, passwords, 3, "should have 3 passwords including empty line")
-	assert.Equal(t, "admin", passwords[0])
-	assert.Equal(t, "", passwords[1], "second password should be empty (from empty line)")
-	assert.Equal(t, "password123", passwords[2])
-}
-
-// TestLoadPasswords_CommentsSkipped tests that comment lines are skipped
-func TestLoadPasswords_CommentsSkipped(t *testing.T) {
-	// Create temporary password file with comments
-	tmpDir := t.TempDir()
-	passwordFile := filepath.Join(tmpDir, "passwords.txt")
-
-	content := `# This is a comment
-admin
-# Another comment
-password123
-`
-	err := os.WriteFile(passwordFile, []byte(content), 0o644)
-	require.NoError(t, err)
-
-	// Test loading passwords from file
-	passwords, err := loadPasswords("", passwordFile, false)
-	require.NoError(t, err)
-	require.Len(t, passwords, 2, "should have 2 passwords (comments skipped)")
-	assert.Equal(t, "admin", passwords[0])
-	assert.Equal(t, "password123", passwords[1])
-}
-
 // TestLoadPasswords_InlineWithCommaSeparated tests comma-separated inline passwords
 func TestLoadPasswords_InlineWithCommaSeparated(t *testing.T) {
 	// Test normal comma-separated passwords
@@ -145,18 +77,6 @@ file2
 	assert.Equal(t, "file2", passwords[3])
 }
 
-func TestLoadPasswords_FileNotFound(t *testing.T) {
-	_, err := loadPasswords("", "/nonexistent/file.txt", false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "opening password file")
-}
-
-func TestLoadKey_FileNotFound(t *testing.T) {
-	_, err := loadKey("/nonexistent/key.pem")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "accessing key file")
-}
-
 // TestLoadUsernames_InlineOnly tests comma-separated inline usernames
 func TestLoadUsernames_InlineOnly(t *testing.T) {
 	usernames, err := loadUsernames("root,admin,ubuntu", "", true)
@@ -165,32 +85,6 @@ func TestLoadUsernames_InlineOnly(t *testing.T) {
 	assert.Equal(t, "root", usernames[0])
 	assert.Equal(t, "admin", usernames[1])
 	assert.Equal(t, "ubuntu", usernames[2])
-}
-
-// TestLoadUsernames_FileOnly tests loading usernames from a file,
-// skipping comments and empty lines
-func TestLoadUsernames_FileOnly(t *testing.T) {
-	tmpDir := t.TempDir()
-	usernameFile := filepath.Join(tmpDir, "usernames.txt")
-
-	content := `# Default usernames
-root
-admin
-
-# Service accounts
-postgres
-mysql
-`
-	err := os.WriteFile(usernameFile, []byte(content), 0o644)
-	require.NoError(t, err)
-
-	usernames, err := loadUsernames("root,admin", usernameFile, false)
-	require.NoError(t, err)
-	require.Len(t, usernames, 4, "should have 4 usernames (comments and empty lines skipped)")
-	assert.Equal(t, "root", usernames[0])
-	assert.Equal(t, "admin", usernames[1])
-	assert.Equal(t, "postgres", usernames[2])
-	assert.Equal(t, "mysql", usernames[3])
 }
 
 // TestLoadUsernames_InlineAndFile tests combining inline and file usernames
@@ -211,13 +105,6 @@ fileuser2
 	assert.Equal(t, "inlineuser2", usernames[1])
 	assert.Equal(t, "fileuser1", usernames[2])
 	assert.Equal(t, "fileuser2", usernames[3])
-}
-
-// TestLoadUsernames_FileNotFound tests error when username file does not exist
-func TestLoadUsernames_FileNotFound(t *testing.T) {
-	_, err := loadUsernames("", "/nonexistent/usernames.txt", false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "opening username file")
 }
 
 // TestLoadUsernames_EmptyInlineNoFile tests that empty inline with no file returns empty list

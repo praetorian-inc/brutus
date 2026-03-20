@@ -16,7 +16,6 @@ package vnc
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"time"
 
@@ -58,13 +57,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "vnc",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("vnc", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Create dialer with timeout
 	dialer := &net.Dialer{
@@ -74,8 +68,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Connect to VNC server
 	conn, err := dialer.DialContext(ctx, "tcp", target)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer conn.Close()
@@ -91,17 +84,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	_, err = vnc.Client(conn, cfg)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
-// classifyError classifies VNC errors using the shared brutus helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, vncAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(vncAuthIndicators)

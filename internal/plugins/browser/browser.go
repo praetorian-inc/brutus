@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/praetorian-inc/brutus/internal/analyzers/vision"
+	"github.com/praetorian-inc/brutus/internal/analyzers/claude"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
@@ -58,10 +58,13 @@ type Plugin struct {
 	Visible bool
 
 	// VisionAnalyzer is the optional AI analyzer for screenshot analysis (Claude Vision)
-	VisionAnalyzer *vision.Client
+	VisionAnalyzer claude.VisionAnalyzer
 
 	// CredentialResearcher is the optional analyzer for credential research (Perplexity)
 	CredentialResearcher brutus.CredentialAnalyzer
+
+	// AIVerify enables Claude Vision login verification (before/after screenshot comparison)
+	AIVerify bool
 
 	// Verbose enables detailed logging
 	Verbose bool
@@ -82,13 +85,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: p.Name(),
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult(p.Name(), target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Set visible mode before getting browser (must be before first GetBrowser call)
 	SetBrowserVisible(p.Visible)
@@ -97,7 +95,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	browser, err := GetBrowser(p.TabCount)
 	if err != nil {
 		result.Error = fmt.Errorf("browser error: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -112,12 +109,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		fmt.Fprintf(logOutput, "[verbose] Testing %s:%s...\n", username, password)
 	}
 
+	// AI verify mode: capture screenshots and use heuristic + Claude Vision
+	if p.AIVerify && p.VisionAnalyzer != nil {
+		return p.testWithAIVerify(ctx, tabCtx, url, username, password, result, start)
+	}
+
 	// Navigate, fill form, and submit in ONE chromedp.Run call
 	// This is the only reliable way to avoid context staleness issues
 	submitResult, submitErr := FillAndSubmitWithNavigate(tabCtx, url, username, password, p.PageLoadTimeout+15*time.Second)
 	if submitErr != nil {
 		result.Error = fmt.Errorf("form submission failed: %w", submitErr)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -154,14 +155,75 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		}
 	}
 
-	result.Duration = time.Since(start)
+	return result
+}
+
+// testWithAIVerify uses heuristic verification with Claude Vision fallback for ambiguous cases.
+// It captures before/after screenshots and sends them to Claude Vision when the heuristic
+// confidence is too low to make a reliable determination.
+func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, password string,
+	result *brutus.Result, start time.Time) *brutus.Result {
+
+	submitResult, submitErr := FillSubmitAndScreenshot(tabCtx, url, username, password, p.PageLoadTimeout+15*time.Second)
+	if submitErr != nil {
+		result.Error = fmt.Errorf("form submission failed: %w", submitErr)
+		return result
+	}
+
+	if p.Verbose {
+		fmt.Fprintf(logOutput, "[verbose] After login URL: %s\n", submitResult.AfterURL)
+		fmt.Fprintf(logOutput, "[verbose] Page has password field: %v\n", submitResult.HasPassword)
+	}
+
+	// Run heuristic verification first (fast, no API call)
+	before := VerificationState{URL: url, HTML: submitResult.BeforeHTML}
+	after := VerificationState{URL: submitResult.AfterURL, HTML: submitResult.AfterHTML}
+	heuristic := VerifyLogin(before, after)
+
+	if p.Verbose {
+		fmt.Fprintf(logOutput, "[verbose] Heuristic: success=%v confidence=%.2f reason=%s\n",
+			heuristic.Success, heuristic.Confidence, heuristic.Reason)
+	}
+
+	// High confidence heuristic: trust it without API call
+	if heuristic.Confidence >= 0.70 {
+		result.Success = heuristic.Success
+		if p.Verbose {
+			fmt.Fprintf(logOutput, "[verbose] Using heuristic result (confidence %.2f)\n", heuristic.Confidence)
+		}
+	} else {
+		// Ambiguous: use Claude Vision for verification
+		if p.Verbose {
+			fmt.Fprintf(logOutput, "[verbose] Heuristic ambiguous (%.2f), using Claude Vision...\n", heuristic.Confidence)
+		}
+
+		verification, verifyErr := p.VisionAnalyzer.VerifyLogin(ctx, submitResult.BeforeScreenshot, submitResult.AfterScreenshot)
+		if verifyErr != nil {
+			if p.Verbose {
+				fmt.Fprintf(logOutput, "[verbose] Vision error: %v, falling back to heuristic\n", verifyErr)
+			}
+			result.Success = heuristic.Success
+		} else {
+			if p.Verbose {
+				fmt.Fprintf(logOutput, "[verbose] Vision: success=%v confidence=%.2f reason=%s\n",
+					verification.Success, verification.Confidence, verification.Reason)
+			}
+			result.Success = verification.Success
+		}
+	}
+
+	if result.Success && p.Visible {
+		fmt.Fprintf(logOutput, "[demo] Pausing 3s to show successful login...\n")
+		time.Sleep(3 * time.Second)
+	}
+
 	return result
 }
 
 // AnalyzePage performs AI analysis on a page without attempting login.
 // Returns the page analysis and researched credentials (if any).
 // This is used by the orchestrator to get credentials before brute forcing.
-func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*vision.PageAnalysis, []brutus.Credential, error) {
+func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAnalysis, []brutus.Credential, error) {
 	browserMode := "headless"
 	if p.Visible {
 		browserMode = "visible"

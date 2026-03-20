@@ -57,13 +57,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "redis",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("redis", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "6379")
@@ -88,24 +83,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err := client.Ping(pingCtx).Err()
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
-// classifyError classifies Redis errors using the shared auth error classifier.
-//
-// Auth failure indicators (return nil):
-// - "noauth"
-// - "wrongpass"
-// - "invalid password"
-//
-// All other errors are connection problems (return wrapped error).
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, redisAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(redisAuthIndicators)

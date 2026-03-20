@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"strings"
 	"time"
 
@@ -60,19 +59,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "telnet",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("telnet", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Connect with context-aware timeout
-	conn, err := dialWithContext(ctx, "tcp", target, timeout)
+	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer conn.Close()
@@ -85,39 +78,34 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read until login prompt (capture banner)
 	banner, err := waitForPrompt(reader, isLoginPrompt, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	result.Banner = banner
 
-	// Send username
-	if _, writeErr := fmt.Fprintf(conn, "%s\n", username); writeErr != nil {
-		result.Error = fmt.Errorf("connection error: %w", writeErr)
-		result.Duration = time.Since(start)
+	// Send username (telnet protocol requires CR+LF line endings)
+	if _, writeErr := fmt.Fprintf(conn, "%s\r\n", username); writeErr != nil {
+		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
 
 	// Read until password prompt
 	_, err = waitForPrompt(reader, isPasswordPrompt, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
-	// Send password
-	if _, writeErr := fmt.Fprintf(conn, "%s\n", password); writeErr != nil {
-		result.Error = fmt.Errorf("connection error: %w", writeErr)
-		result.Duration = time.Since(start)
+	// Send password (telnet protocol requires CR+LF line endings)
+	if _, writeErr := fmt.Fprintf(conn, "%s\r\n", password); writeErr != nil {
+		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
 
 	// Read response and check for success/failure
 	response, err := readResponse(reader, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -131,24 +119,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// If not success and Error==nil, it's auth failure
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 
-// dialWithContext performs context-aware TCP dialing.
-func dialWithContext(ctx context.Context, network, address string,
-	timeout time.Duration) (net.Conn, error) {
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-	return dialer.DialContext(ctx, network, address)
-}
-
-// classifyError classifies TCP dial errors.
-// All dial errors are connection errors.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, telnetAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(telnetAuthIndicators)
 
 // waitForPrompt reads from the connection until a prompt is detected.
 func waitForPrompt(reader *bufio.Reader, isPrompt func(string) bool, timeout time.Duration) (string, error) {
@@ -186,7 +160,6 @@ func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		_, _ = reader.ReadByte()
 		b, err := reader.ReadByte()
 		if err != nil {
 			// Check what we have so far
@@ -280,8 +253,16 @@ func isPasswordPrompt(text string) bool {
 // isSuccessIndicator checks if the response indicates successful authentication.
 // Success is indicated by shell prompts ($ or #).
 func isSuccessIndicator(response string) bool {
-	// Check for $ or # at the end of response (shell prompt)
 	trimmed := strings.TrimSpace(response)
+	if trimmed == "" {
+		return false
+	}
+
+	// Strip trailing ANSI escape sequences (e.g., \x1b[6n)
+	// that some terminals send after the shell prompt
+	if idx := strings.LastIndex(trimmed, "\x1b"); idx >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
 	if trimmed == "" {
 		return false
 	}

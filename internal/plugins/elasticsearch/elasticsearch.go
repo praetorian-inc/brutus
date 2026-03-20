@@ -16,7 +16,6 @@ package elasticsearch
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"time"
@@ -48,22 +47,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "elasticsearch",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("elasticsearch", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
 
-	// Determine URL scheme based on TLS mode
-	scheme := "http"
-	if tlsMode == "verify" || tlsMode == "skip-verify" {
-		scheme = "https"
-	}
+	scheme := brutus.SchemeFromTLSMode(tlsMode)
 
 	// Build URL for cluster info endpoint
 	url := fmt.Sprintf("%s://%s/", scheme, target)
@@ -71,42 +61,20 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create HTTP request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
 	// Set Basic Auth
 	req.SetBasicAuth(username, password)
 
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
-		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
-	}
-
-	// Create HTTP client with timeout and TLS config
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-	}
+	// Create HTTP client with TLS config
+	client := brutus.NewHTTPClient(timeout, brutus.BuildTLSConfig(tlsMode))
 
 	// Execute request
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer resp.Body.Close()
@@ -116,7 +84,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// Authentication failed - this is expected for invalid credentials
 		result.Success = false
 		result.Error = nil // Auth failure returns nil error
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -124,13 +91,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// Success - valid credentials
 		result.Success = true
 		result.Error = nil
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Any other status code is a connection/server error
 	result.Success = false
 	result.Error = fmt.Errorf("connection error: unexpected status code %d", resp.StatusCode)
-	result.Duration = time.Since(start)
 	return result
 }

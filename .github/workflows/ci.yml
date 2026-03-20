@@ -51,10 +51,11 @@ jobs:
         run: go test -short -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
-        with:
-          files: coverage.out
-          fail_ci_if_error: false
+        if: always()
+        run: |
+          curl -Os https://cli.codecov.io/latest/linux/codecov
+          chmod +x codecov
+          ./codecov upload-process -t ${{ secrets.CODECOV_TOKEN }} -f coverage.out || true
 
   build:
     name: Build

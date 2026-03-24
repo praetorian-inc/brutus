@@ -62,8 +62,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "5432")
 
-	// Build PostgreSQL connection string
-	connStr := fmt.Sprintf("user=%s password=%s host=%s port=%s sslmode=disable connect_timeout=%d",
+	// Build PostgreSQL connection string.
+	// Default to dbname=postgres (the system database that always exists),
+	// consistent with how the MSSQL plugin defaults to database=master.
+	// Without this, lib/pq defaults to dbname=<username> which fails when
+	// no database matching the username has been created — PostgreSQL
+	// rejects the connection before authentication even occurs.
+	connStr := fmt.Sprintf("dbname=postgres user=%s password=%s host=%s port=%s sslmode=disable connect_timeout=%d",
 		username, password, host, port, int(timeout.Seconds()))
 
 	// Open database connection

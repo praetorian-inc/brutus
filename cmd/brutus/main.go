@@ -76,7 +76,18 @@ func isColorEnabled(noColor bool) bool {
 	return !noColor && isTerminal()
 }
 
+// isEnumSubcommand checks if the first argument is "enum".
+func isEnumSubcommand(args []string) bool {
+	return len(args) >= 2 && args[1] == "enum"
+}
+
 func main() {
+	// Subcommand dispatch: check before flag.Parse() touches os.Args
+	if isEnumSubcommand(os.Args) {
+		enumMain()
+		return
+	}
+
 	// Command-line flags
 	target := flag.String("target", "", "Target host:port")
 	showVersion := flag.Bool("version", false, "Show version information")

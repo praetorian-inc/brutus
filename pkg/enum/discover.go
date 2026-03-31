@@ -143,6 +143,6 @@ func generateInvalidEmail(validEmail string) string {
 // randomHex returns n random hex characters.
 func randomHex(n int) string {
 	b := make([]byte, n/2+1)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)[:n]
 }

@@ -42,7 +42,7 @@ func TestRunWorkers_EmailsTimesServices(t *testing.T) {
 		Threads: 2,
 		Timeout: 5 * time.Second,
 	}
-	cfg.validate()
+	require.NoError(t, cfg.validate())
 
 	results, err := runWorkers(context.Background(), cfg)
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestRunWorkers_SpecificServices(t *testing.T) {
 		Threads:  1,
 		Timeout:  5 * time.Second,
 	}
-	cfg.validate()
+	require.NoError(t, cfg.validate())
 
 	results, err := runWorkers(context.Background(), cfg)
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestRunWorkers_ContextCancellation(t *testing.T) {
 		Threads: 1,
 		Timeout: 5 * time.Second,
 	}
-	cfg.validate()
+	require.NoError(t, cfg.validate())
 
 	results, err := runWorkers(ctx, cfg)
 	assert.NoError(t, err)

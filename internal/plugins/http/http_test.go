@@ -350,31 +350,31 @@ func TestExtractAppIdentifiers(t *testing.T) {
 func TestBuildURL(t *testing.T) {
 	tests := []struct {
 		name     string
-		plugin   Plugin
+		plugin   *Plugin
 		target   string
 		expected string
 	}{
 		{
 			name:     "HTTP with port",
-			plugin:   Plugin{Path: "/", UseHTTPS: false},
+			plugin:   &Plugin{Path: "/", UseHTTPS: false},
 			target:   "localhost:8080",
 			expected: "http://localhost:8080/",
 		},
 		{
 			name:     "HTTPS with port",
-			plugin:   Plugin{Path: "/", UseHTTPS: true},
+			plugin:   &Plugin{Path: "/", UseHTTPS: true},
 			target:   "localhost:443",
 			expected: "https://localhost:443/",
 		},
 		{
 			name:     "Custom path",
-			plugin:   Plugin{Path: "/admin/login", UseHTTPS: false},
+			plugin:   &Plugin{Path: "/admin/login", UseHTTPS: false},
 			target:   "example.com:8080",
 			expected: "http://example.com:8080/admin/login",
 		},
 		{
 			name:     "Default path when empty",
-			plugin:   Plugin{Path: "", UseHTTPS: false},
+			plugin:   &Plugin{Path: "", UseHTTPS: false},
 			target:   "localhost:80",
 			expected: "http://localhost:80/",
 		},

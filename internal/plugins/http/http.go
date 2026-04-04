@@ -24,7 +24,6 @@ package http
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -85,13 +84,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: p.Name(),
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult(p.Name(), target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Build URL
 	url := p.buildURL(target)
@@ -99,33 +93,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
 
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
-		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
-	}
-
-	// Create a shared HTTP client helper
+	// Helper to create HTTP clients with consistent config
+	tlsCfg := brutus.BuildTLSConfig(tlsMode)
 	newClient := func() *http.Client {
-		return &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				TLSClientConfig: tlsConfig,
-			},
-			// Don't follow redirects - we want to see the auth response
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
+		c := brutus.NewHTTPClient(timeout, tlsCfg)
+		// Don't follow redirects - we want to see the auth response
+		c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
 		}
+		return c
 	}
 
 	// Probe once to verify the server actually requires Basic Auth.
@@ -137,7 +113,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// If server doesn't require Basic Auth, skip credential testing
 	if !p.requiresAuth {
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -147,8 +122,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -161,8 +135,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Execute request
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer resp.Body.Close()
@@ -189,7 +162,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = fmt.Errorf("connection error: HTTP %d", resp.StatusCode)
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 

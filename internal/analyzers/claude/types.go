@@ -1,7 +1,7 @@
 // Copyright 2026 Praetorian Security, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package vision
+package claude
 
 import "context"
 
@@ -51,11 +51,14 @@ type LoginVerification struct {
 	Reason     string  `json:"reason"`
 }
 
-// VisionAnalyzer extends BannerAnalyzer with screenshot support
+// VisionAnalyzer defines the Claude Vision capabilities for screenshot analysis.
 type VisionAnalyzer interface {
 	// AnalyzeScreenshot analyzes a page screenshot and returns page analysis
 	AnalyzeScreenshot(ctx context.Context, screenshot []byte) (*PageAnalysis, error)
 
 	// VerifyLogin compares before/after screenshots to determine login success
 	VerifyLogin(ctx context.Context, beforeScreenshot, afterScreenshot []byte) (*LoginVerification, error)
+
+	// ReadTerminalOutput extracts text from a terminal screenshot via OCR
+	ReadTerminalOutput(ctx context.Context, screenshot []byte) (string, error)
 }

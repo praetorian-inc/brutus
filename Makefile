@@ -1,7 +1,8 @@
 # Makefile for Brutus
 # Modern credential brute-forcing library in pure Go
 
-.PHONY: all build build-wasm clean test test-integration lint install help
+.PHONY: all build build-wasm clean test test-integration lint install help \
+	services-up services-down
 
 # Build configuration
 BINARY_NAME := brutus
@@ -49,9 +50,50 @@ $(BUILD_DIR):
 test:
 	GOWORK=off CGO_ENABLED=0 go test -short -coverprofile=coverage.out ./...
 
-# Run all tests including integration tests (requires demo services: make demo-up)
+# Integration test environment
+INTEGRATION_COMPOSE := testdata/docker-compose.yml
+
+# Start integration test services
+services-up:
+	@echo "Starting integration test services..."
+	docker compose -f $(INTEGRATION_COMPOSE) up -d
+	@echo "Waiting for services to be ready..."
+	@for i in $$(seq 1 30); do \
+		nc -z localhost 3306 2>/dev/null && break || sleep 2; \
+	done
+	@sleep 5
+	@echo "Services ready."
+
+# Stop integration test services
+services-down:
+	@echo "Stopping integration test services..."
+	docker compose -f $(INTEGRATION_COMPOSE) down -v
+
+# Run all tests including integration tests (requires: make services-up)
 test-integration:
-	GOWORK=off CGO_ENABLED=0 go test -coverprofile=coverage.out ./...
+	GOWORK=off CGO_ENABLED=0 \
+	SSH_TEST_HOST=localhost:2222 SSH_TEST_USER=testuser SSH_TEST_PASS=testpass \
+	FTP_TEST_HOST=localhost:21 FTP_TEST_USER=ftpuser FTP_TEST_PASS=ftppass \
+	TELNET_TEST_HOST=localhost:23 TELNET_TEST_USER=user TELNET_TEST_PASS=password \
+	VNC_TEST_HOST=localhost:5901 VNC_TEST_PASS=vncpass \
+	SMB_TEST_HOST=localhost:445 SMB_TEST_USER=smbuser SMB_TEST_PASS=smbpass \
+	LDAP_TEST_HOST=localhost:389 LDAP_TEST_USER="cn=admin,dc=test,dc=local" LDAP_TEST_PASS=adminpass \
+	RDP_TEST_HOST=localhost:3389 RDP_TEST_USER=guest RDP_TEST_PASS=rdppass \
+	MYSQL_TEST_HOST=localhost:3306 MYSQL_TEST_USER=root MYSQL_TEST_PASS=rootpass \
+	POSTGRES_TEST_HOST=localhost:5432 POSTGRES_TEST_USER=postgres POSTGRES_TEST_PASS=postgrespass \
+	MSSQL_TEST_HOST=localhost:1433 MSSQL_TEST_USER=sa MSSQL_TEST_PASS='MssqlPass123!' \
+	MONGODB_TEST_HOST=localhost:27017 MONGODB_TEST_USER=mongouser MONGODB_TEST_PASS=mongopass \
+	REDIS_TEST_HOST=localhost:6379 REDIS_TEST_PASS=redispass \
+	NEO4J_TEST_HOST=localhost:7687 NEO4J_TEST_USER=neo4j NEO4J_TEST_PASS=neo4jpass \
+	CASSANDRA_TEST_HOST=localhost:9042 CASSANDRA_TEST_USER=cassandra CASSANDRA_TEST_PASS=cassandra \
+	COUCHDB_TEST_HOST=localhost:5984 COUCHDB_TEST_USER=couchuser COUCHDB_TEST_PASS=couchpass \
+	ELASTICSEARCH_TEST_HOST=localhost:9200 ELASTICSEARCH_TEST_USER=elastic ELASTICSEARCH_TEST_PASS=elasticpass \
+	INFLUXDB_TEST_HOST=localhost:8086 INFLUXDB_TEST_USER=influxuser INFLUXDB_TEST_PASS=influxpass \
+	SMTP_TEST_HOST=localhost:3025 SMTP_TEST_USER=testuser SMTP_TEST_PASS=testpass \
+	IMAP_TEST_HOST=localhost:3143 IMAP_TEST_USER=testuser IMAP_TEST_PASS=testpass \
+	POP3_TEST_HOST=localhost:3110 POP3_TEST_USER=testuser POP3_TEST_PASS=testpass \
+	SNMP_TEST_HOST=localhost:161 SNMP_TEST_COMMUNITY=public \
+	go test -coverprofile=coverage.out ./...
 
 # Run linter
 lint:
@@ -214,7 +256,9 @@ help:
 	@echo ""
 	@echo "Development targets:"
 	@echo "  test             Run unit tests (no services required)"
-	@echo "  test-integration Run all tests including integration (requires: make demo-up)"
+	@echo "  test-integration Run all tests including integration (requires: make services-up)"
+	@echo "  services-up      Start integration test services (Docker)"
+	@echo "  services-down    Stop integration test services"
 	@echo "  lint             Run linter"
 	@echo "  deps             Check build dependencies"
 	@echo "  version          Show version info"

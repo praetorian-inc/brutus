@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"net"
 	"strings"
 	"time"
 
@@ -51,19 +50,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "pop3",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("pop3", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Connect with context-aware timeout
-	conn, err := dialWithContext(ctx, "tcp", target, timeout)
+	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
 	if err != nil {
-		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 	defer conn.Close()
@@ -74,10 +67,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	reader := bufio.NewReader(conn)
 
 	// Read welcome message (+OK)
-	_, err = readResponse(reader)
+	_, err = brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -85,15 +77,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	_, err = fmt.Fprintf(conn, "USER %s\r\n", username)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Read response (should be +OK)
-	_, err = readResponse(reader)
+	_, err = brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -101,15 +91,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	_, err = fmt.Fprintf(conn, "PASS %s\r\n", password)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Read response (+OK = success, -ERR = failure)
-	response, err := readResponse(reader)
+	response, err := brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -125,35 +113,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = fmt.Errorf("connection error: unexpected POP3 response: %s", response)
 	}
 
-	result.Duration = time.Since(start)
 	return result
-}
-
-// dialWithContext performs context-aware TCP dialing.
-func dialWithContext(ctx context.Context, network, address string,
-	timeout time.Duration) (net.Conn, error) {
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-	return dialer.DialContext(ctx, network, address)
-}
-
-// readResponse reads a single POP3 response line.
-func readResponse(reader *bufio.Reader) (string, error) {
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(line), nil
-}
-
-// classifyError classifies TCP dial errors.
-// All dial errors are connection errors.
-func classifyError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("connection error: %w", err)
 }
 
 // classifyAuthError classifies POP3 authentication errors.

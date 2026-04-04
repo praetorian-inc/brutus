@@ -18,5 +18,4 @@ package analyzers
 import (
 	_ "github.com/praetorian-inc/brutus/internal/analyzers/claude"
 	_ "github.com/praetorian-inc/brutus/internal/analyzers/perplexity"
-	_ "github.com/praetorian-inc/brutus/internal/analyzers/vision"
 )

@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,7 +72,7 @@ func TestNervaIntegration(t *testing.T) {
 	t.Logf("nerva output: %s", string(nrvOutput))
 
 	// Verify nerva detected the HTTP service
-	var nrvResult NervaResult
+	var nrvResult brutus.NervaResult
 	if err := json.Unmarshal(bytes.TrimSpace(nrvOutput), &nrvResult); err != nil {
 		t.Fatalf("Failed to parse nerva JSON: %v (output: %s)", err, string(nrvOutput))
 	}
@@ -158,7 +159,7 @@ func TestNervaJSONParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var nrv NervaResult
+			var nrv brutus.NervaResult
 			err := json.Unmarshal([]byte(tt.json), &nrv)
 			require.NoError(t, err)
 
@@ -167,7 +168,7 @@ func TestNervaJSONParsing(t *testing.T) {
 			assert.Equal(t, tt.wantPort, nrv.Port)
 
 			// Verify protocol mapping works
-			protocol := mapServiceToProtocol(nrv.Protocol)
+			protocol := brutus.MapServiceToProtocol(nrv.Protocol)
 			assert.NotEmpty(t, protocol, "protocol should map to a brutus protocol")
 		})
 	}
@@ -214,7 +215,7 @@ func TestServiceToProtocolMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.service, func(t *testing.T) {
-			got := mapServiceToProtocol(tt.service)
+			got := brutus.MapServiceToProtocol(tt.service)
 			assert.Equal(t, tt.expected, got)
 		})
 	}

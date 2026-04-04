@@ -50,13 +50,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "mongodb",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("mongodb", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
@@ -92,7 +87,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	client, err := mongo.Connect(connectCtx, clientOpts)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer func() {
@@ -106,13 +100,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = client.Ping(pingCtx, nil)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
@@ -122,13 +114,4 @@ var mongodbAuthIndicators = []string{
 	"auth error",
 }
 
-// classifyError classifies MongoDB errors.
-//
-// Auth failure indicators (return nil):
-// - "Authentication failed"
-// - "auth error"
-//
-// All other errors are connection problems (return wrapped error).
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, mongodbAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(mongodbAuthIndicators)

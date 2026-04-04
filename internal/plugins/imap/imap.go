@@ -55,16 +55,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "imap",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("imap", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
-	host, port := parseTarget(target)
+	host, port := brutus.ParseTarget(target, "143")
 	addr := fmt.Sprintf("%s:%s", host, port)
 
 	// Create context with timeout
@@ -80,7 +75,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	client, err := imapclient.DialInsecure(addr, options)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer client.Close()
@@ -88,7 +82,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Check if context was canceled during dial
 	if dialCtx.Err() != nil {
 		result.Error = classifyError(dialCtx.Err())
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -103,32 +96,17 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Check if context was canceled during login
 	if loginCtx.Err() != nil {
 		result.Error = classifyError(loginCtx.Err())
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
-// parseTarget splits target into host and port.
-// If no port is specified, defaults to 143.
-// Delegates to brutus.ParseTarget for proper IPv6 support.
-func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "143")
-}
-
-// classifyError classifies IMAP errors.
-// Uses shared brutus.ClassifyAuthError to distinguish authentication
-// failures from connection errors.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, imapAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(imapAuthIndicators)

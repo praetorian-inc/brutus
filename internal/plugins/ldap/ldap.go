@@ -63,16 +63,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "ldap",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("ldap", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
-	host, port := parseTarget(target)
+	host, port := brutus.ParseTarget(target, "389")
 
 	// Build LDAP URL
 	ldapURL := fmt.Sprintf("ldap://%s:%s", host, port)
@@ -101,7 +96,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	conn, err := ldap.DialURL(ldapURL, ldap.DialWithDialer(dialer), ldap.DialWithTLSConfig(tlsConfig))
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer conn.Close()
@@ -114,7 +108,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if err == nil {
 		// Success with simple username
 		result.Success = true
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -124,21 +117,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Classify the error
 	result.Error = classifyError(err)
-	result.Duration = time.Since(start)
 	return result
 }
 
-// parseTarget splits target into host and port.
-// If no port is specified, defaults to 389.
-// Delegates to brutus.ParseTarget for IPv6 support.
-func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "389")
-}
-
-// classifyError classifies LDAP errors using the shared brutus helper.
-//
-// Delegates to brutus.ClassifyAuthError with LDAP-specific auth indicators.
-// Returns nil for authentication failures, wrapped error for connection problems.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, ldapAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(ldapAuthIndicators)

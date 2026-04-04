@@ -29,6 +29,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
@@ -58,6 +59,12 @@ type Plugin struct {
 
 	// UseHTTPS indicates whether to use HTTPS (default: false)
 	UseHTTPS bool
+
+	// probeOnce ensures the Basic Auth probe runs exactly once.
+	probeOnce sync.Once
+	// requiresAuth is set by the probe; false means the server returns 2xx
+	// without credentials and is not protected by Basic Auth.
+	requiresAuth bool
 }
 
 // Name returns the protocol name.
@@ -107,17 +114,34 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		tlsConfig = nil // No TLS
 	}
 
-	// Create HTTP client with timeout and TLS config
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-		// Don't follow redirects - we want to see the auth response
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	// Create a shared HTTP client helper
+	newClient := func() *http.Client {
+		return &http.Client{
+			Timeout: timeout,
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
+			// Don't follow redirects - we want to see the auth response
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		}
 	}
+
+	// Probe once to verify the server actually requires Basic Auth.
+	// Servers that don't use Basic Auth return 2xx for any request,
+	// causing false positives for every credential tested.
+	p.probeOnce.Do(func() {
+		p.requiresAuth = !p.isOpenAccess(ctx, url, newClient)
+	})
+
+	// If server doesn't require Basic Auth, skip credential testing
+	if !p.requiresAuth {
+		result.Duration = time.Since(start)
+		return result
+	}
+
+	client := newClient()
 	defer client.CloseIdleConnections()
 
 	// Create request
@@ -167,6 +191,28 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	result.Duration = time.Since(start)
 	return result
+}
+
+// isOpenAccess makes an unauthenticated request to check whether the server
+// returns a 2xx response without credentials. If so, the server does not
+// require Basic Auth and any authenticated response would be a false positive.
+func (p *Plugin) isOpenAccess(ctx context.Context, url string, newClient func() *http.Client) bool {
+	client := newClient()
+	defer client.CloseIdleConnections()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
+	if err != nil {
+		return false
+	}
+	// No Basic Auth header — intentionally unauthenticated
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
 // buildURL constructs the full URL from target and path.

@@ -176,6 +176,29 @@ func TestPlugin_Test_BannerCapture_MultipleApps(t *testing.T) {
 	assert.Contains(t, result.Banner, "Grafana")
 }
 
+func TestPlugin_Test_NoBasicAuth_FalsePositive(t *testing.T) {
+	// Server that returns 200 for all requests regardless of credentials.
+	// This simulates websites like ginandjuice.shop that don't use Basic Auth.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<html><body>Welcome to the site</body></html>`))
+	}))
+	defer server.Close()
+
+	target := strings.TrimPrefix(server.URL, "http://")
+
+	p := &Plugin{Path: "/", UseHTTPS: false}
+	ctx := context.Background()
+
+	// Even though the server returns 200, these should NOT be reported as valid
+	// because the server doesn't actually require Basic Auth.
+	result := p.Test(ctx, target, "admin", "changeme", 5*time.Second)
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success, "should not report success when server doesn't require Basic Auth")
+	assert.Nil(t, result.Error, "should be auth failure, not connection error")
+}
+
 func TestPlugin_Test_ConnectionError(t *testing.T) {
 	p := &Plugin{Path: "/", UseHTTPS: false}
 	ctx := context.Background()

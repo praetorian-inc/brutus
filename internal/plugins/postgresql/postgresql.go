@@ -77,7 +77,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = classifyError(err)
 		return result
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Create context with timeout
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)

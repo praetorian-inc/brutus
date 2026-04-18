@@ -190,7 +190,7 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	}
 	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
 	if !ok {
-		listener.Close()
+		_ = listener.Close()
 		return fmt.Errorf("unexpected listener address type")
 	}
 	port := tcpAddr.Port
@@ -249,7 +249,7 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	// Shut down server when context is canceled
 	go func() {
 		<-ctx.Done()
-		server.Close()
+		_ = server.Close()
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -277,7 +277,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, mgr *sessionManager
 	if wsErr != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -352,10 +352,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, mgr *sessionManager
 func streamFrames(ctx context.Context, cancel context.CancelFunc, conn net.Conn, mu *sync.Mutex, mgr *sessionManager) {
 	// Recover from panics caused by accessing a closed/freed session during reconnect.
 	defer func() {
-		if r := recover(); r != nil {
-			// Session was closed during reconnect — not a fatal error.
-			// The browser will reconnect with a new WebSocket after /reconnect succeeds.
-		}
+		// Session may be closed during reconnect — not a fatal error.
+		// The browser will reconnect with a new WebSocket after /reconnect succeeds.
+		_ = recover()
 	}()
 
 	ticker := time.NewTicker(100 * time.Millisecond) // ~10 FPS
@@ -466,11 +465,11 @@ func upgradeWebSocket(w http.ResponseWriter, r *http.Request) (net.Conn, error) 
 		"Connection: Upgrade\r\n" +
 		"Sec-WebSocket-Accept: " + accept + "\r\n\r\n"
 	if _, err := bufrw.WriteString(resp); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, err
 	}
 	if err := bufrw.Flush(); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, err
 	}
 
@@ -499,13 +498,14 @@ func readWSMessage(conn net.Conn) ([]byte, error) {
 	masked := header[1]&0x80 != 0
 	payloadLen := uint64(header[1] & 0x7F)
 
-	if payloadLen == 126 {
+	switch payloadLen {
+	case 126:
 		ext := make([]byte, 2)
 		if err := readFull(conn, ext); err != nil {
 			return nil, err
 		}
 		payloadLen = uint64(ext[0])<<8 | uint64(ext[1])
-	} else if payloadLen == 127 {
+	case 127:
 		ext := make([]byte, 8)
 		if err := readFull(conn, ext); err != nil {
 			return nil, err

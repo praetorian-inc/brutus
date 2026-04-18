@@ -272,6 +272,7 @@ func FillSubmitAndScreenshot(tabCtx context.Context, url, username, password str
 }
 
 // FillAndSubmit fills form fields and clicks submit using JavaScript for reliability
+//
 // Deprecated: Use FillAndSubmitWithNavigate instead to avoid context issues
 func FillAndSubmit(tabCtx context.Context, fields *FormFields, username, password string) error {
 	ctx, cancel := context.WithTimeout(tabCtx, 15*time.Second)

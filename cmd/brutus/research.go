@@ -43,7 +43,6 @@ func routeHTTPWithAI(target, protocol string, base *baseConfigOptions) (string, 
 	return "browser", nil
 }
 
-
 // configureVisionAnalyzer sets up Claude Vision for screenshot analysis on the browser plugin.
 func configureVisionAnalyzer(plugin *browser.Plugin, apiKey string, verbose bool) {
 	if apiKey != "" {

@@ -73,7 +73,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		ReadTimeout:  timeout,
 		WriteTimeout: timeout,
 	})
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Create context with timeout
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)

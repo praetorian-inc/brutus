@@ -110,7 +110,7 @@ func initEngine() (*wasmEngine, error) {
 			Instantiate(ctx)
 		if err != nil {
 			engineErr = fmt.Errorf("host module: %w", err)
-			r.Close(ctx)
+			_ = r.Close(ctx)
 			return
 		}
 
@@ -118,7 +118,7 @@ func initEngine() (*wasmEngine, error) {
 		compiled, err := r.CompileModule(ctx, ironrdpWasm)
 		if err != nil {
 			engineErr = fmt.Errorf("compile wasm: %w", err)
-			r.Close(ctx)
+			_ = r.Close(ctx)
 			return
 		}
 

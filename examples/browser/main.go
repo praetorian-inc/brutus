@@ -67,7 +67,8 @@ func main() {
 	fmt.Println("Results:")
 	fmt.Println("--------")
 
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		status := "FAIL"
 		if r.Success {
 			status = "SUCCESS"
@@ -89,8 +90,8 @@ func main() {
 
 	// Summary
 	var successCount int
-	for _, r := range results {
-		if r.Success {
+	for i := range results {
+		if results[i].Success {
 			successCount++
 		}
 	}

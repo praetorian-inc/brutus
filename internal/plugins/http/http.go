@@ -138,7 +138,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read limited response body for banner
 	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, MaxBodyRead))
@@ -182,7 +182,7 @@ func (p *Plugin) isOpenAccess(ctx context.Context, url string, newClient func() 
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }

@@ -109,7 +109,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Create a fresh WASM instance for this Test() call (D1: per-call isolation)
 	inst, err := newInstance(ctx, eng, conn)
@@ -117,7 +117,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = fmt.Errorf("connection error: wasm instance: %w", err)
 		return result
 	}
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	// Prepare connector config
 	cfg := rdpConfig{
@@ -389,13 +389,13 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("connection failed: %v", err)}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	inst, err := newInstance(ctx, eng, conn)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("wasm instance: %v", err)}
 	}
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr)
 	if err != nil {

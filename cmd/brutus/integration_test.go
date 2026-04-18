@@ -27,9 +27,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // TestNervaIntegration tests the full pipeline: nerva -> brutus

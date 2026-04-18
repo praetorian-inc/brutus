@@ -79,7 +79,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Classify response
 	if resp.StatusCode == http.StatusUnauthorized {

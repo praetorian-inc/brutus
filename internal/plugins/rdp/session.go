@@ -47,7 +47,6 @@ type StickyKeysResult struct {
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).
 const leftShiftScancode = 0x2A
 
-
 // runConnectorForSession drives the connector state machine and returns the connector handle
 // (for session handoff) instead of consuming it. Similar to runConnector but doesn't free the handle.
 func (p *Plugin) runConnectorForSession(ctx context.Context, inst *wasmInstance, config []byte) (handle uint32, banner string, err error) { //nolint:unparam // banner reserved for future use

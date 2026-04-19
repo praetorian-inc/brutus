@@ -68,7 +68,6 @@ type Plugin struct {
 
 	// Verbose enables detailed logging
 	Verbose bool
-
 }
 
 // Name returns the protocol name
@@ -106,12 +105,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	url := buildURL(target, p.UseHTTPS)
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Testing %s:%s...\n", username, password)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Testing %s:%s...\n", username, password)
 	}
 
 	// AI verify mode: capture screenshots and use heuristic + Claude Vision
 	if p.AIVerify && p.VisionAnalyzer != nil {
-		return p.testWithAIVerify(ctx, tabCtx, url, username, password, result, start)
+		return p.testWithAIVerify(ctx, tabCtx, url, username, password, result)
 	}
 
 	// Navigate, fill form, and submit in ONE chromedp.Run call
@@ -124,8 +123,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Verify login success using the captured post-login state
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] After login URL: %s\n", submitResult.AfterURL)
-		fmt.Fprintf(logOutput, "[verbose] Page has password field: %v\n", submitResult.HasPassword)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] After login URL: %s\n", submitResult.AfterURL)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Page has password field: %v\n", submitResult.HasPassword)
 	}
 
 	// Determine success: no password field and no error indicators
@@ -134,23 +133,23 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// Still on login page - login failed
 		result.Success = false
 		if p.Verbose {
-			fmt.Fprintf(logOutput, "[verbose] Login failed (still on login page)\n")
+			_, _ = fmt.Fprintf(logOutput, "[verbose] Login failed (still on login page)\n")
 		}
 	case looksLikeLoginFailure(submitResult.AfterHTML):
 		// Error indicators found
 		result.Success = false
 		if p.Verbose {
-			fmt.Fprintf(logOutput, "[verbose] Login failed (error indicators found)\n")
+			_, _ = fmt.Fprintf(logOutput, "[verbose] Login failed (error indicators found)\n")
 		}
 	default:
 		// No password field, no errors - success
 		result.Success = true
 		if p.Verbose {
-			fmt.Fprintf(logOutput, "[verbose] Login appears successful\n")
+			_, _ = fmt.Fprintf(logOutput, "[verbose] Login appears successful\n")
 		}
 		// In visible/demo mode, pause to show the successful login page
 		if p.Visible {
-			fmt.Fprintf(logOutput, "[demo] Pausing 3s to show successful login...\n")
+			_, _ = fmt.Fprintf(logOutput, "[demo] Pausing 3s to show successful login...\n")
 			time.Sleep(3 * time.Second)
 		}
 	}
@@ -162,7 +161,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 // It captures before/after screenshots and sends them to Claude Vision when the heuristic
 // confidence is too low to make a reliable determination.
 func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, password string,
-	result *brutus.Result, start time.Time) *brutus.Result {
+	result *brutus.Result) *brutus.Result {
 
 	submitResult, submitErr := FillSubmitAndScreenshot(tabCtx, url, username, password, p.PageLoadTimeout+15*time.Second)
 	if submitErr != nil {
@@ -171,8 +170,8 @@ func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, pa
 	}
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] After login URL: %s\n", submitResult.AfterURL)
-		fmt.Fprintf(logOutput, "[verbose] Page has password field: %v\n", submitResult.HasPassword)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] After login URL: %s\n", submitResult.AfterURL)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Page has password field: %v\n", submitResult.HasPassword)
 	}
 
 	// Run heuristic verification first (fast, no API call)
@@ -181,7 +180,7 @@ func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, pa
 	heuristic := VerifyLogin(before, after)
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Heuristic: success=%v confidence=%.2f reason=%s\n",
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Heuristic: success=%v confidence=%.2f reason=%s\n",
 			heuristic.Success, heuristic.Confidence, heuristic.Reason)
 	}
 
@@ -189,23 +188,23 @@ func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, pa
 	if heuristic.Confidence >= 0.70 {
 		result.Success = heuristic.Success
 		if p.Verbose {
-			fmt.Fprintf(logOutput, "[verbose] Using heuristic result (confidence %.2f)\n", heuristic.Confidence)
+			_, _ = fmt.Fprintf(logOutput, "[verbose] Using heuristic result (confidence %.2f)\n", heuristic.Confidence)
 		}
 	} else {
 		// Ambiguous: use Claude Vision for verification
 		if p.Verbose {
-			fmt.Fprintf(logOutput, "[verbose] Heuristic ambiguous (%.2f), using Claude Vision...\n", heuristic.Confidence)
+			_, _ = fmt.Fprintf(logOutput, "[verbose] Heuristic ambiguous (%.2f), using Claude Vision...\n", heuristic.Confidence)
 		}
 
 		verification, verifyErr := p.VisionAnalyzer.VerifyLogin(ctx, submitResult.BeforeScreenshot, submitResult.AfterScreenshot)
 		if verifyErr != nil {
 			if p.Verbose {
-				fmt.Fprintf(logOutput, "[verbose] Vision error: %v, falling back to heuristic\n", verifyErr)
+				_, _ = fmt.Fprintf(logOutput, "[verbose] Vision error: %v, falling back to heuristic\n", verifyErr)
 			}
 			result.Success = heuristic.Success
 		} else {
 			if p.Verbose {
-				fmt.Fprintf(logOutput, "[verbose] Vision: success=%v confidence=%.2f reason=%s\n",
+				_, _ = fmt.Fprintf(logOutput, "[verbose] Vision: success=%v confidence=%.2f reason=%s\n",
 					verification.Success, verification.Confidence, verification.Reason)
 			}
 			result.Success = verification.Success
@@ -213,7 +212,7 @@ func (p *Plugin) testWithAIVerify(ctx, tabCtx context.Context, url, username, pa
 	}
 
 	if result.Success && p.Visible {
-		fmt.Fprintf(logOutput, "[demo] Pausing 3s to show successful login...\n")
+		_, _ = fmt.Fprintf(logOutput, "[demo] Pausing 3s to show successful login...\n")
 		time.Sleep(3 * time.Second)
 	}
 
@@ -229,7 +228,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 		browserMode = "visible"
 	}
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Initializing %s browser...\n", browserMode)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Initializing %s browser...\n", browserMode)
 	}
 
 	// Set visible mode before getting browser (must be before first GetBrowser call)
@@ -242,7 +241,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	}
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Browser started, acquiring tab...\n")
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Browser started, acquiring tab...\n")
 	}
 
 	// Acquire a tab
@@ -253,7 +252,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	url := buildURL(target, p.UseHTTPS)
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Navigating to %s...\n", url)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Navigating to %s...\n", url)
 	}
 
 	// Navigate and capture screenshot in a single operation
@@ -264,11 +263,11 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	}
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Page loaded and screenshot captured\n")
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Page loaded and screenshot captured\n")
 	}
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Screenshot captured (%d bytes)\n", len(screenshot))
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Screenshot captured (%d bytes)\n", len(screenshot))
 	}
 
 	// Analyze with Claude Vision
@@ -277,7 +276,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	}
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Uploading screenshot to Claude Vision API...\n")
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Uploading screenshot to Claude Vision API...\n")
 	}
 
 	pageAnalysis, err := p.VisionAnalyzer.AnalyzeScreenshot(ctx, screenshot)
@@ -286,7 +285,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	}
 
 	if p.Verbose {
-		fmt.Fprintf(logOutput, "[verbose] Vision detected: %s %s %s (confidence: %.2f)\n",
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Vision detected: %s %s %s (confidence: %.2f)\n",
 			pageAnalysis.Application.Vendor,
 			pageAnalysis.Application.Model,
 			pageAnalysis.Application.Type,
@@ -297,7 +296,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	var credentials []brutus.Credential
 	if len(pageAnalysis.SuggestedCredentials) > 0 {
 		if p.Verbose {
-			fmt.Fprintf(logOutput, "[verbose] Claude Vision suggested %d credential pairs\n", len(pageAnalysis.SuggestedCredentials))
+			_, _ = fmt.Fprintf(logOutput, "[verbose] Claude Vision suggested %d credential pairs\n", len(pageAnalysis.SuggestedCredentials))
 		}
 		for _, c := range pageAnalysis.SuggestedCredentials {
 			credentials = append(credentials, brutus.Credential{
@@ -310,7 +309,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	// Research additional credentials with Perplexity (if configured)
 	if p.CredentialResearcher != nil && pageAnalysis.IsLoginPage {
 		if p.Verbose {
-			fmt.Fprintf(logOutput, "[verbose] Researching additional credentials with Perplexity for %s %s...\n",
+			_, _ = fmt.Fprintf(logOutput, "[verbose] Researching additional credentials with Perplexity for %s %s...\n",
 				pageAnalysis.Application.Vendor,
 				pageAnalysis.Application.Model)
 		}
@@ -326,7 +325,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 		perplexityCreds, err := p.CredentialResearcher.AnalyzeCredentials(ctx, bannerInfo)
 		if err != nil {
 			if p.Verbose {
-				fmt.Fprintf(logOutput, "[verbose] Perplexity research error: %v\n", err)
+				_, _ = fmt.Fprintf(logOutput, "[verbose] Perplexity research error: %v\n", err)
 			}
 			// Non-fatal - continue with Claude's suggestions
 		} else if len(perplexityCreds) > 0 {
@@ -345,7 +344,7 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 				}
 			}
 			if p.Verbose {
-				fmt.Fprintf(logOutput, "[verbose] Perplexity returned %d credentials (%d new after dedup)\n", len(perplexityCreds), added)
+				_, _ = fmt.Fprintf(logOutput, "[verbose] Perplexity returned %d credentials (%d new after dedup)\n", len(perplexityCreds), added)
 			}
 		}
 	}

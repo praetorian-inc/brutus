@@ -68,7 +68,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = classifyError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set overall timeout
 	_ = conn.SetDeadline(time.Now().Add(timeout))

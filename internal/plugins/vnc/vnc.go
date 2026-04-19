@@ -71,7 +71,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Create VNC client configuration
 	cfg := &vnc.ClientConfig{

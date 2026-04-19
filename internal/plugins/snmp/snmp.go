@@ -84,7 +84,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(connectErr)
 		return result
 	}
-	defer snmp.Conn.Close()
+	defer func() { _ = snmp.Conn.Close() }()
 
 	// Try to get sysDescr - this validates the community string
 	oids := []string{SysDescrOID}

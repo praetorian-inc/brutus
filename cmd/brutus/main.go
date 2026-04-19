@@ -58,7 +58,7 @@ func setupOutputWriter(outputFile string) (w io.Writer, forceJSON bool, cleanup 
 	if err != nil {
 		return nil, false, func() {}, fmt.Errorf("creating output file: %w", err)
 	}
-	return f, true, func() { f.Close() }, nil
+	return f, true, func() { _ = f.Close() }, nil
 }
 
 // shouldShowBanner determines whether to display the ASCII art banner.
@@ -170,8 +170,8 @@ func main() {
 	useBadkeys := !*noBadkeys
 
 	// Validate: -k requires explicit -u or -U (not default usernames)
-	if err := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); err != nil {
-		errMsg(useColor, "%v", err)
+	if validateErr := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); validateErr != nil {
+		errMsg(useColor, "%v", validateErr)
 		os.Exit(1)
 	}
 
@@ -242,7 +242,6 @@ func main() {
 
 	var allResults []brutus.Result
 	var hasSuccess bool
-
 
 	// Scan/detection mode: --sticky-keys (without --sticky-keys-exec or --sticky-keys-web)
 	// bypasses normal brute force entirely and runs sticky keys backdoor detection

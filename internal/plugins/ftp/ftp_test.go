@@ -18,8 +18,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestPlugin_Name(t *testing.T) {

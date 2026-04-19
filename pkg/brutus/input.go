@@ -49,7 +49,7 @@ func LoadPasswordsFromFile(filePath string) ([]string, error) {
 	}
 
 	scanErr := scanner.Err()
-	f.Close()
+	_ = f.Close()
 
 	if scanErr != nil {
 		return nil, fmt.Errorf("reading password file: %w", scanErr)
@@ -79,7 +79,7 @@ func LoadUsernamesFromFile(filePath string) ([]string, error) {
 	}
 
 	scanErr := scanner.Err()
-	f.Close()
+	_ = f.Close()
 
 	if scanErr != nil {
 		return nil, fmt.Errorf("reading username file: %w", scanErr)

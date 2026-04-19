@@ -240,7 +240,7 @@ func configureAICredentials(config *brutus.Config, aiCreds []brutus.Credential, 
 }
 
 // detectTLS checks if TLS was detected by nerva and upgrades the TLS mode.
-func detectTLS(baseTLSMode string, tlsDetected bool, verbose bool) string {
+func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 	if baseTLSMode != "disable" {
 		return baseTLSMode
 	}

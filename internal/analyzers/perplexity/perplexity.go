@@ -162,7 +162,7 @@ func (c *Client) ResearchCredentials(ctx context.Context, appType, vendor, model
 	if err != nil {
 		return nil, fmt.Errorf("perplexity api request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status
 	if resp.StatusCode != http.StatusOK {
@@ -219,7 +219,7 @@ func (c *Client) researchFromTextWithPairs(ctx context.Context, text string) ([]
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("api error: status %d", resp.StatusCode)

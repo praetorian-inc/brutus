@@ -1,6 +1,6 @@
 module github.com/praetorian-inc/brutus
 
-go 1.24.0
+go 1.24.6
 
 require (
 	github.com/chromedp/chromedp v0.14.2
@@ -62,6 +62,7 @@ require (
 	github.com/masterzen/simplexml v0.0.0-20190410153822-31eea3082786 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect

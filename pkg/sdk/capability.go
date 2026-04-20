@@ -20,13 +20,15 @@ package sdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
-	_ "github.com/praetorian-inc/brutus/pkg/builtins"
 	"github.com/praetorian-inc/capability-sdk/pkg/capability"
 	"github.com/praetorian-inc/capability-sdk/pkg/capmodel"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
+	_ "github.com/praetorian-inc/brutus/pkg/builtins"
 )
 
 const (
@@ -112,6 +114,7 @@ func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port
 		return fmt.Errorf("brute force execution failed: %w", err)
 	}
 
+	var emitErrs []error
 	for _, r := range results {
 		if !r.Success {
 			continue
@@ -138,11 +141,11 @@ func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port
 		}
 
 		if err := output.Emit(risk); err != nil {
-			return fmt.Errorf("failed to emit risk: %w", err)
+			emitErrs = append(emitErrs, err)
 		}
 	}
 
-	return nil
+	return errors.Join(emitErrs...)
 }
 
 func splitAndTrim(s string) []string {

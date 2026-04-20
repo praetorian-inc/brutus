@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
 	"github.com/praetorian-inc/capability-sdk/pkg/capability"
 	"github.com/praetorian-inc/capability-sdk/pkg/capmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestCapability_Interface(t *testing.T) {
@@ -328,5 +329,5 @@ func TestCapability_Invoke_EmitterError(t *testing.T) {
 
 	err := c.Invoke(ctx, input, emitter)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to emit risk")
+	assert.Contains(t, err.Error(), "emit failed")
 }

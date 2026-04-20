@@ -15,6 +15,7 @@ require (
 	github.com/masterzen/winrm v0.0.0-20250927112105-5f8e6c707321
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
+	github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tetratelabs/wazero v1.11.0
@@ -62,7 +63,6 @@ require (
 	github.com/masterzen/simplexml v0.0.0-20190410153822-31eea3082786 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect

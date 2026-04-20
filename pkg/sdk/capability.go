@@ -71,6 +71,10 @@ func (c *Capability) Match(ctx capability.ExecutionContext, _ capmodel.Port) err
 }
 
 func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port, output capability.Emitter) error {
+	if !ctx.Manual {
+		return fmt.Errorf("brutus may only be run manually")
+	}
+
 	protocol := input.Service
 	if p, ok := ctx.Parameters.GetString(ProtocolParam); ok && p != "" {
 		protocol = p
@@ -115,7 +119,8 @@ func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port
 	}
 
 	var emitErrs []error
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		if !r.Success {
 			continue
 		}

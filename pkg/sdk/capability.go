@@ -63,14 +63,14 @@ func (c *Capability) Parameters() []capability.Parameter {
 	}
 }
 
-func (c *Capability) Match(ctx capability.ExecutionContext, _ capmodel.Port) error {
+func (c *Capability) Match(ctx capability.ExecutionContext, _ capmodel.Port) error { //nolint:gocritic // hugeParam: signature required by capability.Capability interface
 	if !ctx.Manual {
 		return fmt.Errorf("brutus may only be run manually")
 	}
 	return nil
 }
 
-func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port, output capability.Emitter) error {
+func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port, output capability.Emitter) error { //nolint:gocritic // hugeParam: signature required by capability.Capability interface
 	if !ctx.Manual {
 		return fmt.Errorf("brutus may only be run manually")
 	}

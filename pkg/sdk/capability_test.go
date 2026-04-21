@@ -11,7 +11,7 @@ import (
 	"github.com/praetorian-inc/capability-sdk/pkg/capmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	
+
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 

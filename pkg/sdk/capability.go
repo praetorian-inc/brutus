@@ -50,6 +50,10 @@ func NewCapability() *Capability {
 	return &Capability{}
 }
 
+// bruteFunc is the function used to run brute force sweeps. It is a package-level
+// variable so that tests can inject a stub without a broad DI refactor.
+var bruteFunc = brutus.BruteWithContext
+
 func (c *Capability) Name() string        { return "brutus" }
 func (c *Capability) Description() string { return "credential testing against network services" }
 func (c *Capability) Input() any          { return capmodel.Port{} }
@@ -109,16 +113,22 @@ func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port
 		cfg.Passwords = splitAndTrim(passwords)
 	}
 
-	if rateLimit, ok := ctx.Parameters.GetFloat(RateLimitParam); ok && rateLimit > 0 {
-		cfg.RateLimit = rateLimit
+	if rateLimit, ok := ctx.Parameters.GetFloat(RateLimitParam); ok {
+		if rateLimit < 0 {
+			return fmt.Errorf("invalid ratelimit %g: must be non-negative", rateLimit)
+		}
+		// rateLimit == 0 is treated as "unlimited" per parameter description.
+		if rateLimit > 0 {
+			cfg.RateLimit = rateLimit
+		}
 	}
 
-	results, err := brutus.BruteWithContext(context.Background(), cfg)
-	if err != nil {
-		return fmt.Errorf("brute force execution failed: %w", err)
+	results, runErr := bruteFunc(context.Background(), cfg)
+	var errs []error
+	if runErr != nil {
+		errs = append(errs, fmt.Errorf("brute force execution failed: %w", runErr))
 	}
 
-	var emitErrs []error
 	for i := range results {
 		r := &results[i]
 		if !r.Success {
@@ -146,11 +156,11 @@ func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port
 		}
 
 		if err := output.Emit(risk); err != nil {
-			emitErrs = append(emitErrs, err)
+			errs = append(errs, fmt.Errorf("failed to emit risk for %s: %w", r.Username, err))
 		}
 	}
 
-	return errors.Join(emitErrs...)
+	return errors.Join(errs...)
 }
 
 func splitAndTrim(s string) []string {

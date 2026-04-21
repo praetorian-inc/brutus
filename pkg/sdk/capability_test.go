@@ -331,3 +331,151 @@ func TestCapability_Invoke_EmitterError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "emit failed")
 }
+
+func TestInvoke_RejectsNegativeRateLimit(t *testing.T) {
+	orig := bruteFunc
+	defer func() { bruteFunc = orig }()
+
+	called := false
+	bruteFunc = func(_ context.Context, _ *brutus.Config) ([]brutus.Result, error) {
+		called = true
+		return nil, nil
+	}
+
+	c := NewCapability()
+	ctx := capability.ExecutionContext{
+		Manual: true,
+		Parameters: capability.Parameters{
+			{Name: "usernames", Value: "admin", Type: "string"},
+			{Name: "passwords", Value: "pass", Type: "string"},
+			{Name: "protocol", Value: "ssh", Type: "string"},
+			{Name: "ratelimit", Value: "-1", Type: "float"},
+		},
+	}
+	input := capmodel.Port{
+		Port:    22,
+		Service: "ssh",
+		Parent:  capmodel.Asset{DNS: "127.0.0.1"},
+	}
+
+	err := c.Invoke(ctx, input, nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must be non-negative")
+	assert.False(t, called, "bruteFunc should not be called when ratelimit is negative")
+}
+
+func TestInvoke_ZeroRateLimitMeansUnlimited(t *testing.T) {
+	orig := bruteFunc
+	defer func() { bruteFunc = orig }()
+
+	var capturedCfg *brutus.Config
+	bruteFunc = func(_ context.Context, cfg *brutus.Config) ([]brutus.Result, error) {
+		capturedCfg = cfg
+		return nil, nil
+	}
+
+	c := NewCapability()
+	ctx := capability.ExecutionContext{
+		Manual: true,
+		Parameters: capability.Parameters{
+			{Name: "usernames", Value: "admin", Type: "string"},
+			{Name: "passwords", Value: "pass", Type: "string"},
+			{Name: "protocol", Value: "ssh", Type: "string"},
+			{Name: "ratelimit", Value: "0", Type: "float"},
+		},
+	}
+	input := capmodel.Port{
+		Port:    22,
+		Service: "ssh",
+		Parent:  capmodel.Asset{DNS: "127.0.0.1"},
+	}
+	emitter := capability.EmitterFunc(func(_ ...any) error { return nil })
+
+	err := c.Invoke(ctx, input, emitter)
+	require.NoError(t, err)
+	require.NotNil(t, capturedCfg)
+	assert.Equal(t, 0.0, capturedCfg.RateLimit)
+}
+
+func TestInvoke_PositiveRateLimitPropagates(t *testing.T) {
+	orig := bruteFunc
+	defer func() { bruteFunc = orig }()
+
+	var capturedCfg *brutus.Config
+	bruteFunc = func(_ context.Context, cfg *brutus.Config) ([]brutus.Result, error) {
+		capturedCfg = cfg
+		return nil, nil
+	}
+
+	c := NewCapability()
+	ctx := capability.ExecutionContext{
+		Manual: true,
+		Parameters: capability.Parameters{
+			{Name: "usernames", Value: "admin", Type: "string"},
+			{Name: "passwords", Value: "pass", Type: "string"},
+			{Name: "protocol", Value: "ssh", Type: "string"},
+			{Name: "ratelimit", Value: "2.5", Type: "float"},
+		},
+	}
+	input := capmodel.Port{
+		Port:    22,
+		Service: "ssh",
+		Parent:  capmodel.Asset{DNS: "127.0.0.1"},
+	}
+	emitter := capability.EmitterFunc(func(_ ...any) error { return nil })
+
+	err := c.Invoke(ctx, input, emitter)
+	require.NoError(t, err)
+	require.NotNil(t, capturedCfg)
+	assert.Equal(t, 2.5, capturedCfg.RateLimit)
+}
+
+func TestInvoke_PartialResultsOnBruteError(t *testing.T) {
+	orig := bruteFunc
+	defer func() { bruteFunc = orig }()
+
+	bruteFunc = func(_ context.Context, _ *brutus.Config) ([]brutus.Result, error) {
+		return []brutus.Result{
+			{
+				Protocol: "ssh",
+				Target:   "127.0.0.1:22",
+				Username: "admin",
+				Password: "pass",
+				Success:  true,
+				Banner:   "SSH-2.0-OpenSSH",
+			},
+		}, fmt.Errorf("context deadline exceeded")
+	}
+
+	c := NewCapability()
+	ctx := capability.ExecutionContext{
+		Manual: true,
+		Parameters: capability.Parameters{
+			{Name: "usernames", Value: "admin", Type: "string"},
+			{Name: "passwords", Value: "pass", Type: "string"},
+			{Name: "protocol", Value: "ssh", Type: "string"},
+		},
+	}
+	input := capmodel.Port{
+		Port:    22,
+		Service: "ssh",
+		Parent:  capmodel.Asset{DNS: "127.0.0.1"},
+	}
+
+	var emitted []any
+	emitter := capability.EmitterFunc(func(models ...any) error {
+		emitted = append(emitted, models...)
+		return nil
+	})
+
+	err := c.Invoke(ctx, input, emitter)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "brute force execution failed")
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+	require.Len(t, emitted, 1)
+
+	risk, ok := emitted[0].(capmodel.Risk)
+	require.True(t, ok)
+	assert.Equal(t, "Weak Credentials", risk.Name)
+	assert.Equal(t, "brutus", risk.Source)
+}

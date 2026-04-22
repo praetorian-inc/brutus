@@ -16,6 +16,7 @@ package smb
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -131,6 +132,10 @@ func TestPlugin_Test_DomainUsername(t *testing.T) {
 }
 
 func TestPlugin_Test_IPv6Target(t *testing.T) {
+	if os.Getenv("SMB_TEST_HOST") != "" {
+		t.Skip("SMB service is running; IPv6 loopback on port 445 reaches the Docker container")
+	}
+
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -146,6 +151,10 @@ func TestPlugin_Test_IPv6Target(t *testing.T) {
 }
 
 func TestPlugin_Test_IPv6TargetNoPort(t *testing.T) {
+	if os.Getenv("SMB_TEST_HOST") != "" {
+		t.Skip("SMB service is running; IPv6 loopback on default port 445 reaches the Docker container")
+	}
+
 	p := &Plugin{}
 	ctx := context.Background()
 

@@ -11,7 +11,7 @@ import (
 )
 
 func TestEnumerateWithContext_EndToEnd(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("mock-saas", func() Plugin {
 		return &oraclePlugin{name: "mock-saas"}
 	})

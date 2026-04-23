@@ -53,8 +53,8 @@ func ListPlugins() []string {
 	return names
 }
 
-// ResetPlugins clears all registered enum plugins (for testing).
-func ResetPlugins() {
+// resetPlugins clears all registered enum plugins (for testing).
+func resetPlugins() {
 	pluginRegistryMu.Lock()
 	defer pluginRegistryMu.Unlock()
 

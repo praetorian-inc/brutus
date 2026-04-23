@@ -23,9 +23,8 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 
-	// Import plugins and analyzers to register them
-	_ "github.com/praetorian-inc/brutus/internal/analyzers"
-	_ "github.com/praetorian-inc/brutus/internal/plugins"
+	// Import builtins to register plugins, analyzers, and enum plugins.
+	_ "github.com/praetorian-inc/brutus/pkg/builtins"
 )
 
 // Version info - set by ldflags during build

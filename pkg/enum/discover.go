@@ -75,6 +75,12 @@ func runDiscovery(ctx context.Context, cfg *DiscoverConfig) ([]OracleResult, err
 			// Check if plugin implements OraclePlugin for custom discovery
 			if op, ok := plug.(OraclePlugin); ok {
 				result := op.Discover(ctx, cfg.KnownValid, cfg.Timeout)
+				if result == nil {
+					result = &OracleResult{
+						Service: svcName,
+						Error:   fmt.Errorf("plugin returned nil oracle result"),
+					}
+				}
 				mu.Lock()
 				results = append(results, *result)
 				mu.Unlock()
@@ -84,6 +90,16 @@ func runDiscovery(ctx context.Context, cfg *DiscoverConfig) ([]OracleResult, err
 			// Fallback: compare Check() for known-valid vs invalid
 			validResult := plug.Check(ctx, cfg.KnownValid, cfg.Timeout)
 			invalidResult := plug.Check(ctx, invalidEmail, cfg.Timeout)
+
+			if validResult == nil || invalidResult == nil {
+				mu.Lock()
+				results = append(results, OracleResult{
+					Service: svcName,
+					Error:   fmt.Errorf("plugin returned nil result during discovery"),
+				})
+				mu.Unlock()
+				return nil
+			}
 
 			oracleResult := compareResults(svcName, validResult, invalidResult)
 

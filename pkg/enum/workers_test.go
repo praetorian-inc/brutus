@@ -30,7 +30,7 @@ func (p *mockPlugin) Check(_ context.Context, email string, _ time.Duration) *Re
 }
 
 func TestRunWorkers_EmailsTimesServices(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 
 	mock1 := &mockPlugin{name: "svc1", exists: true}
 	mock2 := &mockPlugin{name: "svc2", exists: false}
@@ -52,7 +52,7 @@ func TestRunWorkers_EmailsTimesServices(t *testing.T) {
 }
 
 func TestRunWorkers_SpecificServices(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 
 	mock := &mockPlugin{name: "only", exists: true}
 	Register("only", func() Plugin { return mock })
@@ -74,7 +74,7 @@ func TestRunWorkers_SpecificServices(t *testing.T) {
 }
 
 func TestRunWorkers_ContextCancellation(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("slow", func() Plugin {
 		return &mockPlugin{name: "slow"}
 	})

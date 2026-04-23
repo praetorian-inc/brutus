@@ -71,6 +71,13 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 				if r := recover(); r != nil {
 					fmt.Fprintf(os.Stderr, "enum: panic checking %s on %s: %v\n%s\n",
 						task.email, task.service, r, debug.Stack())
+					mu.Lock()
+					results = append(results, Result{
+						Service: task.service,
+						Email:   task.email,
+						Error:   fmt.Errorf("plugin panicked: %v", r),
+					})
+					mu.Unlock()
 				}
 			}()
 

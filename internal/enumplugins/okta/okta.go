@@ -81,13 +81,16 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 
 	// 401 with auth failure error = account exists (wrong password rejected)
 	if resp.StatusCode == http.StatusUnauthorized {
-		var errResp authnErrorResponse
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err == nil {
-			if errResp.ErrorCode == "E0000004" {
-				result.Exists = true
-				result.Confidence = enum.ConfidenceMedium
-				result.Duration = time.Since(start)
-				return result
+		raw, readErr := enum.ReadResponseBody(resp, 0)
+		if readErr == nil {
+			var errResp authnErrorResponse
+			if err := json.Unmarshal(raw, &errResp); err == nil {
+				if errResp.ErrorCode == "E0000004" {
+					result.Exists = true
+					result.Confidence = enum.ConfidenceMedium
+					result.Duration = time.Since(start)
+					return result
+				}
 			}
 		}
 	}

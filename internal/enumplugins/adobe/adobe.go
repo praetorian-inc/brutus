@@ -77,8 +77,14 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 
 	switch resp.StatusCode {
 	case http.StatusOK:
+		raw, err := enum.ReadResponseBody(resp, 0)
+		if err != nil {
+			result.Error = fmt.Errorf("reading response: %w", err)
+			result.Duration = time.Since(start)
+			return result
+		}
 		var acctResp accountsResponse
-		if err := json.NewDecoder(resp.Body).Decode(&acctResp); err != nil {
+		if err := json.Unmarshal(raw, &acctResp); err != nil {
 			result.Error = fmt.Errorf("decoding response: %w", err)
 			result.Duration = time.Since(start)
 			return result

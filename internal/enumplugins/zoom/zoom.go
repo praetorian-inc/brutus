@@ -72,8 +72,14 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 		return result
 	}
 
+	raw, err := enum.ReadResponseBody(resp, 0)
+	if err != nil {
+		result.Error = fmt.Errorf("reading response: %w", err)
+		result.Duration = time.Since(start)
+		return result
+	}
 	var checkResp checkResponse
-	if err := json.NewDecoder(resp.Body).Decode(&checkResp); err != nil {
+	if err := json.Unmarshal(raw, &checkResp); err != nil {
 		result.Error = fmt.Errorf("decoding response: %w", err)
 		result.Duration = time.Since(start)
 		return result

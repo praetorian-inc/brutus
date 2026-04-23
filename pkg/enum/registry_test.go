@@ -19,7 +19,7 @@ func (p *testPlugin) Check(_ context.Context, email string, _ time.Duration) *Re
 }
 
 func TestRegister_And_GetPlugin(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("test-svc", func() Plugin { return &testPlugin{name: "test-svc"} })
 
 	plug, err := GetPlugin("test-svc")
@@ -28,14 +28,14 @@ func TestRegister_And_GetPlugin(t *testing.T) {
 }
 
 func TestGetPlugin_Unknown(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	_, err := GetPlugin("nonexistent")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "nonexistent")
 }
 
 func TestGetPlugin_FreshInstances(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("fresh", func() Plugin { return &testPlugin{name: "fresh"} })
 
 	p1, _ := GetPlugin("fresh")
@@ -44,7 +44,7 @@ func TestGetPlugin_FreshInstances(t *testing.T) {
 }
 
 func TestListPlugins_Sorted(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("zebra", func() Plugin { return &testPlugin{name: "zebra"} })
 	Register("alpha", func() Plugin { return &testPlugin{name: "alpha"} })
 
@@ -53,7 +53,7 @@ func TestListPlugins_Sorted(t *testing.T) {
 }
 
 func TestRegister_Duplicate_Panics(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("dup", func() Plugin { return &testPlugin{name: "dup"} })
 
 	assert.Panics(t, func() {
@@ -62,10 +62,10 @@ func TestRegister_Duplicate_Panics(t *testing.T) {
 }
 
 func TestResetPlugins(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("temp", func() Plugin { return &testPlugin{name: "temp"} })
 	assert.Len(t, ListPlugins(), 1)
 
-	ResetPlugins()
+	resetPlugins()
 	assert.Len(t, ListPlugins(), 0)
 }

@@ -20,7 +20,9 @@ type uaTransport struct {
 
 func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", defaultUserAgent)
+		r2 := req.Clone(req.Context())
+		r2.Header.Set("User-Agent", defaultUserAgent)
+		return t.base.RoundTrip(r2)
 	}
 	return t.base.RoundTrip(req)
 }

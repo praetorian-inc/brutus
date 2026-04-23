@@ -39,7 +39,7 @@ func (p *nonOraclePlugin) Check(_ context.Context, email string, _ time.Duration
 }
 
 func TestDiscoverOracles_FindsOracle(t *testing.T) {
-	ResetPlugins()
+	resetPlugins()
 	Register("oracle-svc", func() Plugin { return &oraclePlugin{name: "oracle-svc"} })
 	Register("non-oracle", func() Plugin { return &nonOraclePlugin{name: "non-oracle"} })
 

@@ -16,7 +16,6 @@ package smb
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -55,16 +54,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "smb",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("smb", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target to extract host and port
-	host, port := parseTarget(target)
+	host, port := brutus.ParseTarget(target, "445")
 
 	// Create dialer with timeout
 	dialer := &net.Dialer{
@@ -74,11 +68,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Connect with context timeout
 	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Parse domain and username
 	domain, user := parseDomainUsername(username)
@@ -95,7 +88,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	session, err := d.DialContext(ctx, conn)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer func() { _ = session.Logoff() }()
@@ -104,24 +96,18 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	share, err := session.Mount("IPC$")
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer func() { _ = share.Umount() }()
 
 	// Success - authentication worked
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
 // parseTarget splits target into host and port.
 // If no port is specified, defaults to 445 (SMB).
 // Supports IPv6 addresses with brackets: [::1]:445
-func parseTarget(target string) (host, port string) {
-	return brutus.ParseTarget(target, "445")
-}
-
 // parseDomainUsername splits username into domain and username.
 // Supports formats: DOMAIN\username or just username.
 // Returns empty string for domain if not specified.
@@ -135,7 +121,4 @@ func parseDomainUsername(username string) (domain, user string) {
 	return "", username
 }
 
-// classifyError classifies SMB errors using the shared brutus helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, smbAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(smbAuthIndicators)

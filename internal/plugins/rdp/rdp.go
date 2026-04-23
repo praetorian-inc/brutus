@@ -85,13 +85,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "rdp",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("rdp", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target
 	host, port := brutus.ParseTarget(target, "3389")
@@ -104,7 +99,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	eng, err := initEngine()
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: wasm init: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -112,20 +106,18 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	dialer := &net.Dialer{Timeout: timeout}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Create a fresh WASM instance for this Test() call (D1: per-call isolation)
 	inst, err := newInstance(ctx, eng, conn)
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: wasm instance: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	// Prepare connector config
 	cfg := rdpConfig{
@@ -137,7 +129,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	configBytes, err := json.Marshal(cfg)
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: marshal config: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -161,7 +152,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		}
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 
@@ -375,10 +365,7 @@ func parseDomainUsername(username string) (domain, user string) {
 	return "", username
 }
 
-// classifyError classifies RDP errors using the shared brutus helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, rdpAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(rdpAuthIndicators)
 
 // shouldRunStickyKeysCheck returns true if sticky keys detection is enabled.
 // The heuristic analysis (pixel comparison) always runs since it has no
@@ -402,13 +389,13 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("connection failed: %v", err)}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	inst, err := newInstance(ctx, eng, conn)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("wasm instance: %v", err)}
 	}
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr)
 	if err != nil {

@@ -24,11 +24,11 @@ package http
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
@@ -58,6 +58,12 @@ type Plugin struct {
 
 	// UseHTTPS indicates whether to use HTTPS (default: false)
 	UseHTTPS bool
+
+	// probeOnce ensures the Basic Auth probe runs exactly once.
+	probeOnce sync.Once
+	// requiresAuth is set by the probe; false means the server returns 2xx
+	// without credentials and is not protected by Basic Auth.
+	requiresAuth bool
 }
 
 // Name returns the protocol name.
@@ -78,13 +84,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: p.Name(),
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult(p.Name(), target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Build URL
 	url := p.buildURL(target)
@@ -92,39 +93,36 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
 
-	// Configure TLS based on mode
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false, // Full certificate verification
+	// Helper to create HTTP clients with consistent config
+	tlsCfg := brutus.BuildTLSConfig(tlsMode)
+	newClient := func() *http.Client {
+		c := brutus.NewHTTPClient(timeout, tlsCfg)
+		// Don't follow redirects - we want to see the auth response
+		c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
 		}
-	case "skip-verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: true, // Allow self-signed certs
-		}
-	default: // "disable"
-		tlsConfig = nil // No TLS
+		return c
 	}
 
-	// Create HTTP client with timeout and TLS config
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-		// Don't follow redirects - we want to see the auth response
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	// Probe once to verify the server actually requires Basic Auth.
+	// Servers that don't use Basic Auth return 2xx for any request,
+	// causing false positives for every credential tested.
+	p.probeOnce.Do(func() {
+		p.requiresAuth = !p.isOpenAccess(ctx, url, newClient)
+	})
+
+	// If server doesn't require Basic Auth, skip credential testing
+	if !p.requiresAuth {
+		return result
 	}
+
+	client := newClient()
 	defer client.CloseIdleConnections()
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
@@ -137,11 +135,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Execute request
 	resp, err := client.Do(req)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read limited response body for banner
 	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, MaxBodyRead))
@@ -165,8 +162,29 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = fmt.Errorf("connection error: HTTP %d", resp.StatusCode)
 	}
 
-	result.Duration = time.Since(start)
 	return result
+}
+
+// isOpenAccess makes an unauthenticated request to check whether the server
+// returns a 2xx response without credentials. If so, the server does not
+// require Basic Auth and any authenticated response would be a false positive.
+func (p *Plugin) isOpenAccess(ctx context.Context, url string, newClient func() *http.Client) bool {
+	client := newClient()
+	defer client.CloseIdleConnections()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
+	if err != nil {
+		return false
+	}
+	// No Basic Auth header — intentionally unauthenticated
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
 // buildURL constructs the full URL from target and path.

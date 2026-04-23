@@ -176,6 +176,29 @@ func TestPlugin_Test_BannerCapture_MultipleApps(t *testing.T) {
 	assert.Contains(t, result.Banner, "Grafana")
 }
 
+func TestPlugin_Test_NoBasicAuth_FalsePositive(t *testing.T) {
+	// Server that returns 200 for all requests regardless of credentials.
+	// This simulates websites like ginandjuice.shop that don't use Basic Auth.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`<html><body>Welcome to the site</body></html>`))
+	}))
+	defer server.Close()
+
+	target := strings.TrimPrefix(server.URL, "http://")
+
+	p := &Plugin{Path: "/", UseHTTPS: false}
+	ctx := context.Background()
+
+	// Even though the server returns 200, these should NOT be reported as valid
+	// because the server doesn't actually require Basic Auth.
+	result := p.Test(ctx, target, "admin", "changeme", 5*time.Second)
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success, "should not report success when server doesn't require Basic Auth")
+	assert.Nil(t, result.Error, "should be auth failure, not connection error")
+}
+
 func TestPlugin_Test_ConnectionError(t *testing.T) {
 	p := &Plugin{Path: "/", UseHTTPS: false}
 	ctx := context.Background()
@@ -327,31 +350,31 @@ func TestExtractAppIdentifiers(t *testing.T) {
 func TestBuildURL(t *testing.T) {
 	tests := []struct {
 		name     string
-		plugin   Plugin
+		plugin   *Plugin
 		target   string
 		expected string
 	}{
 		{
 			name:     "HTTP with port",
-			plugin:   Plugin{Path: "/", UseHTTPS: false},
+			plugin:   &Plugin{Path: "/", UseHTTPS: false},
 			target:   "localhost:8080",
 			expected: "http://localhost:8080/",
 		},
 		{
 			name:     "HTTPS with port",
-			plugin:   Plugin{Path: "/", UseHTTPS: true},
+			plugin:   &Plugin{Path: "/", UseHTTPS: true},
 			target:   "localhost:443",
 			expected: "https://localhost:443/",
 		},
 		{
 			name:     "Custom path",
-			plugin:   Plugin{Path: "/admin/login", UseHTTPS: false},
+			plugin:   &Plugin{Path: "/admin/login", UseHTTPS: false},
 			target:   "example.com:8080",
 			expected: "http://example.com:8080/admin/login",
 		},
 		{
 			name:     "Default path when empty",
-			plugin:   Plugin{Path: "", UseHTTPS: false},
+			plugin:   &Plugin{Path: "", UseHTTPS: false},
 			target:   "localhost:80",
 			expected: "http://localhost:80/",
 		},

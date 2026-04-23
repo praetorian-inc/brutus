@@ -53,13 +53,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "cassandra",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("cassandra", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Create cluster configuration
 	cluster := gocql.NewCluster(target)
@@ -78,7 +73,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	session, err := cluster.CreateSession()
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer session.Close()
@@ -91,17 +85,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	iter := session.Query("SELECT now() FROM system.local").WithContext(queryCtx).Iter()
 	if err := iter.Close(); err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
-// classifyError classifies Cassandra errors using the shared helper.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, cassandraAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(cassandraAuthIndicators)

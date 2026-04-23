@@ -61,7 +61,8 @@ func main() {
 	llmSuccessCount := 0
 	errorCount := 0
 
-	for _, r := range results {
+	for i := range results {
+		r := &results[i]
 		if r.Success {
 			source := "default"
 			if r.LLMSuggested {

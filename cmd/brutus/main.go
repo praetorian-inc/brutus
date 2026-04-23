@@ -57,7 +57,7 @@ func setupOutputWriter(outputFile string) (w io.Writer, forceJSON bool, cleanup 
 	if err != nil {
 		return nil, false, func() {}, fmt.Errorf("creating output file: %w", err)
 	}
-	return f, true, func() { f.Close() }, nil
+	return f, true, func() { _ = f.Close() }, nil
 }
 
 // shouldShowBanner determines whether to display the ASCII art banner.
@@ -125,13 +125,11 @@ func main() {
 	browserVisible := flag.Bool("browser-visible", false, "Show browser window (demo mode)")
 	useHTTPS := flag.Bool("https", false, "Use HTTPS for browser connections")
 	aiMode := flag.Bool("experimental-ai", false, "Enable AI-powered credential detection for HTTP services (experimental)")
-	stickyKeys := flag.Bool("sticky-keys", false, "Enable sticky keys backdoor detection for RDP targets")
+	aiVerify := flag.Bool("experimental-ai-verify", false, "Use Claude Vision to verify login success by comparing before/after screenshots")
+	stickyKeys := flag.Bool("sticky-keys", false, "Sticky keys backdoor detection mode for RDP (no brute force)")
 	stickyKeysExec := flag.String("sticky-keys-exec", "", "Execute command via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysWeb := flag.Bool("sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysOpen := flag.Bool("sticky-keys-open", false, "Auto-open browser when sticky keys web terminal starts")
-	nlaCheck := flag.Bool("nla-check", false, "NLA fingerprint scan: check if RDP targets require NLA (no auth, fast)")
-	stickyKeysScan := flag.Bool("sticky-keys-scan", false, "Sticky keys scan-only mode: detect backdoor without brute force")
-
 	flag.Parse()
 
 	// Track whether -p and -u flags were explicitly set
@@ -173,12 +171,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *aiVerify && anthropicKey == "" {
+		errMsg(useColor, "--experimental-ai-verify requires ANTHROPIC_API_KEY environment variable")
+		os.Exit(1)
+	}
+
 	// Determine if badkeys should be used (enabled by default, --no-badkeys disables)
 	useBadkeys := !*noBadkeys
 
 	// Validate: -k requires explicit -u or -U (not default usernames)
-	if err := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); err != nil {
-		errMsg(useColor, "%v", err)
+	if validateErr := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); validateErr != nil {
+		errMsg(useColor, "%v", validateErr)
 		os.Exit(1)
 	}
 
@@ -244,16 +247,16 @@ func main() {
 		stickyKeysExec:   *stickyKeysExec,
 		stickyKeysWeb:    *stickyKeysWeb,
 		stickyKeysOpen:   *stickyKeysOpen,
-		nlaCheck:         *nlaCheck,
-		stickyKeysScan:   *stickyKeysScan,
+		aiVerify:         *aiVerify,
 	}
 
 	var allResults []brutus.Result
 	var hasSuccess bool
 
-
-	// Scan-only modes: bypass normal brute force entirely
-	if baseConfig.nlaCheck || baseConfig.stickyKeysScan {
+	// Scan/detection mode: --sticky-keys (without --sticky-keys-exec or --sticky-keys-web)
+	// bypasses normal brute force entirely and runs sticky keys backdoor detection
+	stickyKeysDetect := baseConfig.stickyKeys && baseConfig.stickyKeysExec == "" && !baseConfig.stickyKeysWeb
+	if stickyKeysDetect {
 		var scanResults []brutus.Result
 		if useStdin {
 			scanResults, hasSuccess = runScanFromStdin(&baseConfig)

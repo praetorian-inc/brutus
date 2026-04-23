@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package brutus
 
 import (
 	"fmt"
@@ -25,36 +25,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDetectHTTPAuthType_ClosesIdleConnections tests that detectHTTPAuthTypeWithBanner
-// closes idle connections after each call to prevent transport goroutine leaks
 func TestDetectHTTPAuthType_ClosesIdleConnections(t *testing.T) {
-	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Test page")
+		_, _ = fmt.Fprintln(w, "Test page")
 	}))
 	defer server.Close()
 
-	// Count goroutines before
 	runtime.GC()
 	time.Sleep(100 * time.Millisecond)
 	goroutinesBefore := runtime.NumGoroutine()
 
-	// Make multiple calls (simulating stdin pipeline mode)
 	target := server.URL[7:] // Remove "http://" prefix
 	for i := 0; i < 50; i++ {
-		detectHTTPAuthTypeWithBanner(target, false, 5*time.Second, "skip", false)
+		DetectHTTPAuthType(target, false, 5*time.Second, "skip")
 	}
 
-	// Force garbage collection
 	runtime.GC()
 	time.Sleep(100 * time.Millisecond)
 
-	// Count goroutines after
 	goroutinesAfter := runtime.NumGoroutine()
-
-	// With the fix (defer client.CloseIdleConnections()), goroutines should NOT grow significantly
-	// Without the fix, we'd see +50 goroutines (one per transport)
 	goroutineGrowth := goroutinesAfter - goroutinesBefore
 
 	require.Less(t, goroutineGrowth, 20,
@@ -63,7 +53,6 @@ func TestDetectHTTPAuthType_ClosesIdleConnections(t *testing.T) {
 		goroutineGrowth, goroutinesBefore, goroutinesAfter)
 }
 
-// TestDetectHTTPAuthType_BasicAuth tests detection of basic authentication
 func TestDetectHTTPAuthType_BasicAuth(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -102,7 +91,7 @@ func TestDetectHTTPAuthType_BasicAuth(t *testing.T) {
 			defer server.Close()
 
 			target := server.URL[7:] // Remove "http://" prefix
-			authType, _ := detectHTTPAuthTypeWithBanner(target, false, 5*time.Second, "skip", false)
+			authType, _ := DetectHTTPAuthType(target, false, 5*time.Second, "skip")
 
 			require.Equal(t, tt.expectedAuth, authType)
 		})

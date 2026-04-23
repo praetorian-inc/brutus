@@ -49,13 +49,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "mysql",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("mysql", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Read TLS mode from context
 	tlsMode := brutus.TLSModeFromContext(ctx)
@@ -77,11 +72,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Open database connection
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Set connection timeout
 	db.SetConnMaxLifetime(timeout)
@@ -96,13 +90,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
@@ -112,6 +104,4 @@ var mysqlAuthIndicators = []string{
 	"authentication failed",
 }
 
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, mysqlAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(mysqlAuthIndicators)

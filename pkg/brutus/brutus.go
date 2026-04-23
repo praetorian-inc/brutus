@@ -167,6 +167,18 @@ type Result struct {
 	LLMSuggestedCreds []string // all LLM suggestions for this service
 }
 
+// NewResult creates a Result pre-filled with common fields and Success=false.
+// This is a convenience constructor to eliminate boilerplate across plugins.
+func NewResult(protocol, target, username, password string) *Result {
+	return &Result{
+		Protocol: protocol,
+		Target:   target,
+		Username: username,
+		Password: password,
+		Success:  false,
+	}
+}
+
 // LLMConfig enables optional LLM-based banner analysis
 type LLMConfig struct {
 	Enabled  bool

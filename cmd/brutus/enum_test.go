@@ -51,6 +51,13 @@ func TestLoadEnumEmails_CommaSeparated(t *testing.T) {
 	assert.Equal(t, []string{"a@test.com", "b@test.com"}, emails)
 }
 
+func TestLoadEnumEmails_CommaSeparatedWithSpaces(t *testing.T) {
+	emails, err := loadEnumEmails("a@test.com, b@test.com , c@test.com", "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a@test.com", "b@test.com", "c@test.com"}, emails)
+}
+
+
 func TestLoadEnumEmails_Empty(t *testing.T) {
 	emails, err := loadEnumEmails("", "")
 	require.NoError(t, err)

@@ -36,3 +36,23 @@ func TestConfig_Validate_CustomValues(t *testing.T) {
 	assert.Equal(t, 5, cfg.Threads)
 	assert.Equal(t, 30*time.Second, cfg.Timeout)
 }
+
+func TestConfig_Validate_NegativeThreads(t *testing.T) {
+	cfg := &Config{
+		Emails:  []string{"user@example.com"},
+		Threads: -1,
+	}
+	err := cfg.validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "threads must not be negative")
+}
+
+func TestConfig_Validate_NegativeRateLimit(t *testing.T) {
+	cfg := &Config{
+		Emails:    []string{"user@example.com"},
+		RateLimit: -1,
+	}
+	err := cfg.validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "rate limit must not be negative")
+}

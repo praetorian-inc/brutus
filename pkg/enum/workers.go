@@ -66,8 +66,6 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 	)
 
 	for _, task := range tasks {
-		task := task
-
 		g.Go(func() error {
 			defer func() {
 				if r := recover(); r != nil {
@@ -99,6 +97,13 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 
 			// Execute check
 			result := task.plugin.Check(ctx, task.email, cfg.Timeout)
+			if result == nil {
+				result = &Result{
+					Service: task.service,
+					Email:   task.email,
+					Error:   fmt.Errorf("plugin returned nil result"),
+				}
+			}
 
 			if cfg.Verbose && result.Error != nil {
 				fmt.Fprintf(os.Stderr, "enum: error checking %s on %s: %v\n",
@@ -113,9 +118,7 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 		})
 	}
 
-	if err := g.Wait(); err != nil && err != context.Canceled {
-		return results, err
-	}
+	_ = g.Wait()
 
 	return results, nil
 }

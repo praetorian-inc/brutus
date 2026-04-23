@@ -89,6 +89,16 @@ Optional AI-powered flow in `pkg/brutus/workers.go` (`runWorkersWithLLM`): captu
 6. Create `pkg/brutus/wordlists/yourprotocol_defaults.txt` (format: `username:password` per line)
 7. Add tests in `yourprotocol_test.go`
 
+## Adding a New Enum Plugin
+
+1. Create `internal/enumplugins/yourservice/yourservice.go`
+2. Implement `enum.Plugin` interface (`Name()` + `Check()`)
+3. Call `enum.Register("yourservice", factory)` in `init()`, passing `baseURL: defaultBaseURL` in the factory
+4. Use `enum.NewEnumHTTPClient(timeout)` for HTTP clients (safe redirect policy, User-Agent, timeout)
+5. Use `enum.ReadResponseBody(resp, 0)` for body reads (1 MB limit)
+6. Add blank import to `internal/enumplugins/init.go`
+7. Add `httptest`-based tests in `yourservice_test.go`
+
 ## Code Style
 
 - **Commits**: conventional format — `type(scope): description` (feat, fix, refactor, test, docs, chore)

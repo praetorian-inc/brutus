@@ -4,7 +4,6 @@ package salesforce
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -54,12 +53,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{
-		Timeout: timeout,
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+	client := enum.NewEnumHTTPClient(timeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = fmt.Errorf("request failed: %w", err)
@@ -68,7 +62,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	body, err := enum.ReadResponseBody(resp, 0)
 	if err != nil {
 		result.Error = fmt.Errorf("reading response: %w", err)
 		result.Duration = time.Since(start)

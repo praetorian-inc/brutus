@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -116,7 +117,7 @@ func runEnum() int {
 	}
 
 	// Setup context with signal handling
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	// Discover mode
@@ -182,7 +183,12 @@ func loadEnumEmails(email, emailFile string) ([]string, error) {
 	var emails []string
 
 	if email != "" {
-		emails = append(emails, strings.Split(email, ",")...)
+		for _, e := range strings.Split(email, ",") {
+			e = strings.TrimSpace(e)
+			if e != "" {
+				emails = append(emails, e)
+			}
+		}
 	}
 
 	if emailFile != "" {

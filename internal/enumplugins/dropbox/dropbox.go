@@ -66,7 +66,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: timeout}
+	client := enum.NewEnumHTTPClient(timeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = fmt.Errorf("request failed: %w", err)

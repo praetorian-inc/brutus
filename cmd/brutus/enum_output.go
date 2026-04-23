@@ -23,6 +23,25 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
+// jsonEnumResult is the JSONL output shape for enum results.
+type jsonEnumResult struct {
+	Service    string `json:"service"`
+	Email      string `json:"email"`
+	Exists     bool   `json:"exists"`
+	Confidence string `json:"confidence,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Duration   string `json:"duration"`
+}
+
+// jsonOracleResult is the JSONL output shape for oracle discovery results.
+type jsonOracleResult struct {
+	Service    string `json:"service"`
+	IsOracle   bool   `json:"is_oracle"`
+	Confidence string `json:"confidence,omitempty"`
+	Method     string `json:"method,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
 // outputEnumHuman prints enumeration results in human-readable format.
 func outputEnumHuman(results []enum.Result, useColor, quiet bool) {
 	existsCount := 0
@@ -81,19 +100,10 @@ func enumPrintSummary(existsCount, notFoundCount, errorCount, total int, useColo
 
 // outputEnumJSONL streams enum results as JSONL.
 func outputEnumJSONL(w io.Writer, results []enum.Result) {
-	type JSONEnumResult struct {
-		Service    string `json:"service"`
-		Email      string `json:"email"`
-		Exists     bool   `json:"exists"`
-		Confidence string `json:"confidence,omitempty"`
-		Error      string `json:"error,omitempty"`
-		Duration   string `json:"duration"`
-	}
-
 	enc := json.NewEncoder(w)
 	for i := range results {
 		r := &results[i]
-		jr := JSONEnumResult{
+		jr := jsonEnumResult{
 			Service:    r.Service,
 			Email:      r.Email,
 			Exists:     r.Exists,
@@ -139,18 +149,10 @@ func outputDiscoverHuman(results []enum.OracleResult, useColor bool) {
 
 // outputDiscoverJSONL streams oracle discovery results as JSONL.
 func outputDiscoverJSONL(w io.Writer, results []enum.OracleResult) {
-	type JSONOracleResult struct {
-		Service    string `json:"service"`
-		IsOracle   bool   `json:"is_oracle"`
-		Confidence string `json:"confidence,omitempty"`
-		Method     string `json:"method,omitempty"`
-		Error      string `json:"error,omitempty"`
-	}
-
 	enc := json.NewEncoder(w)
 	for i := range results {
 		r := &results[i]
-		jr := JSONOracleResult{
+		jr := jsonOracleResult{
 			Service:    r.Service,
 			IsOracle:   r.IsOracle,
 			Confidence: string(r.Confidence),

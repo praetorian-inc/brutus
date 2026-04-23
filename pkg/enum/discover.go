@@ -29,6 +29,9 @@ func DiscoverOracles(ctx context.Context, cfg *DiscoverConfig) ([]OracleResult, 
 	if cfg.KnownValid == "" {
 		return nil, fmt.Errorf("known-valid email required for oracle discovery")
 	}
+	if cfg.Threads < 0 {
+		return nil, fmt.Errorf("threads must not be negative")
+	}
 	if cfg.Timeout == 0 {
 		cfg.Timeout = 10 * time.Second
 	}
@@ -57,8 +60,6 @@ func runDiscovery(ctx context.Context, cfg *DiscoverConfig) ([]OracleResult, err
 	)
 
 	for _, svcName := range services {
-		svcName := svcName
-
 		g.Go(func() error {
 			plug, err := GetPlugin(svcName)
 			if err != nil {
@@ -127,7 +128,7 @@ func compareResults(service string, validResult, invalidResult *Result) OracleRe
 	return OracleResult{
 		Service:    service,
 		IsOracle:   false,
-		Confidence: ConfidenceHigh,
+		Confidence: ConfidenceMedium,
 	}
 }
 

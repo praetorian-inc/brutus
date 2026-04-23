@@ -23,6 +23,12 @@ func (c *Config) validate() error {
 	if len(c.Emails) == 0 {
 		return errors.New("emails required")
 	}
+	if c.Threads < 0 {
+		return errors.New("threads must not be negative")
+	}
+	if c.RateLimit < 0 {
+		return errors.New("rate limit must not be negative")
+	}
 
 	if c.Timeout == 0 {
 		c.Timeout = 10 * time.Second

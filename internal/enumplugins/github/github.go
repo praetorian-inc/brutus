@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -46,8 +47,8 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 		return result
 	}
 
-	url := p.baseURL + "/users/" + username
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	apiURL := p.baseURL + "/users/" + url.PathEscape(username)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
 	if err != nil {
 		result.Error = fmt.Errorf("creating request: %w", err)
 		result.Duration = time.Since(start)
@@ -55,7 +56,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
-	client := &http.Client{Timeout: timeout}
+	client := enum.NewEnumHTTPClient(timeout)
 	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = fmt.Errorf("request failed: %w", err)

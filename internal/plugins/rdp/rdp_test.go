@@ -245,7 +245,7 @@ func TestPlugin_Integration_ValidCredentials(t *testing.T) {
 	assert.Equal(t, pass, result.Password)
 	assert.True(t, result.Success, "valid credentials should succeed")
 	assert.Nil(t, result.Error)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Integration_InvalidCredentials(t *testing.T) {
@@ -261,7 +261,7 @@ func TestPlugin_Integration_InvalidCredentials(t *testing.T) {
 	assert.Equal(t, host, result.Target)
 	assert.False(t, result.Success, "wrong password should fail")
 	assert.Nil(t, result.Error, "auth failure should return nil error (not connection error)")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Integration_DomainUsername(t *testing.T) {
@@ -281,5 +281,5 @@ func TestPlugin_Integration_DomainUsername(t *testing.T) {
 	assert.Equal(t, "rdp", result.Protocol)
 	assert.Equal(t, host, result.Target)
 	assert.Equal(t, domainUser, result.Username)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }

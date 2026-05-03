@@ -215,12 +215,14 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 			height = curSess.Height()
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"width":  width,
 			"height": height,
 			"target": target,
 			"token":  token,
-		})
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "[!] Failed to encode /info response: %v\n", err)
+		}
 	})
 	mux.HandleFunc("/reconnect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -236,13 +238,17 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 		if reconnErr := mgr.Reconnect(ctx); reconnErr != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": reconnErr.Error()})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": reconnErr.Error()}); err != nil {
+				fmt.Fprintf(os.Stderr, "[!] Failed to encode error response: %v\n", err)
+			}
 			fmt.Fprintf(os.Stderr, "[!] Reconnect failed: %v\n", reconnErr)
 			return
 		}
 		fmt.Fprintf(os.Stderr, "[+] Reconnected successfully.\n")
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			fmt.Fprintf(os.Stderr, "[!] Failed to encode success response: %v\n", err)
+		}
 	})
 	server := &http.Server{Handler: mux}
 

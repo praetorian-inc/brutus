@@ -30,6 +30,50 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
+// runFromTargetsFile iterates the host:port lines from a targets file and
+// runs the configured brute force against each one. Order matches the file;
+// a per-target failure does not abort the whole run.
+//
+// Output behaviour mirrors --nerva (multi-target) mode: in human output we
+// stream "valid only" findings per target as soon as they're produced, and
+// in JSON mode the caller flushes the full JSONL after the loop returns.
+//
+// See https://github.com/praetorian-inc/brutus/issues/80.
+func runFromTargetsFile(targets []string, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+	var allResults []brutus.Result
+	hasSuccess := false
+
+	for _, target := range targets {
+		if base.protocolOverride == "" {
+			warnMsg(base.useColor, "skipping %q: --protocol is required when using --targets-file", target)
+			continue
+		}
+		protocol := base.protocolOverride
+
+		// AI mode for HTTP services (mirrors single-target dispatch).
+		var aiCreds []brutus.Credential
+		if base.aiMode && (protocol == "http" || protocol == "https") {
+			protocol, aiCreds = routeHTTPWithAI(target, protocol, base)
+		}
+
+		if !jsonOut && !base.quiet {
+			printTargetInfo(target, protocol, base, aiCreds)
+		}
+
+		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds)
+		allResults = append(allResults, results...)
+		if success {
+			hasSuccess = true
+		}
+
+		if !jsonOut {
+			outputValidOnly(results, base.useColor)
+		}
+	}
+
+	return allResults, hasSuccess
+}
+
 // runFromStdin reads nerva JSON from stdin and tests each target
 func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
 	var allResults []brutus.Result

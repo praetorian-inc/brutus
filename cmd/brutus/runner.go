@@ -34,7 +34,7 @@ import (
 // runs the configured brute force against each one. Order matches the file;
 // a per-target failure does not abort the whole run.
 //
-// Output behaviour mirrors --nerva (multi-target) mode: in human output we
+// Output behavior mirrors --nerva (multi-target) mode: in human output we
 // stream "valid only" findings per target as soon as they're produced, and
 // in JSON mode the caller flushes the full JSONL after the loop returns.
 //
@@ -68,10 +68,34 @@ func runFromTargetsFile(targets []string, base *baseConfigOptions, jsonOut bool)
 
 		if !jsonOut {
 			outputValidOnly(results, base.useColor)
+			emitSecurityFindings(results, base.useColor)
 		}
 	}
 
 	return allResults, hasSuccess
+}
+
+// emitSecurityFindings prints the per-target Security-Findings block for any
+// result whose banner carries a security-relevant marker (sticky-keys, etc.).
+// Extracted so runFromStdin and runFromTargetsFile share one implementation
+// rather than duplicating the streaming-output path.
+func emitSecurityFindings(results []brutus.Result, useColor bool) {
+	for i := range results {
+		r := &results[i]
+		if r.Banner == "" || !hasSecurityFinding(r.Banner) {
+			continue
+		}
+		if useColor {
+			fmt.Printf("\n%s\n", heading(useColor, "Security Findings"))
+			fmt.Printf("  %s @ %s\n", r.Protocol, r.Target)
+			for _, line := range splitLines(r.Banner) {
+				fmt.Printf("  %s\n", line)
+			}
+		} else {
+			fmt.Printf("%s @ %s: %s\n", r.Protocol, r.Target, r.Banner)
+		}
+		break // One findings block per target
+	}
 }
 
 // runFromStdin reads nerva JSON from stdin and tests each target
@@ -135,22 +159,7 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		// Output valid credentials immediately (streaming for large-scale scans)
 		if !jsonOut {
 			outputValidOnly(results, base.useColor)
-			// Also output security findings (e.g., sticky keys detection)
-			for i := range results {
-				r := &results[i]
-				if r.Banner != "" && hasSecurityFinding(r.Banner) {
-					if base.useColor {
-						fmt.Printf("\n%s\n", heading(base.useColor, "Security Findings"))
-						fmt.Printf("  %s @ %s\n", r.Protocol, r.Target)
-						for _, line := range splitLines(r.Banner) {
-							fmt.Printf("  %s\n", line)
-						}
-					} else {
-						fmt.Printf("%s @ %s: %s\n", r.Protocol, r.Target, r.Banner)
-					}
-					break // One findings block per target
-				}
-			}
+			emitSecurityFindings(results, base.useColor)
 		}
 	}
 	if err := scanner.Err(); err != nil {

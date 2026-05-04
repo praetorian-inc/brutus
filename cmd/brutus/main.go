@@ -273,6 +273,16 @@ func main() {
 
 	switch {
 	case useStdin:
+		// Reject the combination up-front: without this check, piping
+		// nerva JSON to stdin (or passing --nerva explicitly) silently
+		// wins over --targets-file via detectStdinMode, and the user's
+		// --targets-file content is dropped on the floor. Mirrors the
+		// --target check below.
+		if *targetsFile != "" {
+			errMsg(useColor, "--targets-file is mutually exclusive with --nerva / piped stdin")
+			closeOutput()
+			os.Exit(1)
+		}
 		allResults, hasSuccess = runFromStdin(&baseConfig, *jsonOutput)
 	case *targetsFile != "":
 		// --targets-file is mutually exclusive with --target / --nerva.

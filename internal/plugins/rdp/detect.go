@@ -44,17 +44,23 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 		return result
 	}
 
-	result.Success = true
+	result.Success = false // Default to false (fail-closed)
 	switch stickyResult.OverallVerdict {
 	case "backdoor_confirmed":
 		result.Banner = fmt.Sprintf("[CRITICAL] Sticky keys backdoor CONFIRMED (confidence: %.0f%%)", stickyResult.Confidence*100)
+		result.Success = true
 	case "backdoor_likely":
 		result.Banner = fmt.Sprintf("[HIGH] Sticky keys backdoor likely (confidence: %.0f%%)", stickyResult.Confidence*100)
+		result.Success = true
 	case "vulnerable":
 		result.Banner = "[INFO] Non-NLA target, sticky keys triggers normally (no backdoor)"
+		result.Success = true
 	case "clean":
 		result.Banner = "[INFO] Sticky keys check: clean (no response to 5x Shift)"
-		result.Success = false
+		// Success stays false
+	default:
+		result.Banner = fmt.Sprintf("[INFO] Sticky keys check returned unknown verdict: %q", stickyResult.OverallVerdict)
+		// Success stays false (fail-closed)
 	}
 
 	return result
@@ -82,17 +88,23 @@ func DetectUtilman(ctx context.Context, target string, timeout time.Duration, us
 		return result
 	}
 
-	result.Success = true
+	result.Success = false // Default to false (fail-closed)
 	switch utilmanResult.OverallVerdict {
 	case "backdoor_confirmed":
 		result.Banner = fmt.Sprintf("[CRITICAL] Utilman backdoor CONFIRMED (confidence: %.0f%%)", utilmanResult.Confidence*100)
+		result.Success = true
 	case "backdoor_likely":
 		result.Banner = fmt.Sprintf("[HIGH] Utilman backdoor likely (confidence: %.0f%%)", utilmanResult.Confidence*100)
+		result.Success = true
 	case "vulnerable":
 		result.Banner = "[INFO] Non-NLA target, utilman triggers normally (no backdoor)"
+		result.Success = true
 	case "clean":
 		result.Banner = "[INFO] Utilman check: clean (no response to Win+U)"
-		result.Success = false
+		// Success stays false
+	default:
+		result.Banner = fmt.Sprintf("[INFO] Utilman check returned unknown verdict: %q", utilmanResult.OverallVerdict)
+		// Success stays false (fail-closed)
 	}
 
 	return result

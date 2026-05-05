@@ -280,18 +280,25 @@ func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Determine backdoor type and username first
+	resultUsername := "(sticky-keys)"
+	backdoorType := rdp.BackdoorStickyKeys
+	if base.stickyKeysWeb {
+		backdoorType = rdp.BackdoorUtilman
+		resultUsername = "(utilman)"
+		if base.noUtilman {
+			backdoorType = rdp.BackdoorStickyKeys
+			resultUsername = "(sticky-keys)"
+		}
+	}
+
 	result := brutus.Result{
 		Protocol: protocol,
 		Target:   target,
-		Username: "(sticky-keys)",
+		Username: resultUsername,
 	}
 
 	if base.stickyKeysWeb {
-		// Determine which backdoor to trigger (default to utilman unless disabled)
-		backdoorType := rdp.BackdoorUtilman
-		if base.noUtilman {
-			backdoorType = rdp.BackdoorStickyKeys
-		}
 		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen, backdoorType)
 		if err != nil && err != http.ErrServerClosed {
 			errMsg(base.useColor, "web terminal: %v", err)

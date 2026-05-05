@@ -342,9 +342,10 @@ func outputScanHuman(results []brutus.Result, useColor bool) {
 	for i := range results {
 		r := &results[i]
 		scanType := "Sticky Keys Scan" // default
-		if r.ScanType == "utilman" {
+		switch r.ScanType {
+		case "utilman":
 			scanType = "Utilman Scan"
-		} else if r.ScanType == "sticky_keys" {
+		case "sticky_keys":
 			scanType = "Sticky Keys Scan"
 		}
 

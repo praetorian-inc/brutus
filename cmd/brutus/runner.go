@@ -193,6 +193,9 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 	if !base.stickyKeys {
 		ctx = brutus.ContextWithNoStickyKeys(ctx)
 	}
+	if base.noUtilman {
+		ctx = brutus.ContextWithNoUtilman(ctx)
+	}
 
 	// Run brute force with context
 	results, err := brutus.BruteWithContext(ctx, config)
@@ -284,7 +287,12 @@ func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) 
 	}
 
 	if base.stickyKeysWeb {
-		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen)
+		// Determine which backdoor to trigger (default to utilman unless disabled)
+		backdoorType := rdp.BackdoorUtilman
+		if base.noUtilman {
+			backdoorType = rdp.BackdoorStickyKeys
+		}
+		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen, backdoorType)
 		if err != nil && err != http.ErrServerClosed {
 			errMsg(base.useColor, "web terminal: %v", err)
 			result.Error = err
@@ -372,9 +380,18 @@ func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Resul
 		ctx = brutus.ContextWithNoVision(ctx)
 	}
 
-	result := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
-	results := []brutus.Result{*result}
-	hasSuccess := result.Success
+	stickyResult := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
+	results := []brutus.Result{*stickyResult}
+	hasSuccess := stickyResult.Success
+
+	// Also run utilman detection unless disabled
+	if !base.noUtilman {
+		utilmanResult := rdp.DetectUtilman(ctx, target, base.timeout, "(utilman)")
+		results = append(results, *utilmanResult)
+		if utilmanResult.Success {
+			hasSuccess = true
+		}
+	}
 
 	return results, hasSuccess
 }

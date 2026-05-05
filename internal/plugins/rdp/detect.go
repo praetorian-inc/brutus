@@ -58,3 +58,40 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 
 	return result
 }
+
+// DetectUtilman performs utilman backdoor detection and returns a brutus.Result
+// with the verdict formatted as a banner string.
+//
+// This function wraps RunUtilmanCheck and interprets the UtilmanResult into
+// a standardized Result format suitable for CLI output.
+func DetectUtilman(ctx context.Context, target string, timeout time.Duration, username string) *brutus.Result {
+	plugin := &Plugin{}
+	utilmanResult := plugin.RunUtilmanCheck(ctx, target, timeout)
+
+	result := brutus.NewResult("rdp", target, username, "")
+
+	if utilmanResult == nil {
+		result.Error = fmt.Errorf("utilman check returned nil")
+		return result
+	}
+
+	if !utilmanResult.Performed {
+		result.Banner = fmt.Sprintf("[INFO] Utilman check skipped: %s", utilmanResult.SkipReason)
+		return result
+	}
+
+	result.Success = true
+	switch utilmanResult.OverallVerdict {
+	case "backdoor_confirmed":
+		result.Banner = fmt.Sprintf("[CRITICAL] Utilman backdoor CONFIRMED (confidence: %.0f%%)", utilmanResult.Confidence*100)
+	case "backdoor_likely":
+		result.Banner = fmt.Sprintf("[HIGH] Utilman backdoor likely (confidence: %.0f%%)", utilmanResult.Confidence*100)
+	case "vulnerable":
+		result.Banner = "[INFO] Non-NLA target, utilman triggers normally (no backdoor)"
+	case "clean":
+		result.Banner = "[INFO] Utilman check: clean (no response to Win+U)"
+		result.Success = false
+	}
+
+	return result
+}

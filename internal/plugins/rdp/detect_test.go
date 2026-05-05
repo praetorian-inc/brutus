@@ -65,3 +65,17 @@ func TestDetectUtilman_ResultFields(t *testing.T) {
 	assert.Equal(t, "rdp", result.Protocol)
 	assert.Equal(t, "192.0.2.1:3389", result.Target)
 }
+
+// TestScanTypeLabeling verifies that StickyKeys and Utilman scans
+// are labeled with distinct scan_type values for JSONL output.
+func TestScanTypeLabeling(t *testing.T) {
+	ctx := context.Background()
+
+	stickyResult := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys)")
+	assert.NotNil(t, stickyResult)
+	assert.Equal(t, "sticky_keys", stickyResult.ScanType, "DetectStickyKeys should set ScanType to 'sticky_keys'")
+
+	utilmanResult := DetectUtilman(ctx, "192.0.2.1:3389", 1*time.Second, "(utilman)")
+	assert.NotNil(t, utilmanResult)
+	assert.Equal(t, "utilman", utilmanResult.ScanType, "DetectUtilman should set ScanType to 'utilman'")
+}

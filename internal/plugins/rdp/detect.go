@@ -33,6 +33,7 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 
 	result := brutus.NewResult("rdp", target, username, "")
 
+	result.ScanType = "sticky_keys"
 	if stickyResult == nil {
 		result.Error = fmt.Errorf("sticky keys check returned nil")
 		return result
@@ -70,6 +71,7 @@ func DetectUtilman(ctx context.Context, target string, timeout time.Duration, us
 
 	result := brutus.NewResult("rdp", target, username, "")
 
+	result.ScanType = "utilman"
 	if utilmanResult == nil {
 		result.Error = fmt.Errorf("utilman check returned nil")
 		return result

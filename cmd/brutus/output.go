@@ -341,7 +341,12 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 func outputScanHuman(results []brutus.Result, useColor bool) {
 	for i := range results {
 		r := &results[i]
-		scanType := "Sticky Keys Scan"
+		scanType := "Sticky Keys Scan" // default
+		if r.ScanType == "utilman" {
+			scanType = "Utilman Scan"
+		} else if r.ScanType == "sticky_keys" {
+			scanType = "Sticky Keys Scan"
+		}
 
 		finding := extractFinding(r.Banner)
 		color, symbol := ColorCyan, SymbolInfo
@@ -374,7 +379,10 @@ func outputScanJSONL(w io.Writer, results []brutus.Result) {
 	enc := json.NewEncoder(w)
 	for i := range results {
 		r := &results[i]
-		scanType := "sticky_keys"
+		scanType := r.ScanType
+		if scanType == "" {
+			scanType = "sticky_keys" // default for backward compatibility
+		}
 		sr := ScanResult{
 			Protocol: r.Protocol,
 			Target:   r.Target,

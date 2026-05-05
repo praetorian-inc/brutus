@@ -177,6 +177,9 @@ type Result struct {
 	Banner            string   // service banner (if captured)
 	LLMSuggested      bool     // was this credential suggested by LLM?
 	LLMSuggestedCreds []string // all LLM suggestions for this service
+
+	// Scan metadata (optional, used in --scan mode for backdoor detection)
+	ScanType string // scan type identifier (e.g., "sticky_keys", "utilman")
 }
 
 // NewResult creates a Result pre-filled with common fields and Success=false.

@@ -120,6 +120,7 @@ func main() {
 	stickyKeysExec := flag.String("sticky-keys-exec", "", "Execute command via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysWeb := flag.Bool("sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysOpen := flag.Bool("sticky-keys-open", false, "Auto-open browser when sticky keys web terminal starts")
+	noUtilman := flag.Bool("no-utilman", false, "Disable utilman.exe backdoor detection (runs by default with --sticky-keys)")
 	flag.Parse()
 
 	// Track whether -p and -u flags were explicitly set
@@ -238,6 +239,7 @@ func main() {
 		stickyKeysWeb:    *stickyKeysWeb,
 		stickyKeysOpen:   *stickyKeysOpen,
 		aiVerify:         *aiVerify,
+		noUtilman:        *noUtilman,
 	}
 
 	var allResults []brutus.Result

@@ -54,6 +54,7 @@ type baseConfigOptions struct {
 	stickyKeysWeb    bool   // Start web terminal for sticky keys interaction
 	stickyKeysOpen   bool   // Auto-open browser when sticky keys web terminal starts
 	aiVerify         bool   // AI-powered login verification (Claude Vision before/after screenshots)
+	noUtilman        bool   // Disable utilman backdoor detection (utilman runs by default with --sticky-keys)
 }
 
 // determineTLSMode returns the appropriate TLS mode based on the verify-tls flag

@@ -93,6 +93,7 @@ func TLSModeFromContext(ctx context.Context) string {
 
 const noVisionContextKey contextKey = "noVision"
 const noStickyKeysContextKey contextKey = "noStickyKeys"
+const noUtilmanContextKey contextKey = "noUtilman"
 
 // ContextWithNoVision disables Vision API for sticky keys detection.
 func ContextWithNoVision(ctx context.Context) context.Context {
@@ -113,6 +114,17 @@ func ContextWithNoStickyKeys(ctx context.Context) context.Context {
 // NoStickyKeysFromContext returns true if sticky keys detection is disabled.
 func NoStickyKeysFromContext(ctx context.Context) bool {
 	v, _ := ctx.Value(noStickyKeysContextKey).(bool)
+	return v
+}
+
+// ContextWithNoUtilman disables utilman backdoor detection.
+func ContextWithNoUtilman(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noUtilmanContextKey, true)
+}
+
+// NoUtilmanFromContext returns true if utilman detection is disabled.
+func NoUtilmanFromContext(ctx context.Context) bool {
+	v, _ := ctx.Value(noUtilmanContextKey).(bool)
 	return v
 }
 
@@ -165,6 +177,9 @@ type Result struct {
 	Banner            string   // service banner (if captured)
 	LLMSuggested      bool     // was this credential suggested by LLM?
 	LLMSuggestedCreds []string // all LLM suggestions for this service
+
+	// Scan metadata (optional, used in --scan mode for backdoor detection)
+	ScanType string // scan type identifier (e.g., "sticky_keys", "utilman")
 }
 
 // NewResult creates a Result pre-filled with common fields and Success=false.

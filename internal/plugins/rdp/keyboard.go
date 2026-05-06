@@ -27,6 +27,12 @@ const leftShiftScancodeSC = 0x2A
 // enterScancode is the PS/2 Set 1 scancode for Enter.
 const enterScancode = 0x1C
 
+// leftWinScancode is the PS/2 Set 1 scancode for the Left Windows key (extended).
+const leftWinScancode = 0xE05B
+
+// uKeyScancode is the PS/2 Set 1 scancode for the U key.
+const uKeyScancode = 0x16
+
 // asciiToScancode maps printable ASCII characters to PS/2 Set 1 scancodes.
 // Shift is required for uppercase letters and symbols on shifted keys.
 var asciiToScancode = map[byte]keyMapping{
@@ -104,4 +110,6 @@ var jsCodeToScancode = map[string]uint16{
 	"Home": 0xE047, "End": 0xE04F,
 	"PageUp": 0xE049, "PageDown": 0xE051,
 	"Insert": 0xE052, "Delete": 0xE053,
+	// Windows keys
+	"MetaLeft": 0xE05B, "MetaRight": 0xE05C,
 }

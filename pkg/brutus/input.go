@@ -48,11 +48,13 @@ func LoadPasswordsFromFile(filePath string) ([]string, error) {
 		passwords = append(passwords, trimmed)
 	}
 
-	scanErr := scanner.Err()
-	_ = f.Close()
+	if err := scanner.Err(); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("reading password file: %w", err)
+	}
 
-	if scanErr != nil {
-		return nil, fmt.Errorf("reading password file: %w", scanErr)
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("closing password file: %w", err)
 	}
 
 	return passwords, nil
@@ -78,11 +80,13 @@ func LoadUsernamesFromFile(filePath string) ([]string, error) {
 		usernames = append(usernames, trimmed)
 	}
 
-	scanErr := scanner.Err()
-	_ = f.Close()
+	if err := scanner.Err(); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("reading username file: %w", err)
+	}
 
-	if scanErr != nil {
-		return nil, fmt.Errorf("reading username file: %w", scanErr)
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("closing username file: %w", err)
 	}
 
 	return usernames, nil

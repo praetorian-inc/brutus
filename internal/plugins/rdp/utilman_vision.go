@@ -120,12 +120,18 @@ func analyzeUtilmanVision(ctx context.Context, pngData []byte, apiKey string) (v
 
 	answer := strings.TrimSpace(strings.ToUpper(apiResp.Content[0].Text))
 
-	switch {
-	case strings.Contains(answer, "BACKDOOR_CONFIRMED"):
+	// Extract just the first token to avoid context-sensitive substring matches
+	// (e.g., "NOT BACKDOOR_CONFIRMED" would incorrectly match BACKDOOR_CONFIRMED)
+	if i := strings.IndexAny(answer, " \t\r\n.,;:"); i > 0 {
+		answer = answer[:i]
+	}
+
+	switch answer {
+	case "BACKDOOR_CONFIRMED":
 		return "backdoor_confirmed", "Vision API: command prompt detected after Win+U"
-	case strings.Contains(answer, "EASE_OF_ACCESS"):
+	case "EASE_OF_ACCESS":
 		return "vulnerable", "Vision API: normal Ease of Access dialog"
-	case strings.Contains(answer, "NO_CHANGE"):
+	case "NO_CHANGE":
 		return "clean", "Vision API: no change detected"
 	default:
 		return "", fmt.Sprintf("Vision API: %s", answer)

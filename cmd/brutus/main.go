@@ -79,6 +79,7 @@ func isColorEnabled(noColor bool) bool {
 func main() {
 	// Command-line flags
 	target := flag.String("target", "", "Target host:port")
+	targetsFile := flag.String("targets-file", "", "File of targets to test, one host:port per line (#-prefixed lines and blank lines are ignored). Requires --protocol.")
 	showVersion := flag.Bool("version", false, "Show version information")
 	protocol := flag.String("protocol", "", "Protocol to use (auto-detected from nerva)")
 	usernames := flag.String("u", "root,admin", "Comma-separated usernames")
@@ -272,9 +273,46 @@ func main() {
 		return
 	}
 
-	if useStdin {
+	switch {
+	case useStdin:
+		// Reject the combination up-front: without this check, piping
+		// nerva JSON to stdin (or passing --nerva explicitly) silently
+		// wins over --targets-file via detectStdinMode, and the user's
+		// --targets-file content is dropped on the floor. Mirrors the
+		// --target check below.
+		if *targetsFile != "" {
+			errMsg(useColor, "--targets-file is mutually exclusive with --nerva / piped stdin")
+			closeOutput()
+			os.Exit(1)
+		}
 		allResults, hasSuccess = runFromStdin(&baseConfig, *jsonOutput)
-	} else {
+	case *targetsFile != "":
+		// --targets-file is mutually exclusive with --target / --nerva.
+		// Validate before doing the file IO so a stale --target on the
+		// CLI surfaces with a clear error rather than silent precedence.
+		if *target != "" {
+			errMsg(useColor, "--targets-file is mutually exclusive with --target")
+			closeOutput()
+			os.Exit(1)
+		}
+		if *protocol == "" {
+			errMsg(useColor, "--targets-file requires --protocol (no nerva fingerprinting in this mode)")
+			closeOutput()
+			os.Exit(1)
+		}
+		targetsList, err := brutus.LoadTargetsFromFile(*targetsFile)
+		if err != nil {
+			errMsg(useColor, "%v", err)
+			closeOutput()
+			os.Exit(1)
+		}
+		if len(targetsList) == 0 {
+			errMsg(useColor, "targets file %q has no targets after stripping comments and blank lines", *targetsFile)
+			closeOutput()
+			os.Exit(1)
+		}
+		allResults, hasSuccess = runFromTargetsFile(targetsList, &baseConfig, *jsonOutput)
+	default:
 		if err := validateTargetFlags(*target, *protocol); err != nil {
 			errMsg(useColor, "%v", err)
 			flag.Usage()
@@ -284,8 +322,8 @@ func main() {
 		allResults, hasSuccess = runSingleTargetMode(*target, *protocol, &baseConfig, *jsonOutput, jsonWriter)
 	}
 
-	// Final JSON output for nerva mode
-	if *jsonOutput && useStdin {
+	// Final JSON output for multi-target modes (nerva or targets-file).
+	if *jsonOutput && (useStdin || *targetsFile != "") {
 		outputJSONL(jsonWriter, allResults)
 	}
 

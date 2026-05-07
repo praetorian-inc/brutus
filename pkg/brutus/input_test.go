@@ -127,3 +127,50 @@ func TestLoadKeyFile_Empty(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, keys)
 }
+
+// TestLoadTargetsFromFile pins the on-disk shape supported by
+// `--targets-file` for issue #80: one target per line, comments and blank
+// lines stripped, surrounding whitespace trimmed.
+func TestLoadTargetsFromFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	targetsFile := filepath.Join(tmpDir, "targets.txt")
+
+	content := `# this is a comment - should be skipped
+host1.example.com:22
+
+  host2.example.com:443
+host3.example.com:3306
+   # mid-file comment with leading whitespace
+host4.example.com:5432
+`
+	err := os.WriteFile(targetsFile, []byte(content), 0o644)
+	require.NoError(t, err)
+
+	targets, err := LoadTargetsFromFile(targetsFile)
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"host1.example.com:22",
+		"host2.example.com:443",
+		"host3.example.com:3306",
+		"host4.example.com:5432",
+	}, targets)
+}
+
+func TestLoadTargetsFromFile_EmptyAfterStripping(t *testing.T) {
+	// A file that's only comments + blanks should return zero targets
+	// without erroring. main.go checks the empty case separately and
+	// surfaces a friendlier message there.
+	tmpDir := t.TempDir()
+	targetsFile := filepath.Join(tmpDir, "empty-after-strip.txt")
+	require.NoError(t, os.WriteFile(targetsFile, []byte("# only comments\n\n   \n"), 0o644))
+
+	targets, err := LoadTargetsFromFile(targetsFile)
+	require.NoError(t, err)
+	assert.Empty(t, targets)
+}
+
+func TestLoadTargetsFromFile_MissingFile(t *testing.T) {
+	_, err := LoadTargetsFromFile("/this/path/does/not/exist.txt")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "opening targets file")
+}

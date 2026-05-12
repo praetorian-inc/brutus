@@ -17,6 +17,7 @@ require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6
 	github.com/redis/go-redis/v9 v9.18.0
+	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tetratelabs/wazero v1.11.0
 	go.mongodb.org/mongo-driver v1.17.9

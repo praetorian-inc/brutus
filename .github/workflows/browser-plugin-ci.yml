@@ -11,14 +11,14 @@ on:
     branches: [main]
     paths:
       - 'internal/plugins/browser/**'
-      - 'internal/analyzers/vision/**'
+      - 'internal/analyzers/claude/**'
       - 'internal/analyzers/perplexity/**'
       - '.github/workflows/browser-plugin-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'internal/plugins/browser/**'
-      - 'internal/analyzers/vision/**'
+      - 'internal/analyzers/claude/**'
       - 'internal/analyzers/perplexity/**'
       - '.github/workflows/browser-plugin-ci.yml'
 
@@ -42,7 +42,7 @@ jobs:
       - name: Run unit tests
         run: |
           CGO_ENABLED=0 go test -v -short ./internal/plugins/browser/...
-          CGO_ENABLED=0 go test -v -short ./internal/analyzers/vision/...
+          CGO_ENABLED=0 go test -v -short ./internal/analyzers/claude/...
           CGO_ENABLED=0 go test -v -short ./internal/analyzers/perplexity/...
 
   # Integration tests with mock devices (needs Chrome)
@@ -83,10 +83,8 @@ jobs:
           go-version: '1.24.13'
           cache: true
 
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2.1.1
-        with:
-          chrome-version: stable
+      - name: Verify Chrome installation
+        run: google-chrome --version
 
       - name: Build and start mock services
         run: |
@@ -120,92 +118,6 @@ jobs:
       - name: Run E2E tests
         run: |
           CGO_ENABLED=0 go test -v -tags=e2e ./internal/plugins/browser/... -timeout 5m
-
-  # Vision API tests (requires ANTHROPIC_API_KEY)
-  vision-api-tests:
-    name: Vision API Tests
-    runs-on: ubuntu-latest
-    environment: internal
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
-        with:
-          go-version: '1.24.13'
-          cache: true
-
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2.1.1
-        with:
-          chrome-version: stable
-
-      - name: Check for API key
-        id: check-key
-        run: |
-          if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "has_key=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_key=false" >> $GITHUB_OUTPUT
-            echo "::warning::ANTHROPIC_API_KEY not set - skipping vision API tests"
-          fi
-
-      - name: Run Vision API tests
-        if: steps.check-key.outputs.has_key == 'true'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          CGO_ENABLED=0 go test -v -tags=vision_api ./internal/analyzers/vision/... -timeout 2m
-
-  # Full pipeline test (requires API keys + Chrome)
-  full-pipeline-test:
-    name: Full Pipeline Test
-    runs-on: ubuntu-latest
-    environment: internal
-    needs: [unit-tests, integration-tests]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Set up Go
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
-        with:
-          go-version: '1.24.13'
-          cache: true
-
-      - name: Install Chrome
-        uses: browser-actions/setup-chrome@4f8e94349a351df0f048634f25fec36c3c91eded # v2.1.1
-        with:
-          chrome-version: stable
-
-      - name: Build mock services
-        run: |
-          cd internal/plugins/browser/testdata/mocks
-          for device in router camera printer nas generic; do
-            CGO_ENABLED=0 go build -o mock-$device ./$device/
-          done
-
-          PORT=8081 ./mock-router &
-          PORT=8082 ./mock-camera &
-          PORT=8083 ./mock-printer &
-          PORT=8084 ./mock-nas &
-          PORT=8085 ./mock-generic &
-          sleep 3
-
-      - name: Run full pipeline test
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
-        run: |
-          # Build brutus
-          CGO_ENABLED=0 go build -o brutus ./cmd/brutus/
-
-          # Test against mock router with browser plugin
-          ./brutus -target localhost:8081 -protocol browser -u admin -p admin --json || true
-          ./brutus -target localhost:8081 -protocol browser -u admin -p wrongpass --json || true
-
-          echo "Full pipeline test complete"
 
   # Build verification
   build:

@@ -19,6 +19,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -28,7 +30,7 @@ func TestPlugin_Name(t *testing.T) {
 
 func TestClassifyError(t *testing.T) {
 	err := errors.New("dial tcp 10.0.0.1:21: connection refused")
-	result := classifyError(err)
+	result := brutus.WrapConnError(err)
 
 	assert.NotNil(t, result)
 	assert.Contains(t, result.Error(), "connection error")

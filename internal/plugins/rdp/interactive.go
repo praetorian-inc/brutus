@@ -63,7 +63,7 @@ func NewInteractiveSession(ctx context.Context, target string, timeout time.Dura
 
 	inst, err := newInstance(ctx, eng, conn)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("wasm instance: %w", err)
 	}
 
@@ -78,15 +78,15 @@ func NewInteractiveSession(ctx context.Context, target string, timeout time.Dura
 	}
 	configBytes, err := json.Marshal(cfg)
 	if err != nil {
-		inst.close(ctx)
-		conn.Close()
+		_ = inst.close(ctx)
+		_ = conn.Close()
 		return nil, fmt.Errorf("marshal config: %w", err)
 	}
 
 	connHandle, _, err := p.runConnectorForSession(ctx, inst, configBytes)
 	if err != nil {
-		inst.close(ctx)
-		conn.Close()
+		_ = inst.close(ctx)
+		_ = conn.Close()
 		return nil, fmt.Errorf("connector: %w", err)
 	}
 
@@ -94,20 +94,20 @@ func NewInteractiveSession(ctx context.Context, target string, timeout time.Dura
 	callCtx := inst.callCtx(ctx)
 	sessionNewFn := inst.mod.ExportedFunction("session_new")
 	if sessionNewFn == nil {
-		inst.close(ctx)
-		conn.Close()
+		_ = inst.close(ctx)
+		_ = conn.Close()
 		return nil, fmt.Errorf("session_new not exported")
 	}
 	results, err := sessionNewFn.Call(callCtx, uint64(connHandle), uint64(width), uint64(height))
 	if err != nil {
-		inst.close(ctx)
-		conn.Close()
+		_ = inst.close(ctx)
+		_ = conn.Close()
 		return nil, fmt.Errorf("session_new: %w", err)
 	}
 	sessHandle := uint32(results[0])
 	if sessHandle == 0 {
-		inst.close(ctx)
-		conn.Close()
+		_ = inst.close(ctx)
+		_ = conn.Close()
 		return nil, fmt.Errorf("session_new returned null handle")
 	}
 
@@ -404,8 +404,8 @@ func (s *InteractiveSession) Close() {
 	if freeFn := s.inst.mod.ExportedFunction("connector_free"); freeFn != nil {
 		_, _ = freeFn.Call(callCtx, uint64(s.connHandle))
 	}
-	s.inst.close(context.Background())
-	s.conn.Close()
+	_ = s.inst.close(context.Background())
+	_ = s.conn.Close()
 }
 
 // parseTarget splits host:port with default port 3389.

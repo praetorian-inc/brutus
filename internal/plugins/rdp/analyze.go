@@ -74,11 +74,11 @@ func pixelBrightness(buf []byte, i int) int {
 	return (int(buf[i]) + int(buf[i+1]) + int(buf[i+2])) / 3
 }
 
-// analyzeStickyKeysResponse analyzes the difference between baseline and response frames.
+// analyzeBackdoorResponse analyzes the difference between baseline and response frames.
 // It detects any new rectangular region (dark for cmd.exe, blue for PowerShell, etc.)
-// that appeared after sending 5x Shift.
+// that appeared after sending a trigger keystroke (5x Shift for sticky keys, Win+U for utilman).
 // Returns (verdict, confidence, description).
-func analyzeStickyKeysResponse(baseline, response []byte, width, height uint32) (verdict string, confidence float64, description string) {
+func analyzeBackdoorResponse(baseline, response []byte, width, height uint32) (verdict string, confidence float64, description string) {
 	totalPixels := int(width) * int(height)
 	if totalPixels == 0 {
 		return "clean", 0, "no pixels to analyze"
@@ -217,7 +217,7 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 	result := StickyKeysResult{Performed: true}
 
 	// Step 1: Heuristic analysis
-	verdict, confidence, description := analyzeStickyKeysResponse(baseline, response, width, height)
+	verdict, confidence, description := analyzeBackdoorResponse(baseline, response, width, height)
 	result.HeuristicResult = description
 
 	if verdict == "clean" {
@@ -241,6 +241,56 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 
 			if visionVerdict == "clean" && verdict == "backdoor_likely" {
 				// Heuristic says backdoor, Vision says clean -- downgrade
+				result.OverallVerdict = "vulnerable"
+				result.Confidence = confidence * 0.5
+				return result
+			}
+		}
+	}
+
+	// Use heuristic result as final
+	result.OverallVerdict = verdict
+	result.Confidence = confidence
+	return result
+}
+
+// runUtilmanAnalysis performs the dual-check for utilman backdoor: heuristic first, then Vision API.
+func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
+	width, height uint32, visionAPIKey string) UtilmanResult {
+
+	result := UtilmanResult{Performed: true}
+
+	// Step 1: Heuristic analysis (same pixel diff logic as sticky keys)
+	verdict, confidence, description := analyzeBackdoorResponse(baseline, response, width, height)
+	result.HeuristicResult = description
+
+	if verdict == "clean" {
+		result.OverallVerdict = "clean"
+		result.Confidence = confidence
+		return result
+	}
+
+	// Step 2: Try Vision API for confirmation if key available
+	if visionAPIKey != "" {
+		pngData, err := rgbaToPNG(response, width, height)
+		if err == nil {
+			visionVerdict, visionDesc := analyzeUtilmanVision(ctx, pngData, visionAPIKey)
+			result.VisionResult = visionDesc
+
+			if visionVerdict == "backdoor_confirmed" {
+				result.OverallVerdict = "backdoor_confirmed"
+				result.Confidence = math.Min(1.0, confidence+0.3)
+				return result
+			}
+
+			// If Vision says "vulnerable" (normal Ease of Access on non-NLA), respect that
+			if visionVerdict == "vulnerable" {
+				result.OverallVerdict = "vulnerable"
+				result.Confidence = 0.8 // High confidence when Vision confirms normal behavior
+				return result
+			}
+
+			if visionVerdict == "clean" && verdict == "backdoor_likely" {
 				result.OverallVerdict = "vulnerable"
 				result.Confidence = confidence * 0.5
 				return result

@@ -14,11 +14,14 @@ import (
 
 // FormSubmitResult contains the result of form submission including post-login state
 type FormSubmitResult struct {
-	Success     bool
-	AfterURL    string
-	AfterHTML   string
-	HasPassword bool
-	Error       string
+	Success          bool
+	AfterURL         string
+	AfterHTML        string
+	HasPassword      bool
+	Error            string
+	BeforeHTML       string // Captured when using FillSubmitAndScreenshot
+	BeforeScreenshot []byte // Captured when using FillSubmitAndScreenshot
+	AfterScreenshot  []byte // Captured when using FillSubmitAndScreenshot
 }
 
 // FillAndSubmitWithNavigate navigates to a URL and fills the login form in a single operation.
@@ -149,7 +152,127 @@ func FillAndSubmitWithNavigate(tabCtx context.Context, url, username, password s
 	}, nil
 }
 
+// FillSubmitAndScreenshot is like FillAndSubmitWithNavigate but also captures
+// before/after screenshots and HTML for AI-powered login verification.
+func FillSubmitAndScreenshot(tabCtx context.Context, url, username, password string, timeout time.Duration) (*FormSubmitResult, error) {
+	ctx, cancel := context.WithTimeout(tabCtx, timeout)
+	defer cancel()
+
+	fillJS := fmt.Sprintf(`
+		(function(username, password) {
+			const pwd = document.querySelector('input[type="password"]');
+			if (!pwd) return 'error: no password field found';
+			const form = pwd.closest('form');
+			let usernameInput = null;
+			if (form) {
+				const inputs = form.querySelectorAll('input[type="text"], input[type="email"], input:not([type])');
+				for (const inp of inputs) {
+					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
+						usernameInput = inp;
+						break;
+					}
+				}
+			}
+			if (!usernameInput) {
+				const allInputs = document.querySelectorAll('input[type="text"], input[type="email"]');
+				for (const inp of allInputs) {
+					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
+						usernameInput = inp;
+						break;
+					}
+				}
+			}
+			if (usernameInput) {
+				usernameInput.focus();
+				usernameInput.value = username;
+				usernameInput.dispatchEvent(new Event('input', { bubbles: true }));
+				usernameInput.dispatchEvent(new Event('change', { bubbles: true }));
+			}
+			pwd.focus();
+			pwd.value = password;
+			pwd.dispatchEvent(new Event('input', { bubbles: true }));
+			pwd.dispatchEvent(new Event('change', { bubbles: true }));
+			let submitBtn = null;
+			if (form) {
+				submitBtn = form.querySelector('button[type="submit"], input[type="submit"], button');
+			}
+			if (!submitBtn) {
+				submitBtn = document.querySelector('button[type="submit"], input[type="submit"]');
+			}
+			if (!submitBtn) {
+				submitBtn = document.querySelector('button');
+			}
+			if (submitBtn) {
+				submitBtn.click();
+				return 'ok';
+			}
+			if (form) {
+				form.submit();
+				return 'ok: form.submit()';
+			}
+			return 'error: no submit button found';
+		})(%q, %q)
+	`, username, password)
+
+	stateJS := `
+		(function() {
+			return JSON.stringify({
+				url: window.location.href,
+				hasPassword: !!document.querySelector('input[type="password"]'),
+				html: document.documentElement.outerHTML.substring(0, 5000)
+			});
+		})()
+	`
+
+	var beforeStateJSON string
+	var fillResult string
+	var afterStateJSON string
+	var beforeScreenshot []byte
+	var afterScreenshot []byte
+
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(url),
+		chromedp.WaitVisible(`input[type="password"]`, chromedp.ByQuery),
+		chromedp.CaptureScreenshot(&beforeScreenshot),
+		chromedp.Evaluate(stateJS, &beforeStateJSON),
+		chromedp.Evaluate(fillJS, &fillResult),
+		chromedp.Sleep(1*time.Second),
+		chromedp.CaptureScreenshot(&afterScreenshot),
+		chromedp.Evaluate(stateJS, &afterStateJSON),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("form fill failed: %w", err)
+	}
+
+	if len(fillResult) > 6 && fillResult[:6] == "error:" {
+		return nil, fmt.Errorf("form fill failed: %s", fillResult)
+	}
+
+	var beforeState, afterState struct {
+		URL         string `json:"url"`
+		HasPassword bool   `json:"hasPassword"`
+		HTML        string `json:"html"`
+	}
+	if err := json.Unmarshal([]byte(beforeStateJSON), &beforeState); err != nil {
+		return nil, fmt.Errorf("failed to parse before state: %w", err)
+	}
+	if err := json.Unmarshal([]byte(afterStateJSON), &afterState); err != nil {
+		return nil, fmt.Errorf("failed to parse after state: %w", err)
+	}
+
+	return &FormSubmitResult{
+		AfterURL:         afterState.URL,
+		AfterHTML:        afterState.HTML,
+		HasPassword:      afterState.HasPassword,
+		BeforeHTML:       beforeState.HTML,
+		BeforeScreenshot: beforeScreenshot,
+		AfterScreenshot:  afterScreenshot,
+	}, nil
+}
+
 // FillAndSubmit fills form fields and clicks submit using JavaScript for reliability
+//
 // Deprecated: Use FillAndSubmitWithNavigate instead to avoid context issues
 func FillAndSubmit(tabCtx context.Context, fields *FormFields, username, password string) error {
 	ctx, cancel := context.WithTimeout(tabCtx, 15*time.Second)

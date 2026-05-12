@@ -15,10 +15,9 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
-	"os"
 	"strings"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func loadPasswords(inline, file string, inlineFlagSet bool) ([]string, error) {
@@ -31,34 +30,11 @@ func loadPasswords(inline, file string, inlineFlagSet bool) ([]string, error) {
 
 	// Load from file
 	if file != "" {
-		f, err := os.Open(file)
+		filePasswords, err := brutus.LoadPasswordsFromFile(file)
 		if err != nil {
-			return nil, fmt.Errorf("opening password file: %w", err)
+			return nil, err
 		}
-
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := scanner.Text()
-			trimmed := strings.TrimSpace(line)
-			// Skip comments
-			if strings.HasPrefix(trimmed, "#") {
-				continue
-			}
-			// Support <EMPTY> marker for empty passwords
-			if trimmed == "<EMPTY>" {
-				passwords = append(passwords, "")
-				continue
-			}
-			// Include all non-comment lines (empty lines = empty passwords)
-			passwords = append(passwords, trimmed)
-		}
-
-		scanErr := scanner.Err()
-		f.Close()
-
-		if scanErr != nil {
-			return nil, fmt.Errorf("reading password file: %w", scanErr)
-		}
+		passwords = append(passwords, filePasswords...)
 	}
 
 	return passwords, nil
@@ -74,52 +50,16 @@ func loadUsernames(inline, file string, inlineFlagSet bool) ([]string, error) {
 
 	// Load from file
 	if file != "" {
-		f, err := os.Open(file)
+		fileUsernames, err := brutus.LoadUsernamesFromFile(file)
 		if err != nil {
-			return nil, fmt.Errorf("opening username file: %w", err)
+			return nil, err
 		}
-
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := scanner.Text()
-			trimmed := strings.TrimSpace(line)
-			// Skip comments and empty lines
-			if strings.HasPrefix(trimmed, "#") || trimmed == "" {
-				continue
-			}
-			usernames = append(usernames, trimmed)
-		}
-
-		scanErr := scanner.Err()
-		f.Close()
-
-		if scanErr != nil {
-			return nil, fmt.Errorf("reading username file: %w", scanErr)
-		}
+		usernames = append(usernames, fileUsernames...)
 	}
 
 	return usernames, nil
 }
 
 func loadKey(keyFile string) ([][]byte, error) {
-	if keyFile == "" {
-		return nil, nil
-	}
-
-	// Check file size to prevent OOM from excessively large files
-	info, err := os.Stat(keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("accessing key file %s: %w", keyFile, err)
-	}
-	const maxKeyFileSize = 1 << 20 // 1MB - generous limit for SSH/TLS keys
-	if info.Size() > maxKeyFileSize {
-		return nil, fmt.Errorf("key file %s is %d bytes (max %d bytes)", keyFile, info.Size(), maxKeyFileSize)
-	}
-
-	key, err := os.ReadFile(keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("reading key file %s: %w", keyFile, err)
-	}
-
-	return [][]byte{key}, nil
+	return brutus.LoadKeyFile(keyFile)
 }

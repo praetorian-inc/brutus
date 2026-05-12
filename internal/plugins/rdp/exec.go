@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/praetorian-inc/brutus/internal/analyzers/vision"
+	"github.com/praetorian-inc/brutus/internal/analyzers/claude"
 )
 
 // ExecResult holds the outcome of a sticky keys command execution.
@@ -157,7 +157,7 @@ func RunStickyKeysExec(ctx context.Context, target, command string, timeout time
 			fmt.Fprintf(os.Stderr, "[!] Vision: failed to encode PNG: %v\n", pngErr)
 			return result
 		}
-		client := &vision.Client{APIKey: apiKey}
+		client := &claude.Client{APIKey: apiKey}
 		output, visionErr := client.ReadTerminalOutput(ctx, pngData)
 		if visionErr != nil {
 			fmt.Fprintf(os.Stderr, "[!] Vision: %v\n", visionErr)
@@ -183,7 +183,7 @@ func saveRGBAScreenshot(rgba []byte, width, height uint32, path string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	return png.Encode(f, img)
 }

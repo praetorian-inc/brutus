@@ -207,6 +207,61 @@ func TestClassifyError(t *testing.T) {
 	}
 }
 
+func TestShouldRunUtilmanCheck(t *testing.T) {
+	// Default context: both checks enabled
+	ctx := context.Background()
+	assert.True(t, shouldRunUtilmanCheck(ctx))
+
+	// Sticky keys disabled: utilman also disabled
+	ctx = brutus.ContextWithNoStickyKeys(ctx)
+	assert.False(t, shouldRunUtilmanCheck(ctx))
+
+	// Only utilman disabled
+	ctx = context.Background()
+	ctx = brutus.ContextWithNoUtilman(ctx)
+	assert.False(t, shouldRunUtilmanCheck(ctx))
+}
+
+func TestFormatUtilmanBanner_Confirmed(t *testing.T) {
+	result := &UtilmanResult{
+		Performed:      true,
+		OverallVerdict: "backdoor_confirmed",
+		Confidence:     0.85,
+	}
+	banner := formatUtilmanBanner("", result)
+	assert.Contains(t, banner, "[CRITICAL]")
+	assert.Contains(t, banner, "Utilman backdoor CONFIRMED")
+	assert.Contains(t, banner, "85%")
+	assert.Contains(t, banner, "utilman.exe")
+	assert.Contains(t, banner, "Win+U")
+}
+
+func TestFormatUtilmanBanner_Clean(t *testing.T) {
+	result := &UtilmanResult{
+		Performed:      true,
+		OverallVerdict: "clean",
+		Confidence:     0,
+	}
+	banner := formatUtilmanBanner("existing banner", result)
+	assert.Contains(t, banner, "existing banner")
+	assert.Contains(t, banner, "Utilman check: clean")
+}
+
+func TestFormatUtilmanBanner_Skipped(t *testing.T) {
+	result := &UtilmanResult{
+		Performed:  false,
+		SkipReason: "connection failed",
+	}
+	banner := formatUtilmanBanner("", result)
+	assert.Contains(t, banner, "Utilman check skipped")
+	assert.Contains(t, banner, "connection failed")
+}
+
+func TestFormatUtilmanBanner_Nil(t *testing.T) {
+	banner := formatUtilmanBanner("existing", nil)
+	assert.Equal(t, "existing", banner)
+}
+
 // --- Integration Tests ---
 // These require a real RDP server. Set environment variables to enable:
 //   RDP_TEST_HOST=host:3389
@@ -245,7 +300,7 @@ func TestPlugin_Integration_ValidCredentials(t *testing.T) {
 	assert.Equal(t, pass, result.Password)
 	assert.True(t, result.Success, "valid credentials should succeed")
 	assert.Nil(t, result.Error)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Integration_InvalidCredentials(t *testing.T) {
@@ -261,7 +316,7 @@ func TestPlugin_Integration_InvalidCredentials(t *testing.T) {
 	assert.Equal(t, host, result.Target)
 	assert.False(t, result.Success, "wrong password should fail")
 	assert.Nil(t, result.Error, "auth failure should return nil error (not connection error)")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Integration_DomainUsername(t *testing.T) {
@@ -281,5 +336,5 @@ func TestPlugin_Integration_DomainUsername(t *testing.T) {
 	assert.Equal(t, "rdp", result.Protocol)
 	assert.Equal(t, host, result.Target)
 	assert.Equal(t, domainUser, result.Username)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }

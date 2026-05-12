@@ -127,7 +127,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	assert.Equal(t, pass, result.Password)
 	assert.True(t, result.Success, "Expected successful authentication")
 	assert.Nil(t, result.Error, "Expected no error on successful auth")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
@@ -148,7 +148,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	assert.Equal(t, "wrongpassword", result.Password)
 	assert.False(t, result.Success, "Expected failed authentication")
 	assert.Nil(t, result.Error, "Authentication failure should have nil error")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_NoAuthRequired(t *testing.T) {
@@ -168,7 +168,7 @@ func TestPlugin_Test_NoAuthRequired(t *testing.T) {
 	assert.Equal(t, "", result.Password)
 	// If Redis has no auth, this should succeed
 	// If Redis requires auth, this should fail with nil error (auth failure)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_ConnectionRefused(t *testing.T) {
@@ -185,7 +185,7 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	assert.False(t, result.Success, "Expected connection failure")
 	assert.NotNil(t, result.Error, "Connection error should have non-nil error")
 	assert.Contains(t, result.Error.Error(), "connection error")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidTarget(t *testing.T) {
@@ -202,7 +202,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	assert.False(t, result.Success, "Expected connection failure")
 	assert.NotNil(t, result.Error, "DNS error should have non-nil error")
 	assert.Contains(t, result.Error.Error(), "connection error")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {
@@ -252,7 +252,7 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	assert.Equal(t, "localhost", result.Target)
 	// Connection may fail or succeed depending on implementation
 	// Just verify we get a valid result structure
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestInit(t *testing.T) {

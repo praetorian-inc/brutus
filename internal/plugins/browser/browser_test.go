@@ -28,7 +28,6 @@ func TestPlugin_Test_ReturnsResult(t *testing.T) {
 	t.Cleanup(resetBrowserSingleton)
 
 	p := &Plugin{
-		Timeout:         60 * time.Second,
 		TabCount:        3, // Match default to avoid singleton issues
 		PageLoadTimeout: 2 * time.Second,
 	}

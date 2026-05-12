@@ -1,45 +1,58 @@
+version: "2"
+
 run:
-  timeout: 5m
   tests: true
 
 linters:
   enable:
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
-    - goimports
     - misspell
     - unconvert
     - unparam
     - gocritic
+  settings:
+    errcheck:
+      check-type-assertions: true
+    govet:
+      enable:
+        - shadow
+    misspell:
+      locale: US
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - unparam
+      - path: _test\.go
+        linters:
+          - revive
+        text: "dot-imports"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-  govet:
-    check-shadowing: true
-  goimports:
-    local-prefixes: github.com/praetorian-inc/brutus
-  misspell:
-    locale: US
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-
-issues:
-  exclude-rules:
-    # Allow unused parameters in test files
-    - path: _test\.go
-      linters:
-        - unparam
-    # Allow dot imports in test files
-    - path: _test\.go
-      linters:
-        - revive
-      text: "dot-imports"
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/praetorian-inc/brutus
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

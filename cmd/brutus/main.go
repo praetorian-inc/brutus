@@ -58,7 +58,7 @@ func setupOutputWriter(outputFile string) (w io.Writer, forceJSON bool, cleanup 
 	if err != nil {
 		return nil, false, func() {}, fmt.Errorf("creating output file: %w", err)
 	}
-	return f, true, func() { f.Close() }, nil
+	return f, true, func() { _ = f.Close() }, nil
 }
 
 // shouldShowBanner determines whether to display the ASCII art banner.
@@ -79,6 +79,7 @@ func isColorEnabled(noColor bool) bool {
 func main() {
 	// Command-line flags
 	target := flag.String("target", "", "Target host:port")
+	targetsFile := flag.String("targets-file", "", "File of targets to test, one host:port per line (#-prefixed lines and blank lines are ignored). Requires --protocol.")
 	showVersion := flag.Bool("version", false, "Show version information")
 	protocol := flag.String("protocol", "", "Protocol to use (auto-detected from nerva)")
 	usernames := flag.String("u", "root,admin", "Comma-separated usernames")
@@ -102,8 +103,8 @@ func main() {
 	noColor := flag.Bool("no-color", false, "Disable colored output")
 	quiet := flag.Bool("q", false, "Quiet mode - only show successful credentials")
 	verbose := flag.Bool("v", false, "Verbose mode - show detailed progress to stderr")
-	badkeys := flag.Bool("badkeys", true, "Test embedded bad SSH keys (rapid7/ssh-badkeys, vagrant)")
 	noBadkeys := flag.Bool("no-badkeys", false, "Disable embedded bad key testing")
+	badkeysOnly := flag.Bool("badkeys-only", false, "Only test embedded bad SSH keys (skip password wordlists and non-SSH protocols)")
 	verifyTLS := flag.Bool("verify-tls", false, "Require strict TLS certificate verification (default: disabled)")
 
 	// Custom usage
@@ -115,14 +116,12 @@ func main() {
 	browserVisible := flag.Bool("browser-visible", false, "Show browser window (demo mode)")
 	useHTTPS := flag.Bool("https", false, "Use HTTPS for browser connections")
 	aiMode := flag.Bool("experimental-ai", false, "Enable AI-powered credential detection for HTTP services (experimental)")
-	aiVerify := flag.Bool("experimental-ai-verify", false, "Use Claude Vision to verify login success (more accurate but slower)")
-	stickyKeys := flag.Bool("sticky-keys", false, "Enable sticky keys backdoor detection for RDP targets")
+	aiVerify := flag.Bool("experimental-ai-verify", false, "Use Claude Vision to verify login success by comparing before/after screenshots")
+	stickyKeys := flag.Bool("sticky-keys", false, "Sticky keys backdoor detection mode for RDP (no brute force)")
 	stickyKeysExec := flag.String("sticky-keys-exec", "", "Execute command via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysWeb := flag.Bool("sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor (requires --sticky-keys)")
 	stickyKeysOpen := flag.Bool("sticky-keys-open", false, "Auto-open browser when sticky keys web terminal starts")
-	nlaCheck := flag.Bool("nla-check", false, "NLA fingerprint scan: check if RDP targets require NLA (no auth, fast)")
-	stickyKeysScan := flag.Bool("sticky-keys-scan", false, "Sticky keys scan-only mode: detect backdoor without brute force")
-
+	noUtilman := flag.Bool("no-utilman", false, "Disable utilman.exe backdoor detection (runs by default with --sticky-keys)")
 	flag.Parse()
 
 	// Track whether -p and -u flags were explicitly set
@@ -164,12 +163,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Determine if badkeys should be used (--no-badkeys overrides --badkeys)
-	useBadkeys := resolveBadkeys(*badkeys, *noBadkeys)
+	if *aiVerify && anthropicKey == "" {
+		errMsg(useColor, "--experimental-ai-verify requires ANTHROPIC_API_KEY environment variable")
+		os.Exit(1)
+	}
+
+	// Determine if badkeys should be used (enabled by default, --no-badkeys disables)
+	useBadkeys := !*noBadkeys
 
 	// Validate: -k requires explicit -u or -U (not default usernames)
-	if err := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); err != nil {
-		errMsg(useColor, "%v", err)
+	if validateErr := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); validateErr != nil {
+		errMsg(useColor, "%v", validateErr)
 		os.Exit(1)
 	}
 
@@ -220,9 +224,9 @@ func main() {
 		quiet:            *quiet,
 		verbose:          *verbose,
 		useBadkeys:       useBadkeys,
+		badkeysOnly:      *badkeysOnly,
 		protocolOverride: *protocol,
 		aiMode:           *aiMode,
-		aiVerify:         *aiVerify,
 		tlsMode:          determineTLSMode(*verifyTLS),
 		rateLimit:        *rateLimit,
 		jitter:           *jitter,
@@ -235,16 +239,17 @@ func main() {
 		stickyKeysExec:   *stickyKeysExec,
 		stickyKeysWeb:    *stickyKeysWeb,
 		stickyKeysOpen:   *stickyKeysOpen,
-		nlaCheck:         *nlaCheck,
-		stickyKeysScan:   *stickyKeysScan,
+		aiVerify:         *aiVerify,
+		noUtilman:        *noUtilman,
 	}
 
 	var allResults []brutus.Result
 	var hasSuccess bool
 
-
-	// Scan-only modes: bypass normal brute force entirely
-	if baseConfig.nlaCheck || baseConfig.stickyKeysScan {
+	// Scan/detection mode: --sticky-keys (without --sticky-keys-exec or --sticky-keys-web)
+	// bypasses normal brute force entirely and runs sticky keys backdoor detection
+	stickyKeysDetect := baseConfig.stickyKeys && baseConfig.stickyKeysExec == "" && !baseConfig.stickyKeysWeb
+	if stickyKeysDetect {
 		var scanResults []brutus.Result
 		if useStdin {
 			scanResults, hasSuccess = runScanFromStdin(&baseConfig)
@@ -268,9 +273,46 @@ func main() {
 		return
 	}
 
-	if useStdin {
+	switch {
+	case useStdin:
+		// Reject the combination up-front: without this check, piping
+		// nerva JSON to stdin (or passing --nerva explicitly) silently
+		// wins over --targets-file via detectStdinMode, and the user's
+		// --targets-file content is dropped on the floor. Mirrors the
+		// --target check below.
+		if *targetsFile != "" {
+			errMsg(useColor, "--targets-file is mutually exclusive with --nerva / piped stdin")
+			closeOutput()
+			os.Exit(1)
+		}
 		allResults, hasSuccess = runFromStdin(&baseConfig, *jsonOutput)
-	} else {
+	case *targetsFile != "":
+		// --targets-file is mutually exclusive with --target / --nerva.
+		// Validate before doing the file IO so a stale --target on the
+		// CLI surfaces with a clear error rather than silent precedence.
+		if *target != "" {
+			errMsg(useColor, "--targets-file is mutually exclusive with --target")
+			closeOutput()
+			os.Exit(1)
+		}
+		if *protocol == "" {
+			errMsg(useColor, "--targets-file requires --protocol (no nerva fingerprinting in this mode)")
+			closeOutput()
+			os.Exit(1)
+		}
+		targetsList, err := brutus.LoadTargetsFromFile(*targetsFile)
+		if err != nil {
+			errMsg(useColor, "%v", err)
+			closeOutput()
+			os.Exit(1)
+		}
+		if len(targetsList) == 0 {
+			errMsg(useColor, "targets file %q has no targets after stripping comments and blank lines", *targetsFile)
+			closeOutput()
+			os.Exit(1)
+		}
+		allResults, hasSuccess = runFromTargetsFile(targetsList, &baseConfig, *jsonOutput)
+	default:
 		if err := validateTargetFlags(*target, *protocol); err != nil {
 			errMsg(useColor, "%v", err)
 			flag.Usage()
@@ -280,8 +322,8 @@ func main() {
 		allResults, hasSuccess = runSingleTargetMode(*target, *protocol, &baseConfig, *jsonOutput, jsonWriter)
 	}
 
-	// Final JSON output for nerva mode
-	if *jsonOutput && useStdin {
+	// Final JSON output for multi-target modes (nerva or targets-file).
+	if *jsonOutput && (useStdin || *targetsFile != "") {
 		outputJSONL(jsonWriter, allResults)
 	}
 
@@ -315,11 +357,6 @@ func runSingleTargetMode(target, protocol string, baseConfig *baseConfigOptions,
 	}
 
 	return results, success
-}
-
-// resolveBadkeys determines if bad SSH keys should be tested (--no-badkeys overrides --badkeys).
-func resolveBadkeys(badkeys, noBadkeys bool) bool {
-	return badkeys && !noBadkeys
 }
 
 // validateKeyFileFlags checks that -k is used with explicit -u or -U.

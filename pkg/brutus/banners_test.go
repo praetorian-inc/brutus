@@ -20,74 +20,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsStandardBanner(t *testing.T) {
+func TestIsHTTPProtocol(t *testing.T) {
 	tests := []struct {
 		name     string
 		protocol string
-		banner   string
 		want     bool
 	}{
-		{
-			name:     "empty banner returns true",
-			protocol: "ssh",
-			banner:   "",
-			want:     true,
-		},
-		{
-			name:     "ssh standard banner",
-			protocol: "ssh",
-			banner:   "SSH-2.0-OpenSSH_8.2",
-			want:     true,
-		},
-		{
-			name:     "ssh custom banner",
-			protocol: "ssh",
-			banner:   "SSH-2.0-MyCustomSSH",
-			want:     false,
-		},
-		{
-			name:     "http protocol with grafana banner should return false",
-			protocol: "http",
-			banner:   "Grafana v8.0.0",
-			want:     false,
-		},
-		{
-			name:     "https protocol with jenkins banner should return false",
-			protocol: "https",
-			banner:   "Jenkins/2.303",
-			want:     false,
-		},
-		{
-			name:     "couchdb protocol with custom banner should return false",
-			protocol: "couchdb",
-			banner:   "CouchDB/3.1.1",
-			want:     false,
-		},
-		{
-			name:     "elasticsearch protocol should return false",
-			protocol: "elasticsearch",
-			banner:   "Elasticsearch 7.10.0",
-			want:     false,
-		},
-		{
-			name:     "influxdb protocol should return false",
-			protocol: "influxdb",
-			banner:   "InfluxDB v2.0",
-			want:     false,
-		},
-		{
-			name:     "unknown non-http protocol returns true",
-			protocol: "unknown",
-			banner:   "some banner",
-			want:     true,
-		},
+		{name: "http", protocol: "http", want: true},
+		{name: "https", protocol: "https", want: true},
+		{name: "couchdb", protocol: "couchdb", want: true},
+		{name: "elasticsearch", protocol: "elasticsearch", want: true},
+		{name: "influxdb", protocol: "influxdb", want: true},
+		{name: "ssh is not HTTP", protocol: "ssh", want: false},
+		{name: "ftp is not HTTP", protocol: "ftp", want: false},
+		{name: "mysql is not HTTP", protocol: "mysql", want: false},
+		{name: "empty protocol", protocol: "", want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := IsStandardBanner(tt.protocol, tt.banner)
-			assert.Equal(t, tt.want, got, "IsStandardBanner(%q, %q) = %v, want %v",
-				tt.protocol, tt.banner, got, tt.want)
+			got := isHTTPProtocol(tt.protocol)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

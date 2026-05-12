@@ -44,9 +44,18 @@ type StickyKeysResult struct {
 	VisionResult    string
 }
 
+// UtilmanResult holds the outcome of utilman backdoor detection.
+type UtilmanResult struct {
+	Performed       bool
+	SkipReason      string
+	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean"
+	Confidence      float64 // 0.0-1.0
+	HeuristicResult string
+	VisionResult    string
+}
+
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).
 const leftShiftScancode = 0x2A
-
 
 // runConnectorForSession drives the connector state machine and returns the connector handle
 // (for session handoff) instead of consuming it. Similar to runConnector but doesn't free the handle.
@@ -235,6 +244,81 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	// The exec.go path uses 1s sleep + 2s WaitForFrame; we mirror that here.
+	time.Sleep(1500 * time.Millisecond)
+	if pumpErr := p.pumpSession(ctx, inst, sessHandle, 3*time.Second); pumpErr != nil {
+		// Non-fatal -- target might not respond
+		_ = pumpErr
+	}
+
+	// Capture response frame
+	response, err := p.captureFrame(ctx, inst, sessHandle)
+	if err != nil {
+		return nil, nil, 0, 0, fmt.Errorf("capture response: %w", err)
+	}
+
+	return baseline, response, width, height, nil
+}
+
+// runUtilmanSession creates a session from the connector, pumps it to receive the login screen bitmap,
+// sends Win+U to trigger the Utility Manager (utilman.exe), then captures the post-keystroke bitmap.
+// Returns (baseline_rgba, response_rgba, width, height, error).
+func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
+	width, height uint32) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, err error) {
+
+	callCtx := inst.callCtx(ctx)
+
+	// Create session from connector
+	sessionNewFn := inst.mod.ExportedFunction("session_new")
+	if sessionNewFn == nil {
+		return nil, nil, 0, 0, fmt.Errorf("session_new not exported")
+	}
+	results, err := sessionNewFn.Call(callCtx, uint64(connHandle), uint64(width), uint64(height))
+	if err != nil {
+		return nil, nil, 0, 0, fmt.Errorf("session_new: %w", err)
+	}
+	sessHandle := uint32(results[0])
+	if sessHandle == 0 {
+		return nil, nil, 0, 0, fmt.Errorf("session_new returned null handle")
+	}
+
+	// Ensure cleanup
+	sessionFreeFn := inst.mod.ExportedFunction("session_free")
+	defer func() {
+		if sessionFreeFn != nil {
+			_, _ = sessionFreeFn.Call(callCtx, uint64(sessHandle))
+		}
+	}()
+
+	// Pump session to get initial login screen
+	if pumpErr := p.pumpSession(ctx, inst, sessHandle, 5*time.Second); pumpErr != nil {
+		return nil, nil, 0, 0, fmt.Errorf("pump baseline: %w", pumpErr)
+	}
+
+	// Capture baseline frame
+	baseline, err := p.captureFrame(ctx, inst, sessHandle)
+	if err != nil {
+		return nil, nil, 0, 0, fmt.Errorf("capture baseline: %w", err)
+	}
+
+	// Send Win+U to trigger Utility Manager (utilman.exe)
+	// Key sequence: press Win, press U, release U, release Win
+	if keyErr := p.sendKey(ctx, inst, sessHandle, leftWinScancode, true); keyErr != nil {
+		return nil, nil, 0, 0, fmt.Errorf("send win press: %w", keyErr)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if keyErr := p.sendKey(ctx, inst, sessHandle, uKeyScancode, true); keyErr != nil {
+		return nil, nil, 0, 0, fmt.Errorf("send u press: %w", keyErr)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if keyErr := p.sendKey(ctx, inst, sessHandle, uKeyScancode, false); keyErr != nil {
+		return nil, nil, 0, 0, fmt.Errorf("send u release: %w", keyErr)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if keyErr := p.sendKey(ctx, inst, sessHandle, leftWinScancode, false); keyErr != nil {
+		return nil, nil, 0, 0, fmt.Errorf("send win release: %w", keyErr)
+	}
+
+	// Wait for response and pump — give cmd.exe time to render before capturing.
 	time.Sleep(1500 * time.Millisecond)
 	if pumpErr := p.pumpSession(ctx, inst, sessHandle, 3*time.Second); pumpErr != nil {
 		// Non-fatal -- target might not respond

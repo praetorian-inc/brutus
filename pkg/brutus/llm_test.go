@@ -15,6 +15,7 @@
 package brutus
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -223,5 +224,28 @@ func TestIsValidPassword(t *testing.T) {
 				t.Errorf("IsValidPassword(%q) = %v, want %v", tt.password, result, tt.valid)
 			}
 		})
+	}
+}
+
+func TestResearchCredentials_NilConfig(t *testing.T) {
+	result := ResearchCredentials(context.Background(), "target:80", "banner", nil)
+	if result != nil {
+		t.Errorf("expected nil for nil config, got %v", result)
+	}
+}
+
+func TestResearchCredentials_DisabledConfig(t *testing.T) {
+	cfg := &LLMConfig{Enabled: false, Provider: "test"}
+	result := ResearchCredentials(context.Background(), "target:80", "banner", cfg)
+	if result != nil {
+		t.Errorf("expected nil for disabled config, got %v", result)
+	}
+}
+
+func TestResearchCredentials_UnknownProvider(t *testing.T) {
+	cfg := &LLMConfig{Enabled: true, Provider: "nonexistent-provider"}
+	result := ResearchCredentials(context.Background(), "target:80", "banner", cfg)
+	if result != nil {
+		t.Errorf("expected nil for unknown provider, got %v", result)
 	}
 }

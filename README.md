@@ -239,6 +239,11 @@ naabu -host 10.0.0.0/8 -p 22 -rate 1000 -silent | \
   nerva --json | \
   brutus --json -o ssh-key-findings.json
 
+# Test ONLY bad keys (skip password wordlists and non-SSH protocols)
+naabu -host 10.0.0.0/8 -p 22 -rate 1000 -silent | \
+  nerva --json | \
+  brutus --badkeys-only --json -o ssh-key-findings.json
+
 # Find systems using SSH keys (key field is true)
 cat ssh-key-findings.json | jq 'select(.key == true)'
 ```
@@ -362,11 +367,17 @@ Single binary deployment with no external key files needed. Each key is paired w
 Brutus carries the **[rapid7/ssh-badkeys](https://github.com/rapid7/ssh-badkeys)** and **[Vagrant](https://github.com/hashicorp/vagrant)** key collections embedded in the binary:
 
 ```bash
-# Test all embedded bad keys against a target (enabled by default for SSH)
+# Bad keys are tested by default for SSH targets (alongside password wordlists)
 brutus --target 192.168.1.100:22 --protocol ssh
 
-# Combine with pipeline for network-wide key testing
-naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus
+# Test ONLY bad keys (no password wordlists, skip non-SSH protocols)
+brutus --target 192.168.1.100:22 --protocol ssh --badkeys-only
+
+# Disable bad key testing entirely
+brutus --target 192.168.1.100:22 --protocol ssh --no-badkeys -p "password"
+
+# Combine with pipeline for network-wide key-only testing
+naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus --badkeys-only
 ```
 
 ### Embedded Key Collection

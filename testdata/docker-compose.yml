@@ -160,6 +160,7 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=true
       - ELASTIC_PASSWORD=elasticpass
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
 
   influxdb:
     image: influxdb:2
@@ -184,7 +185,7 @@ services:
       - "3993:3993"   # IMAPS
       - "3995:3995"   # POP3S
     environment:
-      - GREENMAIL_OPTS=-Dgreenmail.setup.test.all -Dgreenmail.users=testuser:testpass@test.local
+      - GREENMAIL_OPTS=-Dgreenmail.setup.test.all -Dgreenmail.hostname=0.0.0.0 -Dgreenmail.users=testuser:testpass@test.local
 
   snmp:
     image: polinux/snmpd:alpine

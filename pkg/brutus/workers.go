@@ -346,24 +346,18 @@ func runWorkersDefault(ctx context.Context, cfg *Config, plug Plugin) ([]Result,
 	return executeWorkerPool(ctx, cfg, plug, credentials, nil)
 }
 
-// runWorkersWithLLM executes credential testing with optional LLM-based banner analysis.
-// Phase 1: Capture banner with dummy credential
-// Phase 2: Check if standard banner (skip LLM if standard)
-// Phase 3: Analyze non-standard banner with LLM
-// Phase 4: Test LLM suggestions first (priority)
-// Phase 5: Test default credentials
-// Phase 6: Run workers with combined credential list
+// runWorkersWithLLM executes credential testing with LLM-based banner analysis
+// for HTTP protocols. Captures the banner, analyzes it with the LLM to suggest
+// application-specific credentials, then tests those before falling back to defaults.
+//
+// This function is only called for HTTP protocols (http, https, couchdb,
+// elasticsearch, influxdb) where banner analysis can identify the application
+// (e.g., Grafana, Jenkins, Tomcat) and suggest relevant default credentials.
 func runWorkersWithLLM(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error) {
-	// Phase 1: Capture banner with dummy credential
+	// Capture banner from HTTP response
 	banner := captureBanner(ctx, cfg, plug)
 
-	// Phase 2: Check if standard banner
-	if IsStandardBanner(cfg.Protocol, banner.Banner) {
-		// Standard banner - use default credentials only
-		return runWorkersDefault(ctx, cfg, plug)
-	}
-
-	// Phase 3: Non-standard banner - get LLM suggestions
+	// Analyze banner with LLM to get application-specific credential suggestions
 	analyzer := createAnalyzer(cfg.LLMConfig)
 	if analyzer == nil {
 		// Analyzer creation failed - fallback to defaults

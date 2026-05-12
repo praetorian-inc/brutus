@@ -113,22 +113,6 @@ func (b *Browser) Navigate(tabCtx context.Context, url string, timeout time.Dura
 	return chromedp.Run(ctx, chromedp.Navigate(url))
 }
 
-// Screenshot captures a PNG screenshot of the current page
-func (b *Browser) Screenshot(tabCtx context.Context) ([]byte, error) {
-	// Add a timeout to prevent hanging on problematic pages
-	ctx, cancel := context.WithTimeout(tabCtx, 30*time.Second)
-	defer cancel()
-
-	var buf []byte
-	// Small sleep to let the page finish rendering after navigation
-	// Then capture the screenshot
-	err := chromedp.Run(ctx,
-		chromedp.Sleep(500*time.Millisecond),
-		chromedp.CaptureScreenshot(&buf),
-	)
-	return buf, err
-}
-
 // NavigateAndScreenshot navigates to a URL and captures a screenshot in a single operation.
 // This avoids context lifecycle issues between separate Navigate and Screenshot calls.
 func (b *Browser) NavigateAndScreenshot(tabCtx context.Context, url string, timeout time.Duration) ([]byte, error) {

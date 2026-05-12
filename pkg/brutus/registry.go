@@ -106,3 +106,11 @@ func GetAnalyzerFactory(provider string) AnalyzerFactory {
 	defer analyzerRegistryMu.RUnlock()
 	return analyzerRegistry[provider]
 }
+
+// ResetAnalyzers clears all registered analyzers.
+// This function is intended for testing only.
+func ResetAnalyzers() {
+	analyzerRegistryMu.Lock()
+	defer analyzerRegistryMu.Unlock()
+	analyzerRegistry = make(map[string]AnalyzerFactory)
+}

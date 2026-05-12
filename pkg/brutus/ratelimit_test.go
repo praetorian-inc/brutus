@@ -190,18 +190,18 @@ func (p *testRateLimitPlugin) Test(ctx context.Context, target, username, passwo
 // TestSubSecondRateLimit tests that fractional rates (sub-1 RPS) work correctly
 func TestSubSecondRateLimit(t *testing.T) {
 	tests := []struct {
-		name            string
-		rateLimit       float64
-		numRequests     int
-		minDurationMS   int64
-		description     string
+		name          string
+		rateLimit     float64
+		numRequests   int
+		minDurationMS int64
+		description   string
 	}{
 		{
-			name:            "0.5 RPS (1 request every 2 seconds)",
-			rateLimit:       0.5,
-			numRequests:     2,
-			minDurationMS:   2000, // First request immediate, second after 2s
-			description:     "0.5 RPS means 1 request every 2 seconds",
+			name:          "0.5 RPS (1 request every 2 seconds)",
+			rateLimit:     0.5,
+			numRequests:   2,
+			minDurationMS: 2000, // First request immediate, second after 2s
+			description:   "0.5 RPS means 1 request every 2 seconds",
 		},
 	}
 

@@ -98,7 +98,7 @@ func analyzeStickyKeysVision(ctx context.Context, pngData []byte, apiKey string)
 	if err != nil {
 		return "", fmt.Sprintf("api error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxVisionResponseSize))
 	if err != nil {

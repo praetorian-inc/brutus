@@ -5,7 +5,7 @@ import (
 )
 
 func TestDefaultCredentials_LoadsWordlists(t *testing.T) {
-	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "vnc", "rdp", "smb", "mongodb", "snmp"}
+	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "vnc", "rdp", "smb", "mongodb", "snmp", "http", "https", "elasticsearch"}
 	for _, proto := range protocols {
 		creds := DefaultCredentials(proto)
 		if len(creds) == 0 {
@@ -88,6 +88,33 @@ func TestApplyDefaults_SSH_ExplicitCredsSkipsDefaults(t *testing.T) {
 	}
 }
 
+func TestApplyDefaults_SSH_BadkeysOnly(t *testing.T) {
+	cfg := &Config{Target: "x:22", Protocol: "ssh", UseDefaults: true, BadkeysOnly: true}
+	cfg.applyDefaults()
+
+	if len(cfg.Credentials) == 0 {
+		t.Fatal("expected badkeys credentials, got none")
+	}
+
+	// Should have ONLY key-based credentials (no password wordlist)
+	for _, c := range cfg.Credentials {
+		if len(c.Key) == 0 {
+			t.Errorf("BadkeysOnly should only load key-based credentials, got password credential: %s:%s", c.Username, c.Password)
+		}
+	}
+}
+
+func TestApplyDefaults_NonSSH_BadkeysOnly(t *testing.T) {
+	for _, proto := range []string{"mysql", "ftp", "redis", "postgresql"} {
+		cfg := &Config{Target: "x:1234", Protocol: proto, UseDefaults: true, BadkeysOnly: true}
+		cfg.applyDefaults()
+
+		if len(cfg.Credentials) > 0 {
+			t.Errorf("BadkeysOnly with protocol %q should load no credentials, got %d", proto, len(cfg.Credentials))
+		}
+	}
+}
+
 func TestApplyDefaults_MySQL(t *testing.T) {
 	cfg := &Config{Target: "x:3306", Protocol: "mysql", UseDefaults: true}
 	cfg.applyDefaults()
@@ -147,7 +174,7 @@ func TestApplyDefaults_Disabled(t *testing.T) {
 }
 
 func TestValidate_UseDefaults_PassesWithoutExplicitCreds(t *testing.T) {
-	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql"}
+	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "http", "https", "elasticsearch"}
 	for _, proto := range protocols {
 		cfg := &Config{Target: "x:1234", Protocol: proto, UseDefaults: true}
 		if err := cfg.validate(); err != nil {

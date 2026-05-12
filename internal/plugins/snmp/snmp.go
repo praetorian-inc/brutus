@@ -58,19 +58,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "snmp",
-		Target:   target,
-		Username: username,
-		Password: password, // Community string
-		Success:  false,
-	}
+	result := brutus.NewResult("snmp", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Parse target into host and port
 	host, port, err := parseTarget(target)
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: invalid target: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -87,11 +81,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Connect (establishes UDP socket)
 	if connectErr := snmp.Connect(); connectErr != nil {
-		result.Error = fmt.Errorf("connection error: %w", connectErr)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(connectErr)
 		return result
 	}
-	defer snmp.Conn.Close()
+	defer func() { _ = snmp.Conn.Close() }()
 
 	// Try to get sysDescr - this validates the community string
 	oids := []string{SysDescrOID}
@@ -100,15 +93,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if err != nil {
 		// Check if context was canceled
 		if ctx.Err() != nil {
-			result.Error = fmt.Errorf("connection error: %w", ctx.Err())
-			result.Duration = time.Since(start)
+			result.Error = brutus.WrapConnError(ctx.Err())
 			return result
 		}
 
 		// Timeout or no response = invalid community string for UDP
 		// This is NOT a connection error - it's authentication failure
 		result.Error = nil
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -117,7 +108,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// SNMP error response - might indicate invalid community
 		// or OID not supported. Treat as auth failure.
 		result.Error = nil
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -132,7 +122,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		}
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }
 

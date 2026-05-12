@@ -93,6 +93,7 @@ func TLSModeFromContext(ctx context.Context) string {
 
 const noVisionContextKey contextKey = "noVision"
 const noStickyKeysContextKey contextKey = "noStickyKeys"
+const noUtilmanContextKey contextKey = "noUtilman"
 
 // ContextWithNoVision disables Vision API for sticky keys detection.
 func ContextWithNoVision(ctx context.Context) context.Context {
@@ -116,6 +117,17 @@ func NoStickyKeysFromContext(ctx context.Context) bool {
 	return v
 }
 
+// ContextWithNoUtilman disables utilman backdoor detection.
+func ContextWithNoUtilman(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noUtilmanContextKey, true)
+}
+
+// NoUtilmanFromContext returns true if utilman detection is disabled.
+func NoUtilmanFromContext(ctx context.Context) bool {
+	v, _ := ctx.Value(noUtilmanContextKey).(bool)
+	return v
+}
+
 // Credential represents a pre-paired username with password or key.
 // Use this instead of separate Usernames/Passwords/Keys arrays when you have
 // specific credential pairs (e.g., badkeys where each key has an associated username).
@@ -135,6 +147,7 @@ type Config struct {
 	Credentials   []Credential  // pre-paired credentials (no Cartesian product)
 	UseDefaults   bool          // load protocol-specific default credentials from embedded wordlists
 	NoBadkeys     bool          // skip embedded bad SSH keys when UseDefaults is true
+	BadkeysOnly   bool          // only test embedded bad SSH keys (skip password wordlists)
 	Timeout       time.Duration // per-credential timeout (default: 10s)
 	Threads       int           // concurrent workers (default: 10)
 	StopOnSuccess bool          // stop after first valid cred (default: true)
@@ -164,6 +177,21 @@ type Result struct {
 	Banner            string   // service banner (if captured)
 	LLMSuggested      bool     // was this credential suggested by LLM?
 	LLMSuggestedCreds []string // all LLM suggestions for this service
+
+	// Scan metadata (optional, used in --scan mode for backdoor detection)
+	ScanType string // scan type identifier (e.g., "sticky_keys", "utilman")
+}
+
+// NewResult creates a Result pre-filled with common fields and Success=false.
+// This is a convenience constructor to eliminate boilerplate across plugins.
+func NewResult(protocol, target, username, password string) *Result {
+	return &Result{
+		Protocol: protocol,
+		Target:   target,
+		Username: username,
+		Password: password,
+		Success:  false,
+	}
 }
 
 // LLMConfig enables optional LLM-based banner analysis
@@ -255,6 +283,16 @@ func (c *Config) applyDefaults() {
 	hasCreds := len(c.Credentials) > 0
 	hasPasswords := len(c.Passwords) > 0
 	hasKeys := len(c.Keys) > 0
+
+	// BadkeysOnly mode: only load bad SSH keys, skip wordlists entirely
+	if c.BadkeysOnly {
+		if c.Protocol == "ssh" && !hasCreds && !hasKeys {
+			for _, k := range badkeys.GetSSHCredentials() {
+				c.Credentials = append(c.Credentials, Credential{Username: k.Username, Key: k.Key})
+			}
+		}
+		return
+	}
 
 	// Load SSH badkeys as paired credentials when no keys/creds were provided
 	if c.Protocol == "ssh" && !c.NoBadkeys && !hasCreds && !hasKeys {

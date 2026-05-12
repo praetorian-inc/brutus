@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package brutus
 
 import (
 	"testing"
@@ -20,40 +20,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestMapServiceToProtocol_WinRM tests that winrm service maps to winrm protocol
 func TestMapServiceToProtocol_WinRM(t *testing.T) {
 	tests := []struct {
 		name     string
 		service  string
 		expected string
 	}{
-		{
-			name:     "lowercase winrm",
-			service:  "winrm",
-			expected: "winrm",
-		},
-		{
-			name:     "uppercase WINRM",
-			service:  "WINRM",
-			expected: "winrm",
-		},
-		{
-			name:     "mixed case WinRM",
-			service:  "WinRM",
-			expected: "winrm",
-		},
+		{name: "lowercase winrm", service: "winrm", expected: "winrm"},
+		{name: "uppercase WINRM", service: "WINRM", expected: "winrm"},
+		{name: "mixed case WinRM", service: "WinRM", expected: "winrm"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := mapServiceToProtocol(tt.service)
-			assert.Equal(t, tt.expected, result,
-				"WinRM service should map to 'winrm' protocol (plugin exists at internal/plugins/winrm/ and is listed in usage)")
+			result := MapServiceToProtocol(tt.service)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-// TestMapServiceToProtocol_ExistingMappings tests that existing mappings still work
 func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 	tests := []struct {
 		service  string
@@ -72,7 +57,7 @@ func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.service, func(t *testing.T) {
-			result := mapServiceToProtocol(tt.service)
+			result := MapServiceToProtocol(tt.service)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -1,7 +1,7 @@
 // Copyright 2026 Praetorian Security, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package vision
+package claude
 
 import (
 	"context"
@@ -97,6 +97,8 @@ func TestClient_AnalyzeScreenshot_NotLoginPage(t *testing.T) {
 	}
 }
 
+// TestClient_AnalyzeScreenshot_WithFormHints tests backward compatibility with the
+// deprecated FormHints field. Remove this test when FormHints is removed from PageAnalysis.
 func TestClient_AnalyzeScreenshot_WithFormHints(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := map[string]interface{}{
@@ -130,7 +132,7 @@ func TestClient_AnalyzeScreenshot_WithFormHints(t *testing.T) {
 	}
 }
 
-func TestClient_Registration(t *testing.T) {
+func TestClient_VisionRegistration(t *testing.T) {
 	// Vision analyzer should be registered
 	factory := brutus.GetAnalyzerFactory("claude-vision")
 	if factory == nil {

@@ -38,7 +38,7 @@ func TestWasmAllocDealloc(t *testing.T) {
 	// Create instance without a real connection (nil conn for unit test)
 	inst, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	// Test alloc
 	allocFn := inst.mod.ExportedFunction("wasm_alloc")
@@ -64,7 +64,7 @@ func TestWasmMemoryRoundTrip(t *testing.T) {
 
 	inst, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	// Write data to WASM memory
 	testData := []byte("hello from Go!")
@@ -89,7 +89,7 @@ func TestWasmConnectorNew(t *testing.T) {
 
 	inst, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	connectorNewFn := inst.mod.ExportedFunction("connector_new")
 	require.NotNil(t, connectorNewFn, "connector_new must be exported")
@@ -121,7 +121,7 @@ func TestWasmConnectorNewEmptyConfig(t *testing.T) {
 
 	inst, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	connectorNewFn := inst.mod.ExportedFunction("connector_new")
 	require.NotNil(t, connectorNewFn)
@@ -140,7 +140,7 @@ func TestWasmVersion(t *testing.T) {
 
 	inst, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	versionFn := inst.mod.ExportedFunction("version")
 	require.NotNil(t, versionFn, "version must be exported")
@@ -169,7 +169,7 @@ func TestWasmExportsExist(t *testing.T) {
 
 	inst, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	requiredExports := []string{
 		"wasm_alloc",
@@ -196,11 +196,11 @@ func TestWasmInstanceIsolation(t *testing.T) {
 	// Create two separate instances
 	inst1, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst1.close(ctx)
+	defer func() { _ = inst1.close(ctx) }()
 
 	inst2, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst2.close(ctx)
+	defer func() { _ = inst2.close(ctx) }()
 
 	// Write different data to each instance
 	data1 := []byte("instance-one-data")
@@ -245,7 +245,7 @@ func TestWasmInstanceClose(t *testing.T) {
 	// Engine should still be usable for new instances
 	inst2, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err, "engine must remain usable after closing an instance")
-	defer inst2.close(ctx)
+	defer func() { _ = inst2.close(ctx) }()
 
 	// New instance should work normally
 	testData := []byte("still works")
@@ -265,7 +265,7 @@ func TestWasmContextKey(t *testing.T) {
 
 	inst, err := newInstance(ctx, eng, nil)
 	require.NoError(t, err)
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	// Without instance in context, getInstance returns nil
 	assert.Nil(t, getInstance(ctx), "getInstance should return nil for bare context")

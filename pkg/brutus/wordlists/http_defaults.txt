@@ -1,0 +1,14 @@
+# HTTP Basic Auth Default Credentials
+# Format: username:password
+# Covers common web admin panels (Grafana, Jenkins, Elasticsearch, etc.)
+admin:admin
+admin:password
+admin:changeme
+admin:
+root:root
+root:password
+root:changeme
+elastic:elastic
+elastic:changeme
+user:user
+guest:guest

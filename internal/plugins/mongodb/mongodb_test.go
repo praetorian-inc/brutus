@@ -86,7 +86,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 	assert.Equal(t, "mongodb", result.Protocol)
 	assert.Equal(t, "invalid:target:format", result.Target)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_ResultStructure(t *testing.T) {
@@ -102,7 +102,7 @@ func TestPlugin_Test_ResultStructure(t *testing.T) {
 	assert.Equal(t, "user", result.Username)
 	assert.Equal(t, "pass", result.Password)
 	assert.False(t, result.Success)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {

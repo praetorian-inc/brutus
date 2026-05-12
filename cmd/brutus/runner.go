@@ -30,6 +30,74 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
+// runFromTargetsFile iterates the host:port lines from a targets file and
+// runs the configured brute force against each one. Order matches the file;
+// a per-target failure does not abort the whole run.
+//
+// Output behavior mirrors --nerva (multi-target) mode: in human output we
+// stream "valid only" findings per target as soon as they're produced, and
+// in JSON mode the caller flushes the full JSONL after the loop returns.
+//
+// See https://github.com/praetorian-inc/brutus/issues/80.
+func runFromTargetsFile(targets []string, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+	var allResults []brutus.Result
+	hasSuccess := false
+
+	for _, target := range targets {
+		if base.protocolOverride == "" {
+			warnMsg(base.useColor, "skipping %q: --protocol is required when using --targets-file", target)
+			continue
+		}
+		protocol := base.protocolOverride
+
+		// AI mode for HTTP services (mirrors single-target dispatch).
+		var aiCreds []brutus.Credential
+		if base.aiMode && (protocol == "http" || protocol == "https") {
+			protocol, aiCreds = routeHTTPWithAI(target, protocol, base)
+		}
+
+		if !jsonOut && !base.quiet {
+			printTargetInfo(target, protocol, base, aiCreds)
+		}
+
+		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds)
+		allResults = append(allResults, results...)
+		if success {
+			hasSuccess = true
+		}
+
+		if !jsonOut {
+			outputValidOnly(results, base.useColor)
+			emitSecurityFindings(results, base.useColor)
+		}
+	}
+
+	return allResults, hasSuccess
+}
+
+// emitSecurityFindings prints the per-target Security-Findings block for any
+// result whose banner carries a security-relevant marker (sticky-keys, etc.).
+// Extracted so runFromStdin and runFromTargetsFile share one implementation
+// rather than duplicating the streaming-output path.
+func emitSecurityFindings(results []brutus.Result, useColor bool) {
+	for i := range results {
+		r := &results[i]
+		if r.Banner == "" || !hasSecurityFinding(r.Banner) {
+			continue
+		}
+		if useColor {
+			fmt.Printf("\n%s\n", heading(useColor, "Security Findings"))
+			fmt.Printf("  %s @ %s\n", r.Protocol, r.Target)
+			for _, line := range splitLines(r.Banner) {
+				fmt.Printf("  %s\n", line)
+			}
+		} else {
+			fmt.Printf("%s @ %s: %s\n", r.Protocol, r.Target, r.Banner)
+		}
+		break // One findings block per target
+	}
+}
+
 // runFromStdin reads nerva JSON from stdin and tests each target
 func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
@@ -43,7 +111,7 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		}
 
 		// Parse nerva JSON
-		var nrv NervaResult
+		var nrv brutus.NervaResult
 		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
 			warnMsg(base.useColor, "failed to parse JSON: %v", err)
 			continue
@@ -54,11 +122,16 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		if base.protocolOverride != "" {
 			protocol = base.protocolOverride
 		} else {
-			protocol = mapServiceToProtocol(nrv.Protocol)
+			protocol = brutus.MapServiceToProtocol(nrv.Protocol)
 			if protocol == "" {
 				// Unsupported service, skip
 				continue
 			}
+		}
+
+		// --badkeys-only: skip non-SSH targets entirely
+		if base.badkeysOnly && protocol != "ssh" {
+			continue
 		}
 
 		// Determine TLS mode for this specific target
@@ -86,22 +159,7 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		// Output valid credentials immediately (streaming for large-scale scans)
 		if !jsonOut {
 			outputValidOnly(results, base.useColor)
-			// Also output security findings (e.g., sticky keys detection)
-			for i := range results {
-				r := &results[i]
-				if r.Banner != "" && hasSecurityFinding(r.Banner) {
-					if base.useColor {
-						fmt.Printf("\n%s\n", heading(base.useColor, "Security Findings"))
-						fmt.Printf("  %s @ %s\n", r.Protocol, r.Target)
-						for _, line := range splitLines(r.Banner) {
-							fmt.Printf("  %s\n", line)
-						}
-					} else {
-						fmt.Printf("%s @ %s: %s\n", r.Protocol, r.Target, r.Banner)
-					}
-					break // One findings block per target
-				}
-			}
+			emitSecurityFindings(results, base.useColor)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -121,6 +179,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 		Keys:          base.keys,
 		UseDefaults:   true,
 		NoBadkeys:     !base.useBadkeys,
+		BadkeysOnly:   base.badkeysOnly,
 		Threads:       base.threads,
 		Timeout:       base.timeout,
 		StopOnSuccess: base.stopOnSuccess,
@@ -160,11 +219,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 		return runStickyKeysInteractive(target, protocol, base)
 	}
 
-	// Sticky keys detection-only mode: no explicit credentials means skip brute force
-	if protocol == "rdp" && base.stickyKeys && len(base.passwords) == 0 && len(base.keys) == 0 {
-		return runStickyKeysDetectionOnly(target, base)
-	}
-
 	// Verbose: print config summary before starting
 	logVerbose(base.verbose, "Target: %s (protocol: %s)", target, protocol)
 	logVerbose(base.verbose, "Paired credentials: %d, Usernames: %d, Passwords: %d, Keys: %d",
@@ -191,6 +245,9 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 	}
 	if !base.stickyKeys {
 		ctx = brutus.ContextWithNoStickyKeys(ctx)
+	}
+	if base.noUtilman {
+		ctx = brutus.ContextWithNoUtilman(ctx)
 	}
 
 	// Run brute force with context
@@ -239,7 +296,7 @@ func configureAICredentials(config *brutus.Config, aiCreds []brutus.Credential, 
 }
 
 // detectTLS checks if TLS was detected by nerva and upgrades the TLS mode.
-func detectTLS(baseTLSMode string, tlsDetected bool, verbose bool) string {
+func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 	if baseTLSMode != "disable" {
 		return baseTLSMode
 	}
@@ -276,14 +333,26 @@ func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Determine backdoor type and username first
+	resultUsername := "(sticky-keys)"
+	backdoorType := rdp.BackdoorStickyKeys
+	if base.stickyKeysWeb {
+		backdoorType = rdp.BackdoorUtilman
+		resultUsername = "(utilman)"
+		if base.noUtilman {
+			backdoorType = rdp.BackdoorStickyKeys
+			resultUsername = "(sticky-keys)"
+		}
+	}
+
 	result := brutus.Result{
 		Protocol: protocol,
 		Target:   target,
-		Username: "(sticky-keys)",
+		Username: resultUsername,
 	}
 
 	if base.stickyKeysWeb {
-		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen)
+		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen, backdoorType)
 		if err != nil && err != http.ErrServerClosed {
 			errMsg(base.useColor, "web terminal: %v", err)
 			result.Error = err
@@ -319,60 +388,6 @@ func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) 
 	return nil, false
 }
 
-// runStickyKeysDetectionOnly runs sticky keys detection without brute force.
-// Used when --sticky-keys is set but no explicit credentials (-p/-P/-k) are provided.
-func runStickyKeysDetectionOnly(target string, base *baseConfigOptions) ([]brutus.Result, bool) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	logVerbose(base.verbose, "Sticky keys detection-only mode (no credentials provided)")
-	logVerbose(base.verbose, "Target: %s", target)
-
-	// Vision API requires --experimental-ai; disable it otherwise
-	if !base.aiMode {
-		ctx = brutus.ContextWithNoVision(ctx)
-	}
-
-	plugin := &rdp.Plugin{}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, base.timeout)
-
-	result := brutus.Result{
-		Protocol: "rdp",
-		Target:   target,
-		Username: "(sticky-keys)",
-	}
-
-	if stickyResult == nil {
-		result.Error = fmt.Errorf("sticky keys check returned nil")
-		return []brutus.Result{result}, false
-	}
-
-	if !stickyResult.Performed {
-		result.Banner = fmt.Sprintf("[INFO] Sticky keys check skipped: %s", stickyResult.SkipReason)
-		return []brutus.Result{result}, false
-	}
-
-	result.Success = true
-	switch stickyResult.OverallVerdict {
-	case "backdoor_confirmed":
-		result.Banner = fmt.Sprintf("[CRITICAL] Sticky keys backdoor CONFIRMED (confidence: %.0f%%)", stickyResult.Confidence*100)
-	case "backdoor_likely":
-		result.Banner = fmt.Sprintf("[HIGH] Sticky keys backdoor likely (confidence: %.0f%%)", stickyResult.Confidence*100)
-	case "vulnerable":
-		result.Banner = "[INFO] Non-NLA target, sticky keys triggers normally (no backdoor)"
-	case "clean":
-		result.Banner = "[INFO] Sticky keys check: clean (no response to 5x Shift)"
-		result.Success = false
-	}
-
-	logVerbose(base.verbose, "Sticky keys result: %s (confidence: %.0f%%)", stickyResult.OverallVerdict, stickyResult.Confidence*100)
-	if stickyResult.HeuristicResult != "" {
-		logVerbose(base.verbose, "Heuristic: %s", stickyResult.HeuristicResult)
-	}
-
-	return []brutus.Result{result}, result.Success
-}
-
 // runScanFromStdin reads nerva JSON from stdin and runs scan checks on RDP targets.
 func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
@@ -385,14 +400,14 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 			continue
 		}
 
-		var nrv NervaResult
+		var nrv brutus.NervaResult
 		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
 			warnMsg(base.useColor, "failed to parse JSON: %v", err)
 			continue
 		}
 
 		// Filter to RDP targets only
-		protocol := mapServiceToProtocol(nrv.Protocol)
+		protocol := brutus.MapServiceToProtocol(nrv.Protocol)
 		if protocol != "rdp" && base.protocolOverride != "rdp" {
 			continue
 		}
@@ -415,79 +430,28 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 	return allResults, hasSuccess
 }
 
-// runScanSingleTarget runs scan-only checks (NLA and/or sticky keys) on a single target.
+// runScanSingleTarget runs sticky keys detection on a single target.
 func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Result, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	var results []brutus.Result
-	hasSuccess := false
-
-	if base.nlaCheck {
-		nlaResult := rdp.CheckNLA(ctx, target, base.timeout)
-		result := brutus.Result{
-			Protocol: "rdp",
-			Target:   target,
-			Username: "(nla-check)",
-			Success:  nlaResult.Error == "",
-		}
-		if nlaResult.Error != "" {
-			result.Error = fmt.Errorf("%s", nlaResult.Error)
-			result.Banner = fmt.Sprintf("[INFO] NLA check error: %s", nlaResult.Error)
-		} else if nlaResult.RequiresNLA {
-			result.Banner = fmt.Sprintf("[INFO] NLA required (protocol: %s)", nlaResult.SelectedProtocol)
-			result.Success = true
-			hasSuccess = true
-		} else {
-			result.Banner = fmt.Sprintf("[HIGH] Non-NLA target (protocol: %s) - login screen exposed pre-auth", nlaResult.SelectedProtocol)
-			result.Success = true
-			hasSuccess = true
-		}
-		results = append(results, result)
+	// Vision API requires --experimental-ai; disable it otherwise
+	if !base.aiMode {
+		ctx = brutus.ContextWithNoVision(ctx)
 	}
 
-	if base.stickyKeysScan {
-		stickyResult := runStickyKeysScanTarget(ctx, target, base)
-		results = append(results, stickyResult)
-		if stickyResult.Success {
+	stickyResult := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
+	results := []brutus.Result{*stickyResult}
+	hasSuccess := stickyResult.Success
+
+	// Also run utilman detection unless disabled
+	if !base.noUtilman {
+		utilmanResult := rdp.DetectUtilman(ctx, target, base.timeout, "(utilman)")
+		results = append(results, *utilmanResult)
+		if utilmanResult.Success {
 			hasSuccess = true
 		}
 	}
 
 	return results, hasSuccess
-}
-
-// runStickyKeysScanTarget performs sticky keys detection on a single target without brute force.
-func runStickyKeysScanTarget(ctx context.Context, target string, base *baseConfigOptions) brutus.Result {
-	result := brutus.Result{
-		Protocol: "rdp",
-		Target:   target,
-		Username: "(sticky-keys-scan)",
-	}
-
-	plugin := &rdp.Plugin{}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, base.timeout)
-	if stickyResult == nil {
-		result.Error = fmt.Errorf("sticky keys check returned nil")
-		return result
-	}
-
-	if !stickyResult.Performed {
-		result.Banner = fmt.Sprintf("[INFO] Sticky keys scan skipped: %s", stickyResult.SkipReason)
-		return result
-	}
-
-	result.Success = true
-	switch stickyResult.OverallVerdict {
-	case "backdoor_confirmed":
-		result.Banner = fmt.Sprintf("[CRITICAL] Sticky keys backdoor CONFIRMED (confidence: %.0f%%)", stickyResult.Confidence*100)
-	case "backdoor_likely":
-		result.Banner = fmt.Sprintf("[HIGH] Sticky keys backdoor likely (confidence: %.0f%%)", stickyResult.Confidence*100)
-	case "vulnerable":
-		result.Banner = "[INFO] Non-NLA target, sticky keys triggers normally (no backdoor)"
-	case "clean":
-		result.Banner = "[INFO] Sticky keys check: clean (no response to 5x Shift)"
-	}
-
-	return result
 }

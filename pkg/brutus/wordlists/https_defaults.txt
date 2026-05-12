@@ -1,0 +1,14 @@
+# HTTPS Basic Auth Default Credentials
+# Format: username:password
+# Same as HTTP defaults — covers TLS-enabled admin panels
+admin:admin
+admin:password
+admin:changeme
+admin:
+root:root
+root:password
+root:changeme
+elastic:elastic
+elastic:changeme
+user:user
+guest:guest

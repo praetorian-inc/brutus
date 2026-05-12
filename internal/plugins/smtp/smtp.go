@@ -58,28 +58,21 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration) *brutus.Result {
 	start := time.Now()
 
-	result := &brutus.Result{
-		Protocol: "smtp",
-		Target:   target,
-		Username: username,
-		Password: password,
-		Success:  false,
-	}
+	result := brutus.NewResult("smtp", target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
 
 	// Connect with timeout
 	conn, err := net.DialTimeout("tcp", target, timeout)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set deadline for the entire operation
 	deadline := time.Now().Add(timeout)
 	if deadlineErr := conn.SetDeadline(deadline); deadlineErr != nil {
-		result.Error = fmt.Errorf("connection error: %w", deadlineErr)
-		result.Duration = time.Since(start)
+		result.Error = brutus.WrapConnError(deadlineErr)
 		return result
 	}
 
@@ -87,17 +80,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	host, _, err := net.SplitHostPort(target)
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: invalid target format: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	client, err := smtp.NewClient(conn, host)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Try STARTTLS if available
 	// Read TLS mode from context
@@ -114,7 +105,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			if tlsErr := client.StartTLS(tlsConfig); tlsErr != nil {
 				// STARTTLS failure is a connection error, not auth failure
 				result.Error = fmt.Errorf("connection error: STARTTLS failed: %w", tlsErr)
-				result.Duration = time.Since(start)
 				return result
 			}
 		}
@@ -127,18 +117,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	err = client.Auth(auth)
 	if err != nil {
 		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	// Success
 	result.Success = true
-	result.Duration = time.Since(start)
 	return result
 }
 
-// classifyError classifies SMTP errors using the shared helper.
-// Returns nil for authentication failures, wrapped error for connection problems.
-func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, smtpAuthIndicators)
-}
+var classifyError = brutus.NewClassifier(smtpAuthIndicators)

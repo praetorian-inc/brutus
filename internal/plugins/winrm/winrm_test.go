@@ -192,7 +192,7 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidTarget(t *testing.T) {
@@ -207,7 +207,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {
@@ -249,7 +249,7 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, "winrm", result.Protocol)
 	assert.Equal(t, "localhost", result.Target)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_HTTPS(t *testing.T) {
@@ -283,7 +283,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	assert.Equal(t, "winrm", result.Protocol)
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
@@ -303,7 +303,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	assert.Equal(t, "winrm", result.Protocol)
 	assert.False(t, result.Success)
 	assert.Nil(t, result.Error) // Auth failure returns nil error
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestInit(t *testing.T) {

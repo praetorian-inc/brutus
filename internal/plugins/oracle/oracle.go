@@ -83,7 +83,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Duration = time.Since(start)
 		return result
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	db.SetConnMaxLifetime(timeout)
 	db.SetMaxIdleConns(1)

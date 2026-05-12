@@ -109,7 +109,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Create a fresh WASM instance for this Test() call (D1: per-call isolation)
 	inst, err := newInstance(ctx, eng, conn)
@@ -117,7 +117,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = fmt.Errorf("connection error: wasm instance: %w", err)
 		return result
 	}
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	// Prepare connector config
 	cfg := rdpConfig{
@@ -149,6 +149,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		stickyResult := p.RunStickyKeysCheck(ctx, target, timeout)
 		if stickyResult != nil {
 			result.Banner = formatStickyKeysBanner(result.Banner, stickyResult)
+		}
+	}
+
+	// Utilman detection: same approach as sticky keys but uses Win+U trigger.
+	if shouldRunUtilmanCheck(ctx) {
+		utilmanResult := p.RunUtilmanCheck(ctx, target, timeout)
+		if utilmanResult != nil {
+			result.Banner = formatUtilmanBanner(result.Banner, utilmanResult)
 		}
 	}
 
@@ -389,13 +397,13 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("connection failed: %v", err)}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	inst, err := newInstance(ctx, eng, conn)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("wasm instance: %v", err)}
 	}
-	defer inst.close(ctx)
+	defer func() { _ = inst.close(ctx) }()
 
 	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr)
 	if err != nil {
@@ -452,6 +460,137 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	result.Performed = true
 
 	return result, nil
+}
+
+// shouldRunUtilmanCheck returns true if utilman detection is enabled.
+// Utilman detection runs alongside sticky keys by default; use --no-utilman to disable.
+func shouldRunUtilmanCheck(ctx context.Context) bool {
+	return !brutus.NoStickyKeysFromContext(ctx) && !brutus.NoUtilmanFromContext(ctx)
+}
+
+// RunUtilmanCheck performs utilman backdoor detection on a separate connection.
+func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout time.Duration) *UtilmanResult {
+	host, port := brutus.ParseTarget(target, "3389")
+	addr := net.JoinHostPort(host, port)
+
+	eng, err := initEngine()
+	if err != nil {
+		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("wasm init: %v", err)}
+	}
+
+	dialer := &net.Dialer{Timeout: timeout}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("connection failed: %v", err)}
+	}
+	defer func() { _ = conn.Close() }()
+
+	inst, err := newInstance(ctx, eng, conn)
+	if err != nil {
+		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("wasm instance: %v", err)}
+	}
+	defer func() { _ = inst.close(ctx) }()
+
+	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr)
+	if err != nil {
+		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
+	}
+
+	return utilmanResult
+}
+
+// runUtilmanDetection performs the full utilman detection sequence on a non-NLA connection.
+func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string) (*UtilmanResult, error) {
+	result := &UtilmanResult{Performed: true}
+
+	cfg := rdpConfig{
+		Server:   addr,
+		Username: "",
+		Password: "",
+		Domain:   "",
+		SkipAuth: true,
+	}
+	configBytes, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("marshal config: %w", err)
+	}
+
+	connHandle, _, err := p.runConnectorForSession(ctx, inst, configBytes)
+	if err != nil {
+		result.Performed = false
+		result.SkipReason = fmt.Sprintf("connection failed: %v", err)
+		return result, nil
+	}
+	// Ensure connector handle is freed after session use
+	callCtx := inst.callCtx(ctx)
+	defer func() {
+		if freeFn := inst.mod.ExportedFunction("connector_free"); freeFn != nil {
+			_, _ = freeFn.Call(callCtx, uint64(connHandle))
+		}
+	}()
+
+	baseline, response, width, height, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768)
+	if err != nil {
+		result.Performed = false
+		result.SkipReason = fmt.Sprintf("session failed: %v", err)
+		return result, nil
+	}
+
+	// Vision API confirmation is optional: requires ANTHROPIC_API_KEY and
+	// can be disabled with --no-vision flag.
+	var visionAPIKey string
+	if !brutus.NoVisionFromContext(ctx) {
+		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
+	}
+	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
+	result.Performed = true
+
+	return result, nil
+}
+
+// formatUtilmanBanner appends utilman detection results to the banner.
+func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
+	if result == nil {
+		return existingBanner
+	}
+	if !result.Performed {
+		banner := existingBanner
+		if banner != "" {
+			banner += "\n"
+		}
+		if result.SkipReason != "" {
+			banner += "[INFO] Utilman check skipped: " + result.SkipReason
+		}
+		return banner
+	}
+
+	banner := existingBanner
+	if banner != "" {
+		banner += "\n"
+	}
+
+	switch result.OverallVerdict {
+	case "backdoor_confirmed":
+		banner += fmt.Sprintf("[CRITICAL] Utilman backdoor CONFIRMED (confidence: %.0f%%)\n", result.Confidence*100)
+		banner += "utilman.exe has been replaced with cmd.exe or similar.\n"
+		banner += "SYSTEM-level unauthenticated access available via Win+U on login screen.\n"
+		banner += "B-TP: malicious persistence (T1546.008), forgotten password recovery, or pentest artifact.\n"
+		banner += "Remediation: Boot from Windows install media, restore original utilman.exe, or run sfc /scannow."
+	case "backdoor_likely":
+		banner += fmt.Sprintf("[HIGH] Utilman backdoor likely (confidence: %.0f%%)\n", result.Confidence*100)
+		banner += "A window appeared after Win+U on the login screen.\n"
+		banner += "Heuristic: " + result.HeuristicResult
+		if result.VisionResult != "" {
+			banner += " | Vision: " + result.VisionResult
+		}
+	case "vulnerable":
+		banner += "[INFO] Non-NLA RDP target. Utilman triggers normally (no backdoor detected).\n"
+		banner += "Target is vulnerable if utilman.exe is later replaced."
+	case "clean":
+		banner += "[INFO] Utilman check: clean (no response to Win+U)."
+	}
+
+	return banner
 }
 
 // formatStickyKeysBanner appends sticky keys detection results to the banner.

@@ -68,15 +68,15 @@ func DetectHTTPAuthType(target string, useHTTPS bool, timeout time.Duration, tls
 	if err != nil {
 		return "", ""
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Build banner from response headers and body
 	var bannerBuilder strings.Builder
-	bannerBuilder.WriteString(fmt.Sprintf("HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status))
+	fmt.Fprintf(&bannerBuilder, "HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
 
 	for _, header := range []string{"Server", "WWW-Authenticate", "X-Powered-By", "X-Server", "X-AspNet-Version"} {
 		if val := resp.Header.Get(header); val != "" {
-			bannerBuilder.WriteString(fmt.Sprintf("%s: %s\n", header, val))
+			fmt.Fprintf(&bannerBuilder, "%s: %s\n", header, val)
 		}
 	}
 

@@ -42,18 +42,19 @@ type baseConfigOptions struct {
 	protocolOverride string        // Override nerva-detected protocol
 	aiMode           bool          // Enable AI-powered credential detection for HTTP
 	tlsMode          string        // TLS verification mode: "disable", "verify", "skip-verify"
-	rateLimit         float64             // Max requests per second (0 = unlimited)
-	jitter            time.Duration       // Random delay variance for rate limiting
-	maxAttempts       int
-	maxRetries        int
-	sprayMode         bool
-	anthropicKey      string              // ANTHROPIC_API_KEY (read once in main)
-	perplexityKey     string              // PERPLEXITY_API_KEY (read once in main)
-	stickyKeys        bool                // Sticky keys backdoor detection mode (no brute force)
-	stickyKeysExec    string              // Command to execute via sticky keys backdoor
-	stickyKeysWeb     bool                // Start web terminal for sticky keys interaction
-	stickyKeysOpen    bool                // Auto-open browser when sticky keys web terminal starts
-	aiVerify          bool                // AI-powered login verification (Claude Vision before/after screenshots)
+	rateLimit        float64       // Max requests per second (0 = unlimited)
+	jitter           time.Duration // Random delay variance for rate limiting
+	maxAttempts      int
+	maxRetries       int
+	sprayMode        bool
+	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
+	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
+	stickyKeys       bool   // Sticky keys backdoor detection mode (no brute force)
+	stickyKeysExec   string // Command to execute via sticky keys backdoor
+	stickyKeysWeb    bool   // Start web terminal for sticky keys interaction
+	stickyKeysOpen   bool   // Auto-open browser when sticky keys web terminal starts
+	aiVerify         bool   // AI-powered login verification (Claude Vision before/after screenshots)
+	noUtilman        bool   // Disable utilman backdoor detection (utilman runs by default with --sticky-keys)
 }
 
 // determineTLSMode returns the appropriate TLS mode based on the verify-tls flag

@@ -59,7 +59,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set overall deadline for POP3 operations
 	_ = conn.SetDeadline(time.Now().Add(timeout))

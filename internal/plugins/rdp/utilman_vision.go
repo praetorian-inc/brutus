@@ -27,15 +27,10 @@ import (
 	"time"
 )
 
-const (
-	defaultVisionModel    = "claude-sonnet-4-5-20250929"
-	maxVisionResponseSize = 64 * 1024 // 64KB limit for API response body
-)
-
-// analyzeStickyKeysVision sends the post-keystroke screenshot to Claude Vision API
-// and asks if it shows a command prompt window.
+// analyzeUtilmanVision sends the post-keystroke screenshot to Claude Vision API
+// and asks if it shows a command prompt window after pressing Win+U.
 // Returns (verdict, description).
-func analyzeStickyKeysVision(ctx context.Context, pngData []byte, apiKey string) (verdict, description string) {
+func analyzeUtilmanVision(ctx context.Context, pngData []byte, apiKey string) (verdict, description string) {
 	if apiKey == "" {
 		return "", "no API key"
 	}
@@ -64,11 +59,11 @@ func analyzeStickyKeysVision(ctx context.Context, pngData []byte, apiKey string)
 					},
 					{
 						"type": "text",
-						"text": "This is a screenshot of a Windows RDP login screen after pressing Shift 5 times. " +
+						"text": "This is a screenshot of a Windows RDP login screen after pressing Win+U (Windows key + U). " +
 							"Does this screenshot show a command prompt (cmd.exe) or PowerShell window? " +
-							"Respond with ONLY one of: BACKDOOR_CONFIRMED, STICKY_KEYS_DIALOG, NO_CHANGE, UNCLEAR. " +
+							"Respond with ONLY one of: BACKDOOR_CONFIRMED, EASE_OF_ACCESS, NO_CHANGE, UNCLEAR. " +
 							"BACKDOOR_CONFIRMED means a command prompt or terminal window is visible. " +
-							"STICKY_KEYS_DIALOG means the normal Windows Sticky Keys accessibility dialog appeared. " +
+							"EASE_OF_ACCESS means the normal Windows Ease of Access / Accessibility settings panel appeared. " +
 							"NO_CHANGE means the screen looks the same as before. " +
 							"UNCLEAR means you cannot determine what is shown.",
 					},
@@ -125,12 +120,18 @@ func analyzeStickyKeysVision(ctx context.Context, pngData []byte, apiKey string)
 
 	answer := strings.TrimSpace(strings.ToUpper(apiResp.Content[0].Text))
 
-	switch {
-	case strings.Contains(answer, "BACKDOOR_CONFIRMED"):
-		return "backdoor_confirmed", "Vision API: command prompt detected"
-	case strings.Contains(answer, "STICKY_KEYS_DIALOG"):
-		return "vulnerable", "Vision API: normal sticky keys dialog"
-	case strings.Contains(answer, "NO_CHANGE"):
+	// Extract just the first token to avoid context-sensitive substring matches
+	// (e.g., "NOT BACKDOOR_CONFIRMED" would incorrectly match BACKDOOR_CONFIRMED)
+	if i := strings.IndexAny(answer, " \t\r\n.,;:"); i > 0 {
+		answer = answer[:i]
+	}
+
+	switch answer {
+	case "BACKDOOR_CONFIRMED":
+		return "backdoor_confirmed", "Vision API: command prompt detected after Win+U"
+	case "EASE_OF_ACCESS":
+		return "vulnerable", "Vision API: normal Ease of Access dialog"
+	case "NO_CHANGE":
 		return "clean", "Vision API: no change detected"
 	default:
 		return "", fmt.Sprintf("Vision API: %s", answer)

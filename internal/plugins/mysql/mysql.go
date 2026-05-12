@@ -75,7 +75,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Set connection timeout
 	db.SetConnMaxLifetime(timeout)

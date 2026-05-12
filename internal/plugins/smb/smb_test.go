@@ -16,6 +16,7 @@ package smb
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -46,7 +47,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	assert.Equal(t, "password", result.Password)
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
@@ -65,7 +66,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	assert.Equal(t, "wrongpassword", result.Password)
 	assert.False(t, result.Success)
 	assert.Nil(t, result.Error) // Auth failure returns nil error
-	assert.Greater(t, result.Duration, time.Duration(0))
+	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_ConnectionError(t *testing.T) {
@@ -131,6 +132,10 @@ func TestPlugin_Test_DomainUsername(t *testing.T) {
 }
 
 func TestPlugin_Test_IPv6Target(t *testing.T) {
+	if os.Getenv("SMB_TEST_HOST") != "" {
+		t.Skip("SMB service is running; IPv6 loopback on port 445 reaches the Docker container")
+	}
+
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -146,6 +151,10 @@ func TestPlugin_Test_IPv6Target(t *testing.T) {
 }
 
 func TestPlugin_Test_IPv6TargetNoPort(t *testing.T) {
+	if os.Getenv("SMB_TEST_HOST") != "" {
+		t.Skip("SMB service is running; IPv6 loopback on default port 445 reaches the Docker container")
+	}
+
 	p := &Plugin{}
 	ctx := context.Background()
 

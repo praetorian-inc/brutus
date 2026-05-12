@@ -48,11 +48,13 @@ func LoadPasswordsFromFile(filePath string) ([]string, error) {
 		passwords = append(passwords, trimmed)
 	}
 
-	scanErr := scanner.Err()
-	f.Close()
+	if err := scanner.Err(); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("reading password file: %w", err)
+	}
 
-	if scanErr != nil {
-		return nil, fmt.Errorf("reading password file: %w", scanErr)
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("closing password file: %w", err)
 	}
 
 	return passwords, nil
@@ -78,14 +80,52 @@ func LoadUsernamesFromFile(filePath string) ([]string, error) {
 		usernames = append(usernames, trimmed)
 	}
 
-	scanErr := scanner.Err()
-	f.Close()
+	if err := scanner.Err(); err != nil {
+		_ = f.Close()
+		return nil, fmt.Errorf("reading username file: %w", err)
+	}
 
-	if scanErr != nil {
-		return nil, fmt.Errorf("reading username file: %w", scanErr)
+	if err := f.Close(); err != nil {
+		return nil, fmt.Errorf("closing username file: %w", err)
 	}
 
 	return usernames, nil
+}
+
+// LoadTargetsFromFile reads a list of host:port targets from a file, one
+// per line. Lines starting with '#' and blank lines are skipped, mirroring
+// the username/password file conventions. Whitespace around each target is
+// trimmed.
+//
+// The function does not validate the host:port shape — that's left to the
+// per-target dispatch path so a bad line surfaces with the same error as a
+// bad --target flag, with the line number included for context.
+//
+// See https://github.com/praetorian-inc/brutus/issues/80.
+func LoadTargetsFromFile(filePath string) ([]string, error) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("opening targets file: %w", err)
+	}
+
+	var targets []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		trimmed := strings.TrimSpace(scanner.Text())
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		targets = append(targets, trimmed)
+	}
+
+	scanErr := scanner.Err()
+	_ = f.Close()
+
+	if scanErr != nil {
+		return nil, fmt.Errorf("reading targets file: %w", scanErr)
+	}
+
+	return targets, nil
 }
 
 // LoadKeyFile reads an SSH/TLS key file, enforcing a 1 MB size limit.

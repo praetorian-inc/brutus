@@ -30,6 +30,74 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
+// runFromTargetsFile iterates the host:port lines from a targets file and
+// runs the configured brute force against each one. Order matches the file;
+// a per-target failure does not abort the whole run.
+//
+// Output behavior mirrors --nerva (multi-target) mode: in human output we
+// stream "valid only" findings per target as soon as they're produced, and
+// in JSON mode the caller flushes the full JSONL after the loop returns.
+//
+// See https://github.com/praetorian-inc/brutus/issues/80.
+func runFromTargetsFile(targets []string, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+	var allResults []brutus.Result
+	hasSuccess := false
+
+	for _, target := range targets {
+		if base.protocolOverride == "" {
+			warnMsg(base.useColor, "skipping %q: --protocol is required when using --targets-file", target)
+			continue
+		}
+		protocol := base.protocolOverride
+
+		// AI mode for HTTP services (mirrors single-target dispatch).
+		var aiCreds []brutus.Credential
+		if base.aiMode && (protocol == "http" || protocol == "https") {
+			protocol, aiCreds = routeHTTPWithAI(target, protocol, base)
+		}
+
+		if !jsonOut && !base.quiet {
+			printTargetInfo(target, protocol, base, aiCreds)
+		}
+
+		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds)
+		allResults = append(allResults, results...)
+		if success {
+			hasSuccess = true
+		}
+
+		if !jsonOut {
+			outputValidOnly(results, base.useColor)
+			emitSecurityFindings(results, base.useColor)
+		}
+	}
+
+	return allResults, hasSuccess
+}
+
+// emitSecurityFindings prints the per-target Security-Findings block for any
+// result whose banner carries a security-relevant marker (sticky-keys, etc.).
+// Extracted so runFromStdin and runFromTargetsFile share one implementation
+// rather than duplicating the streaming-output path.
+func emitSecurityFindings(results []brutus.Result, useColor bool) {
+	for i := range results {
+		r := &results[i]
+		if r.Banner == "" || !hasSecurityFinding(r.Banner) {
+			continue
+		}
+		if useColor {
+			fmt.Printf("\n%s\n", heading(useColor, "Security Findings"))
+			fmt.Printf("  %s @ %s\n", r.Protocol, r.Target)
+			for _, line := range splitLines(r.Banner) {
+				fmt.Printf("  %s\n", line)
+			}
+		} else {
+			fmt.Printf("%s @ %s: %s\n", r.Protocol, r.Target, r.Banner)
+		}
+		break // One findings block per target
+	}
+}
+
 // runFromStdin reads nerva JSON from stdin and tests each target
 func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
@@ -91,22 +159,7 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 		// Output valid credentials immediately (streaming for large-scale scans)
 		if !jsonOut {
 			outputValidOnly(results, base.useColor)
-			// Also output security findings (e.g., sticky keys detection)
-			for i := range results {
-				r := &results[i]
-				if r.Banner != "" && hasSecurityFinding(r.Banner) {
-					if base.useColor {
-						fmt.Printf("\n%s\n", heading(base.useColor, "Security Findings"))
-						fmt.Printf("  %s @ %s\n", r.Protocol, r.Target)
-						for _, line := range splitLines(r.Banner) {
-							fmt.Printf("  %s\n", line)
-						}
-					} else {
-						fmt.Printf("%s @ %s: %s\n", r.Protocol, r.Target, r.Banner)
-					}
-					break // One findings block per target
-				}
-			}
+			emitSecurityFindings(results, base.useColor)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -193,6 +246,9 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 	if !base.stickyKeys {
 		ctx = brutus.ContextWithNoStickyKeys(ctx)
 	}
+	if base.noUtilman {
+		ctx = brutus.ContextWithNoUtilman(ctx)
+	}
 
 	// Run brute force with context
 	results, err := brutus.BruteWithContext(ctx, config)
@@ -240,7 +296,7 @@ func configureAICredentials(config *brutus.Config, aiCreds []brutus.Credential, 
 }
 
 // detectTLS checks if TLS was detected by nerva and upgrades the TLS mode.
-func detectTLS(baseTLSMode string, tlsDetected bool, verbose bool) string {
+func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 	if baseTLSMode != "disable" {
 		return baseTLSMode
 	}
@@ -277,14 +333,26 @@ func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Determine backdoor type and username first
+	resultUsername := "(sticky-keys)"
+	backdoorType := rdp.BackdoorStickyKeys
+	if base.stickyKeysWeb {
+		backdoorType = rdp.BackdoorUtilman
+		resultUsername = "(utilman)"
+		if base.noUtilman {
+			backdoorType = rdp.BackdoorStickyKeys
+			resultUsername = "(sticky-keys)"
+		}
+	}
+
 	result := brutus.Result{
 		Protocol: protocol,
 		Target:   target,
-		Username: "(sticky-keys)",
+		Username: resultUsername,
 	}
 
 	if base.stickyKeysWeb {
-		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen)
+		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen, backdoorType)
 		if err != nil && err != http.ErrServerClosed {
 			errMsg(base.useColor, "web terminal: %v", err)
 			result.Error = err
@@ -372,9 +440,18 @@ func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Resul
 		ctx = brutus.ContextWithNoVision(ctx)
 	}
 
-	result := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
-	results := []brutus.Result{*result}
-	hasSuccess := result.Success
+	stickyResult := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
+	results := []brutus.Result{*stickyResult}
+	hasSuccess := stickyResult.Success
+
+	// Also run utilman detection unless disabled
+	if !base.noUtilman {
+		utilmanResult := rdp.DetectUtilman(ctx, target, base.timeout, "(utilman)")
+		results = append(results, *utilmanResult)
+		if utilmanResult.Success {
+			hasSuccess = true
+		}
+	}
 
 	return results, hasSuccess
 }

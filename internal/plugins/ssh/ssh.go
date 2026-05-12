@@ -78,7 +78,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)
@@ -86,7 +86,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = classifyAuthError(err)
 		return result
 	}
-	defer sshConn.Close()
+	defer func() { _ = sshConn.Close() }()
 
 	// Capture SSH server version banner
 	result.Banner = string(sshConn.ServerVersion())
@@ -151,7 +151,7 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)
@@ -159,7 +159,7 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 		result.Error = classifyAuthError(err)
 		return result
 	}
-	defer sshConn.Close()
+	defer func() { _ = sshConn.Close() }()
 
 	// Capture SSH server version banner
 	result.Banner = string(sshConn.ServerVersion())

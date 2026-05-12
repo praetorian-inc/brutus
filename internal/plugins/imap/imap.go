@@ -77,7 +77,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = classifyError(err)
 		return result
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Check if context was canceled during dial
 	if dialCtx.Err() != nil {

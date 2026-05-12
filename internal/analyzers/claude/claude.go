@@ -56,7 +56,7 @@ func init() {
 type Client struct {
 	APIKey   string
 	Model    string
-	Endpoint string        // Optional: override endpoint for testing
+	Endpoint string // Optional: override endpoint for testing
 	Timeout  time.Duration
 }
 
@@ -156,7 +156,7 @@ func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]strin
 	if err != nil {
 		return nil, fmt.Errorf("claude api request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -344,7 +344,7 @@ func (c *Client) doVisionRequestRaw(ctx context.Context, reqBody visionRequest) 
 	if err != nil {
 		return "", fmt.Errorf("claude api request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

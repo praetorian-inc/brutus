@@ -28,7 +28,7 @@ import (
 func TestDetectHTTPAuthType_ClosesIdleConnections(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Test page")
+		_, _ = fmt.Fprintln(w, "Test page")
 	}))
 	defer server.Close()
 

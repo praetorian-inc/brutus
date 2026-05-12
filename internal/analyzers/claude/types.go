@@ -30,6 +30,7 @@ type ApplicationInfo struct {
 }
 
 // FormHints provides CSS selectors for form fields (when detected by AI)
+//
 // Deprecated: Use FormLabels instead
 type FormHints struct {
 	UsernameSelector string `json:"username_selector,omitempty"`

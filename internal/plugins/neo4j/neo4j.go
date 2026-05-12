@@ -75,7 +75,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = classifyError(err)
 		return result
 	}
-	defer driver.Close(ctx)
+	defer func() { _ = driver.Close(ctx) }()
 
 	// Create context with timeout for verification
 	verifyCtx, cancel := context.WithTimeout(ctx, timeout)

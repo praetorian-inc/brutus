@@ -14,7 +14,17 @@
 
 package brutus
 
-import "strings"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/netip"
+	"strconv"
+	"strings"
+
+	nervaplugins "github.com/praetorian-inc/nerva/pkg/plugins"
+)
 
 // NervaResult represents the JSON output from nerva service discovery.
 type NervaResult struct {
@@ -55,6 +65,7 @@ func MapServiceToProtocol(service string) string {
 		"couchdb":       "couchdb",
 		"elasticsearch": "elasticsearch",
 		"influxdb":      "influxdb",
+		"oracle":        "oracle",
 
 		"smtp": "smtp",
 		"imap": "imap",
@@ -73,4 +84,60 @@ func MapServiceToProtocol(service string) string {
 	}
 
 	return ""
+}
+
+// ParseNervaTarget converts a "host:port" string into a Nerva plugins.Target.
+// If the host is a hostname (not an IP), it performs a context-aware DNS lookup
+// to resolve it, allowing cancellation via Ctrl-C / SIGTERM.
+func ParseNervaTarget(ctx context.Context, hostPort string) (nervaplugins.Target, error) {
+	host, portStr, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return nervaplugins.Target{}, fmt.Errorf("invalid target %q: %w", hostPort, err)
+	}
+	port, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return nervaplugins.Target{}, fmt.Errorf("invalid port in %q: %w", hostPort, err)
+	}
+
+	var t nervaplugins.Target
+
+	// Try parsing as IP first; fall back to DNS lookup for hostnames.
+	if addr, ok := netip.AddrFromSlice(net.ParseIP(host)); ok {
+		t.Address = netip.AddrPortFrom(addr.Unmap(), uint16(port))
+	} else {
+		addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil {
+			return nervaplugins.Target{}, fmt.Errorf("DNS lookup failed for %q: %w", host, err)
+		}
+		if len(addrs) == 0 {
+			return nervaplugins.Target{}, fmt.Errorf("DNS lookup returned no results for %q", host)
+		}
+		addr, ok := netip.AddrFromSlice(addrs[0].IP)
+		if !ok {
+			return nervaplugins.Target{}, fmt.Errorf("invalid IP from DNS for %q", host)
+		}
+		t.Address = netip.AddrPortFrom(addr.Unmap(), uint16(port))
+		t.Host = host
+	}
+
+	return t, nil
+}
+
+// ServiceToNervaResult converts a Nerva plugins.Service into a NervaResult
+// for use with the existing MapServiceToProtocol and brute-force pipeline.
+func ServiceToNervaResult(svc *nervaplugins.Service) NervaResult {
+	var metadata map[string]interface{}
+	if len(svc.Raw) > 0 {
+		_ = json.Unmarshal(svc.Raw, &metadata)
+	}
+	return NervaResult{
+		Host:      svc.Host,
+		IP:        svc.IP,
+		Port:      svc.Port,
+		Protocol:  svc.Protocol,
+		TLS:       svc.TLS,
+		Transport: svc.Transport,
+		Version:   svc.Version,
+		Metadata:  metadata,
+	}
 }

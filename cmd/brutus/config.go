@@ -22,39 +22,41 @@ import (
 
 // baseConfigOptions holds common configuration shared across targets
 type baseConfigOptions struct {
-	usernames        []string
-	passwords        []string
-	keys             [][]byte
-	threads          int
-	timeout          time.Duration
-	stopOnSuccess    bool
-	snmpTier         string
-	llmConfig        *brutus.LLMConfig
-	browserTimeout   time.Duration
-	browserTabs      int
-	browserVisible   bool
-	useHTTPS         bool
-	useColor         bool
-	quiet            bool
-	verbose          bool
-	useBadkeys       bool
-	badkeysOnly      bool
-	protocolOverride string        // Override nerva-detected protocol
-	aiMode           bool          // Enable AI-powered credential detection for HTTP
-	tlsMode          string        // TLS verification mode: "disable", "verify", "skip-verify"
-	rateLimit        float64       // Max requests per second (0 = unlimited)
-	jitter           time.Duration // Random delay variance for rate limiting
-	maxAttempts      int
-	maxRetries       int
-	sprayMode        bool
-	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
-	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
-	stickyKeys       bool   // Sticky keys backdoor detection mode (no brute force)
-	stickyKeysExec   string // Command to execute via sticky keys backdoor
-	stickyKeysWeb    bool   // Start web terminal for sticky keys interaction
-	stickyKeysOpen   bool   // Auto-open browser when sticky keys web terminal starts
-	aiVerify         bool   // AI-powered login verification (Claude Vision before/after screenshots)
-	noUtilman        bool   // Disable utilman backdoor detection (utilman runs by default with --sticky-keys)
+	usernames          []string
+	passwords          []string
+	keys               [][]byte
+	threads            int
+	timeout            time.Duration
+	stopOnSuccess      bool
+	snmpTier           string
+	llmConfig          *brutus.LLMConfig
+	browserTimeout     time.Duration
+	browserTabs        int
+	browserVisible     bool
+	useHTTPS           bool
+	useColor           bool
+	quiet              bool
+	verbose            bool
+	useBadkeys         bool
+	badkeysOnly        bool
+	protocolOverride   string        // Override nerva-detected protocol
+	aiMode             bool          // Enable AI-powered credential detection for HTTP
+	tlsMode            string        // TLS verification mode: "disable", "verify", "skip-verify"
+	rateLimit          float64       // Max requests per second (0 = unlimited)
+	jitter             time.Duration // Random delay variance for rate limiting
+	maxAttempts        int
+	maxRetries         int
+	sprayMode          bool
+	anthropicKey       string        // ANTHROPIC_API_KEY (read once in main)
+	perplexityKey      string        // PERPLEXITY_API_KEY (read once in main)
+	stickyKeys         bool          // Sticky keys backdoor detection mode (no brute force)
+	stickyKeysExec     string        // Command to execute via sticky keys backdoor
+	stickyKeysWeb      bool          // Start web terminal for sticky keys interaction
+	stickyKeysOpen     bool          // Auto-open browser when sticky keys web terminal starts
+	aiVerify           bool          // AI-powered login verification (Claude Vision before/after screenshots)
+	noUtilman          bool          // Disable utilman backdoor detection (utilman runs by default with --sticky-keys)
+	fingerprintTimeout time.Duration // Nerva per-probe timeout for --fingerprint mode
+	fingerprintWorkers int           // Nerva concurrent scan workers for --fingerprint mode
 }
 
 // determineTLSMode returns the appropriate TLS mode based on the verify-tls flag

@@ -25,13 +25,16 @@ func customUsage() {
 
 Usage:
   brutus --target <host:port> --protocol <proto> [options]                # Single target mode
-  naabu ... | nerva --json | brutus [options]                      # Pipeline mode (stdin auto-detected)
-  naabu ... | nerva --json | brutus --experimental-ai [options]                 # AI-powered credential detection
+  brutus --fingerprint <targets.txt> [options]                            # Fingerprint + credential test
+  naabu ... | nerva --json | brutus [options]                             # Pipeline mode (stdin auto-detected)
+  naabu ... | nerva --json | brutus --experimental-ai [options]           # AI-powered credential detection
 
 Target Options:
   --target <host:port>   Target host and port (requires --protocol)
-  --nerva         Read targets from nerva JSON on stdin
-  --protocol <proto>     Protocol to use (auto-detected in pipeline mode)
+  --targets-file <file>  File of targets to test, one host:port per line (requires --protocol)
+  --fingerprint <file>   File of host:port targets to fingerprint with Nerva before credential testing
+  --nerva                Read targets from nerva JSON on stdin
+  --protocol <proto>     Protocol to use (auto-detected in pipeline/fingerprint mode)
 
 Credential Options:
   -u <usernames>         Comma-separated usernames (default: "root,admin")
@@ -49,6 +52,10 @@ RDP Options:
   --sticky-keys-exec <cmd>  Execute a command via sticky keys backdoor (demo/pentest)
   --sticky-keys-web      Start interactive web terminal via sticky keys backdoor
   --sticky-keys-open     Auto-open default browser for sticky keys web terminal
+
+Fingerprint Options:
+  --fingerprint-timeout <duration>  Per-probe timeout for Nerva fingerprinting (default: 5s)
+  --fingerprint-workers <n>         Concurrent workers for Nerva fingerprinting (default: 50)
 
 Performance Options:
   -t <threads>           Number of concurrent threads (default: 10)
@@ -100,18 +107,17 @@ Other Options:
   -h, --help             Show this help message
 
 Nerva Integration:
-  Brutus integrates seamlessly with nerva for automated service discovery
-  and credential testing. Use naabu for port discovery, nerva for service
-  fingerprinting (with --json output), then pipe to Brutus:
+  Brutus includes Nerva as a built-in library for service fingerprinting.
+  Use --fingerprint to fingerprint and test credentials in one step:
+
+    brutus --fingerprint targets.txt -u admin -P passwords.txt
+
+  Or use the traditional pipeline with an external nerva binary:
 
     naabu -host <targets> -silent | nerva --json | brutus --nerva [options]
 
-  For known open ports, pipe directly to nerva:
-
-    echo "host:port" | nerva --json | brutus --nerva [options]
-
-  Brutus automatically detects protocols from nerva JSON output,
-  eliminating the need to specify -protocol manually.
+  Brutus automatically detects protocols from fingerprinting results or
+  nerva JSON output, eliminating the need to specify --protocol manually.
 
 Supported Protocols:
   Network:      ssh, rdp, ftp, telnet, vnc
@@ -124,6 +130,12 @@ Supported Protocols:
   Other:        snmp
 
 Examples:
+  # Fingerprint targets and test credentials in one step (no external nerva binary needed)
+  brutus --fingerprint targets.txt -u admin -P passwords.txt
+
+  # Fingerprint with naabu output, filter to SSH only
+  naabu -host 192.168.1.0/24 -silent > targets.txt && brutus --fingerprint targets.txt --protocol ssh -u root -p "toor,admin"
+
   # Scan network range with naabu, fingerprint services, and test credentials
   naabu -host 192.168.1.0/24 -silent | nerva --json | brutus --nerva -P passwords.txt
 

@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestFillAndSubmit_Integration(t *testing.T) {
+func TestFormSubmission_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -56,35 +57,17 @@ func TestFillAndSubmit_Integration(t *testing.T) {
 	tabCtx, release := b.AcquireTab()
 	defer release()
 
-	err = b.Navigate(tabCtx, srv.URL, 5*time.Second)
+	result, err := FillAndSubmitWithNavigate(tabCtx, srv.URL, "admin", "secret123", 15*time.Second)
 	if err != nil {
-		t.Fatalf("Navigate failed: %v", err)
+		t.Fatalf("FillAndSubmitWithNavigate failed: %v", err)
 	}
 
-	fields := &FormFields{
-		UsernameSelector: "#username",
-		PasswordSelector: "#password",
-		SubmitSelector:   "#submit",
-	}
-
-	err = FillAndSubmit(tabCtx, fields, "admin", "secret123")
-	if err != nil {
-		t.Fatalf("FillAndSubmit failed: %v", err)
-	}
-
-	// Verify form was submitted by checking for result element
-	var resultText string
-	err = GetElementText(tabCtx, "#result", &resultText)
-	if err != nil {
-		t.Fatalf("GetElementText failed: %v", err)
-	}
-
-	if resultText != "Submitted: admin:secret123" {
-		t.Errorf("Form submission incorrect, got: %s", resultText)
+	if !strings.Contains(result.AfterHTML, "Submitted: admin:secret123") {
+		t.Errorf("Form submission incorrect, AfterHTML does not contain expected result. Got: %s", result.AfterHTML)
 	}
 }
 
-func TestFillAndSubmit_EmptyPassword(t *testing.T) {
+func TestFormSubmission_EmptyPassword(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -117,17 +100,9 @@ func TestFillAndSubmit_EmptyPassword(t *testing.T) {
 	tabCtx, release := b.AcquireTab()
 	defer release()
 
-	_ = b.Navigate(tabCtx, srv.URL, 5*time.Second)
-
-	fields := &FormFields{
-		UsernameSelector: "#user",
-		PasswordSelector: "#pass",
-		SubmitSelector:   "#btn",
-	}
-
 	// Test with empty password (common for IoT devices)
-	err = FillAndSubmit(tabCtx, fields, "admin", "")
+	_, err = FillAndSubmitWithNavigate(tabCtx, srv.URL, "admin", "", 15*time.Second)
 	if err != nil {
-		t.Fatalf("FillAndSubmit with empty password failed: %v", err)
+		t.Fatalf("FillAndSubmitWithNavigate with empty password failed: %v", err)
 	}
 }

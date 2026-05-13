@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	_ "github.com/sijms/go-ora/v2"
@@ -26,14 +27,21 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// oracleAuthIndicators contains strings that indicate authentication failures.
-var oracleAuthIndicators = []string{
+// oracleAuthFailureIndicators are errors that mean the credentials are wrong.
+// These map to Success=false, Error=nil per the Result convention.
+var oracleAuthFailureIndicators = []string{
 	"ORA-01017", // invalid username/password; logon denied
-	"ORA-28000", // the account is locked
 	"ORA-01005", // null password given; logon denied
-	"ORA-28001", // the password has expired
-	"ORA-28009", // connection as SYS should be as SYSDBA or SYSOPER
-	"ORA-01031", // insufficient privileges
+	"ORA-28000", // the account is locked
+}
+
+// oracleAuthSuccessIndicators are errors that confirm the password is correct
+// but access is restricted. These map to Success=true since the credential
+// was validated by the server.
+var oracleAuthSuccessIndicators = []string{
+	"ORA-28001", // the password has expired (password was correct)
+	"ORA-28009", // connection as SYS should be as SYSDBA or SYSOPER (password was correct)
+	"ORA-01031", // insufficient privileges (password was correct)
 }
 
 // defaultServiceNames are tried in order when connecting to an Oracle target.
@@ -90,7 +98,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 		err := tryConnect(ctx, connStr, timeout)
 		if err == nil {
-			// Auth succeeded
+			// Auth succeeded — clean login
+			result.Success = true
+			result.Duration = time.Since(start)
+			return result
+		}
+
+		if isAuthSuccess(err) {
+			// Password was correct but access is restricted
+			// (expired password, insufficient privileges, SYS needs SYSDBA)
 			result.Success = true
 			result.Duration = time.Since(start)
 			return result
@@ -131,6 +147,21 @@ func tryConnect(ctx context.Context, connStr string, timeout time.Duration) erro
 	return db.PingContext(pingCtx)
 }
 
+// isAuthSuccess checks if the error indicates the password was correct
+// but access is restricted (expired, insufficient privileges, etc.).
+func isAuthSuccess(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	for _, indicator := range oracleAuthSuccessIndicators {
+		if strings.Contains(errStr, strings.ToLower(indicator)) {
+			return true
+		}
+	}
+	return false
+}
+
 func classifyError(err error) error {
-	return brutus.ClassifyAuthError(err, oracleAuthIndicators)
+	return brutus.ClassifyAuthError(err, oracleAuthFailureIndicators)
 }

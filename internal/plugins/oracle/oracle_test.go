@@ -44,11 +44,11 @@ func TestPlugin_Name(t *testing.T) {
 	assert.Equal(t, "oracle", p.Name())
 }
 
-func TestPlugin_Test_ErrorClassification(t *testing.T) {
+func TestClassifyError(t *testing.T) {
 	tests := []struct {
 		name     string
 		errStr   string
-		wantAuth bool
+		wantAuth bool // true = auth failure (nil error), false = connection error
 	}{
 		{
 			name:     "ORA-01017 invalid credentials",
@@ -63,21 +63,6 @@ func TestPlugin_Test_ErrorClassification(t *testing.T) {
 		{
 			name:     "ORA-01005 null password",
 			errStr:   "ORA-01005: null password given; logon denied",
-			wantAuth: true,
-		},
-		{
-			name:     "ORA-28001 password expired",
-			errStr:   "ORA-28001: the password has expired",
-			wantAuth: true,
-		},
-		{
-			name:     "ORA-28009 SYS privilege",
-			errStr:   "ORA-28009: connection as SYS should be as SYSDBA or SYSOPER",
-			wantAuth: true,
-		},
-		{
-			name:     "ORA-01031 insufficient privileges",
-			errStr:   "ORA-01031: insufficient privileges",
 			wantAuth: true,
 		},
 		{
@@ -107,11 +92,52 @@ func TestPlugin_Test_ErrorClassification(t *testing.T) {
 			err := classifyError(&mockError{msg: tt.errStr})
 
 			if tt.wantAuth {
-				assert.Nil(t, err, "auth errors should return nil")
+				assert.Nil(t, err, "auth failure errors should return nil")
 			} else {
 				assert.NotNil(t, err, "connection errors should be wrapped")
 				assert.Contains(t, err.Error(), "connection error")
 			}
+		})
+	}
+}
+
+func TestIsAuthSuccess(t *testing.T) {
+	tests := []struct {
+		name    string
+		errStr  string
+		wantHit bool
+	}{
+		{
+			name:    "ORA-28001 password expired",
+			errStr:  "ORA-28001: the password has expired",
+			wantHit: true,
+		},
+		{
+			name:    "ORA-28009 SYS privilege",
+			errStr:  "ORA-28009: connection as SYS should be as SYSDBA or SYSOPER",
+			wantHit: true,
+		},
+		{
+			name:    "ORA-01031 insufficient privileges",
+			errStr:  "ORA-01031: insufficient privileges",
+			wantHit: true,
+		},
+		{
+			name:    "ORA-01017 wrong password",
+			errStr:  "ORA-01017: invalid username/password; logon denied",
+			wantHit: false,
+		},
+		{
+			name:    "connection refused",
+			errStr:  "connection refused",
+			wantHit: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isAuthSuccess(&mockError{msg: tt.errStr})
+			assert.Equal(t, tt.wantHit, result)
 		})
 	}
 }

@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 
 	_ "github.com/sijms/go-ora/v2"
@@ -37,6 +36,17 @@ var oracleAuthIndicators = []string{
 	"ORA-01031", // insufficient privileges
 }
 
+// defaultServiceNames are tried in order when connecting to an Oracle target.
+// The first service that accepts the connection (auth success or auth failure)
+// is used; connection-level errors (unknown service) move to the next.
+var defaultServiceNames = []string{
+	"XE",       // Oracle Express Edition
+	"XEPDB1",   // Oracle XE pluggable database
+	"FREE",     // Oracle 23c Free
+	"FREEPDB1", // Oracle 23c Free pluggable database
+	"ORCL",     // Oracle Enterprise/Standard default
+}
+
 func init() {
 	brutus.Register("oracle", func() brutus.Plugin {
 		return &Plugin{}
@@ -52,6 +62,9 @@ func (p *Plugin) Name() string {
 }
 
 // Test attempts Oracle Database password authentication using the provided credentials.
+// It tries each common service name until one connects successfully or returns an
+// auth failure. If all service names fail with connection errors, the last error
+// is returned.
 //
 // Returns Result with:
 // - Success=true, Error=nil: Valid credentials
@@ -69,22 +82,42 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		Success:  false,
 	}
 
-	// Extract service name if target contains host:port/service
-	hostPort, service := parseTargetService(target)
-	host, port := brutus.ParseTarget(hostPort, "1521")
+	host, port := brutus.ParseTarget(target, "1521")
+	userInfo := url.UserPassword(username, password).String()
 
-	// Build Oracle connection URL
-	// Format: oracle://user:password@host:port/service_name
-	// url.UserPassword handles encoding of special characters in credentials
-	connStr := fmt.Sprintf("oracle://%s@%s:%s/%s",
-		url.UserPassword(username, password).String(),
-		host, port, service)
+	for _, service := range defaultServiceNames {
+		connStr := fmt.Sprintf("oracle://%s@%s:%s/%s", userInfo, host, port, service)
 
+		err := tryConnect(ctx, connStr, timeout)
+		if err == nil {
+			// Auth succeeded
+			result.Success = true
+			result.Duration = time.Since(start)
+			return result
+		}
+
+		classified := classifyError(err)
+		if classified == nil {
+			// Auth failure (wrong credentials) — the service exists,
+			// so we have our answer: creds are wrong.
+			result.Duration = time.Since(start)
+			return result
+		}
+
+		// Connection error — this service name likely doesn't exist,
+		// try the next one. Keep the error in case all fail.
+		result.Error = classified
+	}
+
+	result.Duration = time.Since(start)
+	return result
+}
+
+// tryConnect opens a database connection and pings it. Returns nil on success.
+func tryConnect(ctx context.Context, connStr string, timeout time.Duration) error {
 	db, err := sql.Open("oracle", connStr)
 	if err != nil {
-		result.Error = fmt.Errorf("connection error: %w", err)
-		result.Duration = time.Since(start)
-		return result
+		return fmt.Errorf("connection error: %w", err)
 	}
 	defer func() { _ = db.Close() }()
 
@@ -95,30 +128,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	err = db.PingContext(pingCtx)
-	if err != nil {
-		result.Error = classifyError(err)
-		result.Duration = time.Since(start)
-		return result
-	}
-
-	result.Success = true
-	result.Duration = time.Since(start)
-	return result
-}
-
-// parseTargetService splits a target like "host:port/service" into
-// the host:port portion and the service name. If no service name is
-// present, it returns the target unchanged and an empty string.
-func parseTargetService(target string) (hostPort, service string) {
-	// Find the first slash that follows a port (not part of IPv6 brackets)
-	bracket := strings.LastIndex(target, "]")
-	slashIdx := strings.Index(target[bracket+1:], "/")
-	if slashIdx < 0 {
-		return target, ""
-	}
-	slashIdx += bracket + 1
-	return target[:slashIdx], target[slashIdx+1:]
+	return db.PingContext(pingCtx)
 }
 
 func classifyError(err error) error {

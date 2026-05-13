@@ -67,7 +67,11 @@ func shouldShowBanner(showBanner, jsonOutput, stdinMode, quiet, useColor bool) b
 }
 
 // detectStdinMode returns true if stdin mode should be used (explicit flag or piped data without target).
-func detectStdinMode(stdinFlag bool, target string) bool {
+// When fingerprintFile is set, stdin auto-detection is suppressed so fingerprint mode takes precedence.
+func detectStdinMode(stdinFlag bool, target, fingerprintFile string) bool {
+	if fingerprintFile != "" {
+		return stdinFlag // only explicit --nerva, not auto-detect
+	}
 	return stdinFlag || (target == "" && hasStdinData())
 }
 
@@ -96,6 +100,9 @@ func main() {
 	rateLimit := flag.Float64("rate-limit", 0, "Max requests per second (0 = unlimited)")
 	jitter := flag.Duration("jitter", 0, "Random delay variance for rate limiting (e.g., 100ms)")
 	stdinMode := flag.Bool("nerva", false, "Read targets from nerva JSON on stdin")
+	fingerprintFile := flag.String("fingerprint", "", "File of host:port targets to fingerprint with Nerva before credential testing")
+	fingerprintTimeout := flag.Duration("fingerprint-timeout", 5*time.Second, "Per-probe timeout for Nerva fingerprinting")
+	fingerprintWorkers := flag.Int("fingerprint-workers", 50, "Concurrent workers for Nerva fingerprinting")
 	maxAttempts := flag.Int("max-attempts", 0, "Max password attempts per user (0 = unlimited)")
 	sprayMode := flag.Bool("spray", false, "Password spraying: try each password across all users")
 	retries := flag.Int("retries", 2, "Max retries per credential on connection error (0 = no retry)")
@@ -124,15 +131,21 @@ func main() {
 	noUtilman := flag.Bool("no-utilman", false, "Disable utilman.exe backdoor detection (runs by default with --sticky-keys)")
 	flag.Parse()
 
-	// Track whether -p and -u flags were explicitly set
+	// Track whether credential flags were explicitly set
 	passwordFlagSet := false
+	passwordFileFlagSet := false
 	usernameFlagSet := false
+	usernameFileFlagSet := false
 	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "p" {
+		switch f.Name {
+		case "p":
 			passwordFlagSet = true
-		}
-		if f.Name == "u" {
+		case "P":
+			passwordFileFlagSet = true
+		case "u":
 			usernameFlagSet = true
+		case "U":
+			usernameFileFlagSet = true
 		}
 	})
 
@@ -146,7 +159,7 @@ func main() {
 	}
 
 	// Auto-detect nerva mode: if stdin has data and no target specified, use nerva mode
-	useStdin := detectStdinMode(*stdinMode, *target)
+	useStdin := detectStdinMode(*stdinMode, *target, *fingerprintFile)
 
 	// Show banner (unless in JSON mode, nerva mode, or quiet mode)
 	if shouldShowBanner(*showBanner, *jsonOutput, useStdin, *quiet, useColor) {
@@ -175,6 +188,20 @@ func main() {
 	if validateErr := validateKeyFileFlags(*keyFile, usernameFlagSet, *usernameFile); validateErr != nil {
 		errMsg(useColor, "%v", validateErr)
 		os.Exit(1)
+	}
+
+	// Validate: --fingerprint with passwords requires explicit usernames, and vice versa.
+	if *fingerprintFile != "" {
+		hasExplicitUsers := usernameFlagSet || usernameFileFlagSet
+		hasExplicitPasswords := passwordFlagSet || passwordFileFlagSet
+		if hasExplicitPasswords && !hasExplicitUsers {
+			errMsg(useColor, "--fingerprint with -p/-P also requires -u or -U to specify usernames\nExample: brutus --fingerprint targets.txt -u admin -P passwords.txt")
+			os.Exit(1)
+		}
+		if hasExplicitUsers && !hasExplicitPasswords {
+			errMsg(useColor, "--fingerprint with -u/-U also requires -p or -P to specify passwords\nExample: brutus --fingerprint targets.txt -u admin -P passwords.txt")
+			os.Exit(1)
+		}
 	}
 
 	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(*outputFile)
@@ -208,39 +235,41 @@ func main() {
 
 	// Prepare common config options
 	baseConfig := baseConfigOptions{
-		usernames:        usernameList,
-		passwords:        passwordList,
-		keys:             keyList,
-		threads:          *threads,
-		timeout:          *timeout,
-		stopOnSuccess:    *stopOnSuccess,
-		snmpTier:         *snmpTier,
-		llmConfig:        aiLLMConfig,
-		browserTimeout:   *browserTimeout,
-		browserTabs:      *browserTabs,
-		browserVisible:   *browserVisible,
-		useHTTPS:         *useHTTPS,
-		useColor:         useColor,
-		quiet:            *quiet,
-		verbose:          *verbose,
-		useBadkeys:       useBadkeys,
-		badkeysOnly:      *badkeysOnly,
-		protocolOverride: *protocol,
-		aiMode:           *aiMode,
-		tlsMode:          determineTLSMode(*verifyTLS),
-		rateLimit:        *rateLimit,
-		jitter:           *jitter,
-		maxAttempts:      *maxAttempts,
-		sprayMode:        *sprayMode,
-		maxRetries:       *retries,
-		anthropicKey:     anthropicKey,
-		perplexityKey:    perplexityKey,
-		stickyKeys:       *stickyKeys,
-		stickyKeysExec:   *stickyKeysExec,
-		stickyKeysWeb:    *stickyKeysWeb,
-		stickyKeysOpen:   *stickyKeysOpen,
-		aiVerify:         *aiVerify,
-		noUtilman:        *noUtilman,
+		usernames:          usernameList,
+		passwords:          passwordList,
+		keys:               keyList,
+		threads:            *threads,
+		timeout:            *timeout,
+		stopOnSuccess:      *stopOnSuccess,
+		snmpTier:           *snmpTier,
+		llmConfig:          aiLLMConfig,
+		browserTimeout:     *browserTimeout,
+		browserTabs:        *browserTabs,
+		browserVisible:     *browserVisible,
+		useHTTPS:           *useHTTPS,
+		useColor:           useColor,
+		quiet:              *quiet,
+		verbose:            *verbose,
+		useBadkeys:         useBadkeys,
+		badkeysOnly:        *badkeysOnly,
+		protocolOverride:   *protocol,
+		aiMode:             *aiMode,
+		tlsMode:            determineTLSMode(*verifyTLS),
+		rateLimit:          *rateLimit,
+		jitter:             *jitter,
+		maxAttempts:        *maxAttempts,
+		sprayMode:          *sprayMode,
+		maxRetries:         *retries,
+		anthropicKey:       anthropicKey,
+		perplexityKey:      perplexityKey,
+		stickyKeys:         *stickyKeys,
+		stickyKeysExec:     *stickyKeysExec,
+		stickyKeysWeb:      *stickyKeysWeb,
+		stickyKeysOpen:     *stickyKeysOpen,
+		aiVerify:           *aiVerify,
+		noUtilman:          *noUtilman,
+		fingerprintTimeout: *fingerprintTimeout,
+		fingerprintWorkers: *fingerprintWorkers,
 	}
 
 	var allResults []brutus.Result
@@ -275,17 +304,44 @@ func main() {
 
 	switch {
 	case useStdin:
-		// Reject the combination up-front: without this check, piping
-		// nerva JSON to stdin (or passing --nerva explicitly) silently
-		// wins over --targets-file via detectStdinMode, and the user's
-		// --targets-file content is dropped on the floor. Mirrors the
-		// --target check below.
+		// Reject mutually exclusive combinations up-front: without these
+		// checks, piping nerva JSON to stdin (or passing --nerva explicitly)
+		// silently wins over other modes via detectStdinMode.
 		if *targetsFile != "" {
 			errMsg(useColor, "--targets-file is mutually exclusive with --nerva / piped stdin")
 			closeOutput()
 			os.Exit(1)
 		}
+		if *fingerprintFile != "" {
+			errMsg(useColor, "--fingerprint is mutually exclusive with --nerva / piped stdin")
+			closeOutput()
+			os.Exit(1)
+		}
 		allResults, hasSuccess = runFromStdin(&baseConfig, *jsonOutput)
+	case *fingerprintFile != "":
+		// --fingerprint is mutually exclusive with --target and --targets-file.
+		if *target != "" {
+			errMsg(useColor, "--fingerprint is mutually exclusive with --target")
+			closeOutput()
+			os.Exit(1)
+		}
+		if *targetsFile != "" {
+			errMsg(useColor, "--fingerprint is mutually exclusive with --targets-file")
+			closeOutput()
+			os.Exit(1)
+		}
+		targetsList, err := brutus.LoadTargetsFromFile(*fingerprintFile)
+		if err != nil {
+			errMsg(useColor, "%v", err)
+			closeOutput()
+			os.Exit(1)
+		}
+		if len(targetsList) == 0 {
+			errMsg(useColor, "fingerprint file %q has no targets after stripping comments and blank lines", *fingerprintFile)
+			closeOutput()
+			os.Exit(1)
+		}
+		allResults, hasSuccess = runFromFingerprint(targetsList, &baseConfig, *jsonOutput)
 	case *targetsFile != "":
 		// --targets-file is mutually exclusive with --target / --nerva.
 		// Validate before doing the file IO so a stale --target on the
@@ -322,8 +378,8 @@ func main() {
 		allResults, hasSuccess = runSingleTargetMode(*target, *protocol, &baseConfig, *jsonOutput, jsonWriter)
 	}
 
-	// Final JSON output for multi-target modes (nerva or targets-file).
-	if *jsonOutput && (useStdin || *targetsFile != "") {
+	// Final JSON output for multi-target modes (nerva, targets-file, or fingerprint).
+	if *jsonOutput && (useStdin || *targetsFile != "" || *fingerprintFile != "") {
 		outputJSONL(jsonWriter, allResults)
 	}
 

@@ -50,6 +50,11 @@ func runFromTargetsFile(targets []string, base *baseConfigOptions, jsonOut bool)
 		}
 		protocol := base.protocolOverride
 
+		// Apply subcommand protocol filter
+		if base.protocolFilter != nil && !base.protocolFilter(protocol) {
+			continue
+		}
+
 		// AI mode for HTTP services (mirrors single-target dispatch).
 		var aiCreds []brutus.Credential
 		if base.aiMode && (protocol == "http" || protocol == "https") {
@@ -127,6 +132,11 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 				// Unsupported service, skip
 				continue
 			}
+		}
+
+		// Apply subcommand protocol filter
+		if base.protocolFilter != nil && !base.protocolFilter(protocol) {
+			continue
 		}
 
 		// --badkeys-only: skip non-SSH targets entirely

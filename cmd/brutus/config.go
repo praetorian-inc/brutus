@@ -57,6 +57,11 @@ type baseConfigOptions struct {
 	noUtilman          bool          // Disable utilman backdoor detection (utilman runs by default with --sticky-keys)
 	fingerprintTimeout time.Duration // Nerva per-probe timeout for --fingerprint mode
 	fingerprintWorkers int           // Nerva concurrent scan workers for --fingerprint mode
+
+	// protocolFilter is an optional function that determines whether a discovered
+	// protocol should be processed. Used by subcommands to filter services in
+	// pipeline/fingerprint modes. nil means accept all protocols (legacy behavior).
+	protocolFilter func(protocol string) bool
 }
 
 // determineTLSMode returns the appropriate TLS mode based on the verify-tls flag

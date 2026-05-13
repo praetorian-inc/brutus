@@ -14,27 +14,19 @@
 
 package main
 
-import (
-	"fmt"
-	"os"
+// httpProtocols lists protocols handled by the "web" subcommand.
+var httpProtocols = map[string]bool{
+	"http":    true,
+	"https":   true,
+	"browser": true,
+}
 
-	// Import plugins and analyzers to register them
-	_ "github.com/praetorian-inc/brutus/internal/analyzers"
-	_ "github.com/praetorian-inc/brutus/internal/plugins"
-)
+// isHTTPLikeProtocol returns true for http, https, and browser protocols.
+func isHTTPLikeProtocol(protocol string) bool {
+	return httpProtocols[protocol]
+}
 
-// Version info - set by ldflags during build
-var (
-	Version   = "dev"
-	BuildTime = "unknown"
-	CommitSHA = "unknown"
-)
-
-func main() {
-	if err := rootCmd.Execute(); err != nil {
-		useColor := isColorEnabled(flagNoColor)
-		errMsg(useColor, "%v", err)
-		fmt.Fprintln(os.Stderr)
-		os.Exit(1)
-	}
+// isCredsProtocol returns true for non-HTTP protocols handled by the "creds" subcommand.
+func isCredsProtocol(protocol string) bool {
+	return !httpProtocols[protocol]
 }

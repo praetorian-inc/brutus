@@ -98,6 +98,12 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 			}
 		}
 
+		// Apply subcommand protocol filter
+		if base.protocolFilter != nil && !base.protocolFilter(protocol) {
+			logVerbose(base.verbose, "skipping %s:%d - protocol %q filtered by subcommand", nrv.IP, nrv.Port, protocol)
+			continue
+		}
+
 		// --badkeys-only: skip non-SSH targets entirely.
 		if base.badkeysOnly && protocol != "ssh" {
 			continue

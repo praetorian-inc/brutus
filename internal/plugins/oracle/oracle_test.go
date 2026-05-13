@@ -116,6 +116,60 @@ func TestPlugin_Test_ErrorClassification(t *testing.T) {
 	}
 }
 
+func TestParseTargetService(t *testing.T) {
+	tests := []struct {
+		name        string
+		target      string
+		wantHost    string
+		wantService string
+	}{
+		{
+			name:        "host:port only",
+			target:      "localhost:1521",
+			wantHost:    "localhost:1521",
+			wantService: "",
+		},
+		{
+			name:        "host:port/service",
+			target:      "localhost:1521/XE",
+			wantHost:    "localhost:1521",
+			wantService: "XE",
+		},
+		{
+			name:        "host:port/service with PDB",
+			target:      "db.example.com:1521/XEPDB1",
+			wantHost:    "db.example.com:1521",
+			wantService: "XEPDB1",
+		},
+		{
+			name:        "host only",
+			target:      "localhost",
+			wantHost:    "localhost",
+			wantService: "",
+		},
+		{
+			name:        "IPv6 with port and service",
+			target:      "[::1]:1521/ORCL",
+			wantHost:    "[::1]:1521",
+			wantService: "ORCL",
+		},
+		{
+			name:        "IPv6 with port no service",
+			target:      "[::1]:1521",
+			wantHost:    "[::1]:1521",
+			wantService: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostPort, service := parseTargetService(tt.target)
+			assert.Equal(t, tt.wantHost, hostPort)
+			assert.Equal(t, tt.wantService, service)
+		})
+	}
+}
+
 func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()

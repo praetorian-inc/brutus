@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	_ "github.com/sijms/go-ora/v2"
@@ -68,14 +69,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		Success:  false,
 	}
 
-	host, port := brutus.ParseTarget(target, "1521")
+	// Extract service name if target contains host:port/service
+	hostPort, service := parseTargetService(target)
+	host, port := brutus.ParseTarget(hostPort, "1521")
 
 	// Build Oracle connection URL
-	// Format: oracle://user:password@host:port/
+	// Format: oracle://user:password@host:port/service_name
 	// url.UserPassword handles encoding of special characters in credentials
-	connStr := fmt.Sprintf("oracle://%s@%s:%s/",
+	connStr := fmt.Sprintf("oracle://%s@%s:%s/%s",
 		url.UserPassword(username, password).String(),
-		host, port)
+		host, port, service)
 
 	db, err := sql.Open("oracle", connStr)
 	if err != nil {
@@ -102,6 +105,20 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result.Success = true
 	result.Duration = time.Since(start)
 	return result
+}
+
+// parseTargetService splits a target like "host:port/service" into
+// the host:port portion and the service name. If no service name is
+// present, it returns the target unchanged and an empty string.
+func parseTargetService(target string) (hostPort, service string) {
+	// Find the first slash that follows a port (not part of IPv6 brackets)
+	bracket := strings.LastIndex(target, "]")
+	slashIdx := strings.Index(target[bracket+1:], "/")
+	if slashIdx < 0 {
+		return target, ""
+	}
+	slashIdx += bracket + 1
+	return target[:slashIdx], target[slashIdx+1:]
 }
 
 func classifyError(err error) error {

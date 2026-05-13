@@ -36,7 +36,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: '1.24.13'
+          go-version: '1.25.0'
           cache: true
 
       - name: Run unit tests
@@ -54,23 +54,23 @@ jobs:
     services:
       # Mock device containers
       mock-router:
-        image: golang:1.24-alpine
+        image: golang:1.25-alpine
         ports:
           - 8081:8080
       mock-camera:
-        image: golang:1.24-alpine
+        image: golang:1.25-alpine
         ports:
           - 8082:8080
       mock-printer:
-        image: golang:1.24-alpine
+        image: golang:1.25-alpine
         ports:
           - 8083:8080
       mock-nas:
-        image: golang:1.24-alpine
+        image: golang:1.25-alpine
         ports:
           - 8084:8080
       mock-generic:
-        image: golang:1.24-alpine
+        image: golang:1.25-alpine
         ports:
           - 8085:8080
 
@@ -80,7 +80,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: '1.24.13'
+          go-version: '1.25.0'
           cache: true
 
       - name: Verify Chrome installation
@@ -129,7 +129,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          go-version: '1.24.13'
+          go-version: '1.25.0'
           cache: true
 
       - name: Build

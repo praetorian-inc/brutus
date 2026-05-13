@@ -1,0 +1,19 @@
+# Oracle Database Default Credentials
+# Format: username:password
+sys:change_on_install
+system:manager
+system:oracle
+system:password
+scott:tiger
+hr:hr
+dbsnmp:dbsnmp
+outln:outln
+mdsys:mdsys
+ctxsys:ctxsys
+dip:dip
+exfsys:exfsys
+wmsys:wmsys
+xdb:xdb
+anonymous:anonymous
+apex_public_user:oracle
+flows_files:flows_files

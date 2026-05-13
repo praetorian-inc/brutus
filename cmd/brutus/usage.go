@@ -116,7 +116,7 @@ Nerva Integration:
 Supported Protocols:
   Network:      ssh, rdp, ftp, telnet, vnc
   Enterprise:   smb, ldap, winrm
-  Databases:    mysql, postgresql, mssql, mongodb, redis, neo4j, cassandra,
+  Databases:    mysql, postgresql, mssql, oracle, mongodb, redis, neo4j, cassandra,
                 couchdb, elasticsearch, influxdb
   NoSQL:        mongodb, redis, neo4j, cassandra, couchdb, elasticsearch, influxdb
   Mail:         smtp, imap, pop3

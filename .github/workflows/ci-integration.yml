@@ -130,6 +130,19 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      # Oracle Database
+      oracle:
+        image: gvenzl/oracle-xe:21-slim
+        env:
+          ORACLE_PASSWORD: oraclepass
+        ports:
+          - 1521:1521
+        options: >-
+          --health-cmd "healthcheck.sh"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 20
+
       # MongoDB
       mongodb:
         image: mongo:7
@@ -289,6 +302,8 @@ jobs:
           timeout 60 bash -c 'until nc -z localhost 5432; do sleep 1; done' || true
           echo "Waiting for MSSQL..."
           timeout 120 bash -c 'until nc -z localhost 1433; do sleep 1; done' || true
+          echo "Waiting for Oracle..."
+          timeout 300 bash -c 'until nc -z localhost 1521; do sleep 2; done' || true
           echo "Waiting for MongoDB..."
           timeout 60 bash -c 'until nc -z localhost 27017; do sleep 1; done' || true
           echo "Waiting for Redis..."
@@ -357,6 +372,9 @@ jobs:
           MSSQL_TEST_HOST: localhost:1433
           MSSQL_TEST_USER: sa
           MSSQL_TEST_PASS: MssqlPass123!
+          ORACLE_TEST_HOST: localhost:1521
+          ORACLE_TEST_USER: system
+          ORACLE_TEST_PASS: oraclepass
           MONGODB_TEST_HOST: localhost:27017
           MONGODB_TEST_USER: mongouser
           MONGODB_TEST_PASS: mongopass

@@ -105,7 +105,6 @@ func registerSharedFlags(cmd *cobra.Command) {
 	pf.StringVar(&flagTarget, "target", "", "Target host:port")
 	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
 
-
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
 	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
@@ -220,36 +219,36 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 	}
 
 	return &baseConfigOptions{
-		usernames:          usernameList,
-		passwords:          passwordList,
-		keys:               keyList,
-		threads:            flagThreads,
-		timeout:            flagTimeout,
-		stopOnSuccess:      flagStopOnSuccess,
-		snmpTier:           flagSNMPTier,
-		llmConfig:          aiLLMConfig,
-		browserTimeout:     flagBrowserTimeout,
-		browserTabs:        flagBrowserTabs,
-		browserVisible:     flagBrowserVisible,
-		useHTTPS:           flagHTTPS,
-		useColor:           useColor,
-		quiet:              flagQuiet,
-		verbose:            flagVerbose,
-		protocolOverride:   flagProtocol,
-		aiMode:             flagAIMode,
-		tlsMode:            determineTLSMode(flagVerifyTLS),
-		rateLimit:          flagRateLimit,
-		jitter:             flagJitter,
-		maxAttempts:        flagMaxAttempts,
-		sprayMode:          flagSpray,
-		maxRetries:         flagRetries,
-		anthropicKey:       anthropicKey,
-		perplexityKey:      perplexityKey,
-		stickyKeysExec:     flagStickyKeysExec,
-		stickyKeysWeb:      flagStickyKeysWeb,
-		stickyKeysOpen:     flagStickyKeysOpen,
-		aiVerify:           flagAIVerify,
-		noUtilman:          flagNoUtilman,
+		usernames:        usernameList,
+		passwords:        passwordList,
+		keys:             keyList,
+		threads:          flagThreads,
+		timeout:          flagTimeout,
+		stopOnSuccess:    flagStopOnSuccess,
+		snmpTier:         flagSNMPTier,
+		llmConfig:        aiLLMConfig,
+		browserTimeout:   flagBrowserTimeout,
+		browserTabs:      flagBrowserTabs,
+		browserVisible:   flagBrowserVisible,
+		useHTTPS:         flagHTTPS,
+		useColor:         useColor,
+		quiet:            flagQuiet,
+		verbose:          flagVerbose,
+		protocolOverride: flagProtocol,
+		aiMode:           flagAIMode,
+		tlsMode:          determineTLSMode(flagVerifyTLS),
+		rateLimit:        flagRateLimit,
+		jitter:           flagJitter,
+		maxAttempts:      flagMaxAttempts,
+		sprayMode:        flagSpray,
+		maxRetries:       flagRetries,
+		anthropicKey:     anthropicKey,
+		perplexityKey:    perplexityKey,
+		stickyKeysExec:   flagStickyKeysExec,
+		stickyKeysWeb:    flagStickyKeysWeb,
+		stickyKeysOpen:   flagStickyKeysOpen,
+		aiVerify:         flagAIVerify,
+		noUtilman:        flagNoUtilman,
 	}, nil
 }
 

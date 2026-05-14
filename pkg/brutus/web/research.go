@@ -25,14 +25,14 @@ import (
 
 // BrowserConfig holds parameters for browser-based credential research.
 type BrowserConfig struct {
-	Tabs           int
-	Timeout        time.Duration
-	UseHTTPS       bool
-	Visible        bool
-	AIVerify       bool
-	AnthropicKey   string
-	PerplexityKey  string
-	LLMConfig      *brutus.LLMConfig
+	Tabs          int
+	Timeout       time.Duration
+	UseHTTPS      bool
+	Visible       bool
+	AIVerify      bool
+	AnthropicKey  string
+	PerplexityKey string
+	LLMConfig     *brutus.LLMConfig
 }
 
 // RouteHTTP detects HTTP auth type and routes to appropriate AI credential research.

@@ -143,7 +143,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--target is required for interactive sticky keys modes")
 	}
 
-	results, hasSuccess := runStickyKeysInteractive(flagTarget, "rdp", baseConfig)
+	results, hasSuccess := runStickyKeysInteractive(flagTarget, baseConfig)
 	if flagJSON {
 		outputScanJSONL(jsonWriter, results)
 	} else {

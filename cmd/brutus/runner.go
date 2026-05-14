@@ -314,7 +314,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 
 	// Sticky keys interactive modes: bypass brute force entirely
 	if protocol == "rdp" && base.stickyKeys && (base.stickyKeysExec != "" || base.stickyKeysWeb) {
-		return runStickyKeysInteractive(target, protocol, base)
+		return runStickyKeysInteractive(target, base)
 	}
 
 	// Verbose: print config summary before starting
@@ -385,7 +385,7 @@ func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 
 // runStickyKeysInteractive handles the --sticky-keys-exec and --sticky-keys-web modes.
 // These bypass normal brute force and instead exploit the sticky keys backdoor interactively.
-func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) ([]brutus.Result, bool) {
+func runStickyKeysInteractive(target string, base *baseConfigOptions) ([]brutus.Result, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

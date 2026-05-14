@@ -185,7 +185,7 @@ var tlsProtocols = map[string]bool{
 // It returns a ParsedStdinLine with the Type field set to indicate whether the
 // line is Nerva JSON, a URI-scheme target, or a bare host:port.
 func ClassifyStdinLine(line string) (ParsedStdinLine, error) {
-	if len(line) == 0 {
+	if line == "" {
 		return ParsedStdinLine{}, fmt.Errorf("empty line")
 	}
 

@@ -28,7 +28,6 @@ import (
 // errNoSubcommand is returned when the root command is invoked without a subcommand.
 var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, badkeys, logon)")
 
-
 var rootCmd = &cobra.Command{
 	Use:   "brutus",
 	Short: "Brutus - Et tu, Brute?",
@@ -78,11 +77,7 @@ func runRoot(cmd *cobra.Command, args []string) error {
 func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 	useStdin := detectStdinMode(flagTarget, flagTargetsFile)
 
-	// Show banner
-	if shouldShowBanner(flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
-		printBanner(baseConfig.useColor)
-	}
-
+	// Set up output writer before banner check so --output can imply --json.
 	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
 	if err != nil {
 		return err
@@ -90,6 +85,11 @@ func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 	defer closeOutput()
 	if forceJSON {
 		flagJSON = true
+	}
+
+	// Show banner
+	if shouldShowBanner(flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
+		printBanner(baseConfig.useColor)
 	}
 
 	var allResults []brutus.Result

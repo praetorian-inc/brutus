@@ -289,16 +289,19 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 		config.Timeout = base.browserTimeout
 		config.Usernames = nil
 		config.Passwords = nil
-		browserCreds, browserPlugin := web.ResearchBrowserCredentials(context.Background(), target, web.BrowserConfig{
+		browserCreds, browserPlugin, browserErr := web.ResearchBrowserCredentials(context.Background(), target, web.BrowserConfig{
 			Tabs:          base.browserTabs,
 			Timeout:       base.browserTimeout,
-			UseHTTPS:      base.useHTTPS,
+			UseHTTPS:      base.useHTTPS || tlsMode == "skip-verify" || tlsMode == "verify",
 			Visible:       base.browserVisible,
 			AIVerify:      base.aiVerify,
 			AnthropicKey:  base.anthropicKey,
 			PerplexityKey: base.perplexityKey,
 			LLMConfig:     base.llmConfig,
 		})
+		if browserErr != nil {
+			errMsg(base.useColor, "browser credential research for %s: %v", target, browserErr)
+		}
 		if len(browserCreds) > 0 {
 			config.Credentials = append(config.Credentials, browserCreds...)
 			logVerbose(base.verbose, "AI researched %d credentials for browser", len(browserCreds))
@@ -442,7 +445,7 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 		switch parsed.Type {
 		case brutusinput.StdinLineJSON:
 			protocol := brutusinput.MapServiceToProtocol(parsed.NervaResult.Protocol)
-			if protocol != "rdp" && base.protocolOverride != "rdp" {
+			if base.protocolFilter != nil && !base.protocolFilter(protocol) {
 				continue
 			}
 			target := fmt.Sprintf("%s:%d", parsed.NervaResult.IP, parsed.NervaResult.Port)
@@ -456,7 +459,7 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 			}
 
 		case brutusinput.StdinLineURI:
-			if parsed.Protocol != "rdp" && base.protocolOverride != "rdp" {
+			if base.protocolFilter != nil && !base.protocolFilter(parsed.Protocol) {
 				continue
 			}
 			results, success := runScanSingleTarget(parsed.HostPort, base)

@@ -93,5 +93,11 @@ func runWeb(cmd *cobra.Command, args []string) error {
 		baseConfig.protocolOverride = inferHTTPProtocol(flagTarget, flagHTTPS)
 	}
 
+	// Sync useHTTPS with inferred/overridden protocol so the browser plugin
+	// uses HTTPS when the protocol is "https" (even if --https was not set).
+	if baseConfig.protocolOverride == "https" {
+		baseConfig.useHTTPS = true
+	}
+
 	return runSubcommand(cmd, baseConfig)
 }

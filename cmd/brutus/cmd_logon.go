@@ -15,9 +15,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
+
+	nervaplugins "github.com/praetorian-inc/nerva/pkg/plugins"
+	"github.com/praetorian-inc/nerva/pkg/scan"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
@@ -85,11 +93,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 
 	useStdin := detectStdinMode(flagTarget, flagTargetsFile)
 
-	// Show banner
-	if shouldShowBanner(flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
-		printBanner(baseConfig.useColor)
-	}
-
+	// Set up output writer before banner check so --output can imply --json.
 	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
 	if err != nil {
 		return err
@@ -97,6 +101,11 @@ func runLogon(cmd *cobra.Command, args []string) error {
 	defer closeOutput()
 	if forceJSON {
 		flagJSON = true
+	}
+
+	// Show banner
+	if shouldShowBanner(flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
+		printBanner(baseConfig.useColor)
 	}
 
 	// Determine if this is detection mode (no exec or web) vs interactive
@@ -156,20 +165,69 @@ func runLogon(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runLogonFingerprint fingerprints targets and runs logon-screen detection on discovered RDP services.
+// runLogonFingerprint fingerprints targets with Nerva and runs logon-screen
+// detection on any discovered RDP services.
 func runLogonFingerprint(targets []string, base *baseConfigOptions) ([]brutus.Result, bool) {
-	// Reuse the fingerprint infrastructure but run scan instead of brute force.
-	// We call runFromFingerprint with a modified config that has protocolFilter for RDP only.
-	// However, since logon mode is scan-based (not brute-force), we handle it differently.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	// For now, use the stdin-based scan approach: fingerprint first, then scan each RDP target.
-	// This is a simplified version that parses fingerprint results.
+	// Phase 1: Parse host:port strings into Nerva targets.
+	var nervaTargets []nervaplugins.Target
+	for _, t := range targets {
+		nt, err := brutusinput.ParseNervaTarget(ctx, t)
+		if err != nil {
+			warnMsg(base.useColor, "skipping %q: %v", t, err)
+			continue
+		}
+		nervaTargets = append(nervaTargets, nt)
+	}
+	if len(nervaTargets) == 0 {
+		errMsg(base.useColor, "no valid targets after parsing")
+		return nil, false
+	}
+
+	// Phase 2: Fingerprint with Nerva.
+	if !base.quiet {
+		fmt.Fprintf(os.Stderr, "%s Fingerprinting %d target(s) with Nerva...\n",
+			dim(base.useColor, SymbolInfo), len(nervaTargets))
+	}
+
+	scanConfig := scan.Config{
+		DefaultTimeout: 5 * time.Second,
+		Workers:        50,
+		Verbose:        base.verbose,
+	}
+
+	services, err := scan.ScanTargets(ctx, nervaTargets, scanConfig)
+	if err != nil {
+		errMsg(base.useColor, "fingerprinting failed: %v", err)
+		return nil, false
+	}
+
+	logVerbose(base.verbose, "Nerva discovered %d service(s) from %d target(s)", len(services), len(nervaTargets))
+
+	if len(services) == 0 {
+		warnMsg(base.useColor, "Nerva could not fingerprint any of the %d target(s)", len(nervaTargets))
+		return nil, false
+	}
+
+	// Phase 3: Scan only RDP services for logon-screen backdoors.
 	var allResults []brutus.Result
 	hasSuccess := false
 
-	// Parse and scan each target that might be RDP
-	for _, target := range targets {
-		// Default: assume it could be RDP and try scanning directly
+	for i := range services {
+		nrv := brutusinput.ServiceToNervaResult(&services[i])
+		protocol := brutusinput.MapServiceToProtocol(nrv.Protocol)
+		if protocol != "rdp" {
+			logVerbose(base.verbose, "skipping %s:%d - not RDP (detected: %s)", nrv.IP, nrv.Port, nrv.Protocol)
+			continue
+		}
+
+		target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
+		if nrv.Host != "" {
+			target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
+		}
+
 		results, success := runScanSingleTarget(target, base)
 		allResults = append(allResults, results...)
 		if success {

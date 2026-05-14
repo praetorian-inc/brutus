@@ -16,6 +16,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/praetorian-inc/brutus/internal/analyzers/claude"
@@ -53,10 +54,10 @@ func RouteHTTP(target, protocol string, timeout time.Duration, tlsMode string, l
 }
 
 // ResearchBrowserCredentials uses Claude Vision + Perplexity for browser-based credential research.
-// Returns the researched credentials and the configured browser plugin (as a brutus.Plugin).
-func ResearchBrowserCredentials(ctx context.Context, target string, cfg BrowserConfig) ([]brutus.Credential, brutus.Plugin) {
+// Returns the researched credentials, the configured browser plugin (as a brutus.Plugin), and any error.
+func ResearchBrowserCredentials(ctx context.Context, target string, cfg BrowserConfig) ([]brutus.Credential, brutus.Plugin, error) {
 	if cfg.LLMConfig == nil || !cfg.LLMConfig.Enabled {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	browserPlugin := &browser.Plugin{
@@ -86,10 +87,10 @@ func ResearchBrowserCredentials(ctx context.Context, target string, cfg BrowserC
 
 	_, credentials, err := browserPlugin.AnalyzePage(analysisCtx, target)
 	if err != nil {
-		return nil, nil
+		return nil, nil, fmt.Errorf("analyzing page %s: %w", target, err)
 	}
 
-	return credentials, browserPlugin
+	return credentials, browserPlugin, nil
 }
 
 // ResearchCredentialsWithLLM uses the configured LLM to research default credentials for a target.

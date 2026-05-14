@@ -17,17 +17,17 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
-	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
-	"github.com/praetorian-inc/brutus/internal/plugins/snmp"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/brutus/creds"
+	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
+	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
+	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
 // runFromTargetsFile iterates the host:port lines from a targets file and
@@ -58,7 +58,7 @@ func runFromTargetsFile(targets []string, base *baseConfigOptions, jsonOut bool)
 		// AI mode for HTTP services (mirrors single-target dispatch).
 		var aiCreds []brutus.Credential
 		if base.aiMode && (protocol == "http" || protocol == "https") {
-			protocol, aiCreds = routeHTTPWithAI(target, protocol, base)
+			protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 		}
 
 		if !jsonOut && !base.quiet {
@@ -103,80 +103,141 @@ func emitSecurityFindings(results []brutus.Result, useColor bool) {
 	}
 }
 
-// runFromStdin reads nerva JSON from stdin and tests each target
+// runFromStdin reads targets from stdin and tests each one. It accepts three
+// line formats: Nerva JSON ({"ip":...}), URI scheme (ssh://host:port), and
+// bare host:port. JSON and URI lines are processed immediately (streaming).
+// Bare host:port lines are collected and batch-fingerprinted with Nerva after
+// stdin is exhausted.
 func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
+	var bareTargets []string
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 
-		// Parse nerva JSON
-		var nrv brutus.NervaResult
-		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
-			warnMsg(base.useColor, "failed to parse JSON: %v", err)
+		parsed, err := brutusinput.ClassifyStdinLine(line)
+		if err != nil {
+			warnMsg(base.useColor, "skipping %q: %v", line, err)
 			continue
 		}
 
-		// Determine protocol: use override if specified, otherwise map from nerva
-		var protocol string
-		if base.protocolOverride != "" {
-			protocol = base.protocolOverride
-		} else {
-			protocol = brutus.MapServiceToProtocol(nrv.Protocol)
-			if protocol == "" {
-				// Unsupported service, skip
-				continue
+		switch parsed.Type {
+		case brutusinput.StdinLineJSON:
+			results, success := processNervaResult(&parsed.NervaResult, base, jsonOut)
+			allResults = append(allResults, results...)
+			if success {
+				hasSuccess = true
 			}
-		}
 
-		// Apply subcommand protocol filter
-		if base.protocolFilter != nil && !base.protocolFilter(protocol) {
-			continue
-		}
+		case brutusinput.StdinLineURI:
+			results, success := processURITarget(&parsed, base, jsonOut)
+			allResults = append(allResults, results...)
+			if success {
+				hasSuccess = true
+			}
 
-		// --badkeys-only: skip non-SSH targets entirely
-		if base.badkeysOnly && protocol != "ssh" {
-			continue
-		}
-
-		// Determine TLS mode for this specific target
-		targetTLSMode := detectTLS(base.tlsMode, nrv.TLS, base.verbose)
-
-		// Build target string
-		target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
-		if nrv.Host != "" {
-			target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
-		}
-
-		// AI mode: For HTTP services, detect auth type and route appropriately
-		var aiCreds []brutus.Credential
-		if base.aiMode && (protocol == "http" || protocol == "https") {
-			protocol, aiCreds = routeHTTPWithAI(target, protocol, base)
-		}
-
-		// Run against this target
-		results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
-		allResults = append(allResults, results...)
-		if success {
-			hasSuccess = true
-		}
-
-		// Output valid credentials immediately (streaming for large-scale scans)
-		if !jsonOut {
-			outputValidOnly(results, base.useColor)
-			emitSecurityFindings(results, base.useColor)
+		case brutusinput.StdinLineHostPort:
+			bareTargets = append(bareTargets, parsed.Raw)
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		errMsg(base.useColor, "reading stdin: %v", err)
 	}
 
+	// Phase 2: batch-fingerprint bare host:port targets via Nerva.
+	if len(bareTargets) > 0 {
+		fpResults, fpSuccess := runFromFingerprint(bareTargets, base, jsonOut)
+		allResults = append(allResults, fpResults...)
+		if fpSuccess {
+			hasSuccess = true
+		}
+	}
+
 	return allResults, hasSuccess
+}
+
+// processNervaResult handles a single parsed Nerva JSON result: maps protocol,
+// applies filters, determines TLS, and runs brute force. Extracted from the
+// former runFromStdin loop body for reuse by the line classifier.
+func processNervaResult(nrv *brutusinput.NervaResult, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+	// Determine protocol: use override if specified, otherwise map from nerva
+	var protocol string
+	if base.protocolOverride != "" {
+		protocol = base.protocolOverride
+	} else {
+		protocol = brutusinput.MapServiceToProtocol(nrv.Protocol)
+		if protocol == "" {
+			return nil, false
+		}
+	}
+
+	if base.protocolFilter != nil && !base.protocolFilter(protocol) {
+		return nil, false
+	}
+
+	targetTLSMode := detectTLS(base.tlsMode, nrv.TLS, base.verbose)
+
+	target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
+	if nrv.Host != "" {
+		target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
+	}
+
+	var aiCreds []brutus.Credential
+	if base.aiMode && (protocol == "http" || protocol == "https") {
+		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
+	}
+
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
+
+	if !jsonOut {
+		outputValidOnly(results, base.useColor)
+		emitSecurityFindings(results, base.useColor)
+	}
+
+	return results, success
+}
+
+// processURITarget handles a URI-scheme stdin line (e.g. ssh://host:22).
+// The protocol is already parsed from the URI scheme; no fingerprinting needed.
+func processURITarget(parsed *brutusinput.ParsedStdinLine, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+	protocol := parsed.Protocol
+	if base.protocolOverride != "" {
+		protocol = base.protocolOverride
+	}
+
+	if base.protocolFilter != nil && !base.protocolFilter(protocol) {
+		return nil, false
+	}
+
+	targetTLSMode := base.tlsMode
+	if parsed.TLS && targetTLSMode == "disable" {
+		targetTLSMode = "skip-verify"
+	}
+
+	target := parsed.HostPort
+
+	var aiCreds []brutus.Credential
+	if base.aiMode && (protocol == "http" || protocol == "https") {
+		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
+	}
+
+	if !jsonOut && !base.quiet {
+		printTargetInfo(target, protocol, base, aiCreds)
+	}
+
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
+
+	if !jsonOut {
+		outputValidOnly(results, base.useColor)
+		emitSecurityFindings(results, base.useColor)
+	}
+
+	return results, success
 }
 
 // runSingleTarget runs brutus against a single target
@@ -205,21 +266,48 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 
 	// Handle SNMP-specific tier selection (tiers are CLI-only, not in library defaults)
 	if protocol == "snmp" && len(config.Passwords) == 0 {
-		if err := configureSNMP(config, base); err != nil {
+		communityStrings, err := creds.ConfigureSNMP(base.snmpTier)
+		if err != nil {
 			errMsg(base.useColor, "%v", err)
 			return nil, false
 		}
+		config.Passwords = communityStrings
 	}
 
 	// Handle HTTP with AI-researched credentials
 	if (protocol == "http" || protocol == "https") && len(aiCreds) > 0 {
-		configureAICredentials(config, aiCreds, base.verbose)
+		config.Usernames = nil
+		config.Passwords = nil
+		config.Credentials = web.ConfigureAICredentials(aiCreds)
+		config.LLMConfig = nil
+		logVerbose(base.verbose, "Using %d AI-researched credentials for HTTP (+ admin:admin fallback)", len(aiCreds))
 	}
 
 	// Handle browser-specific configuration
 	if protocol == "browser" {
-		if err := configureBrowser(config, target, base); err != nil {
-			errMsg(base.useColor, "%v", err)
+		config.Threads = base.browserTabs
+		config.Timeout = base.browserTimeout
+		config.Usernames = nil
+		config.Passwords = nil
+		browserCreds, browserPlugin := web.ResearchBrowserCredentials(context.Background(), target, web.BrowserConfig{
+			Tabs:          base.browserTabs,
+			Timeout:       base.browserTimeout,
+			UseHTTPS:      base.useHTTPS,
+			Visible:       base.browserVisible,
+			AIVerify:      base.aiVerify,
+			AnthropicKey:  base.anthropicKey,
+			PerplexityKey: base.perplexityKey,
+			LLMConfig:     base.llmConfig,
+		})
+		if len(browserCreds) > 0 {
+			config.Credentials = append(config.Credentials, browserCreds...)
+			logVerbose(base.verbose, "AI researched %d credentials for browser", len(browserCreds))
+		}
+		if browserPlugin != nil {
+			config.Plugin = browserPlugin
+		}
+		if len(config.Credentials) == 0 && config.Plugin == nil {
+			errMsg(base.useColor, "browser mode: no credentials discovered and no browser plugin configured for %s", target)
 			return nil, false
 		}
 	}
@@ -283,28 +371,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 	return results, hasSuccess
 }
 
-// configureSNMP validates SNMP tier and sets community string passwords on the config.
-func configureSNMP(config *brutus.Config, base *baseConfigOptions) error {
-	if !snmp.ValidateTier(base.snmpTier) {
-		return fmt.Errorf("invalid --snmp-tier: %s (use: default, extended, full)", base.snmpTier)
-	}
-	config.Passwords = snmp.GetCommunityStrings(snmp.Tier(base.snmpTier))
-	return nil
-}
-
-// configureAICredentials applies AI-researched credentials to the config, replacing defaults.
-func configureAICredentials(config *brutus.Config, aiCreds []brutus.Credential, verbose bool) {
-	config.Usernames = nil
-	config.Passwords = nil
-	config.Credentials = append(config.Credentials, aiCreds...)
-	config.Credentials = append(config.Credentials, brutus.Credential{
-		Username: "admin",
-		Password: "admin",
-	})
-	logVerbose(verbose, "Using %d AI-researched credentials for HTTP (+ admin:admin fallback)", len(aiCreds))
-	config.LLMConfig = nil
-}
-
 // detectTLS checks if TLS was detected by nerva and upgrades the TLS mode.
 func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 	if baseTLSMode != "disable" {
@@ -317,124 +383,104 @@ func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 	return baseTLSMode
 }
 
-// configureBrowser sets up browser-specific configuration including AI credential research.
-func configureBrowser(config *brutus.Config, target string, base *baseConfigOptions) error {
-	config.Threads = base.browserTabs
-	config.Timeout = base.browserTimeout
-	config.Usernames = nil
-	config.Passwords = nil
-	creds, browserPlugin := researchBrowserCredentials(target, base)
-	if len(creds) > 0 {
-		config.Credentials = append(config.Credentials, creds...)
-		logVerbose(base.verbose, "AI researched %d credentials for browser", len(creds))
-	}
-	if browserPlugin != nil {
-		config.Plugin = browserPlugin
-	}
-	if len(config.Credentials) == 0 && config.Plugin == nil {
-		return fmt.Errorf("browser mode: no credentials discovered and no browser plugin configured for %s", target)
-	}
-	return nil
-}
-
 // runStickyKeysInteractive handles the --sticky-keys-exec and --sticky-keys-web modes.
 // These bypass normal brute force and instead exploit the sticky keys backdoor interactively.
 func runStickyKeysInteractive(target, protocol string, base *baseConfigOptions) ([]brutus.Result, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Determine backdoor type and username first
-	resultUsername := "(sticky-keys)"
-	backdoorType := rdp.BackdoorStickyKeys
 	if base.stickyKeysWeb {
-		backdoorType = rdp.BackdoorUtilman
-		resultUsername = "(utilman)"
-		if base.noUtilman {
-			backdoorType = rdp.BackdoorStickyKeys
-			resultUsername = "(sticky-keys)"
+		result, success := logon.RunWebTerminal(ctx, logon.WebTerminalConfig{
+			Target:      target,
+			Timeout:     base.timeout,
+			NoUtilman:   base.noUtilman,
+			OpenBrowser: base.stickyKeysOpen,
+		})
+		if !success {
+			errMsg(base.useColor, "web terminal: %v", result.Error)
 		}
-	}
-
-	result := brutus.Result{
-		Protocol: protocol,
-		Target:   target,
-		Username: resultUsername,
-	}
-
-	if base.stickyKeysWeb {
-		err := rdp.RunWebTerminal(ctx, target, base.timeout, base.stickyKeysOpen, backdoorType)
-		if err != nil && err != http.ErrServerClosed {
-			errMsg(base.useColor, "web terminal: %v", err)
-			result.Error = err
-			return []brutus.Result{result}, false
-		}
-		result.Success = true
-		result.Banner = "[INFO] Web terminal session ended"
-		return []brutus.Result{result}, true
+		return []brutus.Result{result}, success
 	}
 
 	if base.stickyKeysExec != "" {
-		var execAPIKey string
-		if base.aiMode {
-			execAPIKey = base.anthropicKey
+		result, success := logon.RunExec(ctx, logon.ExecConfig{
+			Target:       target,
+			Timeout:      base.timeout,
+			AIMode:       base.aiMode,
+			AnthropicKey: base.anthropicKey,
+		}, base.stickyKeysExec)
+		if !success {
+			errMsg(base.useColor, "sticky keys exec: %v", result.Error)
 		}
-		execResult := rdp.RunStickyKeysExec(ctx, target, base.stickyKeysExec, base.timeout, execAPIKey)
-		if execResult.Error != "" {
-			errMsg(base.useColor, "sticky keys exec: %s", execResult.Error)
-			result.Error = fmt.Errorf("%s", execResult.Error)
-			return []brutus.Result{result}, false
-		}
-		result.Success = execResult.BackdoorDetected
-		if execResult.Output != "" {
-			result.Banner = fmt.Sprintf("[INFO] Sticky keys exec: backdoor=%v, output:\n%s",
-				execResult.BackdoorDetected, execResult.Output)
-		} else {
-			result.Banner = fmt.Sprintf("[INFO] Sticky keys exec: backdoor=%v, screenshot=%s",
-				execResult.BackdoorDetected, execResult.ScreenshotPath)
-		}
-		return []brutus.Result{result}, execResult.BackdoorDetected
+		return []brutus.Result{result}, success
 	}
 
 	return nil, false
 }
 
-// runScanFromStdin reads nerva JSON from stdin and runs scan checks on RDP targets.
+// runScanFromStdin reads targets from stdin and runs scan checks (logon-screen
+// backdoor detection) on RDP targets. Accepts the same three line formats as
+// runFromStdin: Nerva JSON, URI scheme, and bare host:port.
 func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
+	var bareTargets []string
 
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 
-		var nrv brutus.NervaResult
-		if err := json.Unmarshal([]byte(line), &nrv); err != nil {
-			warnMsg(base.useColor, "failed to parse JSON: %v", err)
+		parsed, err := brutusinput.ClassifyStdinLine(line)
+		if err != nil {
+			warnMsg(base.useColor, "skipping %q: %v", line, err)
 			continue
 		}
 
-		// Filter to RDP targets only
-		protocol := brutus.MapServiceToProtocol(nrv.Protocol)
-		if protocol != "rdp" && base.protocolOverride != "rdp" {
-			continue
-		}
+		switch parsed.Type {
+		case brutusinput.StdinLineJSON:
+			protocol := brutusinput.MapServiceToProtocol(parsed.NervaResult.Protocol)
+			if protocol != "rdp" && base.protocolOverride != "rdp" {
+				continue
+			}
+			target := fmt.Sprintf("%s:%d", parsed.NervaResult.IP, parsed.NervaResult.Port)
+			if parsed.NervaResult.Host != "" {
+				target = fmt.Sprintf("%s:%d", parsed.NervaResult.Host, parsed.NervaResult.Port)
+			}
+			results, success := runScanSingleTarget(target, base)
+			allResults = append(allResults, results...)
+			if success {
+				hasSuccess = true
+			}
 
-		target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
-		if nrv.Host != "" {
-			target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
-		}
-		results, success := runScanSingleTarget(target, base)
-		allResults = append(allResults, results...)
-		if success {
-			hasSuccess = true
+		case brutusinput.StdinLineURI:
+			if parsed.Protocol != "rdp" && base.protocolOverride != "rdp" {
+				continue
+			}
+			results, success := runScanSingleTarget(parsed.HostPort, base)
+			allResults = append(allResults, results...)
+			if success {
+				hasSuccess = true
+			}
+
+		case brutusinput.StdinLineHostPort:
+			bareTargets = append(bareTargets, parsed.Raw)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		errMsg(base.useColor, "reading stdin: %v", err)
+	}
+
+	// Batch-fingerprint bare targets, then scan any discovered RDP services.
+	if len(bareTargets) > 0 {
+		fpResults, fpSuccess := runLogonFingerprint(bareTargets, base)
+		allResults = append(allResults, fpResults...)
+		if fpSuccess {
+			hasSuccess = true
+		}
 	}
 
 	return allResults, hasSuccess
@@ -445,23 +491,5 @@ func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Resul
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Vision API requires --experimental-ai; disable it otherwise
-	if !base.aiMode {
-		ctx = brutus.ContextWithNoVision(ctx)
-	}
-
-	stickyResult := rdp.DetectStickyKeys(ctx, target, base.timeout, "(sticky-keys)")
-	results := []brutus.Result{*stickyResult}
-	hasSuccess := stickyResult.Success
-
-	// Also run utilman detection unless disabled
-	if !base.noUtilman {
-		utilmanResult := rdp.DetectUtilman(ctx, target, base.timeout, "(utilman)")
-		results = append(results, *utilmanResult)
-		if utilmanResult.Success {
-			hasSuccess = true
-		}
-	}
-
-	return results, hasSuccess
+	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode, base.noUtilman)
 }

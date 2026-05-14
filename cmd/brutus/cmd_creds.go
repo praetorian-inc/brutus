@@ -16,6 +16,8 @@ package main
 
 import (
 	"github.com/spf13/cobra"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus/creds"
 )
 
 var credsCmd = &cobra.Command{
@@ -34,17 +36,20 @@ In pipeline/fingerprint mode, HTTP-like services are automatically skipped.`,
 	Example: `  # Single target
   brutus creds --target 192.168.1.10:22 --protocol ssh -p "password,Password1"
 
-  # Fingerprint targets and test default credentials
-  brutus creds --fingerprint targets.txt -u admin -P passwords.txt
+  # Targets file (auto-fingerprinted with Nerva)
+  brutus creds --targets-file targets.txt -u admin -P passwords.txt
 
-  # Pipeline mode (HTTP services are skipped)
+  # Pipeline mode with Nerva JSON (HTTP services are skipped)
   naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
 
-  # SNMP community string testing
-  brutus creds --target 192.168.1.1:161 --protocol snmp --snmp-tier full
+  # Pipe plain targets (auto-fingerprinted with Nerva)
+  cat targets.txt | brutus creds
 
-  # SSH with bad keys only
-  brutus creds --target 192.168.1.10:22 --protocol ssh --badkeys-only`,
+  # Pipe URI targets (protocol from scheme, no fingerprinting needed)
+  echo "ssh://192.168.1.10:22" | brutus creds -p "password,Password1"
+
+  # SNMP community string testing
+  brutus creds --target 192.168.1.1:161 --protocol snmp --snmp-tier full`,
 	RunE: runCreds,
 }
 
@@ -58,16 +63,19 @@ func runCreds(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Creds mode never uses AI browser automation or sticky keys
+	// Creds mode never uses AI browser automation, sticky keys, or badkeys
+	// (badkeys has its own subcommand now)
 	baseConfig.aiMode = false
 	baseConfig.stickyKeys = false
+	baseConfig.useBadkeys = false
+	baseConfig.badkeysOnly = false
 
 	// In pipeline/fingerprint mode, skip HTTP-like protocols.
 	// If --protocol is explicitly set to http, we still allow it (basic auth only)
 	// but don't install a filter since the user explicitly chose the protocol.
 	protocolExplicit := isFlagChanged(cmd, "protocol")
 	if !protocolExplicit {
-		baseConfig.protocolFilter = isCredsProtocol
+		baseConfig.protocolFilter = creds.IsCredsProtocol
 	}
 
 	return runSubcommand(cmd, baseConfig)

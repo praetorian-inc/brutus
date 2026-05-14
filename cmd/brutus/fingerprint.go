@@ -20,11 +20,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	nervaplugins "github.com/praetorian-inc/nerva/pkg/plugins"
 	"github.com/praetorian-inc/nerva/pkg/scan"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
+	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
 // runFromFingerprint fingerprints the given host:port targets using Nerva's
@@ -41,7 +44,7 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 	// Phase 1: Parse host:port strings into Nerva targets.
 	var nervaTargets []nervaplugins.Target
 	for _, t := range targets {
-		nt, err := brutus.ParseNervaTarget(ctx, t)
+		nt, err := brutusinput.ParseNervaTarget(ctx, t)
 		if err != nil {
 			warnMsg(base.useColor, "skipping %q: %v", t, err)
 			continue
@@ -60,8 +63,8 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 	}
 
 	scanConfig := scan.Config{
-		DefaultTimeout: base.fingerprintTimeout,
-		Workers:        base.fingerprintWorkers,
+		DefaultTimeout: 5 * time.Second,
+		Workers:        50,
 		Verbose:        base.verbose,
 	}
 
@@ -84,14 +87,14 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 	hasSuccess := false
 
 	for i := range services {
-		nrv := brutus.ServiceToNervaResult(&services[i])
+		nrv := brutusinput.ServiceToNervaResult(&services[i])
 
 		// Determine protocol: use override if specified, otherwise map from Nerva.
 		var protocol string
 		if base.protocolOverride != "" {
 			protocol = base.protocolOverride
 		} else {
-			protocol = brutus.MapServiceToProtocol(nrv.Protocol)
+			protocol = brutusinput.MapServiceToProtocol(nrv.Protocol)
 			if protocol == "" {
 				logVerbose(base.verbose, "skipping %s:%d - unsupported service %q", nrv.IP, nrv.Port, nrv.Protocol)
 				continue
@@ -101,11 +104,6 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 		// Apply subcommand protocol filter
 		if base.protocolFilter != nil && !base.protocolFilter(protocol) {
 			logVerbose(base.verbose, "skipping %s:%d - protocol %q filtered by subcommand", nrv.IP, nrv.Port, protocol)
-			continue
-		}
-
-		// --badkeys-only: skip non-SSH targets entirely.
-		if base.badkeysOnly && protocol != "ssh" {
 			continue
 		}
 
@@ -121,7 +119,7 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 		// AI mode for HTTP services.
 		var aiCreds []brutus.Credential
 		if base.aiMode && (protocol == "http" || protocol == "https") {
-			protocol, aiCreds = routeHTTPWithAI(target, protocol, base)
+			protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 		}
 
 		if !jsonOut && !base.quiet {

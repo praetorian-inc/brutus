@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
+	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 )
 
 // TestNervaIntegration tests the full pipeline: nerva -> brutus
@@ -73,7 +73,7 @@ func TestNervaIntegration(t *testing.T) {
 	t.Logf("nerva output: %s", string(nrvOutput))
 
 	// Verify nerva detected the HTTP service
-	var nrvResult brutus.NervaResult
+	var nrvResult brutusinput.NervaResult
 	if err := json.Unmarshal(bytes.TrimSpace(nrvOutput), &nrvResult); err != nil {
 		t.Fatalf("Failed to parse nerva JSON: %v (output: %s)", err, string(nrvOutput))
 	}
@@ -89,8 +89,8 @@ func TestNervaIntegration(t *testing.T) {
 	}
 	defer os.Remove("brutus_test")
 
-	// Run brutus with nerva output via stdin
-	brutusCmd := exec.Command("./brutus_test", "--nerva", "-p", "admin", "--json")
+	// Run brutus with nerva output via stdin (auto-detected)
+	brutusCmd := exec.Command("./brutus_test", "creds", "-p", "admin", "--json")
 	brutusCmd.Stdin = bytes.NewReader(nrvOutput)
 	brutusOutput, err := brutusCmd.CombinedOutput()
 
@@ -160,7 +160,7 @@ func TestNervaJSONParsing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var nrv brutus.NervaResult
+			var nrv brutusinput.NervaResult
 			err := json.Unmarshal([]byte(tt.json), &nrv)
 			require.NoError(t, err)
 
@@ -169,7 +169,7 @@ func TestNervaJSONParsing(t *testing.T) {
 			assert.Equal(t, tt.wantPort, nrv.Port)
 
 			// Verify protocol mapping works
-			protocol := brutus.MapServiceToProtocol(nrv.Protocol)
+			protocol := brutusinput.MapServiceToProtocol(nrv.Protocol)
 			assert.NotEmpty(t, protocol, "protocol should map to a brutus protocol")
 		})
 	}
@@ -216,13 +216,13 @@ func TestServiceToProtocolMapping(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.service, func(t *testing.T) {
-			got := brutus.MapServiceToProtocol(tt.service)
+			got := brutusinput.MapServiceToProtocol(tt.service)
 			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
 
-// TestStdinMode tests the --nerva flag with simulated nerva output
+// TestStdinMode tests stdin auto-detection with simulated nerva output
 func TestStdinMode(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
@@ -257,8 +257,8 @@ func TestStdinMode(t *testing.T) {
 	}
 	defer os.Remove("brutus_test")
 
-	// Run brutus with stdin and valid credentials
-	brutusCmd := exec.Command("./brutus_test", "--nerva", "-u", "testuser", "-p", "testpass", "--json")
+	// Run brutus with stdin and valid credentials (auto-detected)
+	brutusCmd := exec.Command("./brutus_test", "creds", "-u", "testuser", "-p", "testpass", "--json")
 	brutusCmd.Stdin = strings.NewReader(nrvJSON)
 	output, err := brutusCmd.CombinedOutput()
 

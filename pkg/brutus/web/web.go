@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+// Package web provides HTTP/web-panel domain logic for the "brutus web"
+// subcommand: protocol filtering, HTTP auth routing, and browser/AI credential
+// research.
+package web
 
 // httpProtocols lists protocols handled by the "web" subcommand.
 var httpProtocols = map[string]bool{
@@ -21,12 +24,7 @@ var httpProtocols = map[string]bool{
 	"browser": true,
 }
 
-// isHTTPLikeProtocol returns true for http, https, and browser protocols.
-func isHTTPLikeProtocol(protocol string) bool {
+// IsWebProtocol returns true for http, https, and browser protocols.
+func IsWebProtocol(protocol string) bool {
 	return httpProtocols[protocol]
-}
-
-// isCredsProtocol returns true for non-HTTP protocols handled by the "creds" subcommand.
-func isCredsProtocol(protocol string) bool {
-	return !httpProtocols[protocol]
 }

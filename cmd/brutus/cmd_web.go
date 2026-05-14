@@ -18,6 +18,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
 var webCmd = &cobra.Command{
@@ -43,8 +45,11 @@ In pipeline/fingerprint mode, only HTTP-like services are tested.`,
   # AI-powered credential detection for web panels
   brutus web --target 192.168.1.1:80 --experimental-ai
 
-  # Pipeline mode (only HTTP services are tested)
+  # Pipeline mode with Nerva JSON (only HTTP services are tested)
   naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai
+
+  # Pipe URI targets
+  echo "https://192.168.1.1:443" | brutus web --experimental-ai
 
   # Browser form-based login with visible browser
   brutus web --target 192.168.1.1:8080 --experimental-ai --browser-visible`,
@@ -81,7 +86,7 @@ func runWeb(cmd *cobra.Command, args []string) error {
 	baseConfig.stickyKeys = false
 
 	// In pipeline/fingerprint mode, only process HTTP-like protocols
-	baseConfig.protocolFilter = isHTTPLikeProtocol
+	baseConfig.protocolFilter = web.IsWebProtocol
 
 	// For single-target mode, infer protocol if not explicitly set
 	if flagTarget != "" && !isFlagChanged(cmd, "protocol") {

@@ -17,7 +17,7 @@ package main
 import (
 	"strings"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
+	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 )
 
 func loadPasswords(inline, file string, inlineFlagSet bool) ([]string, error) {
@@ -30,7 +30,7 @@ func loadPasswords(inline, file string, inlineFlagSet bool) ([]string, error) {
 
 	// Load from file
 	if file != "" {
-		filePasswords, err := brutus.LoadPasswordsFromFile(file)
+		filePasswords, err := brutusinput.LoadPasswordsFromFile(file)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +50,7 @@ func loadUsernames(inline, file string, inlineFlagSet bool) ([]string, error) {
 
 	// Load from file
 	if file != "" {
-		fileUsernames, err := brutus.LoadUsernamesFromFile(file)
+		fileUsernames, err := brutusinput.LoadUsernamesFromFile(file)
 		if err != nil {
 			return nil, err
 		}
@@ -61,5 +61,5 @@ func loadUsernames(inline, file string, inlineFlagSet bool) ([]string, error) {
 }
 
 func loadKey(keyFile string) ([][]byte, error) {
-	return brutus.LoadKeyFile(keyFile)
+	return brutusinput.LoadKeyFile(keyFile)
 }

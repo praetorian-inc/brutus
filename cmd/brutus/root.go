@@ -21,7 +21,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
+	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
+
+// errNoSubcommand is returned when the root command is invoked without a subcommand.
+var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, badkeys, logon)")
+
 
 var rootCmd = &cobra.Command{
 	Use:   "brutus",
@@ -32,154 +38,48 @@ Modern credential auditing tool for network services, web panels, and Windows lo
 Subcommands:
   creds    Test default credentials on non-HTTP services (SSH, databases, SMB, etc.)
   web      Audit HTTP/web panel credentials (Basic Auth, form login, AI-powered)
+  badkeys  Test known weak/compromised SSH keys against targets
   logon    Detect Windows logon-screen backdoors (sticky keys, utilman)
 
-Legacy usage (backward compatible):
-  brutus --target <host:port> --protocol <proto> [options]
-  brutus --fingerprint <targets.txt> [options]
-  naabu ... | nerva --json | brutus [options]`,
+All subcommands accept targets via stdin (one per line, formats can be mixed):
+  Nerva JSON:  {"ip":"10.0.0.1","port":22,"protocol":"ssh"}
+  URI scheme:  ssh://192.168.1.1:22, rdp://10.0.0.50:3389
+  Bare target: 192.168.1.1:22 (auto-fingerprinted with Nerva)`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	RunE:          runLegacy,
+	RunE:          runRoot,
 }
 
 func init() {
 	registerSharedFlags(rootCmd)
-	registerLegacyFlags(rootCmd)
+	registerRootFlags(rootCmd)
 
 	rootCmd.AddCommand(credsCmd)
 	rootCmd.AddCommand(webCmd)
+	rootCmd.AddCommand(badkeysCmd)
 	rootCmd.AddCommand(logonCmd)
 }
 
-// runLegacy handles the flat CLI for backward compatibility:
-//
-//	brutus --target host:22 --protocol ssh -u root -p password
-//	brutus --fingerprint targets.txt -u admin -P passwords.txt
-//	nerva --json | brutus --json
-func runLegacy(cmd *cobra.Command, args []string) error {
-	// Show version and exit
+// runRoot handles the root command (no subcommand). It only supports --version;
+// everything else requires a subcommand.
+func runRoot(cmd *cobra.Command, args []string) error {
 	if flagVersion {
 		useColor := isColorEnabled(flagNoColor)
 		printVersion(useColor)
 		return nil
 	}
 
-	baseConfig, err := buildConfigFromFlags(cmd)
-	if err != nil {
-		return err
-	}
-
-	useStdin := detectStdinMode(flagNerva, flagTarget, flagFingerprint)
-
-	// Show banner
-	if shouldShowBanner(flagBanner, flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
-		printBanner(baseConfig.useColor)
-	}
-
-	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
-	if err != nil {
-		return err
-	}
-	defer closeOutput()
-	if forceJSON {
-		flagJSON = true
-	}
-
-	var allResults []brutus.Result
-	var hasSuccess bool
-
-	// Scan/detection mode: --sticky-keys bypasses normal brute force
-	stickyKeysDetect := baseConfig.stickyKeys && baseConfig.stickyKeysExec == "" && !baseConfig.stickyKeysWeb
-	if stickyKeysDetect {
-		var scanResults []brutus.Result
-		if useStdin {
-			scanResults, hasSuccess = runScanFromStdin(baseConfig)
-		} else {
-			if flagTarget == "" {
-				return fmt.Errorf("--target is required for scan modes (or pipe nerva JSON to stdin)")
-			}
-			scanResults, hasSuccess = runScanSingleTarget(flagTarget, baseConfig)
-		}
-		if flagJSON {
-			outputScanJSONL(jsonWriter, scanResults)
-		} else {
-			outputScanHuman(scanResults, baseConfig.useColor)
-		}
-		if !hasSuccess {
-			return errNoSuccess
-		}
-		return nil
-	}
-
-	switch {
-	case useStdin:
-		if flagTargetsFile != "" {
-			return fmt.Errorf("--targets-file is mutually exclusive with --nerva / piped stdin")
-		}
-		if flagFingerprint != "" {
-			return fmt.Errorf("--fingerprint is mutually exclusive with --nerva / piped stdin")
-		}
-		allResults, hasSuccess = runFromStdin(baseConfig, flagJSON)
-
-	case flagFingerprint != "":
-		if flagTarget != "" {
-			return fmt.Errorf("--fingerprint is mutually exclusive with --target")
-		}
-		if flagTargetsFile != "" {
-			return fmt.Errorf("--fingerprint is mutually exclusive with --targets-file")
-		}
-		targetsList, err := brutus.LoadTargetsFromFile(flagFingerprint)
-		if err != nil {
-			return err
-		}
-		if len(targetsList) == 0 {
-			return fmt.Errorf("fingerprint file %q has no targets after stripping comments and blank lines", flagFingerprint)
-		}
-		allResults, hasSuccess = runFromFingerprint(targetsList, baseConfig, flagJSON)
-
-	case flagTargetsFile != "":
-		if flagTarget != "" {
-			return fmt.Errorf("--targets-file is mutually exclusive with --target")
-		}
-		if flagProtocol == "" {
-			return fmt.Errorf("--targets-file requires --protocol (no nerva fingerprinting in this mode)")
-		}
-		targetsList, err := brutus.LoadTargetsFromFile(flagTargetsFile)
-		if err != nil {
-			return err
-		}
-		if len(targetsList) == 0 {
-			return fmt.Errorf("targets file %q has no targets after stripping comments and blank lines", flagTargetsFile)
-		}
-		allResults, hasSuccess = runFromTargetsFile(targetsList, baseConfig, flagJSON)
-
-	default:
-		if err := validateTargetFlags(flagTarget, flagProtocol); err != nil {
-			return err
-		}
-		allResults, hasSuccess = runSingleTargetMode(flagTarget, flagProtocol, baseConfig, flagJSON, jsonWriter)
-	}
-
-	// Final JSON output for multi-target modes
-	if flagJSON && (useStdin || flagTargetsFile != "" || flagFingerprint != "") {
-		outputJSONL(jsonWriter, allResults)
-	}
-
-	if !hasSuccess {
-		return errNoSuccess
-	}
-	return nil
+	return errNoSubcommand
 }
 
 // runSubcommand is the shared execution path for creds, web, and logon subcommands.
 // It handles mode dispatch (single target, targets-file, fingerprint, stdin) with
 // the protocol filtering and overrides already applied to baseConfig by the caller.
 func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
-	useStdin := detectStdinMode(flagNerva, flagTarget, flagFingerprint)
+	useStdin := detectStdinMode(flagTarget, flagTargetsFile)
 
 	// Show banner
-	if shouldShowBanner(flagBanner, flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
+	if shouldShowBanner(flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
 		printBanner(baseConfig.useColor)
 	}
 
@@ -200,48 +100,31 @@ func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 	switch {
 	case useStdin:
 		if flagTargetsFile != "" {
-			return fmt.Errorf("--targets-file is mutually exclusive with --nerva / piped stdin")
-		}
-		if flagFingerprint != "" {
-			return fmt.Errorf("--fingerprint is mutually exclusive with --nerva / piped stdin")
+			return fmt.Errorf("--targets-file is mutually exclusive with piped stdin")
 		}
 		allResults, hasSuccess = runFromStdin(baseConfig, flagJSON)
-
-	case flagFingerprint != "":
-		if flagTarget != "" {
-			return fmt.Errorf("--fingerprint is mutually exclusive with --target")
-		}
-		if flagTargetsFile != "" {
-			return fmt.Errorf("--fingerprint is mutually exclusive with --targets-file")
-		}
-		targetsList, err := brutus.LoadTargetsFromFile(flagFingerprint)
-		if err != nil {
-			return err
-		}
-		if len(targetsList) == 0 {
-			return fmt.Errorf("fingerprint file %q has no targets after stripping comments and blank lines", flagFingerprint)
-		}
-		allResults, hasSuccess = runFromFingerprint(targetsList, baseConfig, flagJSON)
 
 	case flagTargetsFile != "":
 		if flagTarget != "" {
 			return fmt.Errorf("--targets-file is mutually exclusive with --target")
 		}
-		if protocol == "" {
-			return fmt.Errorf("--targets-file requires --protocol")
-		}
-		targetsList, err := brutus.LoadTargetsFromFile(flagTargetsFile)
+		targetsList, err := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 		if err != nil {
 			return err
 		}
 		if len(targetsList) == 0 {
 			return fmt.Errorf("targets file %q has no targets after stripping comments and blank lines", flagTargetsFile)
 		}
-		allResults, hasSuccess = runFromTargetsFile(targetsList, baseConfig, flagJSON)
+		// If --protocol is set, use targets directly; otherwise fingerprint with Nerva
+		if baseConfig.protocolOverride != "" {
+			allResults, hasSuccess = runFromTargetsFile(targetsList, baseConfig, flagJSON)
+		} else {
+			allResults, hasSuccess = runFromFingerprint(targetsList, baseConfig, flagJSON)
+		}
 
 	default:
 		if flagTarget == "" {
-			return fmt.Errorf("--target is required (or pipe nerva JSON to stdin, or use --fingerprint)")
+			return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 		}
 		if protocol == "" {
 			return fmt.Errorf("--protocol is required when using --target\nExample: brutus %s --target %s --protocol ssh", cmd.Name(), flagTarget)
@@ -250,7 +133,7 @@ func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 	}
 
 	// Final JSON output for multi-target modes
-	if flagJSON && (useStdin || flagTargetsFile != "" || flagFingerprint != "") {
+	if flagJSON && (useStdin || flagTargetsFile != "") {
 		outputJSONL(jsonWriter, allResults)
 	}
 
@@ -265,7 +148,7 @@ func runSingleTargetMode(target, protocol string, baseConfig *baseConfigOptions,
 	// AI mode for single target with HTTP protocol
 	var aiCreds []brutus.Credential
 	if baseConfig.aiMode && (protocol == "http" || protocol == "https") {
-		protocol, aiCreds = routeHTTPWithAI(target, protocol, baseConfig)
+		protocol, aiCreds = web.RouteHTTP(target, protocol, baseConfig.timeout, baseConfig.tlsMode, baseConfig.llmConfig)
 	}
 
 	// Print target info

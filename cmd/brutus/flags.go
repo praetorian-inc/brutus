@@ -33,8 +33,6 @@ import (
 var (
 	flagTarget      string
 	flagTargetsFile string
-	flagFingerprint string
-	flagNerva       bool
 	flagProtocol    string
 )
 
@@ -63,7 +61,6 @@ var (
 var (
 	flagJSON       bool
 	flagOutputFile string
-	flagBanner     bool
 	flagNoColor    bool
 	flagQuiet      bool
 	flagVerbose    bool
@@ -71,12 +68,6 @@ var (
 
 // TLS flags
 var flagVerifyTLS bool
-
-// SSH/badkeys flags
-var (
-	flagNoBadkeys   bool
-	flagBadkeysOnly bool
-)
 
 // SNMP flags
 var flagSNMPTier string
@@ -93,17 +84,10 @@ var (
 
 // Sticky keys flags
 var (
-	flagStickyKeys     bool
 	flagStickyKeysExec string
 	flagStickyKeysWeb  bool
 	flagStickyKeysOpen bool
 	flagNoUtilman      bool
-)
-
-// Fingerprint flags
-var (
-	flagFingerprintTimeout time.Duration
-	flagFingerprintWorkers int
 )
 
 // Version flag
@@ -119,56 +103,49 @@ func registerSharedFlags(cmd *cobra.Command) {
 
 	// Target
 	pf.StringVar(&flagTarget, "target", "", "Target host:port")
-	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (requires --protocol)")
-	pf.StringVar(&flagFingerprint, "fingerprint", "", "File of host:port targets to fingerprint with Nerva before credential testing")
-	pf.BoolVar(&flagNerva, "nerva", false, "Read targets from nerva JSON on stdin")
+	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
 
-	// Credentials — short flags match the original CLI (-u, -U, -p, -P, -k)
-	pf.StringVarP(&flagUsernames, "usernames", "u", "root,admin", "Comma-separated usernames")
-	pf.StringVarP(&flagUsernameFile, "username-file", "U", "", "Username file (one per line)")
-	pf.StringVarP(&flagPasswords, "passwords", "p", "", "Comma-separated passwords")
-	pf.StringVarP(&flagPasswordFile, "password-file", "P", "", "Password file (one per line)")
-	pf.StringVarP(&flagKeyFile, "key", "k", "", "SSH private key file")
 
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
-	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-credential timeout")
-	pf.BoolVar(&flagStopOnSuccess, "stop-on-success", true, "Stop after first valid credential")
+	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
 	pf.Float64Var(&flagRateLimit, "rate-limit", 0, "Max requests per second (0 = unlimited)")
 	pf.DurationVar(&flagJitter, "jitter", 0, "Random delay variance for rate limiting")
-	pf.IntVar(&flagMaxAttempts, "max-attempts", 0, "Max password attempts per user (0 = unlimited)")
-	pf.BoolVar(&flagSpray, "spray", false, "Password spraying: try each password across all users")
-	pf.IntVar(&flagRetries, "retries", 2, "Max retries per credential on connection error (0 = disabled)")
+	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
 
 	// Output
 	pf.BoolVar(&flagJSON, "json", false, "JSON output format")
 	pf.StringVarP(&flagOutputFile, "output", "o", "", "Output file for JSON results (implies --json)")
-	pf.BoolVar(&flagBanner, "banner", true, "Show ASCII banner")
 	pf.BoolVar(&flagNoColor, "no-color", false, "Disable colored output")
 	pf.BoolVarP(&flagQuiet, "quiet", "q", false, "Quiet mode - only show successful credentials")
 	pf.BoolVarP(&flagVerbose, "verbose", "v", false, "Verbose mode - show detailed progress to stderr")
+}
 
-	// TLS
-	pf.BoolVar(&flagVerifyTLS, "verify-tls", false, "Require strict TLS certificate verification")
-
-	// Fingerprint
-	pf.DurationVar(&flagFingerprintTimeout, "fingerprint-timeout", 5*time.Second, "Per-probe timeout for Nerva fingerprinting")
-	pf.IntVar(&flagFingerprintWorkers, "fingerprint-workers", 50, "Concurrent workers for Nerva fingerprinting")
-
-	// Version
-	pf.BoolVar(&flagVersion, "version", false, "Show version information")
+// registerCredentialFlags registers credential and brute-force strategy flags
+// shared by the creds and web subcommands.
+func registerCredentialFlags(cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.StringVarP(&flagUsernames, "usernames", "u", "root,admin", "Comma-separated usernames")
+	f.StringVarP(&flagUsernameFile, "username-file", "U", "", "Username file (one per line)")
+	f.StringVarP(&flagPasswords, "passwords", "p", "", "Comma-separated passwords")
+	f.StringVarP(&flagPasswordFile, "password-file", "P", "", "Password file (one per line)")
+	f.BoolVar(&flagStopOnSuccess, "stop-on-success", true, "Stop after first valid credential")
+	f.BoolVar(&flagSpray, "spray", false, "Password spraying: try each password across all users")
+	f.IntVar(&flagMaxAttempts, "max-attempts", 0, "Max password attempts per user (0 = unlimited)")
+	f.BoolVar(&flagVerifyTLS, "verify-tls", false, "Require strict TLS certificate verification")
 }
 
 // registerCredsFlags registers flags specific to the creds subcommand.
 func registerCredsFlags(cmd *cobra.Command) {
+	registerCredentialFlags(cmd)
+	cmd.Flags().StringVarP(&flagKeyFile, "key", "k", "", "SSH private key file")
 	cmd.Flags().StringVar(&flagProtocol, "protocol", "", "Protocol to use (auto-detected from nerva)")
 	cmd.Flags().StringVar(&flagSNMPTier, "snmp-tier", "default", "SNMP community string tier: default (20), extended (50), full (120)")
-	cmd.Flags().BoolVar(&flagNoBadkeys, "no-badkeys", false, "Disable embedded bad key testing")
-	cmd.Flags().BoolVar(&flagBadkeysOnly, "badkeys-only", false, "Only test embedded bad SSH keys (skip password wordlists)")
 }
 
 // registerWebFlags registers flags specific to the web subcommand.
 func registerWebFlags(cmd *cobra.Command) {
+	registerCredentialFlags(cmd)
 	cmd.Flags().StringVar(&flagProtocol, "protocol", "", "Protocol override (http or https)")
 	cmd.Flags().DurationVar(&flagBrowserTimeout, "browser-timeout", 60*time.Second, "Total timeout for browser operations")
 	cmd.Flags().IntVar(&flagBrowserTabs, "browser-tabs", 3, "Number of concurrent browser tabs")
@@ -187,31 +164,9 @@ func registerLogonFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&flagAIMode, "experimental-ai", false, "Enable Vision API for backdoor confirmation")
 }
 
-// registerLegacyFlags registers all subcommand-specific flags on the root command
-// so that the flat CLI (brutus --target ... --protocol ...) continues to work.
-func registerLegacyFlags(cmd *cobra.Command) {
-	f := cmd.Flags()
-
-	// From creds
-	f.StringVar(&flagProtocol, "protocol", "", "Protocol to use (auto-detected from nerva)")
-	f.StringVar(&flagSNMPTier, "snmp-tier", "default", "SNMP community string tier: default (20), extended (50), full (120)")
-	f.BoolVar(&flagNoBadkeys, "no-badkeys", false, "Disable embedded bad key testing")
-	f.BoolVar(&flagBadkeysOnly, "badkeys-only", false, "Only test embedded bad SSH keys")
-
-	// From web
-	f.DurationVar(&flagBrowserTimeout, "browser-timeout", 60*time.Second, "Total timeout for browser operations")
-	f.IntVar(&flagBrowserTabs, "browser-tabs", 3, "Number of concurrent browser tabs")
-	f.BoolVar(&flagBrowserVisible, "browser-visible", false, "Show browser window")
-	f.BoolVar(&flagHTTPS, "https", false, "Use HTTPS for browser connections")
-	f.BoolVar(&flagAIMode, "experimental-ai", false, "Enable AI-powered credential detection")
-	f.BoolVar(&flagAIVerify, "experimental-ai-verify", false, "Use Claude Vision to verify login success")
-
-	// From logon
-	f.BoolVar(&flagStickyKeys, "sticky-keys", false, "Sticky keys backdoor detection mode for RDP")
-	f.StringVar(&flagStickyKeysExec, "sticky-keys-exec", "", "Execute command via sticky keys backdoor")
-	f.BoolVar(&flagStickyKeysWeb, "sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor")
-	f.BoolVar(&flagStickyKeysOpen, "sticky-keys-open", false, "Auto-open browser for sticky keys web terminal")
-	f.BoolVar(&flagNoUtilman, "no-utilman", false, "Disable utilman.exe backdoor detection")
+// registerRootFlags registers flags specific to the root command.
+func registerRootFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&flagVersion, "version", false, "Show version information")
 }
 
 // ---------------------------------------------------------------------------
@@ -223,9 +178,7 @@ func registerLegacyFlags(cmd *cobra.Command) {
 func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 	// Detect whether credential flags were explicitly set
 	passwordFlagSet := isFlagChanged(cmd, "passwords")
-	passwordFileFlagSet := isFlagChanged(cmd, "password-file")
 	usernameFlagSet := isFlagChanged(cmd, "usernames")
-	usernameFileFlagSet := isFlagChanged(cmd, "username-file")
 
 	useColor := isColorEnabled(flagNoColor)
 
@@ -245,18 +198,6 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 	// Validate key file flags
 	if validateErr := validateKeyFileFlags(flagKeyFile, usernameFlagSet, flagUsernameFile); validateErr != nil {
 		return nil, validateErr
-	}
-
-	// Validate fingerprint + credential combinations
-	if flagFingerprint != "" {
-		hasExplicitUsers := usernameFlagSet || usernameFileFlagSet
-		hasExplicitPasswords := passwordFlagSet || passwordFileFlagSet
-		if hasExplicitPasswords && !hasExplicitUsers {
-			return nil, fmt.Errorf("--fingerprint with -p/-P also requires -u or -U to specify usernames\nExample: brutus --fingerprint targets.txt -u admin -P passwords.txt")
-		}
-		if hasExplicitUsers && !hasExplicitPasswords {
-			return nil, fmt.Errorf("--fingerprint with -u/-U also requires -p or -P to specify passwords\nExample: brutus --fingerprint targets.txt -u admin -P passwords.txt")
-		}
 	}
 
 	// Load credentials
@@ -294,8 +235,6 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 		useColor:           useColor,
 		quiet:              flagQuiet,
 		verbose:            flagVerbose,
-		useBadkeys:         !flagNoBadkeys,
-		badkeysOnly:        flagBadkeysOnly,
 		protocolOverride:   flagProtocol,
 		aiMode:             flagAIMode,
 		tlsMode:            determineTLSMode(flagVerifyTLS),
@@ -306,14 +245,11 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 		maxRetries:         flagRetries,
 		anthropicKey:       anthropicKey,
 		perplexityKey:      perplexityKey,
-		stickyKeys:         flagStickyKeys,
 		stickyKeysExec:     flagStickyKeysExec,
 		stickyKeysWeb:      flagStickyKeysWeb,
 		stickyKeysOpen:     flagStickyKeysOpen,
 		aiVerify:           flagAIVerify,
 		noUtilman:          flagNoUtilman,
-		fingerprintTimeout: flagFingerprintTimeout,
-		fingerprintWorkers: flagFingerprintWorkers,
 	}, nil
 }
 
@@ -359,16 +295,18 @@ func setupOutputWriter(outputFile string) (w io.Writer, forceJSON bool, cleanup 
 }
 
 // shouldShowBanner determines whether to display the ASCII art banner.
-func shouldShowBanner(showBanner, jsonOutput, stdinMode, quiet, useColor bool) bool {
-	return showBanner && !jsonOutput && !stdinMode && !quiet && useColor
+func shouldShowBanner(jsonOutput, stdinMode, quiet, useColor bool) bool {
+	return !jsonOutput && !stdinMode && !quiet && useColor
 }
 
 // detectStdinMode returns true if stdin mode should be used.
-func detectStdinMode(stdinFlag bool, target, fingerprintFile string) bool {
-	if fingerprintFile != "" {
-		return stdinFlag
+// Stdin is auto-detected when no --target or --targets-file is provided
+// and data is being piped in.
+func detectStdinMode(target, targetsFile string) bool {
+	if targetsFile != "" || target != "" {
+		return false
 	}
-	return stdinFlag || (target == "" && hasStdinData())
+	return hasStdinData()
 }
 
 // isColorEnabled returns true if colored output should be used.
@@ -380,17 +318,6 @@ func isColorEnabled(noColor bool) bool {
 func validateKeyFileFlags(keyFile string, usernameFlagSet bool, usernameFile string) error {
 	if keyFile != "" && !usernameFlagSet && usernameFile == "" {
 		return fmt.Errorf("-k requires -u or -U to specify which username(s) to test with the key\nExample: brutus --target host:22 --protocol ssh -u vagrant -k mykey.pem")
-	}
-	return nil
-}
-
-// validateTargetFlags checks that required flags are provided for single-target mode.
-func validateTargetFlags(target, protocol string) error {
-	if target == "" {
-		return fmt.Errorf("--target is required (or pipe nerva JSON to stdin)")
-	}
-	if protocol == "" {
-		return fmt.Errorf("--protocol is required when using --target\nExample: brutus --target %s --protocol ssh", target)
 	}
 	return nil
 }

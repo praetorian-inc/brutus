@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 )
 
 var logonCmd = &cobra.Command{
@@ -50,8 +51,14 @@ confirmation via screenshot analysis.`,
   # Interactive web terminal via backdoor
   brutus logon --target 10.0.0.50:3389 --sticky-keys-web --sticky-keys-open
 
-  # Pipeline mode (only RDP targets are tested)
-  naabu -host 10.0.0.0/24 -p 3389 -silent | nerva --json | brutus logon`,
+  # Pipeline mode with Nerva JSON (only RDP targets are tested)
+  naabu -host 10.0.0.0/24 -p 3389 -silent | nerva --json | brutus logon
+
+  # Pipe plain targets (auto-fingerprinted, only RDP services scanned)
+  echo "10.0.0.50:3389" | brutus logon
+
+  # Pipe URI targets
+  echo "rdp://10.0.0.50:3389" | brutus logon`,
 	RunE: runLogon,
 }
 
@@ -76,10 +83,10 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		return protocol == "rdp"
 	}
 
-	useStdin := detectStdinMode(flagNerva, flagTarget, flagFingerprint)
+	useStdin := detectStdinMode(flagTarget, flagTargetsFile)
 
 	// Show banner
-	if shouldShowBanner(flagBanner, flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
+	if shouldShowBanner(flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
 		printBanner(baseConfig.useColor)
 	}
 
@@ -103,19 +110,18 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		switch {
 		case useStdin:
 			scanResults, hasSuccess = runScanFromStdin(baseConfig)
-		case flagFingerprint != "":
-			// Fingerprint mode: scan discovered RDP targets
-			targetsList, loadErr := brutus.LoadTargetsFromFile(flagFingerprint)
+		case flagTargetsFile != "":
+			targetsList, loadErr := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 			if loadErr != nil {
 				return loadErr
 			}
 			if len(targetsList) == 0 {
-				return fmt.Errorf("fingerprint file %q has no targets", flagFingerprint)
+				return fmt.Errorf("targets file %q has no targets", flagTargetsFile)
 			}
 			scanResults, hasSuccess = runLogonFingerprint(targetsList, baseConfig)
 		default:
 			if flagTarget == "" {
-				return fmt.Errorf("--target is required (or pipe nerva JSON to stdin, or use --fingerprint)")
+				return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 			}
 			scanResults, hasSuccess = runScanSingleTarget(flagTarget, baseConfig)
 		}

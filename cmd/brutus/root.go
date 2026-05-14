@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -108,7 +107,7 @@ func runLegacy(cmd *cobra.Command, args []string) error {
 			outputScanHuman(scanResults, baseConfig.useColor)
 		}
 		if !hasSuccess {
-			os.Exit(1)
+			return errNoSuccess
 		}
 		return nil
 	}
@@ -168,7 +167,7 @@ func runLegacy(cmd *cobra.Command, args []string) error {
 	}
 
 	if !hasSuccess {
-		os.Exit(1)
+		return errNoSuccess
 	}
 	return nil
 }
@@ -256,7 +255,7 @@ func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 	}
 
 	if !hasSuccess {
-		os.Exit(1)
+		return errNoSuccess
 	}
 	return nil
 }

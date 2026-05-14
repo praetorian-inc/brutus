@@ -81,9 +81,7 @@ func runWeb(cmd *cobra.Command, args []string) error {
 	baseConfig.stickyKeys = false
 
 	// In pipeline/fingerprint mode, only process HTTP-like protocols
-	baseConfig.protocolFilter = func(protocol string) bool {
-		return isHTTPLikeProtocol(protocol)
-	}
+	baseConfig.protocolFilter = isHTTPLikeProtocol
 
 	// For single-target mode, infer protocol if not explicitly set
 	if flagTarget != "" && !isFlagChanged(cmd, "protocol") {

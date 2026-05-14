@@ -74,7 +74,7 @@ var flagVerifyTLS bool
 
 // SSH/badkeys flags
 var (
-	flagNoBadkeys  bool
+	flagNoBadkeys   bool
 	flagBadkeysOnly bool
 )
 
@@ -243,8 +243,8 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 	}
 
 	// Validate key file flags
-	if err := validateKeyFileFlags(flagKeyFile, usernameFlagSet, flagUsernameFile); err != nil {
-		return nil, err
+	if validateErr := validateKeyFileFlags(flagKeyFile, usernameFlagSet, flagUsernameFile); validateErr != nil {
+		return nil, validateErr
 	}
 
 	// Validate fingerprint + credential combinations

@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -101,21 +100,20 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		var scanResults []brutus.Result
 		var hasSuccess bool
 
-		if useStdin {
+		switch {
+		case useStdin:
 			scanResults, hasSuccess = runScanFromStdin(baseConfig)
-		} else if flagFingerprint != "" {
+		case flagFingerprint != "":
 			// Fingerprint mode: scan discovered RDP targets
-			targetsList, err := brutus.LoadTargetsFromFile(flagFingerprint)
-			if err != nil {
-				return err
+			targetsList, loadErr := brutus.LoadTargetsFromFile(flagFingerprint)
+			if loadErr != nil {
+				return loadErr
 			}
 			if len(targetsList) == 0 {
 				return fmt.Errorf("fingerprint file %q has no targets", flagFingerprint)
 			}
-			// For logon scan mode, we need to fingerprint then scan each RDP target.
-			// Run fingerprint to discover services, then scan RDP ones.
 			scanResults, hasSuccess = runLogonFingerprint(targetsList, baseConfig)
-		} else {
+		default:
 			if flagTarget == "" {
 				return fmt.Errorf("--target is required (or pipe nerva JSON to stdin, or use --fingerprint)")
 			}
@@ -129,7 +127,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		}
 
 		if !hasSuccess {
-			os.Exit(1)
+			return errNoSuccess
 		}
 		return nil
 	}
@@ -147,7 +145,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 	}
 
 	if !hasSuccess {
-		os.Exit(1)
+		return errNoSuccess
 	}
 	return nil
 }

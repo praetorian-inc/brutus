@@ -67,9 +67,7 @@ func runCreds(cmd *cobra.Command, args []string) error {
 	// but don't install a filter since the user explicitly chose the protocol.
 	protocolExplicit := isFlagChanged(cmd, "protocol")
 	if !protocolExplicit {
-		baseConfig.protocolFilter = func(protocol string) bool {
-			return isCredsProtocol(protocol)
-		}
+		baseConfig.protocolFilter = isCredsProtocol
 	}
 
 	return runSubcommand(cmd, baseConfig)

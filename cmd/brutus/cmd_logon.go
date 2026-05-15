@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -192,11 +191,7 @@ func runLogonFingerprint(targets []string, base *baseConfigOptions) ([]brutus.Re
 			dim(base.useColor, SymbolInfo), len(nervaTargets))
 	}
 
-	scanConfig := scan.Config{
-		DefaultTimeout: 5 * time.Second,
-		Workers:        50,
-		Verbose:        base.verbose,
-	}
+	scanConfig := nervaScanConfig(base)
 
 	services, err := scan.ScanTargets(ctx, nervaTargets, scanConfig)
 	if err != nil {

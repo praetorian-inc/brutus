@@ -30,6 +30,24 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
+// nervaScanConfig builds a Nerva scan.Config from the user's CLI flags,
+// falling back to sensible defaults when the flags are at their zero values.
+func nervaScanConfig(base *baseConfigOptions) scan.Config {
+	timeout := base.timeout
+	if timeout == 0 {
+		timeout = 5 * time.Second
+	}
+	workers := base.threads
+	if workers <= 0 {
+		workers = 50
+	}
+	return scan.Config{
+		DefaultTimeout: timeout,
+		Workers:        workers,
+		Verbose:        base.verbose,
+	}
+}
+
 // fingerprintedService holds the result of fingerprinting a single target.
 type fingerprintedService struct {
 	protocol string
@@ -53,13 +71,10 @@ func fingerprintSingleTarget(target string, base *baseConfigOptions) (*fingerpri
 			dim(base.useColor, SymbolInfo), target)
 	}
 
-	scanConfig := scan.Config{
-		DefaultTimeout: 5 * time.Second,
-		Workers:        1,
-		Verbose:        base.verbose,
-	}
+	cfg := nervaScanConfig(base)
+	cfg.Workers = 1 // single target — one worker is sufficient
 
-	services, err := scan.ScanTargets(ctx, []nervaplugins.Target{nt}, scanConfig)
+	services, err := scan.ScanTargets(ctx, []nervaplugins.Target{nt}, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("fingerprinting %s: %w", target, err)
 	}
@@ -110,11 +125,7 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 			dim(base.useColor, SymbolInfo), len(nervaTargets))
 	}
 
-	scanConfig := scan.Config{
-		DefaultTimeout: 5 * time.Second,
-		Workers:        50,
-		Verbose:        base.verbose,
-	}
+	scanConfig := nervaScanConfig(base)
 
 	services, err := scan.ScanTargets(ctx, nervaTargets, scanConfig)
 	if err != nil {

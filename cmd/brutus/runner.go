@@ -182,10 +182,7 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *baseConfigOptions, j
 
 	targetTLSMode := detectTLS(base.tlsMode, nrv.TLS, base.verbose)
 
-	target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
-	if nrv.Host != "" {
-		target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
-	}
+	target := nrv.TargetAddr()
 
 	var aiCreds []brutus.Credential
 	if base.aiMode && (protocol == "http" || protocol == "https") {
@@ -448,10 +445,7 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 			if base.protocolFilter != nil && !base.protocolFilter(protocol) {
 				continue
 			}
-			target := fmt.Sprintf("%s:%d", parsed.NervaResult.IP, parsed.NervaResult.Port)
-			if parsed.NervaResult.Host != "" {
-				target = fmt.Sprintf("%s:%d", parsed.NervaResult.Host, parsed.NervaResult.Port)
-			}
+			target := parsed.NervaResult.TargetAddr()
 			results, success := runScanSingleTarget(target, base)
 			allResults = append(allResults, results...)
 			if success {

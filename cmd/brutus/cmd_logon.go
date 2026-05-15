@@ -15,16 +15,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/spf13/cobra"
-
-	nervaplugins "github.com/praetorian-inc/nerva/pkg/plugins"
-	"github.com/praetorian-inc/nerva/pkg/scan"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
@@ -167,46 +160,12 @@ func runLogon(cmd *cobra.Command, args []string) error {
 // runLogonFingerprint fingerprints targets with Nerva and runs logon-screen
 // detection on any discovered RDP services.
 func runLogonFingerprint(targets []string, base *baseConfigOptions) ([]brutus.Result, bool) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	stop, services, ok := fingerprintTargets(targets, base)
+	if !ok {
+		return nil, false
+	}
 	defer stop()
 
-	// Phase 1: Parse host:port strings into Nerva targets.
-	var nervaTargets []nervaplugins.Target
-	for _, t := range targets {
-		nt, err := brutusinput.ParseNervaTarget(ctx, t)
-		if err != nil {
-			warnMsg(base.useColor, "skipping %q: %v", t, err)
-			continue
-		}
-		nervaTargets = append(nervaTargets, nt)
-	}
-	if len(nervaTargets) == 0 {
-		errMsg(base.useColor, "no valid targets after parsing")
-		return nil, false
-	}
-
-	// Phase 2: Fingerprint with Nerva.
-	if !base.quiet {
-		fmt.Fprintf(os.Stderr, "%s Fingerprinting %d target(s) with Nerva...\n",
-			dim(base.useColor, SymbolInfo), len(nervaTargets))
-	}
-
-	scanConfig := nervaScanConfig(base)
-
-	services, err := scan.ScanTargets(ctx, nervaTargets, scanConfig)
-	if err != nil {
-		errMsg(base.useColor, "fingerprinting failed: %v", err)
-		return nil, false
-	}
-
-	logVerbose(base.verbose, "Nerva discovered %d service(s) from %d target(s)", len(services), len(nervaTargets))
-
-	if len(services) == 0 {
-		warnMsg(base.useColor, "Nerva could not fingerprint any of the %d target(s)", len(nervaTargets))
-		return nil, false
-	}
-
-	// Phase 3: Scan only RDP services for logon-screen backdoors.
 	var allResults []brutus.Result
 	hasSuccess := false
 
@@ -218,12 +177,7 @@ func runLogonFingerprint(targets []string, base *baseConfigOptions) ([]brutus.Re
 			continue
 		}
 
-		target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
-		if nrv.Host != "" {
-			target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
-		}
-
-		results, success := runScanSingleTarget(target, base)
+		results, success := runScanSingleTarget(nrv.TargetAddr(), base)
 		allResults = append(allResults, results...)
 		if success {
 			hasSuccess = true

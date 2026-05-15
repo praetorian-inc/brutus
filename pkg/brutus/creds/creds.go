@@ -23,6 +23,7 @@ import (
 )
 
 // httpProtocols lists protocols handled by the "web" subcommand (not "creds").
+// Keep in sync with the identical map in pkg/brutus/web/web.go.
 var httpProtocols = map[string]bool{
 	"http":    true,
 	"https":   true,

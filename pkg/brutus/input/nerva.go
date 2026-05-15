@@ -39,6 +39,16 @@ type NervaResult struct {
 	Metadata  map[string]interface{} `json:"metadata"`
 }
 
+// TargetAddr returns "host:port" for this result, preferring the hostname
+// over the IP address when available.
+func (nrv *NervaResult) TargetAddr() string {
+	host := nrv.IP
+	if nrv.Host != "" {
+		host = nrv.Host
+	}
+	return fmt.Sprintf("%s:%d", host, nrv.Port)
+}
+
 // MapServiceToProtocol maps nerva service names to brutus protocol names.
 // Returns an empty string if the service is not supported.
 func MapServiceToProtocol(service string) string {

@@ -93,16 +93,11 @@ func fingerprintSingleTarget(target string, base *baseConfigOptions) (*fingerpri
 	return &fingerprintedService{protocol: protocol, tls: nrv.TLS}, nil
 }
 
-// runFromFingerprint fingerprints the given host:port targets using Nerva's
-// library API, maps discovered services to Brutus protocols, and runs
-// credential testing against each. Targets that Nerva cannot fingerprint
-// are silently skipped (with a verbose log). The per-target brute-force
-// loop mirrors runFromStdin.
-func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
-	// Create context early so DNS lookups during parsing and the Nerva
-	// scan phase both respect Ctrl-C / SIGTERM.
+// fingerprintTargets parses host:port strings into Nerva targets, fingerprints
+// them, and returns the discovered services. This is the shared implementation
+// for phases 1 & 2 of both runFromFingerprint and runLogonFingerprint.
+func fingerprintTargets(targets []string, base *baseConfigOptions) (context.CancelFunc, []nervaplugins.Service, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	// Phase 1: Parse host:port strings into Nerva targets.
 	var nervaTargets []nervaplugins.Target
@@ -116,7 +111,8 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 	}
 	if len(nervaTargets) == 0 {
 		errMsg(base.useColor, "no valid targets after parsing")
-		return nil, false
+		stop()
+		return nil, nil, false
 	}
 
 	// Phase 2: Fingerprint with Nerva.
@@ -125,23 +121,36 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 			dim(base.useColor, SymbolInfo), len(nervaTargets))
 	}
 
-	scanConfig := nervaScanConfig(base)
-
-	services, err := scan.ScanTargets(ctx, nervaTargets, scanConfig)
+	services, err := scan.ScanTargets(ctx, nervaTargets, nervaScanConfig(base))
 	if err != nil {
 		errMsg(base.useColor, "fingerprinting failed: %v", err)
-		return nil, false
+		stop()
+		return nil, nil, false
 	}
 
 	logVerbose(base.verbose, "Nerva discovered %d service(s) from %d target(s)", len(services), len(nervaTargets))
 
 	if len(services) == 0 {
 		warnMsg(base.useColor, "Nerva could not fingerprint any of the %d target(s)", len(nervaTargets))
-		return nil, false
+		stop()
+		return nil, nil, false
 	}
 
-	// Phase 3: Convert services to NervaResults, map to Brutus protocols,
-	// and run credential testing against each discovered service.
+	return stop, services, true
+}
+
+// runFromFingerprint fingerprints the given host:port targets using Nerva's
+// library API, maps discovered services to Brutus protocols, and runs
+// credential testing against each. Targets that Nerva cannot fingerprint
+// are silently skipped (with a verbose log). The per-target brute-force
+// loop mirrors runFromStdin.
+func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+	stop, services, ok := fingerprintTargets(targets, base)
+	if !ok {
+		return nil, false
+	}
+	defer stop()
+
 	var allResults []brutus.Result
 	hasSuccess := false
 
@@ -169,11 +178,7 @@ func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool)
 		// Determine TLS mode for this specific target.
 		targetTLSMode := detectTLS(base.tlsMode, nrv.TLS, base.verbose)
 
-		// Build target string (prefer hostname over IP).
-		target := fmt.Sprintf("%s:%d", nrv.IP, nrv.Port)
-		if nrv.Host != "" {
-			target = fmt.Sprintf("%s:%d", nrv.Host, nrv.Port)
-		}
+		target := nrv.TargetAddr()
 
 		// AI mode for HTTP services.
 		var aiCreds []brutus.Credential

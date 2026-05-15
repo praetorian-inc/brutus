@@ -21,7 +21,6 @@ import (
 	"os"
 	"runtime/debug"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -154,15 +153,11 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 		attemptCounts = make(map[string]int)
 		attemptMu     sync.Mutex
 		mu            sync.Mutex
-		found         atomic.Bool
+		crackedUsers  = make(map[string]bool) // per-user early stop
 	)
 
 	// Launch workers
 	for _, cred := range credentials {
-		// Check early stop before launching new worker
-		if cfg.StopOnSuccess && found.Load() {
-			break
-		}
 
 		// Capture loop variable for closure
 		cred := cred
@@ -195,6 +190,14 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 			default:
 			}
 
+			// Skip if this user already has a valid credential
+			attemptMu.Lock()
+			if crackedUsers[cred.username] {
+				attemptMu.Unlock()
+				return nil
+			}
+			attemptMu.Unlock()
+
 			// Apply rate limiting if configured
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
@@ -223,9 +226,8 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 				attemptMu.Unlock()
 			}
 
-			// Re-check context before expensive network call to close
-			// TOCTOU window in StopOnSuccess (cancel may have fired
-			// during rate limiting or jitter)
+			// Re-check context before expensive network call
+			// (cancel may have fired during rate limiting or jitter)
 			select {
 			case <-ctx.Done():
 				return nil
@@ -305,10 +307,11 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 			results = append(results, *result)
 			mu.Unlock()
 
-			// Handle success with early stop
-			if result.Success && cfg.StopOnSuccess {
-				found.Store(true)
-				cancel() // Signal all workers to stop
+			// Mark user as cracked to skip remaining passwords for this user
+			if result.Success {
+				attemptMu.Lock()
+				crackedUsers[cred.username] = true
+				attemptMu.Unlock()
 			}
 
 			return nil
@@ -348,10 +351,9 @@ func runWorkersDefault(ctx context.Context, cfg *Config, plug Plugin) ([]Result,
 		credentials = append(credentials, generateKeyCredentials(cfg.Usernames, cfg.Keys)...)
 	}
 
-	// Reorder for spray mode if enabled
-	if cfg.SprayMode {
-		credentials = reorderForSpray(credentials)
-	}
+	// Reorder credentials for spray ordering: try each password across all users
+	// before moving to the next password. This avoids account lockout.
+	credentials = reorderForSpray(credentials)
 
 	// Execute worker pool with no LLM suggestions
 	return executeWorkerPool(ctx, cfg, plug, credentials, nil)

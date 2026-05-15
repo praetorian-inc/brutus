@@ -47,14 +47,12 @@ var (
 
 // Performance flags
 var (
-	flagThreads       int
-	flagTimeout       time.Duration
-	flagStopOnSuccess bool
-	flagRateLimit     float64
-	flagJitter        time.Duration
-	flagMaxAttempts   int
-	flagSpray         bool
-	flagRetries       int
+	flagThreads     int
+	flagTimeout     time.Duration
+	flagRateLimit   float64
+	flagJitter      time.Duration
+	flagMaxAttempts int
+	flagRetries     int
 )
 
 // Output flags
@@ -128,8 +126,6 @@ func registerCredentialFlags(cmd *cobra.Command) {
 	f.StringVarP(&flagUsernameFile, "username-file", "U", "", "Username file (one per line)")
 	f.StringVarP(&flagPasswords, "passwords", "p", "", "Comma-separated passwords")
 	f.StringVarP(&flagPasswordFile, "password-file", "P", "", "Password file (one per line)")
-	f.BoolVar(&flagStopOnSuccess, "stop-on-success", true, "Stop after first valid credential")
-	f.BoolVar(&flagSpray, "spray", false, "Password spraying: try each password across all users")
 	f.IntVar(&flagMaxAttempts, "max-attempts", 0, "Max password attempts per user (0 = unlimited)")
 	f.BoolVar(&flagVerifyTLS, "verify-tls", false, "Require strict TLS certificate verification")
 }
@@ -224,7 +220,6 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 		keys:             keyList,
 		threads:          flagThreads,
 		timeout:          flagTimeout,
-		stopOnSuccess:    flagStopOnSuccess,
 		snmpTier:         flagSNMPTier,
 		llmConfig:        aiLLMConfig,
 		browserTimeout:   flagBrowserTimeout,
@@ -240,7 +235,6 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 		rateLimit:        flagRateLimit,
 		jitter:           flagJitter,
 		maxAttempts:      flagMaxAttempts,
-		sprayMode:        flagSpray,
 		maxRetries:       flagRetries,
 		anthropicKey:     anthropicKey,
 		perplexityKey:    perplexityKey,

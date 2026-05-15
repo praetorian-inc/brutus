@@ -37,14 +37,13 @@ func TestMaxAttempts(t *testing.T) {
 	// Config with 2 users, 5 passwords each = 10 total attempts normally
 	// With MaxAttempts=3, should only test 3 passwords per user = 6 attempts
 	cfg := &Config{
-		Target:        "test:22",
-		Protocol:      "mock",
-		Usernames:     []string{"user1", "user2"},
-		Passwords:     []string{"pass1", "pass2", "pass3", "pass4", "pass5"},
-		Threads:       2,
-		Timeout:       1 * time.Second,
-		StopOnSuccess: false,
-		MaxAttempts:   3, // Limit to 3 attempts per user
+		Target:      "test:22",
+		Protocol:    "mock",
+		Usernames:   []string{"user1", "user2"},
+		Passwords:   []string{"pass1", "pass2", "pass3", "pass4", "pass5"},
+		Threads:     2,
+		Timeout:     1 * time.Second,
+		MaxAttempts: 3, // Limit to 3 attempts per user
 	}
 
 	// Run brute force
@@ -70,14 +69,13 @@ func TestMaxAttemptsUnlimited(t *testing.T) {
 	Register("mock", func() Plugin { return mock })
 
 	cfg := &Config{
-		Target:        "test:22",
-		Protocol:      "mock",
-		Usernames:     []string{"user1"},
-		Passwords:     []string{"pass1", "pass2", "pass3", "pass4", "pass5"},
-		Threads:       2,
-		Timeout:       1 * time.Second,
-		StopOnSuccess: false,
-		MaxAttempts:   0, // Unlimited
+		Target:      "test:22",
+		Protocol:    "mock",
+		Usernames:   []string{"user1"},
+		Passwords:   []string{"pass1", "pass2", "pass3", "pass4", "pass5"},
+		Threads:     2,
+		Timeout:     1 * time.Second,
+		MaxAttempts: 0, // Unlimited
 	}
 
 	_, err := Brute(cfg)
@@ -87,8 +85,9 @@ func TestMaxAttemptsUnlimited(t *testing.T) {
 	assert.Equal(t, 5, mock.attempts["user1"], "user1 should have 5 attempts")
 }
 
-// TestSprayMode verifies that SprayMode reorders credentials to loop users first
-func TestSprayMode(t *testing.T) {
+// TestSprayOrdering verifies that credentials are always reordered to loop
+// users first (spray ordering) to avoid account lockout.
+func TestSprayOrdering(t *testing.T) {
 	// Create a mock plugin that records the order of attempts
 	mock := &mockPluginWithOrder{
 		order: []string{},
@@ -98,21 +97,19 @@ func TestSprayMode(t *testing.T) {
 	Register("mock", func() Plugin { return mock })
 
 	cfg := &Config{
-		Target:        "test:22",
-		Protocol:      "mock",
-		Usernames:     []string{"user1", "user2"},
-		Passwords:     []string{"pass1", "pass2"},
-		Threads:       1, // Single thread to ensure sequential processing
-		Timeout:       1 * time.Second,
-		StopOnSuccess: false,
-		SprayMode:     true,
+		Target:    "test:22",
+		Protocol:  "mock",
+		Usernames: []string{"user1", "user2"},
+		Passwords: []string{"pass1", "pass2"},
+		Threads:   1, // Single thread to ensure sequential processing
+		Timeout:   1 * time.Second,
 	}
 
 	_, err := Brute(cfg)
 	assert.NoError(t, err)
 
-	// In spray mode, order should be:
-	// pass1 for all users, then pass2 for all users
+	// Spray ordering: try each password across all users before moving
+	// to the next password.
 	// Expected: user1:pass1, user2:pass1, user1:pass2, user2:pass2
 	assert.Len(t, mock.order, 4, "should have 4 attempts")
 
@@ -123,43 +120,6 @@ func TestSprayMode(t *testing.T) {
 	// Verify last two attempts are both with pass2
 	assert.Contains(t, mock.order[2], "pass2", "third attempt should be pass2")
 	assert.Contains(t, mock.order[3], "pass2", "fourth attempt should be pass2")
-}
-
-// TestSprayModeDisabled verifies default ordering (loop passwords per user)
-func TestSprayModeDisabled(t *testing.T) {
-	mock := &mockPluginWithOrder{
-		order: []string{},
-	}
-
-	ResetPlugins()
-	Register("mock", func() Plugin { return mock })
-
-	cfg := &Config{
-		Target:        "test:22",
-		Protocol:      "mock",
-		Usernames:     []string{"user1", "user2"},
-		Passwords:     []string{"pass1", "pass2"},
-		Threads:       1, // Single thread to ensure sequential processing
-		Timeout:       1 * time.Second,
-		StopOnSuccess: false,
-		SprayMode:     false, // Default mode
-	}
-
-	_, err := Brute(cfg)
-	assert.NoError(t, err)
-
-	// In default mode, order should be:
-	// all passwords for user1, then all passwords for user2
-	// Expected: user1:pass1, user1:pass2, user2:pass1, user2:pass2
-	assert.Len(t, mock.order, 4, "should have 4 attempts")
-
-	// Verify first two attempts are both for user1
-	assert.Contains(t, mock.order[0], "user1", "first attempt should be user1")
-	assert.Contains(t, mock.order[1], "user1", "second attempt should be user1")
-
-	// Verify last two attempts are both for user2
-	assert.Contains(t, mock.order[2], "user2", "third attempt should be user2")
-	assert.Contains(t, mock.order[3], "user2", "fourth attempt should be user2")
 }
 
 // TestReorderForSpray tests the reorderForSpray helper function directly
@@ -216,8 +176,8 @@ func TestReorderForSpray(t *testing.T) {
 	}
 }
 
-// TestMaxAttemptsWithSprayMode verifies combining both features
-func TestMaxAttemptsWithSprayMode(t *testing.T) {
+// TestMaxAttemptsWithSprayOrdering verifies combining max attempts with spray ordering
+func TestMaxAttemptsWithSprayOrdering(t *testing.T) {
 	mock := &mockPluginCombined{
 		attempts: make(map[string]int),
 		order:    []string{},
@@ -227,15 +187,13 @@ func TestMaxAttemptsWithSprayMode(t *testing.T) {
 	Register("mock", func() Plugin { return mock })
 
 	cfg := &Config{
-		Target:        "test:22",
-		Protocol:      "mock",
-		Usernames:     []string{"user1", "user2"},
-		Passwords:     []string{"pass1", "pass2", "pass3"},
-		Threads:       1,
-		Timeout:       1 * time.Second,
-		StopOnSuccess: false,
-		MaxAttempts:   2, // Max 2 attempts per user
-		SprayMode:     true,
+		Target:      "test:22",
+		Protocol:    "mock",
+		Usernames:   []string{"user1", "user2"},
+		Passwords:   []string{"pass1", "pass2", "pass3"},
+		Threads:     1,
+		Timeout:     1 * time.Second,
+		MaxAttempts: 2, // Max 2 attempts per user
 	}
 
 	_, err := Brute(cfg)
@@ -245,7 +203,7 @@ func TestMaxAttemptsWithSprayMode(t *testing.T) {
 	assert.LessOrEqual(t, mock.attempts["user1"], 2, "user1 should have at most 2 attempts")
 	assert.LessOrEqual(t, mock.attempts["user2"], 2, "user2 should have at most 2 attempts")
 
-	// Verify spray mode ordering (should still spray, but stop at 2 per user)
+	// Spray ordering still applies, but stops at 2 per user
 	// Expected: user1:pass1, user2:pass1, user1:pass2, user2:pass2
 	// (pass3 should be skipped due to MaxAttempts=2)
 	totalAttempts := len(mock.order)

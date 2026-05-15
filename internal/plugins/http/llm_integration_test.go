@@ -330,7 +330,6 @@ func TestHTTPWithLLM_BruteAPI(t *testing.T) {
 		Passwords:     []string{"wrong1", "wrong2"}, // Wrong passwords - LLM should find the right one
 		Timeout:       10 * time.Second,
 		Threads:       1,
-		StopOnSuccess: true,
 		LLMConfig: &brutus.LLMConfig{
 			Enabled:  true,
 			Provider: provider,

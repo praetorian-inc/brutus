@@ -96,18 +96,15 @@ func TestNervaIntegration(t *testing.T) {
 
 	t.Logf("brutus output: %s", string(brutusOutput))
 
-	// Parse brutus JSON output
-	var results []map[string]interface{}
-	if err := json.Unmarshal(brutusOutput, &results); err != nil {
-		// May have exited with error if auth failed, check output
-		t.Logf("brutus exit error (may be expected if auth failed): %v", err)
+	// Parse brutus JSONL output (one JSON object per line)
+	lines := strings.Split(strings.TrimSpace(string(brutusOutput)), "\n")
+	require.NotEmpty(t, lines, "brutus should have produced results")
+
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[0]), &result); err != nil {
+		t.Fatalf("Failed to parse JSON line: %v (output: %s)", err, string(brutusOutput))
 	}
 
-	// Check that brutus attempted to test the target
-	require.NotEmpty(t, results, "brutus should have produced results")
-
-	// Verify the result structure
-	result := results[0]
 	assert.Equal(t, "http", result["protocol"], "protocol should be http")
 	assert.Contains(t, result["target"], serverAddr, "target should match")
 }

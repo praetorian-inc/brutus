@@ -457,7 +457,6 @@ func main() {
         Passwords:     []string{"password", "admin", "toor"},
         Timeout:       5 * time.Second,
         Threads:       10,
-        StopOnSuccess: true,
     }
 
     results, err := brutus.Brute(config)

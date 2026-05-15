@@ -35,19 +35,19 @@ embedded badkeys collection. This simulates finding default/hardcoded keys in:
 
 ```bash
 # Test SSH authentication with badkeys (auto-detects the Vagrant key)
-brutus -target 127.0.0.1:2222
+brutus badkeys --target 127.0.0.1:2222
 
 # Or explicitly with the key file
-brutus -target 127.0.0.1:2222 -u vagrant -k testdata/demo/vulnerable_key
+brutus badkeys --target 127.0.0.1:2222 -u vagrant -k testdata/demo/vulnerable_key
 ```
 
 ## Full Pipeline Demo
 
 ```bash
-# Port scan -> Service fingerprint -> Credential test (badkeys enabled by default)
+# Port scan -> Service fingerprint -> Credential test
 naabu -host 127.0.0.1 -p 21,2222,3306,6379 -silent | \
   nerva --json | \
-  brutus -u root,vagrant,ftpuser -p "rootpass,vagrant,ftppass,redispass"
+  brutus creds -u root,vagrant,ftpuser -p "rootpass,vagrant,ftppass,redispass"
 ```
 
 ## Files

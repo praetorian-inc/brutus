@@ -27,7 +27,6 @@ type baseConfigOptions struct {
 	keys             [][]byte
 	threads          int
 	timeout          time.Duration
-	stopOnSuccess    bool
 	snmpTier         string
 	llmConfig        *brutus.LLMConfig
 	browserTimeout   time.Duration
@@ -46,7 +45,6 @@ type baseConfigOptions struct {
 	jitter           time.Duration // Random delay variance for rate limiting
 	maxAttempts      int
 	maxRetries       int
-	sprayMode        bool
 	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
 	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
 	stickyKeys       bool   // Sticky keys backdoor detection mode (no brute force)

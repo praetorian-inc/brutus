@@ -30,6 +30,54 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
+// fingerprintedService holds the result of fingerprinting a single target.
+type fingerprintedService struct {
+	protocol string
+	tls      bool
+}
+
+// fingerprintSingleTarget probes a single host:port with Nerva and returns
+// the discovered protocol and TLS status. Used when --target is given without
+// --protocol so the CLI can auto-detect the service.
+func fingerprintSingleTarget(target string, base *baseConfigOptions) (*fingerprintedService, error) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	nt, err := brutusinput.ParseNervaTarget(ctx, target)
+	if err != nil {
+		return nil, fmt.Errorf("invalid target %q: %w", target, err)
+	}
+
+	if !base.quiet {
+		fmt.Fprintf(os.Stderr, "%s Fingerprinting %s with Nerva...\n",
+			dim(base.useColor, SymbolInfo), target)
+	}
+
+	scanConfig := scan.Config{
+		DefaultTimeout: 5 * time.Second,
+		Workers:        1,
+		Verbose:        base.verbose,
+	}
+
+	services, err := scan.ScanTargets(ctx, []nervaplugins.Target{nt}, scanConfig)
+	if err != nil {
+		return nil, fmt.Errorf("fingerprinting %s: %w", target, err)
+	}
+	if len(services) == 0 {
+		return nil, fmt.Errorf("could not fingerprint service on %s", target)
+	}
+
+	nrv := brutusinput.ServiceToNervaResult(&services[0])
+	protocol := brutusinput.MapServiceToProtocol(nrv.Protocol)
+	if protocol == "" {
+		return nil, fmt.Errorf("unsupported service %q on %s", nrv.Protocol, target)
+	}
+
+	logVerbose(base.verbose, "Nerva detected %s (TLS: %v) on %s", protocol, nrv.TLS, target)
+
+	return &fingerprintedService{protocol: protocol, tls: nrv.TLS}, nil
+}
+
 // runFromFingerprint fingerprints the given host:port targets using Nerva's
 // library API, maps discovered services to Brutus protocols, and runs
 // credential testing against each. Targets that Nerva cannot fingerprint

@@ -127,7 +127,26 @@ func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 			return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 		}
 		if protocol == "" {
-			return fmt.Errorf("--protocol is required when using --target\nExample: brutus %s --target %s --protocol ssh", cmd.Name(), flagTarget)
+			// No --protocol specified — fingerprint with Nerva to auto-detect.
+			fp, err := fingerprintSingleTarget(flagTarget, baseConfig)
+			if err != nil {
+				return err
+			}
+			protocol = fp.protocol
+
+			// Apply subcommand protocol filter.
+			if baseConfig.protocolFilter != nil && !baseConfig.protocolFilter(protocol) {
+				return fmt.Errorf("discovered service %q on %s is not supported by 'brutus %s'",
+					protocol, flagTarget, cmd.Name())
+			}
+
+			// Sync TLS state from fingerprint.
+			if fp.tls {
+				baseConfig.useHTTPS = true
+				if baseConfig.tlsMode == "disable" {
+					baseConfig.tlsMode = "skip-verify"
+				}
+			}
 		}
 		allResults, hasSuccess = runSingleTargetMode(flagTarget, protocol, baseConfig, flagJSON, jsonWriter)
 	}

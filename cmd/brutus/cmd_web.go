@@ -15,8 +15,6 @@
 package main
 
 import (
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
@@ -29,18 +27,19 @@ var webCmd = &cobra.Command{
 	Long: `Test credentials on HTTP services including Basic Auth, form-based login
 with browser automation, and AI-powered credential detection.
 
-For single targets, the protocol (http/https) can be inferred from the port
-or the --https flag, so --protocol is optional.
+For single targets, the protocol (http/https) is auto-detected via Nerva
+fingerprinting, or can be set explicitly with --protocol or --https.
 
 Use --experimental-ai to enable Claude Vision screenshot analysis and
 Perplexity-powered default credential lookup for web panels.
 
 In pipeline/fingerprint mode, only HTTP-like services are tested.`,
-	Example: `  # Single target (auto-infers http)
+	Example: `  # Single target (auto-detected via Nerva)
   brutus web --target 192.168.1.1:80 -u admin -p "admin,password"
 
-  # HTTPS target
+  # HTTPS target (auto-detected or explicit)
   brutus web --target 192.168.1.1:443 -u admin -p "admin"
+  brutus web --target 192.168.1.1:443 --https -u admin -p "admin"
 
   # AI-powered credential detection for web panels
   brutus web --target 192.168.1.1:80 --experimental-ai
@@ -60,22 +59,6 @@ func init() {
 	registerWebFlags(webCmd)
 }
 
-// inferHTTPProtocol determines http vs https from the target and flags.
-func inferHTTPProtocol(target string, useHTTPS bool) string {
-	if useHTTPS {
-		return "https"
-	}
-	// Infer from common HTTPS ports
-	parts := strings.SplitN(target, ":", 2)
-	if len(parts) == 2 {
-		switch parts[1] {
-		case "443", "8443":
-			return "https"
-		}
-	}
-	return "http"
-}
-
 func runWeb(cmd *cobra.Command, args []string) error {
 	baseConfig, err := buildConfigFromFlags(cmd)
 	if err != nil {
@@ -88,13 +71,12 @@ func runWeb(cmd *cobra.Command, args []string) error {
 	// In pipeline/fingerprint mode, only process HTTP-like protocols
 	baseConfig.protocolFilter = web.IsWebProtocol
 
-	// For single-target mode, infer protocol if not explicitly set
-	if flagTarget != "" && !isFlagChanged(cmd, "protocol") {
-		baseConfig.protocolOverride = inferHTTPProtocol(flagTarget, flagHTTPS)
+	// --https flag sets protocol override when --protocol not explicitly set
+	if flagHTTPS && !isFlagChanged(cmd, "protocol") {
+		baseConfig.protocolOverride = "https"
 	}
 
-	// Sync useHTTPS with inferred/overridden protocol so the browser plugin
-	// uses HTTPS when the protocol is "https" (even if --https was not set).
+	// Sync useHTTPS with protocol override
 	if baseConfig.protocolOverride == "https" {
 		baseConfig.useHTTPS = true
 	}

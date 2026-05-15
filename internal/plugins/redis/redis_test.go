@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // getTestConfig returns test configuration from environment variables with defaults
@@ -118,7 +120,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, host, "", pass, timeout)
+	result := p.Test(ctx, host, "", pass, timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "redis", result.Protocol)
@@ -139,7 +141,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, host, "", "wrongpassword", timeout)
+	result := p.Test(ctx, host, "", "wrongpassword", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "redis", result.Protocol)
@@ -159,7 +161,7 @@ func TestPlugin_Test_NoAuthRequired(t *testing.T) {
 	timeout := 5 * time.Second
 
 	// Try empty password on Redis with no auth required
-	result := p.Test(ctx, "localhost:6379", "", "", timeout)
+	result := p.Test(ctx, "localhost:6379", "", "", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "redis", result.Protocol)
@@ -177,7 +179,7 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use a port that should not have Redis running
-	result := p.Test(ctx, "localhost:9999", "", "password", timeout)
+	result := p.Test(ctx, "localhost:9999", "", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "redis", result.Protocol)
@@ -194,7 +196,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use an invalid hostname
-	result := p.Test(ctx, "invalid.host.nonexistent:6379", "", "password", timeout)
+	result := p.Test(ctx, "invalid.host.nonexistent:6379", "", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "redis", result.Protocol)
@@ -212,7 +214,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	// Very short timeout to force timeout error
 	timeout := 1 * time.Nanosecond
 
-	result := p.Test(ctx, "localhost:6379", "", "password", timeout)
+	result := p.Test(ctx, "localhost:6379", "", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected timeout failure")
@@ -231,7 +233,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, "localhost:6379", "", "password", timeout)
+	result := p.Test(ctx, "localhost:6379", "", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected context cancellation failure")
@@ -245,7 +247,7 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Target without port (should use default 6379 or fail)
-	result := p.Test(ctx, "localhost", "", "password", timeout)
+	result := p.Test(ctx, "localhost", "", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "redis", result.Protocol)

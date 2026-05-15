@@ -256,14 +256,14 @@ func TestSNMP(t *testing.T) {
 
 	// Test valid community string
 	t.Run("ValidCommunity", func(t *testing.T) {
-		result := plugin.Test(ctx, host, "", community, defaultTimeout)
+		result := plugin.Test(ctx, host, "", community, defaultTimeout, brutus.PluginConfig{})
 		assert.True(t, result.Success, "Valid community string should succeed")
 		assert.Nil(t, result.Error, "Valid community should not return error")
 	})
 
 	// Test invalid community string
 	t.Run("InvalidCommunity", func(t *testing.T) {
-		result := plugin.Test(ctx, host, "", "wrongcommunity", defaultTimeout)
+		result := plugin.Test(ctx, host, "", "wrongcommunity", defaultTimeout, brutus.PluginConfig{})
 		assert.False(t, result.Success, "Invalid community string should fail")
 		// SNMP may return error or nil depending on implementation
 	})
@@ -298,7 +298,7 @@ func runProtocolTest(t *testing.T, tc testCase) {
 
 	// Test 1: Valid credentials should succeed
 	t.Run("ValidCredentials", func(t *testing.T) {
-		result := plugin.Test(ctx, host, username, password, timeout)
+		result := plugin.Test(ctx, host, username, password, timeout, brutus.PluginConfig{})
 
 		if result.Error != nil {
 			t.Logf("Connection error (may be expected): %v", result.Error)
@@ -315,7 +315,7 @@ func runProtocolTest(t *testing.T, tc testCase) {
 
 	// Test 2: Invalid credentials should fail gracefully
 	t.Run("InvalidCredentials", func(t *testing.T) {
-		result := plugin.Test(ctx, host, username, "definitely-wrong-password-12345", timeout)
+		result := plugin.Test(ctx, host, username, "definitely-wrong-password-12345", timeout, brutus.PluginConfig{})
 
 		if result.Error != nil {
 			// Connection errors are different from auth failures

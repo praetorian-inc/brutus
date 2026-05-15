@@ -34,7 +34,7 @@ func TestPlugin_Test_ReturnsResult(t *testing.T) {
 
 	ctx := context.Background()
 	// Use localhost with unlikely port - will fail fast but still test the flow
-	result := p.Test(ctx, "127.0.0.1:54321", "admin", "admin", 10*time.Second)
+	result := p.Test(ctx, "127.0.0.1:54321", "admin", "admin", 10*time.Second, brutus.PluginConfig{})
 
 	if result == nil {
 		t.Fatal("Test() returned nil result")

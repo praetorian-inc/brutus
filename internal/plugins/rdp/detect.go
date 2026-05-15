@@ -27,9 +27,9 @@ import (
 //
 // This function wraps RunStickyKeysCheck and interprets the StickyKeysResult into
 // a standardized Result format suitable for CLI output.
-func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration, username string) *brutus.Result {
+func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
 	plugin := &Plugin{}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, timeout)
+	stickyResult := plugin.RunStickyKeysCheck(ctx, target, timeout, noVision)
 
 	result := brutus.NewResult("rdp", target, username, "")
 
@@ -71,9 +71,9 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 //
 // This function wraps RunUtilmanCheck and interprets the UtilmanResult into
 // a standardized Result format suitable for CLI output.
-func DetectUtilman(ctx context.Context, target string, timeout time.Duration, username string) *brutus.Result {
+func DetectUtilman(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
 	plugin := &Plugin{}
-	utilmanResult := plugin.RunUtilmanCheck(ctx, target, timeout)
+	utilmanResult := plugin.RunUtilmanCheck(ctx, target, timeout, noVision)
 
 	result := brutus.NewResult("rdp", target, username, "")
 

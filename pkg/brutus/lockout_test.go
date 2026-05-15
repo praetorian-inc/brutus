@@ -262,7 +262,7 @@ type mockPluginWithTracking struct {
 
 func (m *mockPluginWithTracking) Name() string { return "mock" }
 
-func (m *mockPluginWithTracking) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (m *mockPluginWithTracking) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	m.mu.Lock()
 	m.attempts[username]++
 	m.mu.Unlock()
@@ -285,7 +285,7 @@ type mockPluginWithOrder struct {
 
 func (m *mockPluginWithOrder) Name() string { return "mock" }
 
-func (m *mockPluginWithOrder) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (m *mockPluginWithOrder) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	m.mu.Lock()
 	m.order = append(m.order, username+":"+password)
 	m.mu.Unlock()
@@ -309,7 +309,7 @@ type mockPluginCombined struct {
 
 func (m *mockPluginCombined) Name() string { return "mock" }
 
-func (m *mockPluginCombined) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (m *mockPluginCombined) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	m.mu.Lock()
 	m.attempts[username]++
 	m.order = append(m.order, username+":"+password)

@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // getTestConfig returns test configuration from environment variables
@@ -58,7 +60,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, host, user, pass, timeout)
+	result := p.Test(ctx, host, user, pass, timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "imap", result.Protocol)
@@ -85,7 +87,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, host, user, "wrongpassword", timeout)
+	result := p.Test(ctx, host, user, "wrongpassword", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "imap", result.Protocol)
@@ -103,7 +105,7 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use a port that should not have IMAP running
-	result := p.Test(ctx, "localhost:9999", "user@example.com", "password", timeout)
+	result := p.Test(ctx, "localhost:9999", "user@example.com", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "imap", result.Protocol)
@@ -120,7 +122,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use an invalid hostname
-	result := p.Test(ctx, "invalid.host.nonexistent:143", "user@example.com", "password", timeout)
+	result := p.Test(ctx, "invalid.host.nonexistent:143", "user@example.com", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "imap", result.Protocol)
@@ -138,7 +140,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	// Very short timeout to force timeout error
 	timeout := 1 * time.Nanosecond
 
-	result := p.Test(ctx, "localhost:143", "user@example.com", "password", timeout)
+	result := p.Test(ctx, "localhost:143", "user@example.com", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected timeout failure")
@@ -159,7 +161,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, "localhost:143", "user@example.com", "password", timeout)
+	result := p.Test(ctx, "localhost:143", "user@example.com", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected context cancellation failure")
@@ -173,7 +175,7 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Target without port (should use default 143)
-	result := p.Test(ctx, "localhost", "user@example.com", "password", timeout)
+	result := p.Test(ctx, "localhost", "user@example.com", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "imap", result.Protocol)

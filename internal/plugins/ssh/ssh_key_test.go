@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/badkeys"
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // generateTestKey creates a valid RSA private key for testing.
@@ -54,7 +55,7 @@ func TestPlugin_TestKey_ParseValidKey(t *testing.T) {
 	// Test should parse the key without error
 	// This will fail initially because TestKey doesn't exist yet
 	ctx := context.Background()
-	result := plugin.TestKey(ctx, "example.com:22", "testuser", validKey, 5*time.Second)
+	result := plugin.TestKey(ctx, "example.com:22", "testuser", validKey, 5*time.Second, brutus.PluginConfig{})
 
 	// Result should be non-nil even if connection fails
 	if result == nil {
@@ -80,7 +81,7 @@ func TestPlugin_TestKey_InvalidKey(t *testing.T) {
 	invalidKey := []byte("not a valid private key")
 
 	ctx := context.Background()
-	result := plugin.TestKey(ctx, "example.com:22", "testuser", invalidKey, 5*time.Second)
+	result := plugin.TestKey(ctx, "example.com:22", "testuser", invalidKey, 5*time.Second, brutus.PluginConfig{})
 
 	// Should return error for invalid key
 	if result == nil {
@@ -100,7 +101,7 @@ func TestPlugin_TestKey_EmptyKey(t *testing.T) {
 	plugin := &Plugin{}
 
 	ctx := context.Background()
-	result := plugin.TestKey(ctx, "example.com:22", "testuser", nil, 5*time.Second)
+	result := plugin.TestKey(ctx, "example.com:22", "testuser", nil, 5*time.Second, brutus.PluginConfig{})
 
 	// Should return error for empty key
 	if result == nil {
@@ -129,7 +130,7 @@ encrypted data here
 -----END RSA PRIVATE KEY-----`)
 
 	ctx := context.Background()
-	result := plugin.TestKey(ctx, "example.com:22", "testuser", passphraseKey, 5*time.Second)
+	result := plugin.TestKey(ctx, "example.com:22", "testuser", passphraseKey, 5*time.Second, brutus.PluginConfig{})
 
 	// Should return error for passphrase-protected key (Phase 1B limitation)
 	if result == nil {
@@ -152,7 +153,7 @@ func TestPlugin_TestKey_ConnectionError(t *testing.T) {
 
 	// Use invalid target to force connection error
 	ctx := context.Background()
-	result := plugin.TestKey(ctx, "invalid-host:22", "testuser", validKey, 1*time.Second)
+	result := plugin.TestKey(ctx, "invalid-host:22", "testuser", validKey, 1*time.Second, brutus.PluginConfig{})
 
 	// Should return connection error
 	if result == nil {
@@ -177,7 +178,7 @@ func TestPlugin_TestKey_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	result := plugin.TestKey(ctx, "example.com:22", "testuser", validKey, 5*time.Second)
+	result := plugin.TestKey(ctx, "example.com:22", "testuser", validKey, 5*time.Second, brutus.PluginConfig{})
 
 	// Should handle context cancellation
 	if result == nil {
@@ -228,7 +229,7 @@ func TestPlugin_TestKey_Integration(t *testing.T) {
 
 	// Test 1: Valid key should authenticate successfully
 	t.Run("ValidKey", func(t *testing.T) {
-		result := plugin.TestKey(ctx, host, user, vagrantKey, timeout)
+		result := plugin.TestKey(ctx, host, user, vagrantKey, timeout, brutus.PluginConfig{})
 
 		if result == nil {
 			t.Fatal("TestKey returned nil result")
@@ -258,7 +259,7 @@ func TestPlugin_TestKey_Integration(t *testing.T) {
 		// Generate a random valid RSA key that isn't authorized
 		invalidKey := generateTestKey(t)
 
-		result := plugin.TestKey(ctx, host, user, invalidKey, timeout)
+		result := plugin.TestKey(ctx, host, user, invalidKey, timeout, brutus.PluginConfig{})
 
 		if result == nil {
 			t.Fatal("TestKey returned nil result")
@@ -277,7 +278,7 @@ func TestPlugin_TestKey_Integration(t *testing.T) {
 
 	// Test 3: Wrong username with valid key should fail
 	t.Run("WrongUsername", func(t *testing.T) {
-		result := plugin.TestKey(ctx, host, "nonexistentuser", vagrantKey, timeout)
+		result := plugin.TestKey(ctx, host, "nonexistentuser", vagrantKey, timeout, brutus.PluginConfig{})
 
 		if result == nil {
 			t.Fatal("TestKey returned nil result")
@@ -325,7 +326,7 @@ func TestPlugin_TestKey_KeySpraying(t *testing.T) {
 	}
 
 	for _, username := range usernames {
-		result := plugin.TestKey(ctx, host, username, vagrantKey, timeout)
+		result := plugin.TestKey(ctx, host, username, vagrantKey, timeout, brutus.PluginConfig{})
 		results = append(results, &struct {
 			username string
 			success  bool
@@ -378,7 +379,7 @@ func TestPlugin_TestKey_BadKeysIntegration(t *testing.T) {
 	for _, cred := range vagrantCreds {
 		t.Run(cred.Name, func(t *testing.T) {
 			// Use the test user, not the credential's default user
-			result := plugin.TestKey(ctx, host, user, cred.Key, timeout)
+			result := plugin.TestKey(ctx, host, user, cred.Key, timeout, brutus.PluginConfig{})
 
 			if result == nil {
 				t.Fatal("TestKey returned nil result")

@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func getTestConfig() (host, user, pass string) {
@@ -152,7 +154,7 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:9999", "system", "oracle", 2*time.Second)
+	result := p.Test(ctx, "localhost:9999", "system", "oracle", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "oracle", result.Protocol)
@@ -167,7 +169,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "invalid.host.nonexistent:1521", "system", "oracle", 500*time.Millisecond)
+	result := p.Test(ctx, "invalid.host.nonexistent:1521", "system", "oracle", 500*time.Millisecond, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "oracle", result.Protocol)
@@ -180,7 +182,7 @@ func TestPlugin_Test_ResultStructure(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:9999", "user", "pass", 100*time.Millisecond)
+	result := p.Test(ctx, "localhost:9999", "user", "pass", 100*time.Millisecond, brutus.PluginConfig{})
 
 	assert.Equal(t, "oracle", result.Protocol)
 	assert.Equal(t, "localhost:9999", result.Target)
@@ -194,7 +196,7 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost", "system", "oracle", 2*time.Second)
+	result := p.Test(ctx, "localhost", "system", "oracle", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "oracle", result.Protocol)
@@ -207,7 +209,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	result := p.Test(ctx, "localhost:1521", "system", "oracle", time.Second)
+	result := p.Test(ctx, "localhost:1521", "system", "oracle", time.Second, brutus.PluginConfig{})
 
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
@@ -222,7 +224,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, host, user, pass, 10*time.Second)
+	result := p.Test(ctx, host, user, pass, 10*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "oracle", result.Protocol)
@@ -239,7 +241,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, host, user, "wrongpassword", 10*time.Second)
+	result := p.Test(ctx, host, user, "wrongpassword", 10*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)

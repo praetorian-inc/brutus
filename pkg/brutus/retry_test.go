@@ -160,7 +160,7 @@ type testRetryPlugin struct {
 
 func (p *testRetryPlugin) Name() string { return "test-retry" }
 
-func (p *testRetryPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (p *testRetryPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	call := int(p.callCount.Add(1))
 	if call <= p.failFirstN {
 		return &Result{
@@ -190,7 +190,7 @@ type testAuthFailPlugin struct {
 
 func (p *testAuthFailPlugin) Name() string { return "test-auth-fail" }
 
-func (p *testAuthFailPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (p *testAuthFailPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	p.callCount.Add(1)
 	return &Result{
 		Protocol: "test-auth-fail",

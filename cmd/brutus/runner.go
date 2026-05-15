@@ -332,21 +332,14 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 		totalAttempts, config.Threads, config.Timeout)
 	logVerbose(base.verbose, "Starting brute force...")
 
+	// Set RDP-specific flags on config for the plugin
+	config.StickyKeys = base.stickyKeys
+	config.NoUtilman = base.noUtilman
+	config.AIMode = base.aiMode
+
 	// Create context that cancels on SIGINT/SIGTERM
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	// Propagate RDP sticky keys flags via context (not env vars)
-	// Vision API requires --experimental-ai; disable it otherwise
-	if !base.aiMode {
-		ctx = brutus.ContextWithNoVision(ctx)
-	}
-	if !base.stickyKeys {
-		ctx = brutus.ContextWithNoStickyKeys(ctx)
-	}
-	if base.noUtilman {
-		ctx = brutus.ContextWithNoUtilman(ctx)
-	}
 
 	// Run brute force with context
 	results, err := brutus.BruteWithContext(ctx, config)

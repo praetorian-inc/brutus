@@ -82,7 +82,7 @@ type rdpConfig struct {
 // - Success=false, Error=nil: Invalid credentials (auth failure)
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("rdp", target, username, password)
@@ -145,16 +145,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Sticky keys detection: runs on a separate non-NLA connection regardless of
 	// auth result, since it's a pre-auth check that doesn't require credentials.
-	if shouldRunStickyKeysCheck(ctx) {
-		stickyResult := p.RunStickyKeysCheck(ctx, target, timeout)
+	if !pluginCfg.NoStickyKeys {
+		stickyResult := p.RunStickyKeysCheck(ctx, target, timeout, pluginCfg.NoVision)
 		if stickyResult != nil {
 			result.Banner = formatStickyKeysBanner(result.Banner, stickyResult)
 		}
 	}
 
 	// Utilman detection: same approach as sticky keys but uses Win+U trigger.
-	if shouldRunUtilmanCheck(ctx) {
-		utilmanResult := p.RunUtilmanCheck(ctx, target, timeout)
+	if !pluginCfg.NoStickyKeys && !pluginCfg.NoUtilman {
+		utilmanResult := p.RunUtilmanCheck(ctx, target, timeout, pluginCfg.NoVision)
 		if utilmanResult != nil {
 			result.Banner = formatUtilmanBanner(result.Banner, utilmanResult)
 		}
@@ -375,15 +375,9 @@ func parseDomainUsername(username string) (domain, user string) {
 
 var classifyError = brutus.NewClassifier(rdpAuthIndicators)
 
-// shouldRunStickyKeysCheck returns true if sticky keys detection is enabled.
-// The heuristic analysis (pixel comparison) always runs since it has no
-// external dependencies. Use --no-sticky-keys to disable entirely.
-func shouldRunStickyKeysCheck(ctx context.Context) bool {
-	return !brutus.NoStickyKeysFromContext(ctx)
-}
-
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
-func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout time.Duration) *StickyKeysResult {
+// The noVision flag disables Vision API confirmation.
+func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout time.Duration, noVision bool) *StickyKeysResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -405,7 +399,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr)
+	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -414,7 +408,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 }
 
 // runStickyKeysDetection performs the full detection sequence on a non-NLA connection.
-func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string) (*StickyKeysResult, error) {
+func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool) (*StickyKeysResult, error) {
 	result := &StickyKeysResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -453,7 +447,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	// Vision API confirmation is optional: requires ANTHROPIC_API_KEY and
 	// can be disabled with --no-vision flag.
 	var visionAPIKey string
-	if !brutus.NoVisionFromContext(ctx) {
+	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
 	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
@@ -462,14 +456,8 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	return result, nil
 }
 
-// shouldRunUtilmanCheck returns true if utilman detection is enabled.
-// Utilman detection runs alongside sticky keys by default; use --no-utilman to disable.
-func shouldRunUtilmanCheck(ctx context.Context) bool {
-	return !brutus.NoStickyKeysFromContext(ctx) && !brutus.NoUtilmanFromContext(ctx)
-}
-
 // RunUtilmanCheck performs utilman backdoor detection on a separate connection.
-func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout time.Duration) *UtilmanResult {
+func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout time.Duration, noVision bool) *UtilmanResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -491,7 +479,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout tim
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr)
+	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision)
 	if err != nil {
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -500,7 +488,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout tim
 }
 
 // runUtilmanDetection performs the full utilman detection sequence on a non-NLA connection.
-func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string) (*UtilmanResult, error) {
+func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool) (*UtilmanResult, error) {
 	result := &UtilmanResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -539,7 +527,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	// Vision API confirmation is optional: requires ANTHROPIC_API_KEY and
 	// can be disabled with --no-vision flag.
 	var visionAPIKey string
-	if !brutus.NoVisionFromContext(ctx) {
+	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
 	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)

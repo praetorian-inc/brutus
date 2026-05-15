@@ -151,7 +151,7 @@ func TestCapability_Invoke_NoProtocol(t *testing.T) {
 type mockPlugin struct{}
 
 func (p *mockPlugin) Name() string { return "mock-test" }
-func (p *mockPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *brutus.Result {
+func (p *mockPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	return &brutus.Result{
 		Protocol: "mock-test",
 		Target:   target,
@@ -212,7 +212,7 @@ func TestCapability_Invoke_Success(t *testing.T) {
 type mockFailPlugin struct{}
 
 func (p *mockFailPlugin) Name() string { return "mock-fail" }
-func (p *mockFailPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *brutus.Result {
+func (p *mockFailPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	return &brutus.Result{
 		Protocol: "mock-fail",
 		Target:   target,

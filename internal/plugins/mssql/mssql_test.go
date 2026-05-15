@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // getTestConfig returns test configuration from environment variables
@@ -53,7 +55,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, host, user, pass, timeout)
+	result := p.Test(ctx, host, user, pass, timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "mssql", result.Protocol)
@@ -80,7 +82,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, host, user, "wrongpassword", timeout)
+	result := p.Test(ctx, host, user, "wrongpassword", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "mssql", result.Protocol)
@@ -98,7 +100,7 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use a port that should not have MSSQL running
-	result := p.Test(ctx, "localhost:9999", "sa", "password", timeout)
+	result := p.Test(ctx, "localhost:9999", "sa", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "mssql", result.Protocol)
@@ -115,7 +117,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use an invalid hostname
-	result := p.Test(ctx, "invalid.host.nonexistent:1433", "sa", "password", timeout)
+	result := p.Test(ctx, "invalid.host.nonexistent:1433", "sa", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "mssql", result.Protocol)
@@ -133,7 +135,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	// Very short timeout to force timeout error
 	timeout := 1 * time.Nanosecond
 
-	result := p.Test(ctx, "localhost:1433", "sa", "password", timeout)
+	result := p.Test(ctx, "localhost:1433", "sa", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected timeout failure")
@@ -154,7 +156,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, "localhost:1433", "sa", "password", timeout)
+	result := p.Test(ctx, "localhost:1433", "sa", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected context cancellation failure")

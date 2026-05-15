@@ -52,7 +52,7 @@ func (p *Plugin) Name() string {
 // - Success=false, Error=nil: Invalid credentials (auth failure)
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("imap", target, username, password)

@@ -165,7 +165,7 @@ func (p *testRateLimitPlugin) Name() string {
 	return "test-rate-limit"
 }
 
-func (p *testRateLimitPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (p *testRateLimitPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	if p.callCount != nil {
 		p.callCount.Add(1)
 	}
@@ -304,7 +304,7 @@ func (p *testJitterCancelPlugin) Name() string {
 	return "test-jitter-cancel"
 }
 
-func (p *testJitterCancelPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (p *testJitterCancelPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	// First call succeeds, all others fail
 	// This triggers StopOnSuccess and context cancellation
 	isFirst := p.firstCall.CompareAndSwap(false, true)

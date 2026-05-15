@@ -76,7 +76,7 @@ func TestHTTPWithLLM_EndToEnd_Grafana(t *testing.T) {
 
 	// Step 1: Capture banner using HTTP plugin (empty creds)
 	plugin := &Plugin{Path: "/", UseHTTPS: false}
-	bannerResult := plugin.Test(ctx, target, "", "", 10*time.Second)
+	bannerResult := plugin.Test(ctx, target, "", "", 10*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, bannerResult)
 	require.NotEmpty(t, bannerResult.Banner, "Should capture HTTP banner")
@@ -115,7 +115,7 @@ func TestHTTPWithLLM_EndToEnd_Grafana(t *testing.T) {
 	// Step 4: Test LLM suggestions against the server
 	var successResult *brutus.Result
 	for _, suggestedPwd := range suggestions {
-		result := plugin.Test(ctx, target, "admin", suggestedPwd, 5*time.Second)
+		result := plugin.Test(ctx, target, "admin", suggestedPwd, 5*time.Second, brutus.PluginConfig{})
 		t.Logf("Testing admin:%s -> Success=%v", suggestedPwd, result.Success)
 		if result.Success {
 			successResult = result
@@ -174,7 +174,7 @@ func TestHTTPWithLLM_EndToEnd_Jenkins(t *testing.T) {
 
 	// Capture banner
 	plugin := &Plugin{Path: "/", UseHTTPS: false}
-	bannerResult := plugin.Test(ctx, target, "", "", 10*time.Second)
+	bannerResult := plugin.Test(ctx, target, "", "", 10*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, bannerResult)
 	t.Logf("Captured banner:\n%s", bannerResult.Banner)
@@ -200,7 +200,7 @@ func TestHTTPWithLLM_EndToEnd_Jenkins(t *testing.T) {
 	for _, suggestedPwd := range suggestions {
 		// Test with common usernames
 		for _, user := range []string{"admin", "jenkins"} {
-			result := plugin.Test(ctx, target, user, suggestedPwd, 5*time.Second)
+			result := plugin.Test(ctx, target, user, suggestedPwd, 5*time.Second, brutus.PluginConfig{})
 			t.Logf("Testing %s:%s -> Success=%v", user, suggestedPwd, result.Success)
 			if result.Success {
 				successResult = result
@@ -258,7 +258,7 @@ func TestHTTPWithLLM_EndToEnd_Tomcat(t *testing.T) {
 
 	// Capture banner
 	plugin := &Plugin{Path: "/", UseHTTPS: false}
-	bannerResult := plugin.Test(ctx, target, "", "", 10*time.Second)
+	bannerResult := plugin.Test(ctx, target, "", "", 10*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, bannerResult)
 	t.Logf("Captured banner:\n%s", bannerResult.Banner)
@@ -281,7 +281,7 @@ func TestHTTPWithLLM_EndToEnd_Tomcat(t *testing.T) {
 	var successResult *brutus.Result
 	for _, suggestedPwd := range suggestions {
 		for _, user := range []string{"tomcat", "admin", "manager"} {
-			result := plugin.Test(ctx, target, user, suggestedPwd, 5*time.Second)
+			result := plugin.Test(ctx, target, user, suggestedPwd, 5*time.Second, brutus.PluginConfig{})
 			t.Logf("Testing %s:%s -> Success=%v", user, suggestedPwd, result.Success)
 			if result.Success {
 				successResult = result

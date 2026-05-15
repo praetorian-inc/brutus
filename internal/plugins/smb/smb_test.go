@@ -38,7 +38,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:445", "Administrator", "password", 5*time.Second)
+	result := p.Test(ctx, "localhost:445", "Administrator", "password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
@@ -57,7 +57,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:445", "Administrator", "wrongpassword", 5*time.Second)
+	result := p.Test(ctx, "localhost:445", "Administrator", "wrongpassword", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
@@ -74,7 +74,7 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	ctx := context.Background()
 
 	// Invalid host should cause connection error
-	result := p.Test(ctx, "invalid-host:445", "Administrator", "password", 2*time.Second)
+	result := p.Test(ctx, "invalid-host:445", "Administrator", "password", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
@@ -93,7 +93,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel immediately
 	cancel()
 
-	result := p.Test(ctx, "localhost:445", "Administrator", "password", 5*time.Second)
+	result := p.Test(ctx, "localhost:445", "Administrator", "password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -105,7 +105,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	ctx := context.Background()
 
 	// Use a blackhole IP that won't respond (connection should timeout)
-	result := p.Test(ctx, "192.0.2.1:445", "Administrator", "password", 1*time.Second)
+	result := p.Test(ctx, "192.0.2.1:445", "Administrator", "password", 1*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -121,7 +121,7 @@ func TestPlugin_Test_DomainUsername(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with DOMAIN\username format
-	result := p.Test(ctx, "localhost:445", "DOMAIN\\Administrator", "password", 5*time.Second)
+	result := p.Test(ctx, "localhost:445", "DOMAIN\\Administrator", "password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
@@ -140,7 +140,7 @@ func TestPlugin_Test_IPv6Target(t *testing.T) {
 	ctx := context.Background()
 
 	// Test IPv6 address with port - should fail connection but parse correctly
-	result := p.Test(ctx, "[::1]:445", "Administrator", "password", 1*time.Second)
+	result := p.Test(ctx, "[::1]:445", "Administrator", "password", 1*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
@@ -159,7 +159,7 @@ func TestPlugin_Test_IPv6TargetNoPort(t *testing.T) {
 	ctx := context.Background()
 
 	// Test IPv6 address without port - should default to 445
-	result := p.Test(ctx, "::1", "Administrator", "password", 1*time.Second)
+	result := p.Test(ctx, "::1", "Administrator", "password", 1*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)

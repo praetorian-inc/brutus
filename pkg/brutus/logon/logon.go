@@ -37,16 +37,14 @@ const (
 // DetectBackdoors runs sticky keys (and optionally utilman) detection against
 // a single RDP target. Returns results and whether any backdoor was found.
 func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode, noUtilman bool) ([]brutus.Result, bool) {
-	if !aiMode {
-		ctx = brutus.ContextWithNoVision(ctx)
-	}
+	noVision := !aiMode
 
-	stickyResult := rdp.DetectStickyKeys(ctx, target, timeout, "(sticky-keys)")
+	stickyResult := rdp.DetectStickyKeys(ctx, target, timeout, "(sticky-keys)", noVision)
 	results := []brutus.Result{*stickyResult}
 	hasSuccess := stickyResult.Success
 
 	if !noUtilman {
-		utilmanResult := rdp.DetectUtilman(ctx, target, timeout, "(utilman)")
+		utilmanResult := rdp.DetectUtilman(ctx, target, timeout, "(utilman)", noVision)
 		results = append(results, *utilmanResult)
 		if utilmanResult.Success {
 			hasSuccess = true

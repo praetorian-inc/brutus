@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -84,7 +86,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "invalid:target:format", "user", "pass", time.Second)
+	result := p.Test(ctx, "invalid:target:format", "user", "pass", time.Second, brutus.PluginConfig{})
 
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
@@ -99,7 +101,7 @@ func TestPlugin_Test_ResultStructure(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with unreachable target to verify result structure
-	result := p.Test(ctx, "localhost:99999", "user", "pass", 100*time.Millisecond)
+	result := p.Test(ctx, "localhost:99999", "user", "pass", 100*time.Millisecond, brutus.PluginConfig{})
 
 	// Verify result fields are populated
 	assert.Equal(t, "cassandra", result.Protocol)
@@ -115,7 +117,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
-	result := p.Test(ctx, "localhost:9042", "user", "pass", time.Second)
+	result := p.Test(ctx, "localhost:9042", "user", "pass", time.Second, brutus.PluginConfig{})
 
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)

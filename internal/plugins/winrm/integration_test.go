@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // Integration tests require a live WinRM server.
@@ -31,7 +33,7 @@ func TestIntegration_ValidCredentials(t *testing.T) {
 
 	p := &Plugin{UseHTTPS: false}
 	ctx := context.Background()
-	result := p.Test(ctx, host, user, pass, 10*time.Second)
+	result := p.Test(ctx, host, user, pass, 10*time.Second, brutus.PluginConfig{})
 
 	assert.True(t, result.Success, "expected valid credentials to succeed")
 	assert.Nil(t, result.Error, "expected no error for valid credentials")
@@ -42,7 +44,7 @@ func TestIntegration_InvalidCredentials(t *testing.T) {
 
 	p := &Plugin{UseHTTPS: false}
 	ctx := context.Background()
-	result := p.Test(ctx, host, user, "definitely-wrong-password", 10*time.Second)
+	result := p.Test(ctx, host, user, "definitely-wrong-password", 10*time.Second, brutus.PluginConfig{})
 
 	assert.False(t, result.Success, "expected invalid credentials to fail")
 	assert.Nil(t, result.Error, "expected nil error for auth failure (not connection error)")

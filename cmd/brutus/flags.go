@@ -38,11 +38,13 @@ var (
 
 // Credential flags
 var (
-	flagUsernames    string
-	flagUsernameFile string
-	flagPasswords    string
-	flagPasswordFile string
-	flagKeyFile      string
+	flagUsernames       string
+	flagUsernameFile    string
+	flagPasswords       string
+	flagPasswordFile    string
+	flagKeyFile         string
+	flagCredentials     string
+	flagCredentialsFile string
 )
 
 // Performance flags
@@ -126,8 +128,10 @@ func registerCredentialFlags(cmd *cobra.Command) {
 	f.StringVarP(&flagUsernameFile, "username-file", "U", "", "Username file (one per line)")
 	f.StringVarP(&flagPasswords, "passwords", "p", "", "Comma-separated passwords")
 	f.StringVarP(&flagPasswordFile, "password-file", "P", "", "Password file (one per line)")
+	f.StringVarP(&flagCredentials, "credentials", "c", "", "Comma-separated user:pass pairs (e.g., admin:admin,root:toor)")
+	f.StringVarP(&flagCredentialsFile, "credentials-file", "C", "", "Credentials file (user:pass per line)")
 	f.IntVar(&flagMaxAttempts, "max-attempts", 0, "Max password attempts per user (0 = unlimited)")
-	f.BoolVar(&flagVerifyTLS, "verify-tls", false, "Require strict TLS certificate verification")
+	f.BoolVar(&flagVerifyTLS, "verify", false, "Require strict TLS certificate verification")
 }
 
 // registerCredsFlags registers flags specific to the creds subcommand.
@@ -221,9 +225,15 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 		return nil, err
 	}
 
+	credentialList, err := loadCredentials(flagCredentials, flagCredentialsFile)
+	if err != nil {
+		return nil, err
+	}
+
 	return &baseConfigOptions{
 		usernames:        usernameList,
 		passwords:        passwordList,
+		credentials:      credentialList,
 		keys:             keyList,
 		threads:          flagThreads,
 		timeout:          flagTimeout,

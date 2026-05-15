@@ -37,14 +37,17 @@ In pipeline/fingerprint mode, HTTP and SNMP services are automatically skipped.`
 	Example: `  # Single target
   brutus creds --target 192.168.1.10:22 --protocol ssh -p "password,Password1"
 
+  # Pre-paired user:pass combos (no Cartesian product)
+  brutus creds --target 10.0.0.50:22 -c "admin:admin,root:toor,deploy:deploy123"
+
+  # Credentials file (user:pass per line)
+  brutus creds --target 10.0.0.50:3306 -C creds.txt
+
   # Targets file (auto-fingerprinted with Nerva)
   brutus creds --targets-file targets.txt -u admin -P passwords.txt
 
   # Pipeline mode with Nerva JSON (HTTP and SNMP services are skipped)
   naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
-
-  # Pipe plain targets (auto-fingerprinted with Nerva)
-  cat targets.txt | brutus creds
 
   # Pipe URI targets (protocol from scheme, no fingerprinting needed)
   echo "ssh://192.168.1.10:22" | brutus creds -p "password,Password1"`,

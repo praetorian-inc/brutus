@@ -24,6 +24,7 @@ import (
 type baseConfigOptions struct {
 	usernames        []string
 	passwords        []string
+	credentials      []brutus.Credential // pre-paired user:pass (no Cartesian product)
 	keys             [][]byte
 	threads          int
 	timeout          time.Duration

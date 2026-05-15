@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsCredsProtocol(t *testing.T) {
@@ -26,29 +25,13 @@ func TestIsCredsProtocol(t *testing.T) {
 	assert.True(t, IsCredsProtocol("ssh"))
 	assert.True(t, IsCredsProtocol("mysql"))
 	assert.True(t, IsCredsProtocol("rdp"))
-	assert.True(t, IsCredsProtocol("snmp"))
 	assert.True(t, IsCredsProtocol("ldap"))
+
+	// SNMP has its own subcommand (should return false)
+	assert.False(t, IsCredsProtocol("snmp"))
 
 	// Web protocols (should return false)
 	assert.False(t, IsCredsProtocol("http"))
 	assert.False(t, IsCredsProtocol("https"))
 	assert.False(t, IsCredsProtocol("browser"))
-}
-
-func TestConfigureSNMP(t *testing.T) {
-	strings, err := ConfigureSNMP("default")
-	require.NoError(t, err)
-	assert.NotEmpty(t, strings)
-	assert.Contains(t, strings, "public")
-
-	strings, err = ConfigureSNMP("extended")
-	require.NoError(t, err)
-	assert.True(t, len(strings) > 20)
-
-	strings, err = ConfigureSNMP("full")
-	require.NoError(t, err)
-	assert.True(t, len(strings) > 50)
-
-	_, err = ConfigureSNMP("invalid")
-	assert.Error(t, err)
 }

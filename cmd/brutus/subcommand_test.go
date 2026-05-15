@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus/creds"
+	snmpPkg "github.com/praetorian-inc/brutus/pkg/brutus/snmp"
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
@@ -190,21 +191,50 @@ func TestRunLogon_DefaultsToRDP(t *testing.T) {
 	assert.False(t, config.protocolFilter("http"))
 }
 
-// TestProtocolFilters_AreComplementary verifies that the web and creds
-// filters partition protocols correctly — no protocol passes both.
+// TestRunSNMP_SetsProtocolOverrideAndFilter tests that runSNMP forces SNMP
+// protocol and installs the SNMP protocol filter.
+func TestRunSNMP_SetsProtocolOverrideAndFilter(t *testing.T) {
+	config := &baseConfigOptions{}
+
+	// Simulate runSNMP logic
+	config.protocolOverride = "snmp"
+	config.protocolFilter = snmpPkg.IsSNMPProtocol
+
+	assert.Equal(t, "snmp", config.protocolOverride)
+	assert.True(t, config.protocolFilter("snmp"))
+	assert.False(t, config.protocolFilter("ssh"))
+	assert.False(t, config.protocolFilter("http"))
+}
+
+// TestProtocolFilters_AreComplementary verifies that the web, creds, and snmp
+// filters partition protocols correctly — each protocol matches exactly one filter.
 func TestProtocolFilters_AreComplementary(t *testing.T) {
 	protocols := []string{
 		"http", "https", "browser",
-		"ssh", "mysql", "rdp", "snmp", "ldap", "ftp", "smb",
+		"ssh", "mysql", "rdp", "ldap", "ftp", "smb",
 		"postgresql", "mssql", "redis", "mongodb",
+		"snmp",
 	}
 
 	for _, p := range protocols {
 		isWeb := web.IsWebProtocol(p)
 		isCreds := creds.IsCredsProtocol(p)
-		// Every known protocol should be exactly one or the other
-		assert.NotEqual(t, isWeb, isCreds,
-			"protocol %q: IsWebProtocol=%v, IsCredsProtocol=%v — should be complementary",
-			p, isWeb, isCreds)
+		isSNMP := snmpPkg.IsSNMPProtocol(p)
+
+		// Count how many filters match
+		matchCount := 0
+		if isWeb {
+			matchCount++
+		}
+		if isCreds {
+			matchCount++
+		}
+		if isSNMP {
+			matchCount++
+		}
+
+		assert.Equal(t, 1, matchCount,
+			"protocol %q: IsWebProtocol=%v, IsCredsProtocol=%v, IsSNMPProtocol=%v — should match exactly one",
+			p, isWeb, isCreds, isSNMP)
 	}
 }

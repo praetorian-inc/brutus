@@ -135,7 +135,14 @@ func registerCredsFlags(cmd *cobra.Command) {
 	registerCredentialFlags(cmd)
 	cmd.Flags().StringVarP(&flagKeyFile, "key", "k", "", "SSH private key file")
 	cmd.Flags().StringVar(&flagProtocol, "protocol", "", "Protocol to use (auto-detected from nerva)")
-	cmd.Flags().StringVar(&flagSNMPTier, "snmp-tier", "default", "SNMP community string tier: default (20), extended (50), full (120)")
+}
+
+// registerSNMPFlags registers flags specific to the snmp subcommand.
+func registerSNMPFlags(cmd *cobra.Command) {
+	f := cmd.Flags()
+	f.StringVar(&flagSNMPTier, "tier", "default", "Community string tier: default (~20), extended (~50), full (~120)")
+	f.StringVarP(&flagPasswords, "passwords", "p", "", "Custom community strings (comma-separated)")
+	f.StringVarP(&flagPasswordFile, "password-file", "P", "", "Community string file (one per line)")
 }
 
 // registerWebFlags registers flags specific to the web subcommand.

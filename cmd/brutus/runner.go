@@ -24,9 +24,9 @@ import (
 	"syscall"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
-	"github.com/praetorian-inc/brutus/pkg/brutus/creds"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
+	snmpPkg "github.com/praetorian-inc/brutus/pkg/brutus/snmp"
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
@@ -261,7 +261,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 
 	// Handle SNMP-specific tier selection (tiers are CLI-only, not in library defaults)
 	if protocol == "snmp" && len(config.Passwords) == 0 {
-		communityStrings, err := creds.ConfigureSNMP(base.snmpTier)
+		communityStrings, err := snmpPkg.ConfigureSNMP(base.snmpTier)
 		if err != nil {
 			errMsg(base.useColor, "%v", err)
 			return nil, false

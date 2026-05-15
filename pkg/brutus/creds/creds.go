@@ -12,15 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package creds provides credential-testing domain logic for the "brutus creds"
-// subcommand: protocol filtering and SNMP community string configuration.
+// Package creds provides protocol filtering for the "brutus creds" subcommand.
 package creds
-
-import (
-	"fmt"
-
-	"github.com/praetorian-inc/brutus/internal/plugins/snmp"
-)
 
 // httpProtocols lists protocols handled by the "web" subcommand (not "creds").
 // Keep in sync with the identical map in pkg/brutus/web/web.go.
@@ -30,16 +23,8 @@ var httpProtocols = map[string]bool{
 	"browser": true,
 }
 
-// IsCredsProtocol returns true for non-HTTP protocols handled by the "creds" subcommand.
+// IsCredsProtocol returns true for non-HTTP, non-SNMP protocols handled by the
+// "creds" subcommand. SNMP has its own dedicated subcommand ("brutus snmp").
 func IsCredsProtocol(protocol string) bool {
-	return !httpProtocols[protocol]
-}
-
-// ConfigureSNMP validates the tier string and returns the corresponding community
-// strings. The caller is responsible for assigning them to config.Passwords.
-func ConfigureSNMP(tier string) ([]string, error) {
-	if !snmp.ValidateTier(tier) {
-		return nil, fmt.Errorf("invalid --snmp-tier: %s (use: default, extended, full)", tier)
-	}
-	return snmp.GetCommunityStrings(snmp.Tier(tier)), nil
+	return !httpProtocols[protocol] && protocol != "snmp"
 }

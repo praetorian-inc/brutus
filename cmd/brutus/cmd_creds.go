@@ -26,30 +26,28 @@ var credsCmd = &cobra.Command{
 	Short:   "Test default credentials on non-HTTP services (SSH, databases, SMB, etc.)",
 	Long: `Audit default and weak credentials across network services, databases,
 and enterprise protocols such as SSH, RDP, MySQL, PostgreSQL, SMB, LDAP,
-Redis, SNMP, and more.
+Redis, and more.
 
+For SNMP community string testing, use "brutus snmp" instead.
 If --protocol http is explicitly set, only HTTP Basic Auth with default
 credentials will be tested. For full web panel auditing including form-based
 login and AI-powered detection, use "brutus web" instead.
 
-In pipeline/fingerprint mode, HTTP-like services are automatically skipped.`,
+In pipeline/fingerprint mode, HTTP and SNMP services are automatically skipped.`,
 	Example: `  # Single target
   brutus creds --target 192.168.1.10:22 --protocol ssh -p "password,Password1"
 
   # Targets file (auto-fingerprinted with Nerva)
   brutus creds --targets-file targets.txt -u admin -P passwords.txt
 
-  # Pipeline mode with Nerva JSON (HTTP services are skipped)
+  # Pipeline mode with Nerva JSON (HTTP and SNMP services are skipped)
   naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
 
   # Pipe plain targets (auto-fingerprinted with Nerva)
   cat targets.txt | brutus creds
 
   # Pipe URI targets (protocol from scheme, no fingerprinting needed)
-  echo "ssh://192.168.1.10:22" | brutus creds -p "password,Password1"
-
-  # SNMP community string testing
-  brutus creds --target 192.168.1.1:161 --protocol snmp --snmp-tier full`,
+  echo "ssh://192.168.1.10:22" | brutus creds -p "password,Password1"`,
 	RunE: runCreds,
 }
 

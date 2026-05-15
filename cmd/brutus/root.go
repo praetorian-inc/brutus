@@ -26,7 +26,7 @@ import (
 )
 
 // errNoSubcommand is returned when the root command is invoked without a subcommand.
-var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, badkeys, logon)")
+var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, snmp, badkeys, logon)")
 
 var rootCmd = &cobra.Command{
 	Use:   "brutus",
@@ -37,6 +37,7 @@ Modern credential auditing tool for network services, web panels, and Windows lo
 Subcommands:
   creds    Test default credentials on non-HTTP services (SSH, databases, SMB, etc.)
   web      Audit HTTP/web panel credentials (Basic Auth, form login, AI-powered)
+  snmp     Test SNMP community strings against targets
   badkeys  Test known weak/compromised SSH keys against targets
   logon    Detect Windows logon-screen backdoors (sticky keys, utilman)
 
@@ -55,6 +56,7 @@ func init() {
 
 	rootCmd.AddCommand(credsCmd)
 	rootCmd.AddCommand(webCmd)
+	rootCmd.AddCommand(snmpCmd)
 	rootCmd.AddCommand(badkeysCmd)
 	rootCmd.AddCommand(logonCmd)
 }

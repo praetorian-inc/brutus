@@ -16,7 +16,6 @@ package elasticsearch
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -131,7 +130,7 @@ func TestCheckUnauth_OpenAccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.Header.Get("Authorization"), "CheckUnauth should NOT send auth header")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"name":"node-1","cluster_name":"test","version":{"number":"8.12.0"}}`)
+		_, _ = w.Write([]byte(`{"name":"node-1","cluster_name":"test","version":{"number":"8.12.0"}}`))
 	}))
 	defer server.Close()
 

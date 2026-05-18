@@ -33,9 +33,9 @@ This subcommand automatically enables sticky keys and utilman backdoor
 detection. The protocol defaults to RDP.
 
 Modes:
-  Detection:   brutus logon --target host:3389
-  Exec:        brutus logon --target host:3389 --sticky-keys-exec "whoami"
-  Web terminal: brutus logon --target host:3389 --sticky-keys-web
+  Detection:    brutus logon --target host:3389
+  Exec:         brutus logon --target host:3389 --exec "whoami"
+  Web terminal: brutus logon --target host:3389 --web
 
 Use --experimental-ai to enable Vision API for more accurate backdoor
 confirmation via screenshot analysis.`,
@@ -45,11 +45,11 @@ confirmation via screenshot analysis.`,
   # Vision API confirmation (more accurate)
   brutus logon --target 10.0.0.50:3389 --experimental-ai
 
-  # Execute a command via sticky keys backdoor
-  brutus logon --target 10.0.0.50:3389 --sticky-keys-exec "whoami"
+  # Execute a command via detected backdoor
+  brutus logon --target 10.0.0.50:3389 --exec "whoami"
 
   # Interactive web terminal via backdoor
-  brutus logon --target 10.0.0.50:3389 --sticky-keys-web --sticky-keys-open
+  brutus logon --target 10.0.0.50:3389 --web --open
 
   # Pipeline mode with Nerva JSON (only RDP targets are tested)
   naabu -host 10.0.0.0/24 -p 3389 -silent | nerva --json | brutus logon
@@ -90,11 +90,9 @@ func runLogon(cmd *cobra.Command, args []string) error {
 
 	// Build logon-specific config
 	lc := &logonConfig{
-		stickyKeys:     true,
-		stickyKeysExec: flagStickyKeysExec,
-		stickyKeysWeb:  flagStickyKeysWeb,
-		stickyKeysOpen: flagStickyKeysOpen,
-		noUtilman:      flagNoUtilman,
+		execCmd:     flagExec,
+		webTerminal: flagWeb,
+		openBrowser: flagOpen,
 	}
 
 	rc := &runConfig{baseConfigOptions: base, logon: lc}
@@ -117,7 +115,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 	}
 
 	// Determine if this is detection mode (no exec or web) vs interactive
-	isDetectMode := lc.stickyKeysExec == "" && !lc.stickyKeysWeb
+	isDetectMode := lc.execCmd == "" && !lc.webTerminal
 
 	if isDetectMode {
 		// Scan/detection mode

@@ -60,11 +60,9 @@ type webConfig struct {
 
 // logonConfig holds settings specific to the logon subcommand.
 type logonConfig struct {
-	stickyKeys     bool
-	stickyKeysExec string
-	stickyKeysWeb  bool
-	stickyKeysOpen bool
-	noUtilman      bool
+	execCmd     string // command to execute via backdoor
+	webTerminal bool   // start interactive web terminal
+	openBrowser bool   // auto-open browser for web terminal
 }
 
 // runConfig bundles baseConfigOptions with optional subcommand-specific config.

@@ -301,7 +301,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 	}
 
 	// Sticky keys interactive modes: bypass brute force entirely
-	if protocol == "rdp" && base.logon != nil && (base.logon.stickyKeysExec != "" || base.logon.stickyKeysWeb) {
+	if protocol == "rdp" && base.logon != nil && (base.logon.execCmd != "" || base.logon.webTerminal) {
 		return runStickyKeysInteractive(target, base)
 	}
 
@@ -322,8 +322,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 
 	// Set RDP-specific flags on config for the plugin
 	if base.logon != nil {
-		config.StickyKeys = base.logon.stickyKeys
-		config.NoUtilman = base.logon.noUtilman
+		config.StickyKeys = true
 	}
 	config.AIMode = base.aiMode
 
@@ -372,12 +371,11 @@ func runStickyKeysInteractive(target string, base *runConfig) ([]brutus.Result, 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if base.logon.stickyKeysWeb {
+	if base.logon.webTerminal {
 		result, success := logon.RunWebTerminal(ctx, logon.WebTerminalConfig{
 			Target:      target,
 			Timeout:     base.timeout,
-			NoUtilman:   base.logon.noUtilman,
-			OpenBrowser: base.logon.stickyKeysOpen,
+			OpenBrowser: base.logon.openBrowser,
 		})
 		if !success {
 			errMsg(base.useColor, "web terminal: %v", result.Error)
@@ -385,13 +383,13 @@ func runStickyKeysInteractive(target string, base *runConfig) ([]brutus.Result, 
 		return []brutus.Result{result}, success
 	}
 
-	if base.logon.stickyKeysExec != "" {
+	if base.logon.execCmd != "" {
 		result, success := logon.RunExec(ctx, logon.ExecConfig{
 			Target:       target,
 			Timeout:      base.timeout,
 			AIMode:       base.aiMode,
 			AnthropicKey: base.anthropicKey,
-		}, base.logon.stickyKeysExec)
+		}, base.logon.execCmd)
 		if !success {
 			errMsg(base.useColor, "sticky keys exec: %v", result.Error)
 		}
@@ -471,6 +469,5 @@ func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	noUtilman := base.logon != nil && base.logon.noUtilman
-	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode, noUtilman)
+	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode)
 }

@@ -34,21 +34,19 @@ const (
 	BackdoorUtilman    BackdoorType = rdp.BackdoorUtilman
 )
 
-// DetectBackdoors runs sticky keys (and optionally utilman) detection against
-// a single RDP target. Returns results and whether any backdoor was found.
-func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode, noUtilman bool) ([]brutus.Result, bool) {
+// DetectBackdoors runs sticky keys and utilman detection against a single RDP
+// target. Returns results and whether any backdoor was found.
+func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
 	noVision := !aiMode
 
 	stickyResult := rdp.DetectStickyKeys(ctx, target, timeout, "(sticky-keys)", noVision)
 	results := []brutus.Result{*stickyResult}
 	hasSuccess := stickyResult.Success
 
-	if !noUtilman {
-		utilmanResult := rdp.DetectUtilman(ctx, target, timeout, "(utilman)", noVision)
-		results = append(results, *utilmanResult)
-		if utilmanResult.Success {
-			hasSuccess = true
-		}
+	utilmanResult := rdp.DetectUtilman(ctx, target, timeout, "(utilman)", noVision)
+	results = append(results, *utilmanResult)
+	if utilmanResult.Success {
+		hasSuccess = true
 	}
 
 	return results, hasSuccess
@@ -95,19 +93,14 @@ func RunExec(ctx context.Context, cfg ExecConfig, command string) (brutus.Result
 type WebTerminalConfig struct {
 	Target      string
 	Timeout     time.Duration
-	NoUtilman   bool
 	OpenBrowser bool
 }
 
-// RunWebTerminal starts an interactive web terminal via the specified backdoor.
+// RunWebTerminal starts an interactive web terminal via the utilman backdoor.
 // Returns a result and whether the session was successful.
 func RunWebTerminal(ctx context.Context, cfg WebTerminalConfig) (brutus.Result, bool) {
 	backdoorType := BackdoorUtilman
 	username := "(utilman)"
-	if cfg.NoUtilman {
-		backdoorType = BackdoorStickyKeys
-		username = "(sticky-keys)"
-	}
 
 	result := brutus.Result{
 		Protocol: "rdp",

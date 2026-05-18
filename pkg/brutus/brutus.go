@@ -77,8 +77,7 @@ import (
 type PluginConfig struct {
 	TLSMode      string // "disable", "verify", "skip-verify" (default: "disable")
 	NoVision     bool   // disable Vision API for screenshot analysis (RDP)
-	NoStickyKeys bool   // disable sticky keys backdoor detection (RDP)
-	NoUtilman    bool   // disable utilman backdoor detection (RDP)
+	NoStickyKeys bool // disable sticky keys backdoor detection (RDP)
 }
 
 // Credential represents a pre-paired username with password or key.
@@ -111,9 +110,8 @@ type Config struct {
 	MaxAttempts int           // max password attempts per username (0 = unlimited)
 	MaxRetries  int           // max retries per credential on connection error (0 = no retry, default: 0)
 	Verbose     bool          // enable verbose logging to stderr (default: false)
-	StickyKeys  bool          // enable sticky keys backdoor detection (RDP)
-	NoUtilman   bool          // disable utilman backdoor detection (RDP)
-	AIMode      bool          // enable Vision API for screenshot analysis (RDP)
+	StickyKeys bool // enable sticky keys backdoor detection (RDP)
+	AIMode     bool // enable Vision API for screenshot analysis (RDP)
 }
 
 // Result contains the outcome of testing a single credential.

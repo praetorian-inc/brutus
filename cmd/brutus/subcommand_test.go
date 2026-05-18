@@ -188,13 +188,11 @@ func TestRunLogon_DefaultsToRDP(t *testing.T) {
 		return protocol == "rdp"
 	}
 
-	lc := &logonConfig{
-		stickyKeys: true,
-	}
+	lc := &logonConfig{}
 	rc := &runConfig{baseConfigOptions: base, logon: lc}
 
 	assert.Equal(t, "rdp", rc.protocolOverride)
-	assert.True(t, rc.logon.stickyKeys)
+	assert.NotNil(t, rc.logon)
 	assert.True(t, rc.protocolFilter("rdp"))
 	assert.False(t, rc.protocolFilter("ssh"))
 	assert.False(t, rc.protocolFilter("http"))

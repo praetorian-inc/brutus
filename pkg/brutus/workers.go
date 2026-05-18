@@ -101,7 +101,6 @@ func pluginConfigFromConfig(cfg *Config) PluginConfig {
 		TLSMode:      cfg.TLSMode,
 		NoVision:     !cfg.AIMode,
 		NoStickyKeys: !cfg.StickyKeys,
-		NoUtilman:    cfg.NoUtilman,
 	}
 }
 

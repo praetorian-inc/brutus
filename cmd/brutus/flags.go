@@ -82,12 +82,11 @@ var (
 	flagAIVerify       bool
 )
 
-// Sticky keys flags
+// Logon flags
 var (
-	flagStickyKeysExec string
-	flagStickyKeysWeb  bool
-	flagStickyKeysOpen bool
-	flagNoUtilman      bool
+	flagExec string
+	flagWeb  bool
+	flagOpen bool
 )
 
 // Version flag
@@ -163,10 +162,9 @@ func registerWebFlags(cmd *cobra.Command) {
 
 // registerLogonFlags registers flags specific to the logon subcommand.
 func registerLogonFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&flagStickyKeysExec, "sticky-keys-exec", "", "Execute command via sticky keys backdoor")
-	cmd.Flags().BoolVar(&flagStickyKeysWeb, "sticky-keys-web", false, "Start interactive web terminal via sticky keys backdoor")
-	cmd.Flags().BoolVar(&flagStickyKeysOpen, "sticky-keys-open", false, "Auto-open browser when sticky keys web terminal starts")
-	cmd.Flags().BoolVar(&flagNoUtilman, "no-utilman", false, "Disable utilman.exe backdoor detection")
+	cmd.Flags().StringVar(&flagExec, "exec", "", "Execute command via detected backdoor")
+	cmd.Flags().BoolVar(&flagWeb, "web", false, "Start interactive web terminal via detected backdoor")
+	cmd.Flags().BoolVar(&flagOpen, "open", false, "Auto-open browser when web terminal starts")
 	cmd.Flags().BoolVar(&flagAIMode, "experimental-ai", false, "Enable Vision API for backdoor confirmation")
 }
 

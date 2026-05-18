@@ -211,16 +211,10 @@ func TestPluginConfigStickyKeysUtilman(t *testing.T) {
 	// Default: both checks enabled
 	cfg := brutus.PluginConfig{}
 	assert.False(t, cfg.NoStickyKeys)
-	assert.False(t, cfg.NoUtilman)
 
 	// Sticky keys disabled: utilman also implicitly disabled
 	cfg = brutus.PluginConfig{NoStickyKeys: true}
 	assert.True(t, cfg.NoStickyKeys)
-
-	// Only utilman disabled
-	cfg = brutus.PluginConfig{NoUtilman: true}
-	assert.False(t, cfg.NoStickyKeys)
-	assert.True(t, cfg.NoUtilman)
 }
 
 func TestFormatUtilmanBanner_Confirmed(t *testing.T) {

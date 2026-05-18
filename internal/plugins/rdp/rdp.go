@@ -153,7 +153,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Utilman detection: same approach as sticky keys but uses Win+U trigger.
-	if !pluginCfg.NoStickyKeys && !pluginCfg.NoUtilman {
+	if !pluginCfg.NoStickyKeys {
 		utilmanResult := p.RunUtilmanCheck(ctx, target, timeout, pluginCfg.NoVision)
 		if utilmanResult != nil {
 			result.Banner = formatUtilmanBanner(result.Banner, utilmanResult)

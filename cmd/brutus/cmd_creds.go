@@ -59,25 +59,35 @@ func init() {
 }
 
 func runCreds(cmd *cobra.Command, args []string) error {
-	baseConfig, err := buildConfigFromFlags(cmd)
+	base := buildBaseConfig(cmd)
+
+	// Load credentials (creds-specific)
+	usernames, passwords, credPairs, err := loadCredentialInputs(cmd)
+	if err != nil {
+		return err
+	}
+	base.usernames = usernames
+	base.passwords = passwords
+	base.credentials = credPairs
+
+	// Load SSH keys (creds-only)
+	if err := validateKeyFileFlags(flagKeyFile, isFlagChanged(cmd, "usernames"), flagUsernameFile); err != nil {
+		return err
+	}
+	keys, err := loadKey(flagKeyFile)
 	if err != nil {
 		return err
 	}
 
-	// Creds mode never uses AI browser automation, sticky keys, or badkeys
-	// (badkeys has its own subcommand now)
-	baseConfig.aiMode = false
-	baseConfig.stickyKeys = false
-	baseConfig.useBadkeys = false
-	baseConfig.badkeysOnly = false
+	// Creds mode: disable irrelevant features
+	base.aiMode = false
+	base.useBadkeys = false
+	base.badkeysOnly = false
 
-	// In pipeline/fingerprint mode, skip HTTP-like protocols.
-	// If --protocol is explicitly set to http, we still allow it (basic auth only)
-	// but don't install a filter since the user explicitly chose the protocol.
-	protocolExplicit := isFlagChanged(cmd, "protocol")
-	if !protocolExplicit {
-		baseConfig.protocolFilter = creds.IsCredsProtocol
+	// In pipeline/fingerprint mode, skip HTTP-like and SNMP protocols.
+	if !isFlagChanged(cmd, "protocol") {
+		base.protocolFilter = creds.IsCredsProtocol
 	}
 
-	return runSubcommand(cmd, baseConfig)
+	return runSubcommand(cmd, &runConfig{baseConfigOptions: base, keys: keys})
 }

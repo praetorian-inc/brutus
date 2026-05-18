@@ -179,71 +179,14 @@ func registerRootFlags(cmd *cobra.Command) {
 // Config builder
 // ---------------------------------------------------------------------------
 
-// buildConfigFromFlags constructs a baseConfigOptions from the current flag state.
-// The cobra.Command is needed to detect whether flags were explicitly set.
-func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
-	// Detect whether credential flags were explicitly set
-	passwordFlagSet := isFlagChanged(cmd, "passwords")
-	usernameFlagSet := isFlagChanged(cmd, "usernames")
-
-	useColor := isColorEnabled(flagNoColor)
-
-	// Read API keys
-	anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
-	perplexityKey := os.Getenv("PERPLEXITY_API_KEY")
-
-	aiLLMConfig, err := setupAIConfig(flagAIMode, anthropicKey, perplexityKey)
-	if err != nil {
-		return nil, err
-	}
-
-	if flagAIVerify && anthropicKey == "" {
-		return nil, fmt.Errorf("--experimental-ai-verify requires ANTHROPIC_API_KEY environment variable")
-	}
-
-	// Validate key file flags
-	if validateErr := validateKeyFileFlags(flagKeyFile, usernameFlagSet, flagUsernameFile); validateErr != nil {
-		return nil, validateErr
-	}
-
-	// Load credentials
-	usernameList, err := loadUsernames(flagUsernames, flagUsernameFile, usernameFlagSet)
-	if err != nil {
-		return nil, err
-	}
-	if len(usernameList) == 0 {
-		usernameList = []string{"root", "admin"}
-	}
-
-	passwordList, err := loadPasswords(flagPasswords, flagPasswordFile, passwordFlagSet)
-	if err != nil {
-		return nil, err
-	}
-
-	keyList, err := loadKey(flagKeyFile)
-	if err != nil {
-		return nil, err
-	}
-
-	credentialList, err := loadCredentials(flagCredentials, flagCredentialsFile)
-	if err != nil {
-		return nil, err
-	}
-
+// buildBaseConfig constructs a baseConfigOptions with only the shared fields.
+// Subcommand-specific loading (credentials, keys, AI config) is handled by
+// each subcommand's runXxx function.
+func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 	return &baseConfigOptions{
-		usernames:        usernameList,
-		passwords:        passwordList,
-		credentials:      credentialList,
-		keys:             keyList,
 		threads:          flagThreads,
 		timeout:          flagTimeout,
-		snmpTier:         flagSNMPTier,
-		llmConfig:        aiLLMConfig,
-		browserTimeout:   flagBrowserTimeout,
-		browserTabs:      flagBrowserTabs,
-		browserVisible:   flagBrowserVisible,
-		useHTTPS:         flagHTTPS,
-		useColor:         useColor,
+		useColor:         isColorEnabled(flagNoColor),
 		quiet:            flagQuiet,
 		verbose:          flagVerbose,
 		protocolOverride: flagProtocol,
@@ -253,14 +196,32 @@ func buildConfigFromFlags(cmd *cobra.Command) (*baseConfigOptions, error) {
 		jitter:           flagJitter,
 		maxAttempts:      flagMaxAttempts,
 		maxRetries:       flagRetries,
-		anthropicKey:     anthropicKey,
-		perplexityKey:    perplexityKey,
-		stickyKeysExec:   flagStickyKeysExec,
-		stickyKeysWeb:    flagStickyKeysWeb,
-		stickyKeysOpen:   flagStickyKeysOpen,
-		aiVerify:         flagAIVerify,
-		noUtilman:        flagNoUtilman,
-	}, nil
+		anthropicKey:     os.Getenv("ANTHROPIC_API_KEY"),
+		perplexityKey:    os.Getenv("PERPLEXITY_API_KEY"),
+	}
+}
+
+// loadCredentialInputs loads usernames, passwords, and pre-paired credentials
+// from their respective flags. Called by creds and web subcommands.
+func loadCredentialInputs(cmd *cobra.Command) (usernames, passwords []string, creds []brutus.Credential, err error) {
+	passwordFlagSet := isFlagChanged(cmd, "passwords")
+	usernameFlagSet := isFlagChanged(cmd, "usernames")
+
+	usernames, err = loadUsernames(flagUsernames, flagUsernameFile, usernameFlagSet)
+	if err != nil {
+		return
+	}
+	if len(usernames) == 0 {
+		usernames = []string{"root", "admin"}
+	}
+
+	passwords, err = loadPasswords(flagPasswords, flagPasswordFile, passwordFlagSet)
+	if err != nil {
+		return
+	}
+
+	creds, err = loadCredentials(flagCredentials, flagCredentialsFile)
+	return
 }
 
 // isFlagChanged returns true if the named flag was explicitly set on cmd or its parents.

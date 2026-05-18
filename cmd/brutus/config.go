@@ -20,20 +20,14 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// baseConfigOptions holds common configuration shared across targets
+// baseConfigOptions holds configuration shared across all subcommands.
 type baseConfigOptions struct {
 	usernames        []string
 	passwords        []string
 	credentials      []brutus.Credential // pre-paired user:pass (no Cartesian product)
-	keys             [][]byte
 	threads          int
 	timeout          time.Duration
-	snmpTier         string
 	llmConfig        *brutus.LLMConfig
-	browserTimeout   time.Duration
-	browserTabs      int
-	browserVisible   bool
-	useHTTPS         bool
 	useColor         bool
 	quiet            bool
 	verbose          bool
@@ -48,12 +42,6 @@ type baseConfigOptions struct {
 	maxRetries       int
 	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
 	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
-	stickyKeys       bool   // Sticky keys backdoor detection mode (no brute force)
-	stickyKeysExec   string // Command to execute via sticky keys backdoor
-	stickyKeysWeb    bool   // Start web terminal for sticky keys interaction
-	stickyKeysOpen   bool   // Auto-open browser when sticky keys web terminal starts
-	aiVerify         bool   // AI-powered login verification (Claude Vision before/after screenshots)
-	noUtilman        bool   // Disable utilman backdoor detection (utilman runs by default with --sticky-keys)
 
 	// protocolFilter is an optional function that determines whether a discovered
 	// protocol should be processed. Used by subcommands to filter services in
@@ -61,7 +49,34 @@ type baseConfigOptions struct {
 	protocolFilter func(protocol string) bool
 }
 
-// determineTLSMode returns the appropriate TLS mode based on the verify-tls flag
+// webConfig holds settings specific to the web subcommand.
+type webConfig struct {
+	browserTimeout time.Duration
+	browserTabs    int
+	browserVisible bool
+	useHTTPS       bool
+	aiVerify       bool
+}
+
+// logonConfig holds settings specific to the logon subcommand.
+type logonConfig struct {
+	stickyKeys     bool
+	stickyKeysExec string
+	stickyKeysWeb  bool
+	stickyKeysOpen bool
+	noUtilman      bool
+}
+
+// runConfig bundles baseConfigOptions with optional subcommand-specific config.
+// It embeds *baseConfigOptions so all shared fields are accessible directly.
+type runConfig struct {
+	*baseConfigOptions
+	keys  [][]byte     // SSH keys (creds only)
+	web   *webConfig   // browser/AI settings (web only)
+	logon *logonConfig // sticky keys settings (logon only)
+}
+
+// determineTLSMode returns the appropriate TLS mode based on the --verify flag.
 func determineTLSMode(verifyTLS bool) string {
 	if verifyTLS {
 		return "verify"

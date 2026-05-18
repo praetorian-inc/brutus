@@ -129,21 +129,22 @@ func TestRunWeb_HTTPSFlagSetsOverride(t *testing.T) {
 	parent.PersistentFlags().StringVar(&flagProtocol, "protocol", "", "")
 	parent.AddCommand(cmd)
 
-	config := &baseConfigOptions{}
+	base := &baseConfigOptions{}
+	wc := &webConfig{}
 
 	// Simulate: --https set, --protocol not set
 	flagHTTPS = true
 	defer func() { flagHTTPS = false }()
 
 	if flagHTTPS && !isFlagChanged(cmd, "protocol") {
-		config.protocolOverride = "https"
+		base.protocolOverride = "https"
 	}
-	if config.protocolOverride == "https" {
-		config.useHTTPS = true
+	if base.protocolOverride == "https" {
+		wc.useHTTPS = true
 	}
 
-	assert.Equal(t, "https", config.protocolOverride)
-	assert.True(t, config.useHTTPS)
+	assert.Equal(t, "https", base.protocolOverride)
+	assert.True(t, wc.useHTTPS)
 }
 
 // TestRunWeb_ProtocolOverridesHTTPSFlag tests that --protocol takes
@@ -156,39 +157,47 @@ func TestRunWeb_ProtocolOverridesHTTPSFlag(t *testing.T) {
 
 	require.NoError(t, parent.PersistentFlags().Set("protocol", "http"))
 
-	config := &baseConfigOptions{}
+	base := &baseConfigOptions{}
+	wc := &webConfig{}
 
 	// Simulate: both --https and --protocol http set
 	flagHTTPS = true
 	defer func() { flagHTTPS = false }()
 
 	if flagHTTPS && !isFlagChanged(cmd, "protocol") {
-		config.protocolOverride = "https"
+		base.protocolOverride = "https"
+	}
+	if base.protocolOverride == "https" {
+		wc.useHTTPS = true
 	}
 
 	// --protocol was explicitly set, so --https should not override
-	assert.Equal(t, "", config.protocolOverride)
-	assert.False(t, config.useHTTPS)
+	assert.Equal(t, "", base.protocolOverride)
+	assert.False(t, wc.useHTTPS)
 }
 
 // TestRunLogon_DefaultsToRDP tests that logon mode defaults protocol to RDP.
 func TestRunLogon_DefaultsToRDP(t *testing.T) {
-	config := &baseConfigOptions{}
+	base := &baseConfigOptions{}
 
 	// Simulate runLogon logic
-	config.stickyKeys = true
-	if config.protocolOverride == "" {
-		config.protocolOverride = "rdp"
+	if base.protocolOverride == "" {
+		base.protocolOverride = "rdp"
 	}
-	config.protocolFilter = func(protocol string) bool {
+	base.protocolFilter = func(protocol string) bool {
 		return protocol == "rdp"
 	}
 
-	assert.Equal(t, "rdp", config.protocolOverride)
-	assert.True(t, config.stickyKeys)
-	assert.True(t, config.protocolFilter("rdp"))
-	assert.False(t, config.protocolFilter("ssh"))
-	assert.False(t, config.protocolFilter("http"))
+	lc := &logonConfig{
+		stickyKeys: true,
+	}
+	rc := &runConfig{baseConfigOptions: base, logon: lc}
+
+	assert.Equal(t, "rdp", rc.protocolOverride)
+	assert.True(t, rc.logon.stickyKeys)
+	assert.True(t, rc.protocolFilter("rdp"))
+	assert.False(t, rc.protocolFilter("ssh"))
+	assert.False(t, rc.protocolFilter("http"))
 }
 
 // TestRunSNMP_SetsProtocolOverrideAndFilter tests that runSNMP forces SNMP

@@ -53,22 +53,18 @@ func init() {
 }
 
 func runBadkeys(cmd *cobra.Command, args []string) error {
-	baseConfig, err := buildConfigFromFlags(cmd)
-	if err != nil {
-		return err
-	}
+	base := buildBaseConfig(cmd)
 
 	// Badkeys mode: SSH-only, embedded bad keys only
-	baseConfig.protocolOverride = "ssh"
-	baseConfig.badkeysOnly = true
-	baseConfig.useBadkeys = true
-	baseConfig.aiMode = false
-	baseConfig.stickyKeys = false
+	base.protocolOverride = "ssh"
+	base.badkeysOnly = true
+	base.useBadkeys = true
+	base.aiMode = false
 
 	// In pipeline/fingerprint mode, only process SSH targets
-	baseConfig.protocolFilter = func(protocol string) bool {
+	base.protocolFilter = func(protocol string) bool {
 		return protocol == "ssh"
 	}
 
-	return runSubcommand(cmd, baseConfig)
+	return runSubcommand(cmd, &runConfig{baseConfigOptions: base})
 }

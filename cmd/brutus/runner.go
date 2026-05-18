@@ -26,7 +26,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
-	snmpPkg "github.com/praetorian-inc/brutus/pkg/brutus/snmp"
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
 )
 
@@ -39,7 +38,7 @@ import (
 // in JSON mode the caller flushes the full JSONL after the loop returns.
 //
 // See https://github.com/praetorian-inc/brutus/issues/80.
-func runFromTargetsFile(targets []string, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+func runFromTargetsFile(targets []string, base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
 
@@ -108,7 +107,7 @@ func emitSecurityFindings(results []brutus.Result, useColor bool) {
 // bare host:port. JSON and URI lines are processed immediately (streaming).
 // Bare host:port lines are collected and batch-fingerprinted with Nerva after
 // stdin is exhausted.
-func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+func runFromStdin(base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
 	var bareTargets []string
@@ -164,7 +163,7 @@ func runFromStdin(base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool)
 // processNervaResult handles a single parsed Nerva JSON result: maps protocol,
 // applies filters, determines TLS, and runs brute force. Extracted from the
 // former runFromStdin loop body for reuse by the line classifier.
-func processNervaResult(nrv *brutusinput.NervaResult, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+func processNervaResult(nrv *brutusinput.NervaResult, base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 	// Determine protocol: use override if specified, otherwise map from nerva
 	var protocol string
 	if base.protocolOverride != "" {
@@ -201,7 +200,7 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *baseConfigOptions, j
 
 // processURITarget handles a URI-scheme stdin line (e.g. ssh://host:22).
 // The protocol is already parsed from the URI scheme; no fingerprinting needed.
-func processURITarget(parsed *brutusinput.ParsedStdinLine, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 	protocol := parsed.Protocol
 	if base.protocolOverride != "" {
 		protocol = base.protocolOverride
@@ -238,7 +237,7 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *baseConfigOptio
 }
 
 // runSingleTarget runs brutus against a single target
-func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, aiCreds []brutus.Credential) ([]brutus.Result, bool) {
+func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential) ([]brutus.Result, bool) {
 	config := &brutus.Config{
 		Target:      target,
 		Protocol:    protocol,
@@ -260,16 +259,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 		Verbose:     base.verbose,
 	}
 
-	// Handle SNMP-specific tier selection (tiers are CLI-only, not in library defaults)
-	if protocol == "snmp" && len(config.Passwords) == 0 {
-		communityStrings, err := snmpPkg.ConfigureSNMP(base.snmpTier)
-		if err != nil {
-			errMsg(base.useColor, "%v", err)
-			return nil, false
-		}
-		config.Passwords = communityStrings
-	}
-
 	// Handle HTTP with AI-researched credentials
 	if (protocol == "http" || protocol == "https") && len(aiCreds) > 0 {
 		config.Usernames = nil
@@ -280,17 +269,17 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 	}
 
 	// Handle browser-specific configuration
-	if protocol == "browser" {
-		config.Threads = base.browserTabs
-		config.Timeout = base.browserTimeout
+	if protocol == "browser" && base.web != nil {
+		config.Threads = base.web.browserTabs
+		config.Timeout = base.web.browserTimeout
 		config.Usernames = nil
 		config.Passwords = nil
 		browserCreds, browserPlugin, browserErr := web.ResearchBrowserCredentials(context.Background(), target, web.BrowserConfig{
-			Tabs:          base.browserTabs,
-			Timeout:       base.browserTimeout,
-			UseHTTPS:      base.useHTTPS || tlsMode == "skip-verify" || tlsMode == "verify",
-			Visible:       base.browserVisible,
-			AIVerify:      base.aiVerify,
+			Tabs:          base.web.browserTabs,
+			Timeout:       base.web.browserTimeout,
+			UseHTTPS:      base.web.useHTTPS || tlsMode == "skip-verify" || tlsMode == "verify",
+			Visible:       base.web.browserVisible,
+			AIVerify:      base.web.aiVerify,
 			AnthropicKey:  base.anthropicKey,
 			PerplexityKey: base.perplexityKey,
 			LLMConfig:     base.llmConfig,
@@ -312,7 +301,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 	}
 
 	// Sticky keys interactive modes: bypass brute force entirely
-	if protocol == "rdp" && base.stickyKeys && (base.stickyKeysExec != "" || base.stickyKeysWeb) {
+	if protocol == "rdp" && base.logon != nil && (base.logon.stickyKeysExec != "" || base.logon.stickyKeysWeb) {
 		return runStickyKeysInteractive(target, base)
 	}
 
@@ -332,8 +321,10 @@ func runSingleTarget(target, protocol, tlsMode string, base *baseConfigOptions, 
 	logVerbose(base.verbose, "Starting brute force...")
 
 	// Set RDP-specific flags on config for the plugin
-	config.StickyKeys = base.stickyKeys
-	config.NoUtilman = base.noUtilman
+	if base.logon != nil {
+		config.StickyKeys = base.logon.stickyKeys
+		config.NoUtilman = base.logon.noUtilman
+	}
 	config.AIMode = base.aiMode
 
 	// Create context that cancels on SIGINT/SIGTERM
@@ -377,16 +368,16 @@ func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 
 // runStickyKeysInteractive handles the --sticky-keys-exec and --sticky-keys-web modes.
 // These bypass normal brute force and instead exploit the sticky keys backdoor interactively.
-func runStickyKeysInteractive(target string, base *baseConfigOptions) ([]brutus.Result, bool) {
+func runStickyKeysInteractive(target string, base *runConfig) ([]brutus.Result, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if base.stickyKeysWeb {
+	if base.logon.stickyKeysWeb {
 		result, success := logon.RunWebTerminal(ctx, logon.WebTerminalConfig{
 			Target:      target,
 			Timeout:     base.timeout,
-			NoUtilman:   base.noUtilman,
-			OpenBrowser: base.stickyKeysOpen,
+			NoUtilman:   base.logon.noUtilman,
+			OpenBrowser: base.logon.stickyKeysOpen,
 		})
 		if !success {
 			errMsg(base.useColor, "web terminal: %v", result.Error)
@@ -394,13 +385,13 @@ func runStickyKeysInteractive(target string, base *baseConfigOptions) ([]brutus.
 		return []brutus.Result{result}, success
 	}
 
-	if base.stickyKeysExec != "" {
+	if base.logon.stickyKeysExec != "" {
 		result, success := logon.RunExec(ctx, logon.ExecConfig{
 			Target:       target,
 			Timeout:      base.timeout,
 			AIMode:       base.aiMode,
 			AnthropicKey: base.anthropicKey,
-		}, base.stickyKeysExec)
+		}, base.logon.stickyKeysExec)
 		if !success {
 			errMsg(base.useColor, "sticky keys exec: %v", result.Error)
 		}
@@ -413,7 +404,7 @@ func runStickyKeysInteractive(target string, base *baseConfigOptions) ([]brutus.
 // runScanFromStdin reads targets from stdin and runs scan checks (logon-screen
 // backdoor detection) on RDP targets. Accepts the same three line formats as
 // runFromStdin: Nerva JSON, URI scheme, and bare host:port.
-func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
+func runScanFromStdin(base *runConfig) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
 	var bareTargets []string
@@ -476,9 +467,10 @@ func runScanFromStdin(base *baseConfigOptions) ([]brutus.Result, bool) {
 }
 
 // runScanSingleTarget runs sticky keys detection on a single target.
-func runScanSingleTarget(target string, base *baseConfigOptions) ([]brutus.Result, bool) {
+func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode, base.noUtilman)
+	noUtilman := base.logon != nil && base.logon.noUtilman
+	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode, noUtilman)
 }

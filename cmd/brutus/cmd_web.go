@@ -15,6 +15,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
@@ -60,26 +62,48 @@ func init() {
 }
 
 func runWeb(cmd *cobra.Command, args []string) error {
-	baseConfig, err := buildConfigFromFlags(cmd)
+	base := buildBaseConfig(cmd)
+
+	// Load credentials
+	usernames, passwords, credPairs, err := loadCredentialInputs(cmd)
 	if err != nil {
 		return err
 	}
+	base.usernames = usernames
+	base.passwords = passwords
+	base.credentials = credPairs
 
-	// Web mode never uses sticky keys
-	baseConfig.stickyKeys = false
+	// AI config (web-specific)
+	if base.aiMode {
+		llmCfg, aiErr := setupAIConfig(true, base.anthropicKey, base.perplexityKey)
+		if aiErr != nil {
+			return aiErr
+		}
+		base.llmConfig = llmCfg
+	}
+	if flagAIVerify && base.anthropicKey == "" {
+		return fmt.Errorf("--experimental-ai-verify requires ANTHROPIC_API_KEY environment variable")
+	}
 
-	// In pipeline/fingerprint mode, only process HTTP-like protocols
-	baseConfig.protocolFilter = web.IsWebProtocol
+	// Build web-specific config
+	wc := &webConfig{
+		browserTimeout: flagBrowserTimeout,
+		browserTabs:    flagBrowserTabs,
+		browserVisible: flagBrowserVisible,
+		useHTTPS:       flagHTTPS,
+		aiVerify:       flagAIVerify,
+	}
+
+	// Protocol filter: only HTTP-like services
+	base.protocolFilter = web.IsWebProtocol
 
 	// --https flag sets protocol override when --protocol not explicitly set
 	if flagHTTPS && !isFlagChanged(cmd, "protocol") {
-		baseConfig.protocolOverride = "https"
+		base.protocolOverride = "https"
+	}
+	if base.protocolOverride == "https" {
+		wc.useHTTPS = true
 	}
 
-	// Sync useHTTPS with protocol override
-	if baseConfig.protocolOverride == "https" {
-		baseConfig.useHTTPS = true
-	}
-
-	return runSubcommand(cmd, baseConfig)
+	return runSubcommand(cmd, &runConfig{baseConfigOptions: base, web: wc})
 }

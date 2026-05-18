@@ -32,7 +32,7 @@ import (
 
 // nervaScanConfig builds a Nerva scan.Config from the user's CLI flags,
 // falling back to sensible defaults when the flags are at their zero values.
-func nervaScanConfig(base *baseConfigOptions) scan.Config {
+func nervaScanConfig(base *runConfig) scan.Config {
 	timeout := base.timeout
 	if timeout == 0 {
 		timeout = 5 * time.Second
@@ -57,7 +57,7 @@ type fingerprintedService struct {
 // fingerprintSingleTarget probes a single host:port with Nerva and returns
 // the discovered protocol and TLS status. Used when --target is given without
 // --protocol so the CLI can auto-detect the service.
-func fingerprintSingleTarget(target string, base *baseConfigOptions) (*fingerprintedService, error) {
+func fingerprintSingleTarget(target string, base *runConfig) (*fingerprintedService, error) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -96,7 +96,7 @@ func fingerprintSingleTarget(target string, base *baseConfigOptions) (*fingerpri
 // fingerprintTargets parses host:port strings into Nerva targets, fingerprints
 // them, and returns the discovered services. This is the shared implementation
 // for phases 1 & 2 of both runFromFingerprint and runLogonFingerprint.
-func fingerprintTargets(targets []string, base *baseConfigOptions) (context.CancelFunc, []nervaplugins.Service, bool) {
+func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, []nervaplugins.Service, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	// Phase 1: Parse host:port strings into Nerva targets.
@@ -144,7 +144,7 @@ func fingerprintTargets(targets []string, base *baseConfigOptions) (context.Canc
 // credential testing against each. Targets that Nerva cannot fingerprint
 // are silently skipped (with a verbose log). The per-target brute-force
 // loop mirrors runFromStdin.
-func runFromFingerprint(targets []string, base *baseConfigOptions, jsonOut bool) ([]brutus.Result, bool) {
+func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 	stop, services, ok := fingerprintTargets(targets, base)
 	if !ok {
 		return nil, false

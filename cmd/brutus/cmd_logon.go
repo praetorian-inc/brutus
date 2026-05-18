@@ -67,21 +67,37 @@ func init() {
 }
 
 func runLogon(cmd *cobra.Command, args []string) error {
-	baseConfig, err := buildConfigFromFlags(cmd)
-	if err != nil {
-		return err
+	base := buildBaseConfig(cmd)
+
+	// AI config (logon-specific)
+	if base.aiMode {
+		llmCfg, aiErr := setupAIConfig(true, base.anthropicKey, base.perplexityKey)
+		if aiErr != nil {
+			return aiErr
+		}
+		base.llmConfig = llmCfg
 	}
 
-	// Logon mode always enables sticky keys detection and defaults to RDP
-	baseConfig.stickyKeys = true
-	if baseConfig.protocolOverride == "" {
-		baseConfig.protocolOverride = "rdp"
+	// Logon mode defaults to RDP
+	if base.protocolOverride == "" {
+		base.protocolOverride = "rdp"
 	}
 
 	// In pipeline/fingerprint mode, only process RDP targets
-	baseConfig.protocolFilter = func(protocol string) bool {
+	base.protocolFilter = func(protocol string) bool {
 		return protocol == "rdp"
 	}
+
+	// Build logon-specific config
+	lc := &logonConfig{
+		stickyKeys:     true,
+		stickyKeysExec: flagStickyKeysExec,
+		stickyKeysWeb:  flagStickyKeysWeb,
+		stickyKeysOpen: flagStickyKeysOpen,
+		noUtilman:      flagNoUtilman,
+	}
+
+	rc := &runConfig{baseConfigOptions: base, logon: lc}
 
 	useStdin := detectStdinMode(flagTarget, flagTargetsFile)
 
@@ -96,12 +112,12 @@ func runLogon(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show banner
-	if shouldShowBanner(flagJSON, useStdin, flagQuiet, baseConfig.useColor) {
-		printBanner(baseConfig.useColor)
+	if shouldShowBanner(flagJSON, useStdin, flagQuiet, base.useColor) {
+		printBanner(base.useColor)
 	}
 
 	// Determine if this is detection mode (no exec or web) vs interactive
-	isDetectMode := baseConfig.stickyKeysExec == "" && !baseConfig.stickyKeysWeb
+	isDetectMode := lc.stickyKeysExec == "" && !lc.stickyKeysWeb
 
 	if isDetectMode {
 		// Scan/detection mode
@@ -110,7 +126,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 
 		switch {
 		case useStdin:
-			scanResults, hasSuccess = runScanFromStdin(baseConfig)
+			scanResults, hasSuccess = runScanFromStdin(rc)
 		case flagTargetsFile != "":
 			targetsList, loadErr := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 			if loadErr != nil {
@@ -119,18 +135,18 @@ func runLogon(cmd *cobra.Command, args []string) error {
 			if len(targetsList) == 0 {
 				return fmt.Errorf("targets file %q has no targets", flagTargetsFile)
 			}
-			scanResults, hasSuccess = runLogonFingerprint(targetsList, baseConfig)
+			scanResults, hasSuccess = runLogonFingerprint(targetsList, rc)
 		default:
 			if flagTarget == "" {
 				return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 			}
-			scanResults, hasSuccess = runScanSingleTarget(flagTarget, baseConfig)
+			scanResults, hasSuccess = runScanSingleTarget(flagTarget, rc)
 		}
 
 		if flagJSON {
 			outputScanJSONL(jsonWriter, scanResults)
 		} else {
-			outputScanHuman(scanResults, baseConfig.useColor)
+			outputScanHuman(scanResults, base.useColor)
 		}
 
 		if !hasSuccess {
@@ -144,11 +160,11 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--target is required for interactive sticky keys modes")
 	}
 
-	results, hasSuccess := runStickyKeysInteractive(flagTarget, baseConfig)
+	results, hasSuccess := runStickyKeysInteractive(flagTarget, rc)
 	if flagJSON {
 		outputScanJSONL(jsonWriter, results)
 	} else {
-		outputScanHuman(results, baseConfig.useColor)
+		outputScanHuman(results, base.useColor)
 	}
 
 	if !hasSuccess {
@@ -159,7 +175,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 
 // runLogonFingerprint fingerprints targets with Nerva and runs logon-screen
 // detection on any discovered RDP services.
-func runLogonFingerprint(targets []string, base *baseConfigOptions) ([]brutus.Result, bool) {
+func runLogonFingerprint(targets []string, base *runConfig) ([]brutus.Result, bool) {
 	stop, services, ok := fingerprintTargets(targets, base)
 	if !ok {
 		return nil, false

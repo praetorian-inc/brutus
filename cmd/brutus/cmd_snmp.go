@@ -58,18 +58,30 @@ func init() {
 }
 
 func runSNMP(cmd *cobra.Command, args []string) error {
-	baseConfig, err := buildConfigFromFlags(cmd)
+	base := buildBaseConfig(cmd)
+
+	// Load custom community strings from -p/-P
+	passwordFlagSet := isFlagChanged(cmd, "passwords")
+	passwords, err := loadPasswords(flagPasswords, flagPasswordFile, passwordFlagSet)
 	if err != nil {
 		return err
 	}
 
-	// SNMP mode: force protocol, disable irrelevant features
-	baseConfig.protocolOverride = "snmp"
-	baseConfig.protocolFilter = snmpPkg.IsSNMPProtocol
-	baseConfig.aiMode = false
-	baseConfig.stickyKeys = false
-	baseConfig.useBadkeys = false
-	baseConfig.badkeysOnly = false
+	// If no custom community strings, load from tier
+	if len(passwords) == 0 {
+		passwords, err = snmpPkg.ConfigureSNMP(flagSNMPTier)
+		if err != nil {
+			return err
+		}
+	}
+	base.passwords = passwords
 
-	return runSubcommand(cmd, baseConfig)
+	// SNMP mode: force protocol, disable irrelevant features
+	base.protocolOverride = "snmp"
+	base.protocolFilter = snmpPkg.IsSNMPProtocol
+	base.aiMode = false
+	base.useBadkeys = false
+	base.badkeysOnly = false
+
+	return runSubcommand(cmd, &runConfig{baseConfigOptions: base})
 }

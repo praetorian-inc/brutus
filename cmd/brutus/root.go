@@ -76,7 +76,7 @@ func runRoot(cmd *cobra.Command, args []string) error {
 // runSubcommand is the shared execution path for creds, web, and logon subcommands.
 // It handles mode dispatch (single target, targets-file, fingerprint, stdin) with
 // the protocol filtering and overrides already applied to baseConfig by the caller.
-func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
+func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 	useStdin := detectStdinMode(flagTarget, flagTargetsFile)
 
 	// Set up output writer before banner check so --output can imply --json.
@@ -144,7 +144,9 @@ func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 
 			// Sync TLS state from fingerprint.
 			if fp.tls {
-				baseConfig.useHTTPS = true
+				if baseConfig.web != nil {
+					baseConfig.web.useHTTPS = true
+				}
 				if baseConfig.tlsMode == "disable" {
 					baseConfig.tlsMode = "skip-verify"
 				}
@@ -165,7 +167,7 @@ func runSubcommand(cmd *cobra.Command, baseConfig *baseConfigOptions) error {
 }
 
 // runSingleTargetMode handles the single-target execution path.
-func runSingleTargetMode(target, protocol string, baseConfig *baseConfigOptions, jsonOutput bool, jsonWriter io.Writer) ([]brutus.Result, bool) {
+func runSingleTargetMode(target, protocol string, baseConfig *runConfig, jsonOutput bool, jsonWriter io.Writer) ([]brutus.Result, bool) {
 	// AI mode for single target with HTTP protocol
 	var aiCreds []brutus.Credential
 	if baseConfig.aiMode && (protocol == "http" || protocol == "https") {

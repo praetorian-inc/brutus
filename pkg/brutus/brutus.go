@@ -217,6 +217,24 @@ type KeyPlugin interface {
 	TestKey(ctx context.Context, target, username string, key []byte, timeout time.Duration, pluginCfg PluginConfig) *Result
 }
 
+// UnauthChecker is an optional interface for plugins that can detect
+// unauthenticated access to a service. The worker pool calls CheckUnauth
+// once per target before credential testing begins.
+type UnauthChecker interface {
+	// CheckUnauth probes the target for unauthenticated access.
+	// Returns a Result with:
+	//   - Success=true, Banner contains finding: unauthenticated access confirmed
+	//   - Success=false: service requires authentication (normal)
+	CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg PluginConfig) *Result
+}
+
+// UnauthOnlyChecker is for services that only support unauthenticated access
+// detection with no credential testing (e.g., Docker, Kubernetes).
+type UnauthOnlyChecker interface {
+	Name() string
+	CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg PluginConfig) *Result
+}
+
 // PluginFactory is a function that creates a new Plugin instance.
 // Using a factory pattern ensures each call to Get returns a fresh instance,
 // which is important for concurrent usage.
@@ -325,6 +343,28 @@ func BruteWithContext(ctx context.Context, cfg *Config) ([]Result, error) {
 	}
 
 	return results, nil
+}
+
+// CheckUnauthAccess probes a target for unauthenticated access.
+// For protocols that implement UnauthChecker (postgresql, redis, elasticsearch),
+// it resolves the standard plugin and calls CheckUnauth.
+// For unauth-only protocols (docker, kubernetes), it resolves from the
+// unauth registry. Returns nil if the protocol does not support unauth checking.
+func CheckUnauthAccess(ctx context.Context, target, protocol string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	// Try the standard plugin registry first
+	if plug, err := GetPlugin(protocol); err == nil {
+		if checker, ok := plug.(UnauthChecker); ok {
+			return checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+		}
+		return nil
+	}
+
+	// Try the unauth-only registry
+	if checker, err := GetUnauthChecker(protocol); err == nil {
+		return checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+	}
+
+	return nil
 }
 
 // Brute executes a brute force attack using the provided configuration.

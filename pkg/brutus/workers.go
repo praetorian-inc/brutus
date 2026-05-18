@@ -106,16 +106,33 @@ func pluginConfigFromConfig(cfg *Config) PluginConfig {
 
 // runWorkers executes credential testing using a bounded worker pool.
 func runWorkers(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error) {
+	// Pre-check: unauthenticated access detection (runs once per target)
+	var preResults []Result
+	if checker, ok := plug.(UnauthChecker); ok {
+		if r := checker.CheckUnauth(ctx, cfg.Target, cfg.Timeout, pluginConfigFromConfig(cfg)); r != nil && r.Success {
+			preResults = append(preResults, *r)
+		}
+	}
+
 	// Check if LLM analysis is enabled AND protocol supports it
 	// LLM banner analysis only makes sense for HTTP Basic Auth where we can
 	// detect the application from the response headers/body
+	var results []Result
+	var err error
 	if cfg.LLMConfig != nil && cfg.LLMConfig.Enabled && isHTTPProtocol(cfg.Protocol) {
 		// Use LLM-enhanced flow: capture banner, analyze, test suggestions
-		return runWorkersWithLLM(ctx, cfg, plug)
+		results, err = runWorkersWithLLM(ctx, cfg, plug)
+	} else {
+		// Default flow: test credentials without LLM analysis
+		results, err = runWorkersDefault(ctx, cfg, plug)
 	}
 
-	// Default flow: test credentials without LLM analysis
-	return runWorkersDefault(ctx, cfg, plug)
+	// Prepend unauthenticated access findings
+	if len(preResults) > 0 {
+		results = append(preResults, results...)
+	}
+
+	return results, err
 }
 
 // executeWorkerPool is the shared worker pool implementation used by both

@@ -219,6 +219,10 @@ func outputHuman(results []brutus.Result, useColor, quiet bool) {
 		r := &results[i]
 		switch {
 		case r.Success:
+			// Unauthenticated findings are reported in the Security Findings section, not as credentials
+			if r.Username == "(unauthenticated)" {
+				continue
+			}
 			validCount++
 			fmt.Printf("%s[+] VALID: %s %s:%s @ %s (%s)%s\n",
 				colorIf(useColor, ColorGreen), r.Protocol, r.Username, r.Password, r.Target, r.Duration, colorIf(useColor, ColorReset))
@@ -260,6 +264,10 @@ func outputValidOnly(results []brutus.Result, useColor bool) {
 	for i := range results {
 		r := &results[i]
 		if r.Success {
+			// Skip unauthenticated findings — they are security findings, not credentials
+			if r.Username == "(unauthenticated)" {
+				continue
+			}
 			// Simple, parseable format: protocol username:password@target or protocol username:key@target
 			cred := r.Username
 			if r.Password != "" {
@@ -296,6 +304,10 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 		if !r.Success {
 			continue // Only output successful auths
 		}
+		// Unauthenticated findings are emitted separately below
+		if r.Username == "(unauthenticated)" {
+			continue
+		}
 		jr := JSONResult{
 			Protocol:     r.Protocol,
 			Target:       r.Target,
@@ -311,16 +323,32 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 		}
 	}
 
-	// Also output security findings (e.g., sticky keys detection) regardless of auth success
+	// Output security findings regardless of auth success
+	type FindingResult struct {
+		Protocol string `json:"protocol"`
+		Target   string `json:"target"`
+		Finding  string `json:"finding"`
+		Banner   string `json:"banner"`
+	}
+	findingEmitted := false
 	for i := range results {
 		r := &results[i]
-		if r.Banner != "" && hasSecurityFinding(r.Banner) {
-			type FindingResult struct {
-				Protocol string `json:"protocol"`
-				Target   string `json:"target"`
-				Finding  string `json:"finding"`
-				Banner   string `json:"banner"`
+		// Unauthenticated access findings
+		if r.Success && r.Username == "(unauthenticated)" && r.Banner != "" {
+			fr := FindingResult{
+				Protocol: r.Protocol,
+				Target:   r.Target,
+				Finding:  "unauthenticated_access",
+				Banner:   r.Banner,
 			}
+			if err := enc.Encode(fr); err != nil {
+				fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+			}
+			findingEmitted = true
+			continue
+		}
+		// Other security findings (e.g., sticky keys detection)
+		if !findingEmitted && r.Banner != "" && hasSecurityFinding(r.Banner) {
 			fr := FindingResult{
 				Protocol: r.Protocol,
 				Target:   r.Target,
@@ -330,7 +358,7 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 			if err := enc.Encode(fr); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
 			}
-			break // One finding per target
+			findingEmitted = true
 		}
 	}
 }

@@ -236,8 +236,31 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 	return results, success
 }
 
+// isUnauthOnlyProtocol returns true for protocols that only support
+// unauthenticated access detection (no credential testing).
+func isUnauthOnlyProtocol(protocol string) bool {
+	switch protocol {
+	case "docker", "kubernetes":
+		return true
+	}
+	return false
+}
+
 // runSingleTarget runs brutus against a single target
 func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential) ([]brutus.Result, bool) {
+	// Unauth-only protocols: run CheckUnauthAccess directly, skip brute force
+	if isUnauthOnlyProtocol(protocol) {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		pluginCfg := brutus.PluginConfig{TLSMode: tlsMode}
+		r := brutus.CheckUnauthAccess(ctx, target, protocol, base.timeout, pluginCfg)
+		if r == nil {
+			return nil, false
+		}
+		return []brutus.Result{*r}, r.Success
+	}
+
 	config := &brutus.Config{
 		Target:      target,
 		Protocol:    protocol,

@@ -17,6 +17,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -88,6 +89,50 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Success
 	result.Success = true
+	return result
+}
+
+// CheckUnauth probes for Redis without authentication (no requirepass).
+func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
+	result := brutus.NewResult("redis", target, "(unauthenticated)", "")
+	start := time.Now()
+	defer func() { result.Duration = time.Since(start) }()
+
+	host, port := brutus.ParseTarget(target, "6379")
+	addr := fmt.Sprintf("%s:%s", host, port)
+
+	client := redis.NewClient(&redis.Options{
+		Addr:         addr,
+		Password:     "",
+		DB:           0,
+		DialTimeout:  timeout,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+	})
+	defer func() { _ = client.Close() }()
+
+	pingCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	if err := client.Ping(pingCtx).Err(); err != nil {
+		return result
+	}
+
+	// Capture Redis version via INFO
+	bannerText := "[CRITICAL] Redis accessible without authentication"
+	info, err := client.Info(pingCtx, "server").Result()
+	if err == nil {
+		for _, line := range strings.Split(info, "\n") {
+			if strings.HasPrefix(line, "redis_version:") {
+				version := strings.TrimSpace(strings.TrimPrefix(line, "redis_version:"))
+				bannerText += fmt.Sprintf(" (version %s)", version)
+				break
+			}
+		}
+	}
+
+	result.Success = true
+	result.Banner = bannerText
 	return result
 }
 

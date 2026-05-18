@@ -17,6 +17,7 @@ package elasticsearch
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -97,5 +98,42 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Any other status code is a connection/server error
 	result.Success = false
 	result.Error = fmt.Errorf("connection error: unexpected status code %d", resp.StatusCode)
+	return result
+}
+
+// CheckUnauth probes for Elasticsearch without security enabled (X-Pack).
+func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
+	result := brutus.NewResult("elasticsearch", target, "(unauthenticated)", "")
+	start := time.Now()
+	defer func() { result.Duration = time.Since(start) }()
+
+	scheme := brutus.SchemeFromTLSMode(pluginCfg.TLSMode)
+	url := fmt.Sprintf("%s://%s/", scheme, target)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
+	if err != nil {
+		return result
+	}
+	// Intentionally no Basic Auth header
+
+	client := brutus.NewHTTPClient(timeout, brutus.BuildTLSConfig(pluginCfg.TLSMode))
+	resp, err := client.Do(req)
+	if err != nil {
+		return result
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return result
+	}
+
+	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	bannerText := "[CRITICAL] Elasticsearch accessible without authentication"
+	if len(bodyBytes) > 0 {
+		bannerText += fmt.Sprintf("\nCluster info: %s", string(bodyBytes))
+	}
+
+	result.Success = true
+	result.Banner = bannerText
 	return result
 }

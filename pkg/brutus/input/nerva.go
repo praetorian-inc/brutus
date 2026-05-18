@@ -84,6 +84,11 @@ func MapServiceToProtocol(service string) string {
 
 		"snmp": "snmp",
 
+		"docker":     "docker",
+		"kubernetes": "kubernetes",
+		"k8s":        "kubernetes",
+		"kubelet":    "kubernetes",
+
 		"http":  "http",
 		"https": "https",
 

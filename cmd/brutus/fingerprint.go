@@ -219,8 +219,10 @@ func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brut
 		if !jsonOut {
 			outputValidOnly(results, base.useColor)
 			// Combine Nerva finding + brute force results for security findings output
-			targetResults := append(nervaFinding, results...)
-			emitSecurityFindings(targetResults, base.useColor)
+			allFindings := make([]brutus.Result, 0, len(nervaFinding)+len(results))
+			allFindings = append(allFindings, nervaFinding...)
+			allFindings = append(allFindings, results...)
+			emitSecurityFindings(allFindings, base.useColor)
 		}
 	}
 

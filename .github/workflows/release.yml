@@ -73,8 +73,9 @@ jobs:
       - name: Install UPX
         run: |
           UPX_VERSION=4.2.4
-          curl -sL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-amd64_linux.tar.xz" | tar xJ
-          sudo mv "upx-${UPX_VERSION}-amd64_linux/upx" /usr/local/bin/
+          curl -sL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-amd64_linux.tar.xz" \
+            | tar xJ -C /tmp
+          sudo mv "/tmp/upx-${UPX_VERSION}-amd64_linux/upx" /usr/local/bin/
           upx --version
 
       - name: Fetch tags for changelog

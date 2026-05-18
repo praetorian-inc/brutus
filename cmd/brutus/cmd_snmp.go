@@ -27,29 +27,29 @@ var snmpCmd = &cobra.Command{
 	Long: `Audit SNMP v1/v2c community strings against network devices, routers,
 switches, and other SNMP-enabled infrastructure.
 
-Community strings are selected by tier:
+Community strings are selected by mode:
   default   ~20 common strings (public, private, community, etc.)
   extended  ~50 strings (adds vendor-specific: Cisco, HP, Juniper, etc.)
   full      ~120 strings (comprehensive: SCADA, IP cameras, storage, etc.)
 
-Custom community strings can also be provided via -p or -P.`,
+Custom community strings can also be provided via -c or -C.`,
 	Example: `  # Test with default community strings
   brutus snmp --target 192.168.1.1:161
 
-  # Use extended tier for more coverage
-  brutus snmp --target 192.168.1.1:161 --tier extended
+  # Use extended mode for more coverage
+  brutus snmp --target 192.168.1.1:161 --mode extended
 
-  # Full tier for comprehensive testing
-  brutus snmp --target 10.0.0.1:161 --tier full
+  # Full mode for comprehensive testing
+  brutus snmp --target 10.0.0.1:161 --mode full
 
   # Custom community strings
-  brutus snmp --target 192.168.1.1:161 -p "mycommunity,secretstring"
+  brutus snmp --target 192.168.1.1:161 -c "mycommunity,secretstring"
 
   # Pipeline mode
   naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp
 
   # Targets file
-  brutus snmp --targets-file snmp-hosts.txt --tier extended`,
+  brutus snmp --targets-file snmp-hosts.txt --mode extended`,
 	RunE: runSNMP,
 }
 
@@ -60,16 +60,16 @@ func init() {
 func runSNMP(cmd *cobra.Command, args []string) error {
 	base := buildBaseConfig(cmd)
 
-	// Load custom community strings from -p/-P
-	passwordFlagSet := isFlagChanged(cmd, "passwords")
-	passwords, err := loadPasswords(flagPasswords, flagPasswordFile, passwordFlagSet)
+	// Load custom community strings from -c/-C
+	communityFlagSet := isFlagChanged(cmd, "community")
+	passwords, err := loadPasswords(flagCommunityStrings, flagCommunityFile, communityFlagSet)
 	if err != nil {
 		return err
 	}
 
-	// If no custom community strings, load from tier
+	// If no custom community strings, load from mode
 	if len(passwords) == 0 {
-		passwords, err = snmpPkg.ConfigureSNMP(flagSNMPTier)
+		passwords, err = snmpPkg.ConfigureSNMP(base.mode)
 		if err != nil {
 			return err
 		}

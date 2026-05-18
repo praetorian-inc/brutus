@@ -69,8 +69,14 @@ var (
 // TLS flags
 var flagVerifyTLS bool
 
+// Mode flag (global)
+var flagMode string
+
 // SNMP flags
-var flagSNMPTier string
+var (
+	flagCommunityStrings string
+	flagCommunityFile    string
+)
 
 // Browser/AI flags
 var (
@@ -110,6 +116,9 @@ func registerSharedFlags(cmd *cobra.Command) {
 	pf.DurationVar(&flagJitter, "jitter", 0, "Random delay variance for rate limiting")
 	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
 
+	// Mode
+	pf.StringVarP(&flagMode, "mode", "m", "default", "Credential/community tier: default, extended, full")
+
 	// Output
 	pf.BoolVar(&flagJSON, "json", false, "JSON output format")
 	pf.StringVarP(&flagOutputFile, "output", "o", "", "Output file for JSON results (implies --json)")
@@ -142,9 +151,8 @@ func registerCredsFlags(cmd *cobra.Command) {
 // registerSNMPFlags registers flags specific to the snmp subcommand.
 func registerSNMPFlags(cmd *cobra.Command) {
 	f := cmd.Flags()
-	f.StringVar(&flagSNMPTier, "tier", "default", "Community string tier: default (~20), extended (~50), full (~120)")
-	f.StringVarP(&flagPasswords, "passwords", "p", "", "Custom community strings (comma-separated)")
-	f.StringVarP(&flagPasswordFile, "password-file", "P", "", "Community string file (one per line)")
+	f.StringVarP(&flagCommunityStrings, "community", "c", "", "Custom community strings (comma-separated)")
+	f.StringVarP(&flagCommunityFile, "community-file", "C", "", "Community string file (one per line)")
 }
 
 // registerWebFlags registers flags specific to the web subcommand.
@@ -195,6 +203,7 @@ func buildBaseConfig(_ *cobra.Command) *baseConfigOptions {
 		jitter:           flagJitter,
 		maxAttempts:      flagMaxAttempts,
 		maxRetries:       flagRetries,
+		mode:             flagMode,
 		anthropicKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		perplexityKey:    os.Getenv("PERPLEXITY_API_KEY"),
 	}

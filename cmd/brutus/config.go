@@ -40,6 +40,7 @@ type baseConfigOptions struct {
 	jitter           time.Duration // Random delay variance for rate limiting
 	maxAttempts      int
 	maxRetries       int
+	mode             string // Credential/community tier: default, extended, full
 	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
 	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
 

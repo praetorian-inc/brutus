@@ -283,6 +283,56 @@ func TestClassifyStdinLine_URI(t *testing.T) {
 	}
 }
 
+func TestClassifyStdinLine_URI_NervaDefaultOutput(t *testing.T) {
+	// Nerva's default (non-JSON) output appends a resolved IP in parentheses,
+	// e.g. "ssh://github.com:22 (20.205.243.166)". The parser strips the suffix.
+	tests := []struct {
+		name     string
+		line     string
+		protocol string
+		host     string
+		port     string
+		hostPort string
+	}{
+		{
+			name:     "ssh with resolved IP",
+			line:     "ssh://github.com:22 (20.205.243.166)",
+			protocol: "ssh",
+			host:     "github.com",
+			port:     "22",
+			hostPort: "github.com:22",
+		},
+		{
+			name:     "http with resolved IP",
+			line:     "http://example.com:8080 (93.184.216.34)",
+			protocol: "http",
+			host:     "example.com",
+			port:     "8080",
+			hostPort: "example.com:8080",
+		},
+		{
+			name:     "mysql with resolved IP",
+			line:     "mysql://db.internal:3306 (10.0.0.5)",
+			protocol: "mysql",
+			host:     "db.internal",
+			port:     "3306",
+			hostPort: "db.internal:3306",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := ClassifyStdinLine(tt.line)
+			require.NoError(t, err)
+			assert.Equal(t, StdinLineURI, parsed.Type)
+			assert.Equal(t, tt.protocol, parsed.Protocol)
+			assert.Equal(t, tt.host, parsed.Host)
+			assert.Equal(t, tt.port, parsed.Port)
+			assert.Equal(t, tt.hostPort, parsed.HostPort)
+		})
+	}
+}
+
 func TestClassifyStdinLine_HostPort(t *testing.T) {
 	tests := []struct {
 		name string

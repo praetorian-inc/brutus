@@ -237,7 +237,15 @@ func ClassifyStdinLine(line string) (ParsedStdinLine, error) {
 
 // parseURILine parses a URI-scheme line like "ssh://192.168.1.1:22" or
 // "snmp+udp://10.0.0.1:161".
+//
+// Nerva's default (non-JSON) output appends a resolved IP in parentheses,
+// e.g. "ssh://github.com:22 (20.205.243.166)". Since valid URIs never
+// contain unencoded spaces, we strip everything after the first space.
 func parseURILine(line string) (ParsedStdinLine, error) {
+	if idx := strings.IndexByte(line, ' '); idx >= 0 {
+		line = line[:idx]
+	}
+
 	u, err := url.Parse(line)
 	if err != nil {
 		return ParsedStdinLine{}, fmt.Errorf("invalid URI %q: %w", line, err)

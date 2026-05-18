@@ -31,7 +31,7 @@ func IsSNMPProtocol(protocol string) bool {
 // strings. The caller is responsible for assigning them to config.Passwords.
 func ConfigureSNMP(tier string) ([]string, error) {
 	if !snmpplugin.ValidateTier(tier) {
-		return nil, fmt.Errorf("invalid --tier: %s (use: default, extended, full)", tier)
+		return nil, fmt.Errorf("invalid --mode: %s (use: default, extended, full)", tier)
 	}
 	return snmpplugin.GetCommunityStrings(snmpplugin.Tier(tier)), nil
 }

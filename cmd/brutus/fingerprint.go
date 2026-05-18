@@ -52,6 +52,7 @@ func nervaScanConfig(base *runConfig) scan.Config {
 type fingerprintedService struct {
 	protocol string
 	tls      bool
+	noAuth   bool // Nerva detected anonymous/unauthenticated access
 }
 
 // fingerprintSingleTarget probes a single host:port with Nerva and returns
@@ -90,7 +91,7 @@ func fingerprintSingleTarget(target string, base *runConfig) (*fingerprintedServ
 
 	logVerbose(base.verbose, "Nerva detected %s (TLS: %v) on %s", protocol, nrv.TLS, target)
 
-	return &fingerprintedService{protocol: protocol, tls: nrv.TLS}, nil
+	return &fingerprintedService{protocol: protocol, tls: nrv.TLS, noAuth: nrv.HasNoAuth()}, nil
 }
 
 // fingerprintTargets parses host:port strings into Nerva targets, fingerprints
@@ -190,8 +191,25 @@ func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brut
 			printTargetInfo(target, protocol, base, aiCreds)
 		}
 
+		// If Nerva detected anonymous access, create a finding directly
+		// and skip the redundant CheckUnauth probe in the worker pool.
+		nervaNoAuth := nrv.HasNoAuth()
+		var nervaFinding []brutus.Result
+		if nervaNoAuth {
+			logVerbose(base.verbose, "Nerva detected unauthenticated access on %s (%s)", target, protocol)
+			nervaFinding = []brutus.Result{{
+				Protocol: protocol,
+				Target:   target,
+				Username: "(unauthenticated)",
+				Success:  true,
+				Banner:   fmt.Sprintf("[CRITICAL] %s accessible without authentication (detected by Nerva fingerprinting)", protocol),
+			}}
+			allResults = append(allResults, nervaFinding...)
+			hasSuccess = true
+		}
+
 		// Run brute force against this target.
-		results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
+		results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, nervaNoAuth)
 		allResults = append(allResults, results...)
 		if success {
 			hasSuccess = true
@@ -200,7 +218,9 @@ func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brut
 		// Stream valid-only output for human mode.
 		if !jsonOut {
 			outputValidOnly(results, base.useColor)
-			emitSecurityFindings(results, base.useColor)
+			// Combine Nerva finding + brute force results for security findings output
+			targetResults := append(nervaFinding, results...)
+			emitSecurityFindings(targetResults, base.useColor)
 		}
 	}
 

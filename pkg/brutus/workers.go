@@ -106,11 +106,14 @@ func pluginConfigFromConfig(cfg *Config) PluginConfig {
 
 // runWorkers executes credential testing using a bounded worker pool.
 func runWorkers(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error) {
-	// Pre-check: unauthenticated access detection (runs once per target)
+	// Pre-check: unauthenticated access detection (runs once per target).
+	// Skip when Nerva has already detected anonymous access (SkipUnauthCheck).
 	var preResults []Result
-	if checker, ok := plug.(UnauthChecker); ok {
-		if r := checker.CheckUnauth(ctx, cfg.Target, cfg.Timeout, pluginConfigFromConfig(cfg)); r != nil && r.Success {
-			preResults = append(preResults, *r)
+	if !cfg.SkipUnauthCheck {
+		if checker, ok := plug.(UnauthChecker); ok {
+			if r := checker.CheckUnauth(ctx, cfg.Target, cfg.Timeout, pluginConfigFromConfig(cfg)); r != nil && r.Success {
+				preResults = append(preResults, *r)
+			}
 		}
 	}
 

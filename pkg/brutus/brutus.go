@@ -110,8 +110,9 @@ type Config struct {
 	MaxAttempts int           // max password attempts per username (0 = unlimited)
 	MaxRetries  int           // max retries per credential on connection error (0 = no retry, default: 0)
 	Verbose     bool          // enable verbose logging to stderr (default: false)
-	StickyKeys  bool          // enable sticky keys backdoor detection (RDP)
-	AIMode      bool          // enable Vision API for screenshot analysis (RDP)
+	StickyKeys     bool // enable sticky keys backdoor detection (RDP)
+	AIMode         bool // enable Vision API for screenshot analysis (RDP)
+	SkipUnauthCheck bool // skip CheckUnauth probe (when Nerva already detected it)
 }
 
 // Result contains the outcome of testing a single credential.

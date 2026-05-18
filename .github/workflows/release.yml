@@ -70,6 +70,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install UPX
+        run: |
+          UPX_VERSION=4.2.4
+          curl -sL "https://github.com/upx/upx/releases/download/v${UPX_VERSION}/upx-${UPX_VERSION}-amd64_linux.tar.xz" | tar xJ
+          sudo mv "upx-${UPX_VERSION}-amd64_linux/upx" /usr/local/bin/
+          upx --version
+
       - name: Fetch tags for changelog
         run: git fetch --force --tags
 

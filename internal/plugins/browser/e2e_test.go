@@ -189,22 +189,20 @@ func TestE2E_FormDetection(t *testing.T) {
 			resetBrowserSingleton()
 			t.Cleanup(resetBrowserSingleton)
 
-			browser, err := GetBrowser(1)
+			b, err := GetBrowser(1)
 			if err != nil {
 				t.Fatalf("GetBrowser failed: %v", err)
 			}
 
-			tabCtx, release := browser.AcquireTab()
+			tabCtx, release := b.AcquireTab()
 			defer release()
 
+			// Use NavigateAndGetHTML to avoid chromedp context issues between
+			// separate Navigate and GetPageHTML calls.
 			url := fmt.Sprintf("http://localhost:%d/", tc.port)
-			if err := browser.Navigate(tabCtx, url, 10*time.Second); err != nil {
-				t.Fatalf("Navigate failed: %v", err)
-			}
-
-			html, err := GetPageHTML(tabCtx)
+			html, err := b.NavigateAndGetHTML(tabCtx, url, 10*time.Second)
 			if err != nil {
-				t.Fatalf("GetPageHTML failed: %v", err)
+				t.Fatalf("NavigateAndGetHTML failed: %v", err)
 			}
 
 			fields, err := DetectFormFields(html)
@@ -245,39 +243,26 @@ func TestE2E_ErrorMessageDetection(t *testing.T) {
 			resetBrowserSingleton()
 			t.Cleanup(resetBrowserSingleton)
 
-			browser, err := GetBrowser(1)
+			b, err := GetBrowser(1)
 			if err != nil {
 				t.Fatalf("GetBrowser failed: %v", err)
 			}
 
-			tabCtx, release := browser.AcquireTab()
+			tabCtx, release := b.AcquireTab()
 			defer release()
 
+			// Use FillAndSubmitWithNavigate to do navigate + fill + submit in a
+			// single chromedp.Run, avoiding context lifecycle issues.
 			url := fmt.Sprintf("http://localhost:%d/", tc.port)
-			if err := browser.Navigate(tabCtx, url, 10*time.Second); err != nil {
-				t.Fatalf("Navigate failed: %v", err)
-			}
-
-			// Get page and detect form
-			html, _ := GetPageHTML(tabCtx)
-			fields, err := DetectFormFields(html)
+			formResult, err := FillAndSubmitWithNavigate(tabCtx, url, tc.validUser, tc.invalidPass, 30*time.Second)
 			if err != nil {
-				t.Fatalf("Form detection failed: %v", err)
+				t.Fatalf("FillAndSubmitWithNavigate failed: %v", err)
 			}
 
-			// Submit with invalid credentials
-			beforeURL, _ := GetCurrentURL(tabCtx)
-			beforeState := VerificationState{URL: beforeURL, HTML: html}
-
-			err = FillAndSubmit(tabCtx, fields, tc.validUser, tc.invalidPass)
-			if err != nil {
-				t.Fatalf("FillAndSubmit failed: %v", err)
-			}
-
-			// Get after state
-			afterHTML, _ := GetPageHTML(tabCtx)
-			afterURL, _ := GetCurrentURL(tabCtx)
-			afterState := VerificationState{URL: afterURL, HTML: afterHTML}
+			// Construct verification states from the single-Run result.
+			// The before URL is the page we navigated to.
+			beforeState := VerificationState{URL: url, HTML: ""}
+			afterState := VerificationState{URL: formResult.AfterURL, HTML: formResult.AfterHTML}
 
 			// Verify login failed
 			result := VerifyLogin(beforeState, afterState)
@@ -313,50 +298,32 @@ func TestE2E_SuccessfulLoginVerification(t *testing.T) {
 			resetBrowserSingleton()
 			t.Cleanup(resetBrowserSingleton)
 
-			browser, err := GetBrowser(1)
+			b, err := GetBrowser(1)
 			if err != nil {
 				t.Fatalf("GetBrowser failed: %v", err)
 			}
 
-			tabCtx, release := browser.AcquireTab()
+			tabCtx, release := b.AcquireTab()
 			defer release()
 
+			// Use FillAndSubmitWithNavigate to do navigate + fill + submit in a
+			// single chromedp.Run, avoiding context lifecycle issues.
 			url := fmt.Sprintf("http://localhost:%d/", tc.port)
-			if err := browser.Navigate(tabCtx, url, 10*time.Second); err != nil {
-				t.Fatalf("Navigate failed: %v", err)
-			}
-
-			// Get page and detect form
-			html, _ := GetPageHTML(tabCtx)
-			fields, err := DetectFormFields(html)
+			formResult, err := FillAndSubmitWithNavigate(tabCtx, url, tc.validUser, tc.validPass, 30*time.Second)
 			if err != nil {
-				t.Fatalf("Form detection failed: %v", err)
+				t.Fatalf("FillAndSubmitWithNavigate failed: %v", err)
 			}
 
-			// Capture before state
-			beforeURL, _ := GetCurrentURL(tabCtx)
-			beforeState := VerificationState{URL: beforeURL, HTML: html}
-
-			// Submit with VALID credentials
-			err = FillAndSubmit(tabCtx, fields, tc.validUser, tc.validPass)
-			if err != nil {
-				t.Fatalf("FillAndSubmit failed: %v", err)
-			}
-
-			// Wait a moment for redirect
-			time.Sleep(500 * time.Millisecond)
-
-			// Get after state
-			afterHTML, _ := GetPageHTML(tabCtx)
-			afterURL, _ := GetCurrentURL(tabCtx)
-			afterState := VerificationState{URL: afterURL, HTML: afterHTML}
+			// Construct verification states from the single-Run result.
+			beforeState := VerificationState{URL: url, HTML: ""}
+			afterState := VerificationState{URL: formResult.AfterURL, HTML: formResult.AfterHTML}
 
 			// Verify login succeeded
 			result := VerifyLogin(beforeState, afterState)
 
 			t.Logf("[%s] Verification: Success=%v, Confidence=%.2f, Reason=%s",
 				tc.name, result.Success, result.Confidence, result.Reason)
-			t.Logf("[%s] URL before=%s, after=%s", tc.name, beforeURL, afterURL)
+			t.Logf("[%s] URL before=%s, after=%s", tc.name, url, formResult.AfterURL)
 
 			// Most login pages redirect to dashboard after success
 			if result.Success {

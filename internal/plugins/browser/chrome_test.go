@@ -6,9 +6,6 @@
 package browser
 
 import (
-	"context"
-	"os/exec"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -131,43 +128,3 @@ func TestBrowser_Navigate(t *testing.T) {
 	}
 }
 
-// chromeAvailable checks if Chrome/Chromium is installed and accessible
-func chromeAvailable() bool {
-	// Check for Chrome executables based on OS
-	var candidates []string
-
-	switch runtime.GOOS {
-	case "darwin":
-		candidates = []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			"/Applications/Chromium.app/Contents/MacOS/Chromium",
-			"google-chrome",
-			"chromium",
-		}
-	case "linux":
-		candidates = []string{
-			"google-chrome",
-			"google-chrome-stable",
-			"chromium",
-			"chromium-browser",
-		}
-	case "windows":
-		candidates = []string{
-			"chrome.exe",
-			"chromium.exe",
-		}
-	default:
-		candidates = []string{"google-chrome", "chromium"}
-	}
-
-	for _, candidate := range candidates {
-		if _, err := exec.LookPath(candidate); err == nil {
-			return true
-		}
-	}
-
-	return false
-}
-
-// Silence unused import warning
-var _ = context.Background

@@ -505,15 +505,21 @@ func runFromNmapFile(base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 	for i := range nmapResults {
 		nrv := &nmapResults[i]
 
-		// If no --protocol override, check that the nmap service maps to a known Brutus protocol.
-		if base.protocolOverride == "" {
-			protocol := brutusinput.MapServiceToProtocol(nrv.Protocol)
-			if protocol == "" {
-				logVerbose(base.verbose, "skipping %s:%d — unknown nmap service %q",
-					nrv.IP, nrv.Port, nrv.Protocol)
-				continue
-			}
-			nrv.Protocol = protocol
+		// Skip ports where nmap couldn't identify the service.
+		if nrv.Protocol == "" {
+			logVerbose(base.verbose, "skipping %s:%d — nmap could not identify service",
+				nrv.IP, nrv.Port)
+			continue
+		}
+
+		// When a protocol override is set (from --protocol flag or subcommand
+		// like snmp/badkeys/logon), only test ports whose nmap-detected service
+		// matches. Without this, "brutus snmp --nmap-file scan.xml" would run
+		// SNMP checks against every open port (SSH, HTTP, etc.).
+		if base.protocolOverride != "" && nrv.Protocol != base.protocolOverride {
+			logVerbose(base.verbose, "skipping %s:%d — nmap service %q doesn't match protocol %q",
+				nrv.IP, nrv.Port, nrv.Protocol, base.protocolOverride)
+			continue
 		}
 
 		res, success := processNervaResult(nrv, base, jsonOut)
@@ -568,8 +574,10 @@ func runScanFromNmapFile(base *runConfig) ([]brutus.Result, bool) {
 	var allResults []brutus.Result
 	hasSuccess := false
 	for _, nrv := range nmapResults {
-		protocol := brutusinput.MapServiceToProtocol(nrv.Protocol)
-		if base.protocolFilter != nil && !base.protocolFilter(protocol) {
+		if nrv.Protocol == "" {
+			continue
+		}
+		if base.protocolFilter != nil && !base.protocolFilter(nrv.Protocol) {
 			continue
 		}
 		res, success := runScanSingleTarget(nrv.TargetAddr(), base)

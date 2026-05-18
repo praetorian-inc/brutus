@@ -78,8 +78,8 @@ type nmapService struct {
 // LoadNmapFile parses an nmap XML file (-oX output) and returns a slice of
 // NervaResult for each open port. Hosts that are not "up" and ports that are
 // not "open" are skipped. The nmap service name is normalized and mapped
-// through MapServiceToProtocol; unknown services are preserved as-is so the
-// caller can decide to skip or fingerprint them.
+// through MapServiceToProtocol; unknown services have Protocol set to "" so
+// callers can skip or fingerprint them.
 func LoadNmapFile(filePath string) ([]NervaResult, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -115,9 +115,6 @@ func LoadNmapFile(filePath string) ([]NervaResult, error) {
 
 			serviceName := normalizeNmapService(port.Service.Name)
 			protocol := MapServiceToProtocol(serviceName)
-			if protocol == "" {
-				protocol = serviceName
-			}
 
 			// Upgrade http to https when TLS tunnel is detected.
 			if tls && protocol == "http" {

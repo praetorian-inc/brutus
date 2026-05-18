@@ -15,10 +15,10 @@
 package input
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
-	"regexp"
 )
 
 // masscanEntry represents a single host entry in masscan JSON output (-oJ).
@@ -34,10 +34,6 @@ type masscanPort struct {
 	Status string `json:"status"`
 }
 
-// trailingCommaRe matches trailing commas before ] or } in JSON.
-// Masscan produces JSON with trailing commas between entries.
-var trailingCommaRe = regexp.MustCompile(`,\s*([}\]])`)
-
 // LoadMasscanFile parses a masscan JSON file (-oJ output) and returns a
 // slice of NervaResult for each open port. Because masscan does not perform
 // service fingerprinting, the Protocol field is left empty — callers must
@@ -49,8 +45,12 @@ func LoadMasscanFile(filePath string) ([]NervaResult, error) {
 		return nil, fmt.Errorf("opening masscan file: %w", err)
 	}
 
-	// Normalize masscan's quirky JSON: remove trailing commas before ] or }.
-	cleaned := trailingCommaRe.ReplaceAll(data, []byte("$1"))
+	// Normalize masscan's quirky JSON: strip the trailing comma before the
+	// closing ']'. Masscan emits a comma after every entry including the last
+	// one, producing e.g. `[{...}, {...}, ]`. We only fix this structural
+	// artifact at the end of the array rather than applying a global regex
+	// that could corrupt string literals containing ", ]" or ", }".
+	cleaned := stripTrailingComma(data)
 
 	var entries []masscanEntry
 	if err := json.Unmarshal(cleaned, &entries); err != nil {
@@ -74,4 +74,30 @@ func LoadMasscanFile(filePath string) ([]NervaResult, error) {
 	}
 
 	return results, nil
+}
+
+// stripTrailingComma removes the last comma before the closing ']' of a
+// JSON array. This is the only structural fix masscan output needs — the
+// last entry is followed by a comma before ']'. Operating only on the
+// trailing position avoids corrupting commas inside string values.
+func stripTrailingComma(data []byte) []byte {
+	// Find the last ']' (top-level array close).
+	idx := bytes.LastIndexByte(data, ']')
+	if idx < 0 {
+		return data
+	}
+
+	// Walk backwards from ']' skipping whitespace to find a comma.
+	i := idx - 1
+	for i >= 0 && (data[i] == ' ' || data[i] == '\t' || data[i] == '\n' || data[i] == '\r') {
+		i--
+	}
+	if i >= 0 && data[i] == ',' {
+		// Remove the comma by splicing it out.
+		out := make([]byte, 0, len(data)-1)
+		out = append(out, data[:i]...)
+		out = append(out, data[i+1:]...)
+		return out
+	}
+	return data
 }

@@ -148,9 +148,6 @@ func TestLoadNmapFile_NmapServiceNormalization(t *testing.T) {
 		t.Run(tt.nmapName, func(t *testing.T) {
 			result := normalizeNmapService(tt.nmapName)
 			mapped := MapServiceToProtocol(result)
-			if mapped == "" {
-				mapped = result
-			}
 			assert.Equal(t, tt.expected, mapped)
 		})
 	}
@@ -208,6 +205,28 @@ func TestLoadNmapFile_UDPPorts(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, "snmp", results[0].Protocol)
 	assert.Equal(t, "udp", results[0].Transport)
+}
+
+func TestLoadNmapFile_UnknownServiceEmpty(t *testing.T) {
+	xml := `<?xml version="1.0"?>
+<nmaprun>
+  <host><status state="up"/><address addr="10.0.0.1" addrtype="ipv4"/>
+    <ports>
+      <port protocol="tcp" portid="3306"><state state="open"/><service name="tcpwrapped"/></port>
+      <port protocol="tcp" portid="22"><state state="open"/><service name="ssh"/></port>
+    </ports>
+  </host>
+</nmaprun>`
+
+	file := writeTempFile(t, "nmap-unknown.xml", xml)
+	results, err := LoadNmapFile(file)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	// tcpwrapped is unknown — Protocol should be empty
+	assert.Equal(t, "", results[0].Protocol)
+	assert.Equal(t, 3306, results[0].Port)
+	// ssh is known
+	assert.Equal(t, "ssh", results[1].Protocol)
 }
 
 func TestLoadNmapFile_HostnamePreferred(t *testing.T) {

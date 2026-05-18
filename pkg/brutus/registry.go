@@ -108,7 +108,8 @@ func GetUnauthChecker(name string) (UnauthOnlyChecker, error) {
 	factory, exists := unauthRegistry[name]
 	unauthRegistryMu.RUnlock()
 	if !exists {
-		return nil, fmt.Errorf("unknown unauth checker %q", name)
+		available := ListUnauthCheckers()
+		return nil, fmt.Errorf("unknown unauth checker %q (available: %v)", name, available)
 	}
 	return factory(), nil
 }
@@ -123,6 +124,14 @@ func ListUnauthCheckers() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// ResetUnauthCheckers clears all registered unauth-only checkers.
+// This function is intended for testing only.
+func ResetUnauthCheckers() {
+	unauthRegistryMu.Lock()
+	defer unauthRegistryMu.Unlock()
+	unauthRegistry = make(map[string]func() UnauthOnlyChecker)
 }
 
 // =============================================================================

@@ -16,7 +16,6 @@ package kubernetes
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,9 +39,9 @@ func (c *Checker) Name() string {
 }
 
 // CheckUnauth probes for Kubernetes anonymous access.
-// Checks the API server /version endpoint and, for kubelet (port 10250),
-// the /pods endpoint. Always uses TLS with InsecureSkipVerify since K8s
-// API servers typically use self-signed certificates.
+// For the API server, it confirms anonymous access by requesting a protected
+// resource (/api/v1/namespaces) since /version is publicly accessible by
+// default RBAC policy. For kubelet (port 10250), it checks the /pods endpoint.
 func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	result := brutus.NewResult("kubernetes", target, "(unauthenticated)", "")
 	start := time.Now()
@@ -50,21 +49,23 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 
 	host, port := brutus.ParseTarget(target, "6443")
 
-	// K8s API server uses TLS with typically self-signed certs
-	client := &http.Client{
-		Timeout: timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, //nolint:gosec // K8s API servers use self-signed certs
-			},
-		},
+	// Default to skip-verify for K8s (self-signed certs are common)
+	tlsMode := pluginCfg.TLSMode
+	if tlsMode == "" {
+		tlsMode = "skip-verify"
+	}
+	client := brutus.NewHTTPClient(timeout, brutus.BuildTLSConfig(tlsMode))
+	scheme := brutus.SchemeFromTLSMode(tlsMode)
+
+	// For kubelet (port 10250), check the /pods endpoint directly
+	if port == "10250" {
+		return c.checkKubelet(ctx, client, scheme, host, port, result)
 	}
 
-	// Probe /version endpoint (works for both API server and kubelet)
-	scheme := "https"
-	url := fmt.Sprintf("%s://%s:%s/version", scheme, host, port)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
+	// For API server: /version is publicly accessible by default RBAC,
+	// so we must probe a protected resource to confirm anonymous access.
+	protectedURL := fmt.Sprintf("%s://%s:%s/api/v1/namespaces", scheme, host, port)
+	req, err := http.NewRequestWithContext(ctx, "GET", protectedURL, http.NoBody)
 	if err != nil {
 		return result
 	}
@@ -79,28 +80,45 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 		return result
 	}
 
-	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	// Anonymous access to protected resources confirmed — get version info
 	bannerText := "[CRITICAL] Kubernetes anonymous access enabled"
-	if len(bodyBytes) > 0 {
-		bannerText += fmt.Sprintf("\nVersion info: %s", string(bodyBytes))
-	}
-
-	// For kubelet (port 10250), also check /pods
-	if port == "10250" {
-		podsURL := fmt.Sprintf("%s://%s:%s/pods", scheme, host, port)
-		podsReq, err := http.NewRequestWithContext(ctx, "GET", podsURL, http.NoBody)
+	versionURL := fmt.Sprintf("%s://%s:%s/version", scheme, host, port)
+	vReq, err := http.NewRequestWithContext(ctx, "GET", versionURL, http.NoBody)
+	if err == nil {
+		vResp, err := client.Do(vReq)
 		if err == nil {
-			podsResp, err := client.Do(podsReq)
-			if err == nil {
-				defer func() { _ = podsResp.Body.Close() }()
-				if podsResp.StatusCode == http.StatusOK {
-					bannerText += "\nKubelet /pods endpoint also accessible"
-				}
+			vBody, _ := io.ReadAll(io.LimitReader(vResp.Body, 1024))
+			_ = vResp.Body.Close()
+			if len(vBody) > 0 {
+				bannerText += fmt.Sprintf("\nVersion info: %s", string(vBody))
 			}
 		}
 	}
 
 	result.Success = true
 	result.Banner = bannerText
+	return result
+}
+
+// checkKubelet probes the kubelet /pods endpoint for unauthenticated access.
+func (c *Checker) checkKubelet(ctx context.Context, client *http.Client, scheme, host, port string, result *brutus.Result) *brutus.Result {
+	podsURL := fmt.Sprintf("%s://%s:%s/pods", scheme, host, port)
+	req, err := http.NewRequestWithContext(ctx, "GET", podsURL, http.NoBody)
+	if err != nil {
+		return result
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return result
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return result
+	}
+
+	result.Success = true
+	result.Banner = "[CRITICAL] Kubelet API accessible without authentication (/pods endpoint)"
 	return result
 }

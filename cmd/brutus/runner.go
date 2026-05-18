@@ -243,12 +243,10 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 
 // isUnauthOnlyProtocol returns true for protocols that only support
 // unauthenticated access detection (no credential testing).
+// This checks the unauth-only registry rather than hardcoding protocol names.
 func isUnauthOnlyProtocol(protocol string) bool {
-	switch protocol {
-	case "docker", "kubernetes":
-		return true
-	}
-	return false
+	_, err := brutus.GetUnauthChecker(protocol)
+	return err == nil
 }
 
 // runSingleTarget runs brutus against a single target.

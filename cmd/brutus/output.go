@@ -214,6 +214,7 @@ func outputHuman(results []brutus.Result, useColor, quiet bool) {
 	validCount := 0
 	invalidCount := 0
 	errorCount := 0
+	skippedUnauth := 0
 
 	for i := range results {
 		r := &results[i]
@@ -221,6 +222,7 @@ func outputHuman(results []brutus.Result, useColor, quiet bool) {
 		case r.Success:
 			// Unauthenticated findings are reported in the Security Findings section, not as credentials
 			if r.Username == "(unauthenticated)" {
+				skippedUnauth++
 				continue
 			}
 			validCount++
@@ -255,7 +257,7 @@ func outputHuman(results []brutus.Result, useColor, quiet bool) {
 	}
 
 	if !quiet || validCount > 0 {
-		printSummary(validCount, invalidCount, errorCount, len(results), useColor)
+		printSummary(validCount, invalidCount, errorCount, len(results)-skippedUnauth, useColor)
 	}
 }
 
@@ -330,9 +332,10 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 		Finding  string `json:"finding"`
 		Banner   string `json:"banner"`
 	}
-	findingEmitted := false
+	findingEmitted := make(map[string]bool)
 	for i := range results {
 		r := &results[i]
+		key := r.Protocol + "|" + r.Target
 		// Unauthenticated access findings
 		if r.Success && r.Username == "(unauthenticated)" && r.Banner != "" {
 			fr := FindingResult{
@@ -344,11 +347,11 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 			if err := enc.Encode(fr); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
 			}
-			findingEmitted = true
+			findingEmitted[key] = true
 			continue
 		}
 		// Other security findings (e.g., sticky keys detection)
-		if !findingEmitted && r.Banner != "" && hasSecurityFinding(r.Banner) {
+		if !findingEmitted[key] && r.Banner != "" && hasSecurityFinding(r.Banner) {
 			fr := FindingResult{
 				Protocol: r.Protocol,
 				Target:   r.Target,
@@ -358,7 +361,7 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 			if err := enc.Encode(fr); err != nil {
 				fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
 			}
-			findingEmitted = true
+			findingEmitted[key] = true
 		}
 	}
 }

@@ -16,10 +16,14 @@ package elasticsearch
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -69,6 +73,9 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_ConnectionError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -100,6 +107,9 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -110,4 +120,78 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
+// =============================================================================
+// CheckUnauth tests (using httptest for mock HTTP servers)
+// =============================================================================
+
+func TestCheckUnauth_OpenAccess(t *testing.T) {
+	// Simulate Elasticsearch with security disabled (200 OK without auth)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"), "CheckUnauth should NOT send auth header")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"name":"node-1","cluster_name":"test","version":{"number":"8.12.0"}}`)
+	}))
+	defer server.Close()
+
+	p := &Plugin{}
+	ctx := context.Background()
+	// Strip http:// and use the server's host:port directly
+	target := server.Listener.Addr().String()
+
+	result := p.CheckUnauth(ctx, target, 5*time.Second, brutus.PluginConfig{})
+
+	require.NotNil(t, result)
+	assert.True(t, result.Success, "should detect unauthenticated access")
+	assert.Equal(t, "(unauthenticated)", result.Username)
+	assert.Contains(t, result.Banner, "[CRITICAL]")
+	assert.Contains(t, result.Banner, "Elasticsearch accessible without authentication")
+	assert.Contains(t, result.Banner, "node-1") // cluster info should be included
+}
+
+func TestCheckUnauth_RequiresAuth(t *testing.T) {
+	// Simulate Elasticsearch with security enabled (401 Unauthorized)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	p := &Plugin{}
+	ctx := context.Background()
+	target := server.Listener.Addr().String()
+
+	result := p.CheckUnauth(ctx, target, 5*time.Second, brutus.PluginConfig{})
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success, "should NOT detect unauth access when 401 returned")
+	assert.Empty(t, result.Banner)
+}
+
+func TestCheckUnauth_ServerError(t *testing.T) {
+	// Simulate Elasticsearch returning 500 (server error, not open access)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	p := &Plugin{}
+	ctx := context.Background()
+	target := server.Listener.Addr().String()
+
+	result := p.CheckUnauth(ctx, target, 5*time.Second, brutus.PluginConfig{})
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success, "non-200 status should not be detected as open")
+}
+
+func TestCheckUnauth_ConnectionError(t *testing.T) {
+	p := &Plugin{}
+	ctx := context.Background()
+
+	// Target that is not reachable
+	result := p.CheckUnauth(ctx, "127.0.0.1:1", 1*time.Second, brutus.PluginConfig{})
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
 }

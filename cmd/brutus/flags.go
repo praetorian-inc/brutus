@@ -180,7 +180,7 @@ func registerRootFlags(cmd *cobra.Command) {
 // buildBaseConfig constructs a baseConfigOptions with only the shared fields.
 // Subcommand-specific loading (credentials, keys, AI config) is handled by
 // each subcommand's runXxx function.
-func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
+func buildBaseConfig(_ *cobra.Command) *baseConfigOptions {
 	return &baseConfigOptions{
 		threads:          flagThreads,
 		timeout:          flagTimeout,

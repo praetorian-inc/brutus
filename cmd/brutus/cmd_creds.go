@@ -71,8 +71,8 @@ func runCreds(cmd *cobra.Command, args []string) error {
 	base.credentials = credPairs
 
 	// Load SSH keys (creds-only)
-	if err := validateKeyFileFlags(flagKeyFile, isFlagChanged(cmd, "usernames"), flagUsernameFile); err != nil {
-		return err
+	if keyErr := validateKeyFileFlags(flagKeyFile, isFlagChanged(cmd, "usernames"), flagUsernameFile); keyErr != nil {
+		return keyErr
 	}
 	keys, err := loadKey(flagKeyFile)
 	if err != nil {

@@ -175,16 +175,16 @@ func buildNmapVersion(product, version string) string {
 // differ from the names in MapServiceToProtocol.
 func normalizeNmapService(name string) string {
 	name = strings.ToLower(name)
-	switch {
-	case name == "ms-sql-s" || name == "ms-sql":
+	switch name {
+	case "ms-sql-s", "ms-sql":
 		return "mssql"
-	case name == "microsoft-ds" || name == "netbios-ssn":
+	case "microsoft-ds", "netbios-ssn":
 		return "smb"
-	case name == "http-proxy" || name == "http-alt":
+	case "http-proxy", "http-alt":
 		return "http"
-	case name == "ssl/http" || name == "https-alt":
+	case "ssl/http", "https-alt":
 		return "https"
-	case name == "ms-wbt-server":
+	case "ms-wbt-server":
 		return "rdp"
 	}
 	return name

@@ -1,7 +1,7 @@
 # Makefile for Brutus
 # Modern credential brute-forcing library in pure Go
 
-.PHONY: all build build-wasm clean test test-integration lint install help \
+.PHONY: all build build-packed build-wasm clean test test-integration lint install help \
 	services-up services-down
 
 # Build configuration
@@ -27,6 +27,14 @@ build:
 	@echo "Building $(BINARY_NAME) $(VERSION)..."
 	GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/brutus
 	@echo "Built: $(BINARY_NAME)"
+
+# Build UPX-compressed binary (requires: upx)
+build-packed: build
+	@command -v upx >/dev/null 2>&1 || { echo "ERROR: upx not found. Install with: brew install upx"; exit 1; }
+	@echo "Compressing $(BINARY_NAME) with UPX..."
+	cp $(BINARY_NAME) $(BINARY_NAME)-upx
+	upx --best --lzma $(BINARY_NAME)-upx
+	@echo "Packed: $(BINARY_NAME)-upx"
 
 # Build IronRDP WASM module (requires Rust toolchain with wasm32-wasip1 target)
 build-wasm:
@@ -110,7 +118,7 @@ install:
 
 # Clean build artifacts
 clean:
-	rm -f $(BINARY_NAME)
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-upx
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out
 
@@ -250,6 +258,7 @@ help:
 	@echo ""
 	@echo "Build targets:"
 	@echo "  build        Build single static binary (default)"
+	@echo "  build-packed Build UPX-compressed binary (requires upx)"
 	@echo "  build-wasm   Build IronRDP WASM module (requires Rust)"
 	@echo "  build-all    Build for all platforms"
 	@echo "  install      Install to GOPATH/bin"

@@ -43,13 +43,58 @@ builds:
       - goos: freebsd
         goarch: arm
 
+  - id: brutus-packed
+    main: ./cmd/brutus
+    binary: brutus
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.Version={{.Version}}
+      - -X main.BuildTime={{.Date}}
+      - -X main.CommitSHA={{.ShortCommit}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+upx:
+  - enabled: true
+    ids:
+      - brutus-packed
+    compress: best
+    lzma: true
+
 archives:
   - id: default
+    ids:
+      - brutus
     formats:
       - tar.gz
     name_template: >-
       {{ .ProjectName }}-{{ .Os }}-{{ .Arch }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - LICENSE
+      - README.md
+
+  - id: packed
+    ids:
+      - brutus-packed
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}-{{ .Os }}-{{ .Arch }}-upx
     format_overrides:
       - goos: windows
         formats:
@@ -142,6 +187,16 @@ release:
     | Windows | 386 | `brutus-windows-386.zip` |
     | FreeBSD | amd64 | `brutus-freebsd-amd64.tar.gz` |
     | FreeBSD | arm64 | `brutus-freebsd-arm64.tar.gz` |
+
+    ### UPX-Compressed Binaries (smaller, same functionality)
+
+    | OS | Architecture | Binary |
+    |----|--------------|--------|
+    | Linux | amd64 | `brutus-linux-amd64-upx.tar.gz` |
+    | Linux | arm64 | `brutus-linux-arm64-upx.tar.gz` |
+    | macOS | amd64 (Intel) | `brutus-darwin-amd64-upx.tar.gz` |
+    | macOS | arm64 (Apple Silicon) | `brutus-darwin-arm64-upx.tar.gz` |
+    | Windows | amd64 | `brutus-windows-amd64-upx.zip` |
 
     ---
     **Full Changelog**: https://github.com/praetorian-inc/brutus/compare/{{ .PreviousTag }}...{{ .Tag }}

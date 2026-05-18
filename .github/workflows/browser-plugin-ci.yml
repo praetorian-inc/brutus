@@ -46,34 +46,9 @@ jobs:
           CGO_ENABLED=0 go test -v -short ./internal/analyzers/perplexity/...
 
   # Integration tests with mock devices (needs Chrome)
-  # Note: chromedp browser tests are flaky in CI, so this job is non-blocking
   integration-tests:
     name: Integration Tests (Mock Devices)
     runs-on: ubuntu-latest
-    continue-on-error: true
-    services:
-      # Mock device containers
-      mock-router:
-        image: golang:1.25-alpine
-        ports:
-          - 8081:8080
-      mock-camera:
-        image: golang:1.25-alpine
-        ports:
-          - 8082:8080
-      mock-printer:
-        image: golang:1.25-alpine
-        ports:
-          - 8083:8080
-      mock-nas:
-        image: golang:1.25-alpine
-        ports:
-          - 8084:8080
-      mock-generic:
-        image: golang:1.25-alpine
-        ports:
-          - 8085:8080
-
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -95,19 +70,27 @@ jobs:
             CGO_ENABLED=0 go build -o mock-$device ./$device/
           done
 
-          # Start them on different ports
-          PORT=8081 ./mock-router &
-          PORT=8082 ./mock-camera &
-          PORT=8083 ./mock-printer &
-          PORT=8084 ./mock-nas &
-          PORT=8085 ./mock-generic &
+          # Start them on different ports, capturing logs for diagnostics
+          PORT=8081 ./mock-router  > /tmp/mock-router.log  2>&1 &
+          PORT=8082 ./mock-camera  > /tmp/mock-camera.log  2>&1 &
+          PORT=8083 ./mock-printer > /tmp/mock-printer.log 2>&1 &
+          PORT=8084 ./mock-nas     > /tmp/mock-nas.log     2>&1 &
+          PORT=8085 ./mock-generic > /tmp/mock-generic.log 2>&1 &
 
-          # Wait for services to be ready
-          sleep 3
-
-          # Verify they're running
+          # Wait for services with active polling (up to 10s per service)
           for port in 8081 8082 8083 8084 8085; do
-            curl -sf http://localhost:$port/health || exit 1
+            for i in $(seq 1 10); do
+              if curl -sf http://localhost:$port/health > /dev/null 2>&1; then
+                echo "Port $port ready"
+                break
+              fi
+              if [ $i -eq 10 ]; then
+                echo "ERROR: Port $port failed to start"
+                cat /tmp/mock-*.log
+                exit 1
+              fi
+              sleep 1
+            done
           done
           echo "All mock services ready"
 
@@ -118,6 +101,14 @@ jobs:
       - name: Run E2E tests
         run: |
           CGO_ENABLED=0 go test -v -tags=e2e ./internal/plugins/browser/... -timeout 5m
+
+      - name: Dump mock service logs
+        if: failure()
+        run: |
+          for f in /tmp/mock-*.log; do
+            echo "=== $f ==="
+            cat "$f" 2>/dev/null || echo "(no log)"
+          done
 
   # Build verification
   build:

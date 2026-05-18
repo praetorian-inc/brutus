@@ -70,62 +70,14 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/badkeys"
 )
 
-// =============================================================================
-// Context Keys for TLS Mode
-// =============================================================================
-
-type contextKey string
-
-const tlsModeContextKey contextKey = "tlsMode"
-
-// ContextWithTLSMode adds TLSMode to the context
-func ContextWithTLSMode(ctx context.Context, tlsMode string) context.Context {
-	return context.WithValue(ctx, tlsModeContextKey, tlsMode)
-}
-
-// TLSModeFromContext retrieves TLSMode from the context (default: "disable")
-func TLSModeFromContext(ctx context.Context) string {
-	if mode, ok := ctx.Value(tlsModeContextKey).(string); ok {
-		return mode
-	}
-	return "disable"
-}
-
-const noVisionContextKey contextKey = "noVision"
-const noStickyKeysContextKey contextKey = "noStickyKeys"
-const noUtilmanContextKey contextKey = "noUtilman"
-
-// ContextWithNoVision disables Vision API for sticky keys detection.
-func ContextWithNoVision(ctx context.Context) context.Context {
-	return context.WithValue(ctx, noVisionContextKey, true)
-}
-
-// NoVisionFromContext returns true if Vision API is disabled.
-func NoVisionFromContext(ctx context.Context) bool {
-	v, _ := ctx.Value(noVisionContextKey).(bool)
-	return v
-}
-
-// ContextWithNoStickyKeys disables sticky keys backdoor detection.
-func ContextWithNoStickyKeys(ctx context.Context) context.Context {
-	return context.WithValue(ctx, noStickyKeysContextKey, true)
-}
-
-// NoStickyKeysFromContext returns true if sticky keys detection is disabled.
-func NoStickyKeysFromContext(ctx context.Context) bool {
-	v, _ := ctx.Value(noStickyKeysContextKey).(bool)
-	return v
-}
-
-// ContextWithNoUtilman disables utilman backdoor detection.
-func ContextWithNoUtilman(ctx context.Context) context.Context {
-	return context.WithValue(ctx, noUtilmanContextKey, true)
-}
-
-// NoUtilmanFromContext returns true if utilman detection is disabled.
-func NoUtilmanFromContext(ctx context.Context) bool {
-	v, _ := ctx.Value(noUtilmanContextKey).(bool)
-	return v
+// PluginConfig carries per-attempt configuration that plugins may need.
+// It is built by the worker pool from Config and passed to Plugin.Test /
+// KeyPlugin.TestKey, replacing the former pattern of smuggling values
+// through context.WithValue.
+type PluginConfig struct {
+	TLSMode      string // "disable", "verify", "skip-verify" (default: "disable")
+	NoVision     bool   // disable Vision API for screenshot analysis (RDP)
+	NoStickyKeys bool   // disable sticky keys backdoor detection (RDP)
 }
 
 // Credential represents a pre-paired username with password or key.
@@ -139,27 +91,27 @@ type Credential struct {
 
 // Config defines the configuration for a brute force attack.
 type Config struct {
-	Target        string        // host:port (e.g., "10.0.0.50:22")
-	Protocol      string        // plugin name (e.g., "ssh")
-	Usernames     []string      // usernames to test (Cartesian product with Passwords/Keys)
-	Passwords     []string      // passwords to test (Cartesian product with Usernames)
-	Keys          [][]byte      // SSH private keys to test (Cartesian product with Usernames)
-	Credentials   []Credential  // pre-paired credentials (no Cartesian product)
-	UseDefaults   bool          // load protocol-specific default credentials from embedded wordlists
-	NoBadkeys     bool          // skip embedded bad SSH keys when UseDefaults is true
-	BadkeysOnly   bool          // only test embedded bad SSH keys (skip password wordlists)
-	Timeout       time.Duration // per-credential timeout (default: 10s)
-	Threads       int           // concurrent workers (default: 10)
-	StopOnSuccess bool          // stop after first valid cred (default: true)
-	LLMConfig     *LLMConfig    // optional LLM-based banner analysis (nil = disabled)
-	Plugin        Plugin        // optional: pre-configured plugin instance (bypasses GetPlugin)
-	TLSMode       string        // TLS/SSL verification mode: "disable", "verify", "skip-verify" (default: "disable")
-	RateLimit     float64       // max requests per second (0 = unlimited, default: 0)
-	Jitter        time.Duration // random delay variance added to rate limiting (default: 0)
-	MaxAttempts   int           // max password attempts per username (0 = unlimited)
-	SprayMode     bool          // password spraying: loop users first, then passwords
-	MaxRetries    int           // max retries per credential on connection error (0 = no retry, default: 0)
-	Verbose       bool          // enable verbose logging to stderr (default: false)
+	Target      string        // host:port (e.g., "10.0.0.50:22")
+	Protocol    string        // plugin name (e.g., "ssh")
+	Usernames   []string      // usernames to test (Cartesian product with Passwords/Keys)
+	Passwords   []string      // passwords to test (Cartesian product with Usernames)
+	Keys        [][]byte      // SSH private keys to test (Cartesian product with Usernames)
+	Credentials []Credential  // pre-paired credentials (no Cartesian product)
+	UseDefaults bool          // load protocol-specific default credentials from embedded wordlists
+	NoBadkeys   bool          // skip embedded bad SSH keys when UseDefaults is true
+	BadkeysOnly bool          // only test embedded bad SSH keys (skip password wordlists)
+	Timeout     time.Duration // per-credential timeout (default: 10s)
+	Threads     int           // concurrent workers (default: 10)
+	LLMConfig   *LLMConfig    // optional LLM-based banner analysis (nil = disabled)
+	Plugin      Plugin        // optional: pre-configured plugin instance (bypasses GetPlugin)
+	TLSMode     string        // TLS/SSL verification mode: "disable", "verify", "skip-verify" (default: "disable")
+	RateLimit   float64       // max requests per second (0 = unlimited, default: 0)
+	Jitter      time.Duration // random delay variance added to rate limiting (default: 0)
+	MaxAttempts int           // max password attempts per username (0 = unlimited)
+	MaxRetries  int           // max retries per credential on connection error (0 = no retry, default: 0)
+	Verbose     bool          // enable verbose logging to stderr (default: false)
+	StickyKeys  bool          // enable sticky keys backdoor detection (RDP)
+	AIMode      bool          // enable Vision API for screenshot analysis (RDP)
 }
 
 // Result contains the outcome of testing a single credential.
@@ -249,7 +201,8 @@ type Plugin interface {
 	//
 	// The context can be used to cancel the operation early.
 	// The timeout specifies the maximum duration for the authentication attempt.
-	Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result
+	// The pluginCfg carries per-attempt configuration (TLS mode, feature flags).
+	Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result
 }
 
 // KeyPlugin extends Plugin with key-based authentication support.
@@ -261,7 +214,7 @@ type KeyPlugin interface {
 	Plugin
 
 	// TestKey attempts authentication with username and SSH private key
-	TestKey(ctx context.Context, target, username string, key []byte, timeout time.Duration) *Result
+	TestKey(ctx context.Context, target, username string, key []byte, timeout time.Duration, pluginCfg PluginConfig) *Result
 }
 
 // PluginFactory is a function that creates a new Plugin instance.

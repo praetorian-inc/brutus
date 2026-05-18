@@ -56,7 +56,7 @@ func (p *Plugin) Name() string {
 // - Success=false, Error=nil: Invalid credentials (auth failure)
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("ssh", target, username, password)
@@ -110,7 +110,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 // - Success=false, Error=nil: Invalid key (auth failure)
 // - Success=false, Error!=nil: Connection/network/key parsing error
 func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byte,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("ssh", target, username, "")

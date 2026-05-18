@@ -81,7 +81,7 @@ func (p *Plugin) Name() string {
 // 1. Navigate to target URL and fill form
 // 2. Submit and verify login success
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult(p.Name(), target, username, password)

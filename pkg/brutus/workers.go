@@ -21,7 +21,6 @@ import (
 	"os"
 	"runtime/debug"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -95,11 +94,18 @@ func reorderForSpray(creds []credential) []credential {
 	return result
 }
 
+// pluginConfigFromConfig builds a PluginConfig from the top-level Config.
+// This replaces the former pattern of copying config into context values.
+func pluginConfigFromConfig(cfg *Config) PluginConfig {
+	return PluginConfig{
+		TLSMode:      cfg.TLSMode,
+		NoVision:     !cfg.AIMode,
+		NoStickyKeys: !cfg.StickyKeys,
+	}
+}
+
 // runWorkers executes credential testing using a bounded worker pool.
 func runWorkers(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error) {
-	// Add TLSMode to context at the start
-	ctx = ContextWithTLSMode(ctx, cfg.TLSMode)
-
 	// Check if LLM analysis is enabled AND protocol supports it
 	// LLM banner analysis only makes sense for HTTP Basic Auth where we can
 	// detect the application from the response headers/body
@@ -117,6 +123,9 @@ func runWorkers(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error)
 // rate limiting, jitter, max attempts, retry with backoff, adaptive pacing,
 // result collection, and early stopping.
 func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credentials []credential, llmSuggestions []string) ([]Result, error) {
+	// Build plugin config once for all workers
+	pluginCfg := pluginConfigFromConfig(cfg)
+
 	// Create cancellable context for early stop
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -143,15 +152,11 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 		attemptCounts = make(map[string]int)
 		attemptMu     sync.Mutex
 		mu            sync.Mutex
-		found         atomic.Bool
+		crackedUsers  = make(map[string]bool) // per-user early stop
 	)
 
 	// Launch workers
 	for _, cred := range credentials {
-		// Check early stop before launching new worker
-		if cfg.StopOnSuccess && found.Load() {
-			break
-		}
 
 		// Capture loop variable for closure
 		cred := cred
@@ -184,6 +189,14 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 			default:
 			}
 
+			// Skip if this user already has a valid credential
+			attemptMu.Lock()
+			if crackedUsers[cred.username] {
+				attemptMu.Unlock()
+				return nil
+			}
+			attemptMu.Unlock()
+
 			// Apply rate limiting if configured
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
@@ -212,9 +225,8 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 				attemptMu.Unlock()
 			}
 
-			// Re-check context before expensive network call to close
-			// TOCTOU window in StopOnSuccess (cancel may have fired
-			// during rate limiting or jitter)
+			// Re-check context before expensive network call
+			// (cancel may have fired during rate limiting or jitter)
 			select {
 			case <-ctx.Done():
 				return nil
@@ -253,14 +265,14 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 				if cred.key != nil {
 					// Key-based authentication
 					if kp, ok := plug.(KeyPlugin); ok {
-						result = kp.TestKey(ctx, cfg.Target, cred.username, cred.key, cfg.Timeout)
+						result = kp.TestKey(ctx, cfg.Target, cred.username, cred.key, cfg.Timeout, pluginCfg)
 					} else {
 						// Plugin doesn't support key auth, skip
 						return nil
 					}
 				} else {
 					// Password-based authentication
-					result = plug.Test(ctx, cfg.Target, cred.username, cred.password, cfg.Timeout)
+					result = plug.Test(ctx, cfg.Target, cred.username, cred.password, cfg.Timeout, pluginCfg)
 				}
 
 				// If no connection error, stop retrying
@@ -294,10 +306,11 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 			results = append(results, *result)
 			mu.Unlock()
 
-			// Handle success with early stop
-			if result.Success && cfg.StopOnSuccess {
-				found.Store(true)
-				cancel() // Signal all workers to stop
+			// Mark user as cracked to skip remaining passwords for this user
+			if result.Success {
+				attemptMu.Lock()
+				crackedUsers[cred.username] = true
+				attemptMu.Unlock()
 			}
 
 			return nil
@@ -337,10 +350,9 @@ func runWorkersDefault(ctx context.Context, cfg *Config, plug Plugin) ([]Result,
 		credentials = append(credentials, generateKeyCredentials(cfg.Usernames, cfg.Keys)...)
 	}
 
-	// Reorder for spray mode if enabled
-	if cfg.SprayMode {
-		credentials = reorderForSpray(credentials)
-	}
+	// Reorder credentials for spray ordering: try each password across all users
+	// before moving to the next password. This avoids account lockout.
+	credentials = reorderForSpray(credentials)
 
 	// Execute worker pool with no LLM suggestions
 	return executeWorkerPool(ctx, cfg, plug, credentials, nil)
@@ -408,7 +420,7 @@ func captureBanner(ctx context.Context, cfg *Config, plug Plugin) BannerInfo {
 	// Empty username is acceptable for banner capture (some protocols don't need it)
 
 	// Test with dummy credential just to capture banner
-	result := plug.Test(ctx, cfg.Target, username, "", cfg.Timeout)
+	result := plug.Test(ctx, cfg.Target, username, "", cfg.Timeout, pluginConfigFromConfig(cfg))
 
 	return BannerInfo{
 		Protocol: cfg.Protocol,

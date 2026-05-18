@@ -15,9 +15,11 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 )
 
 func loadPasswords(inline, file string, inlineFlagSet bool) ([]string, error) {
@@ -30,7 +32,7 @@ func loadPasswords(inline, file string, inlineFlagSet bool) ([]string, error) {
 
 	// Load from file
 	if file != "" {
-		filePasswords, err := brutus.LoadPasswordsFromFile(file)
+		filePasswords, err := brutusinput.LoadPasswordsFromFile(file)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +52,7 @@ func loadUsernames(inline, file string, inlineFlagSet bool) ([]string, error) {
 
 	// Load from file
 	if file != "" {
-		fileUsernames, err := brutus.LoadUsernamesFromFile(file)
+		fileUsernames, err := brutusinput.LoadUsernamesFromFile(file)
 		if err != nil {
 			return nil, err
 		}
@@ -61,5 +63,52 @@ func loadUsernames(inline, file string, inlineFlagSet bool) ([]string, error) {
 }
 
 func loadKey(keyFile string) ([][]byte, error) {
-	return brutus.LoadKeyFile(keyFile)
+	return brutusinput.LoadKeyFile(keyFile)
+}
+
+// loadCredentials parses pre-paired user:pass credentials from inline and file sources.
+func loadCredentials(inline, file string) ([]brutus.Credential, error) {
+	var creds []brutus.Credential
+
+	if inline != "" {
+		parsed, err := parseCredentialPairs(inline)
+		if err != nil {
+			return nil, err
+		}
+		creds = append(creds, parsed...)
+	}
+
+	if file != "" {
+		// Reuse username loader for line parsing (skips comments and blank lines)
+		lines, err := brutusinput.LoadUsernamesFromFile(file)
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range lines {
+			u, p, ok := strings.Cut(line, ":")
+			if !ok {
+				return nil, fmt.Errorf("invalid credential in %s: %q (expected user:pass)", file, line)
+			}
+			creds = append(creds, brutus.Credential{Username: u, Password: p})
+		}
+	}
+
+	return creds, nil
+}
+
+// parseCredentialPairs splits a comma-separated string of user:pass pairs.
+func parseCredentialPairs(s string) ([]brutus.Credential, error) {
+	var creds []brutus.Credential
+	for _, pair := range strings.Split(s, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		u, p, ok := strings.Cut(pair, ":")
+		if !ok {
+			return nil, fmt.Errorf("invalid credential pair: %q (expected user:pass)", pair)
+		}
+		creds = append(creds, brutus.Credential{Username: u, Password: p})
+	}
+	return creds, nil
 }

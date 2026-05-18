@@ -165,7 +165,7 @@ func (p *testRateLimitPlugin) Name() string {
 	return "test-rate-limit"
 }
 
-func (p *testRateLimitPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (p *testRateLimitPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	if p.callCount != nil {
 		p.callCount.Add(1)
 	}
@@ -245,76 +245,61 @@ func TestSubSecondRateLimit(t *testing.T) {
 }
 
 // TestJitterRespectsContextCancellation tests that jitter sleep respects context cancellation.
-// When StopOnSuccess is enabled and a valid credential is found, goroutines sleeping
-// in jitter should wake up immediately when context is canceled, not continue sleeping
-// for the full jitter duration.
+// When the caller cancels the context (e.g., Ctrl+C), goroutines sleeping in jitter
+// should wake up immediately, not continue sleeping for the full jitter duration.
 func TestJitterRespectsContextCancellation(t *testing.T) {
-	var firstCall atomic.Bool
-
 	Register("test-jitter-cancel", func() Plugin {
-		return &testJitterCancelPlugin{
-			firstCall: &firstCall,
-		}
+		return &testJitterCancelPlugin{}
 	})
 	defer ResetPlugins()
 
 	config := &Config{
-		Target:        "test:1234",
-		Protocol:      "test-jitter-cancel",
-		Usernames:     []string{"user1", "user2", "user3", "user4"},
-		Passwords:     []string{"pass1", "pass2", "pass3"},
-		Threads:       4, // Multiple threads to ensure concurrent execution
-		Timeout:       time.Second,
-		StopOnSuccess: true,            // Stop after first success
-		RateLimit:     100.0,           // Enable rate limiting to trigger jitter code path
-		Jitter:        5 * time.Second, // Long jitter to make bug obvious
+		Target:    "test:1234",
+		Protocol:  "test-jitter-cancel",
+		Usernames: []string{"user1", "user2", "user3", "user4"},
+		Passwords: []string{"pass1", "pass2", "pass3"},
+		Threads:   4,
+		Timeout:   time.Second,
+		RateLimit: 100.0,           // Enable rate limiting to trigger jitter code path
+		Jitter:    5 * time.Second, // Long jitter to make bug obvious
 	}
 
+	// Cancel context after a short delay to simulate Ctrl+C
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
+
 	start := time.Now()
-	results, err := Brute(config)
+	results, err := BruteWithContext(ctx, config)
 	elapsed := time.Since(start)
 
 	assert.NoError(t, err)
-	assert.NotEmpty(t, results)
-
-	// Find the successful result
-	foundSuccess := false
-	for _, r := range results {
-		if r.Success {
-			foundSuccess = true
-			break
-		}
-	}
-	assert.True(t, foundSuccess, "Expected to find a successful authentication")
+	// Some results may have been collected before cancellation
+	_ = results
 
 	// Without the fix, goroutines sleep for full jitter (5s) even after context cancel.
 	// With the fix, they exit immediately when context is canceled.
-	// Total execution should be significantly less than 5s jitter duration.
 	// Allow generous margin for CI environment variability (slow VMs, CPU contention).
-	assert.Less(t, elapsed, 4*time.Second,
+	assert.Less(t, elapsed, 3*time.Second,
 		"Workers should exit quickly on context cancellation, not sleep full jitter duration (5s). Actual: %v", elapsed)
 }
 
-// testJitterCancelPlugin is a test plugin where the first credential succeeds
-type testJitterCancelPlugin struct {
-	firstCall *atomic.Bool
-}
+// testJitterCancelPlugin always returns failure (used to test context cancellation during jitter)
+type testJitterCancelPlugin struct{}
 
 func (p *testJitterCancelPlugin) Name() string {
 	return "test-jitter-cancel"
 }
 
-func (p *testJitterCancelPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
-	// First call succeeds, all others fail
-	// This triggers StopOnSuccess and context cancellation
-	isFirst := p.firstCall.CompareAndSwap(false, true)
-
+func (p *testJitterCancelPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	return &Result{
 		Protocol: "test-jitter-cancel",
 		Target:   target,
 		Username: username,
 		Password: password,
-		Success:  isFirst, // First call succeeds
+		Success:  false,
 		Duration: 10 * time.Millisecond,
 	}
 }

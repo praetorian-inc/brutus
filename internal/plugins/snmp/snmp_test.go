@@ -17,6 +17,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -76,7 +78,7 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	ctx := context.Background()
 
 	// Test against non-existent port (should timeout quickly)
-	result := p.Test(ctx, "localhost:9999", "", "public", 1*time.Second)
+	result := p.Test(ctx, "localhost:9999", "", "public", 1*time.Second, brutus.PluginConfig{})
 
 	assert.Equal(t, "snmp", result.Protocol)
 	assert.Equal(t, "localhost:9999", result.Target)
@@ -109,7 +111,7 @@ func TestPlugin_Integration_ValidCommunity(t *testing.T) {
 
 	p := &Plugin{}
 	ctx := context.Background()
-	result := p.Test(ctx, host, "", community, 5*time.Second)
+	result := p.Test(ctx, host, "", community, 5*time.Second, brutus.PluginConfig{})
 
 	require.True(t, result.Success, "Expected valid community string to succeed")
 	assert.Nil(t, result.Error, "Valid community should have nil error")
@@ -134,7 +136,7 @@ func TestPlugin_Integration_InvalidCommunity(t *testing.T) {
 	ctx := context.Background()
 
 	// Use random string that won't be a valid community
-	result := p.Test(ctx, host, "", "invalid_community_xyz123_test", 2*time.Second)
+	result := p.Test(ctx, host, "", "invalid_community_xyz123_test", 2*time.Second, brutus.PluginConfig{})
 
 	assert.False(t, result.Success, "Expected invalid community string to fail")
 	assert.Nil(t, result.Error, "Invalid community should return nil error (auth failure, not connection error)")
@@ -157,7 +159,7 @@ func TestPlugin_Integration_ReadWriteCommunity(t *testing.T) {
 
 	p := &Plugin{}
 	ctx := context.Background()
-	result := p.Test(ctx, host, "", rwCommunity, 5*time.Second)
+	result := p.Test(ctx, host, "", rwCommunity, 5*time.Second, brutus.PluginConfig{})
 
 	// RW community may or may not be configured - log result either way
 	t.Logf("RW community '%s' result: success=%v, error=%v", rwCommunity, result.Success, result.Error)
@@ -181,7 +183,7 @@ func TestPlugin_Integration_BannerCapture(t *testing.T) {
 
 	p := &Plugin{}
 	ctx := context.Background()
-	result := p.Test(ctx, host, "", community, 5*time.Second)
+	result := p.Test(ctx, host, "", community, 5*time.Second, brutus.PluginConfig{})
 
 	if !result.Success {
 		t.Skip("Skipping banner test - community string not valid")
@@ -226,7 +228,7 @@ func TestPlugin_Integration_ContextCancellation(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	result := p.Test(ctx, host, "", "any_community", 10*time.Second)
+	result := p.Test(ctx, host, "", "any_community", 10*time.Second, brutus.PluginConfig{})
 	elapsed := time.Since(start)
 
 	// Should have returned quickly due to context cancellation
@@ -253,7 +255,7 @@ func TestPlugin_Integration_MultipleCommunities(t *testing.T) {
 
 	var foundValid string
 	for _, community := range testStrings {
-		result := p.Test(ctx, host, "", community, timeout)
+		result := p.Test(ctx, host, "", community, timeout, brutus.PluginConfig{})
 		if result.Success {
 			foundValid = community
 			t.Logf("Found valid community string: %s", community)
@@ -293,7 +295,7 @@ func TestPlugin_Integration_TierDefault(t *testing.T) {
 	t.Logf("Testing first 5 strings from default tier against %s", host)
 
 	for i, community := range tier[:5] {
-		result := p.Test(ctx, host, "", community, timeout)
+		result := p.Test(ctx, host, "", community, timeout, brutus.PluginConfig{})
 		t.Logf("[%d] Testing '%s': success=%v", i, community, result.Success)
 
 		if result.Success {

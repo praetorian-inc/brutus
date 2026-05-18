@@ -91,7 +91,7 @@ jobs:
           CGO_ENABLED=0 go build -o brutus ./cmd/brutus/
 
           # Test against mock router with browser plugin
-          ./brutus -target localhost:8081 -protocol browser -u admin -p admin --json || true
-          ./brutus -target localhost:8081 -protocol browser -u admin -p wrongpass --json || true
+          ./brutus web --target localhost:8081 --protocol browser -u admin -p admin --json || true
+          ./brutus web --target localhost:8081 --protocol browser -u admin -p wrongpass --json || true
 
           echo "Full pipeline test complete"

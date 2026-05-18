@@ -82,7 +82,7 @@ func TestPlugin_Integration_FullPipeline(t *testing.T) {
 	target := server.URL[7:] // Remove "http://"
 
 	// Test with correct credentials
-	result := plugin.Test(context.Background(), target, "admin", "admin", 30*time.Second)
+	result := plugin.Test(context.Background(), target, "admin", "admin", 30*time.Second, brutus.PluginConfig{})
 
 	if result.Error != nil {
 		t.Fatalf("Test failed with error: %v", result.Error)
@@ -120,7 +120,7 @@ func TestPlugin_Integration_InvalidCredentials(t *testing.T) {
 	plugin, _ := brutus.GetPlugin("browser")
 	target := server.URL[7:]
 
-	result := plugin.Test(context.Background(), target, "admin", "wrong", 30*time.Second)
+	result := plugin.Test(context.Background(), target, "admin", "wrong", 30*time.Second, brutus.PluginConfig{})
 
 	// Should detect error message and return failure
 	if result.Success {
@@ -152,7 +152,7 @@ func TestPlugin_Integration_NoLoginPage(t *testing.T) {
 	plugin, _ := brutus.GetPlugin("browser")
 	target := server.URL[7:]
 
-	result := plugin.Test(context.Background(), target, "admin", "admin", 30*time.Second)
+	result := plugin.Test(context.Background(), target, "admin", "admin", 30*time.Second, brutus.PluginConfig{})
 
 	// Should detect no login page
 	if result.Success {

@@ -119,7 +119,7 @@ func TestE2E_ValidCredentials(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			result := plugin.Test(ctx, target, tc.validUser, tc.validPass, 30*time.Second)
+			result := plugin.Test(ctx, target, tc.validUser, tc.validPass, 30*time.Second, brutus.PluginConfig{})
 
 			if result.Error != nil {
 				t.Errorf("Unexpected error: %v", result.Error)
@@ -161,7 +161,7 @@ func TestE2E_InvalidCredentials(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			result := plugin.Test(ctx, target, tc.validUser, tc.invalidPass, 30*time.Second)
+			result := plugin.Test(ctx, target, tc.validUser, tc.invalidPass, 30*time.Second, brutus.PluginConfig{})
 
 			// With invalid credentials, we expect failure (no error, just Success=false)
 			if result.Success {
@@ -398,7 +398,7 @@ func TestE2E_ConcurrentLogins(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 
-			result := plugin.Test(ctx, target, tc.validUser, tc.validPass, 30*time.Second)
+			result := plugin.Test(ctx, target, tc.validUser, tc.validPass, 30*time.Second, brutus.PluginConfig{})
 			results <- result
 		}(i)
 	}

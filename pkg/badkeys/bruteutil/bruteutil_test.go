@@ -117,9 +117,6 @@ func TestConfigDefaults(t *testing.T) {
 	if config.Threads == 0 {
 		t.Error("expected non-zero threads")
 	}
-	if !config.StopOnSuccess {
-		t.Error("expected StopOnSuccess to be true by default")
-	}
 }
 
 func TestKeyDeduplication(t *testing.T) {

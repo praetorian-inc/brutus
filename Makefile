@@ -93,7 +93,7 @@ test-integration:
 	IMAP_TEST_HOST=localhost:3143 IMAP_TEST_USER=testuser IMAP_TEST_PASS=testpass \
 	POP3_TEST_HOST=localhost:3110 POP3_TEST_USER=testuser POP3_TEST_PASS=testpass \
 	SNMP_TEST_HOST=localhost:161 SNMP_TEST_COMMUNITY=public \
-	go test -coverprofile=coverage.out ./...
+	go test -tags=integration -coverprofile=coverage.out ./...
 
 # Run linter
 lint:
@@ -197,11 +197,11 @@ demo: build demo-up
 	@echo ""
 	@command -v naabu >/dev/null 2>&1 || { echo "ERROR: naabu not found. Run: make demo-deps"; exit 1; }
 	@command -v nerva >/dev/null 2>&1 || { echo "ERROR: nerva not found. Run: make demo-deps"; exit 1; }
-	@echo "Running: naabu | nerva --json | brutus (uses built-in default credentials)"
+	@echo "Running: naabu | nerva --json | brutus creds (uses built-in default credentials)"
 	@echo ""
 	naabu -host 127.0.0.1 -p 21,2222,3306,6379 -silent | \
 		nerva --json | \
-		./brutus
+		./brutus creds
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════════════════"
 	@echo "  Demo complete! Run 'make demo-down' to stop the environment."
@@ -215,22 +215,22 @@ demo-simple: build demo-up
 	@echo "═══════════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "[1/6] Testing SSH with password..."
-	./brutus -target 127.0.0.1:2222 -u vagrant -p "wrong,vagrant" || true
+	./brutus creds --target 127.0.0.1:2222 -u vagrant -p "wrong,vagrant" || true
 	@echo ""
 	@echo "[2/6] Testing SSH with badkeys (auto-detects Vagrant insecure key)..."
-	./brutus -target 127.0.0.1:2222 || true
+	./brutus badkeys --target 127.0.0.1:2222 || true
 	@echo ""
 	@echo "[3/6] Testing MySQL..."
-	./brutus -target 127.0.0.1:3306 -u root -p "wrong,root" || true
+	./brutus creds --target 127.0.0.1:3306 -u root -p "wrong,root" || true
 	@echo ""
 	@echo "[4/6] Testing Redis..."
-	./brutus -target 127.0.0.1:6379 -p "wrong,redis" || true
+	./brutus creds --target 127.0.0.1:6379 -p "wrong,redis" || true
 	@echo ""
 	@echo "[5/6] Testing FTP..."
-	./brutus -target 127.0.0.1:21 -u ftpuser -p "wrong,ftpuser" || true
+	./brutus creds --target 127.0.0.1:21 -u ftpuser -p "wrong,ftpuser" || true
 	@echo ""
 	@echo "[6/6] Testing Dell iDRAC (HTTP Basic Auth)..."
-	./brutus -target 127.0.0.1:8080 -protocol http -u root -p "wrong,calvin" || true
+	./brutus web --target 127.0.0.1:8080 --protocol http -u root -p "wrong,calvin" || true
 	@echo ""
 	@echo "═══════════════════════════════════════════════════════════════════"
 	@echo "  Demo complete! Run 'make demo-down' to stop the environment."
@@ -240,7 +240,7 @@ demo-simple: build demo-up
 demo-ssh-key: build demo-up
 	@echo ""
 	@echo "Testing SSH with badkeys (auto-detects Vagrant insecure key)..."
-	./brutus -target 127.0.0.1:2222
+	./brutus badkeys --target 127.0.0.1:2222
 
 # Help
 help:

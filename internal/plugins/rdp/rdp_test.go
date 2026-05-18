@@ -37,7 +37,7 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	ctx := context.Background()
 
 	// Invalid host should cause connection error
-	result := p.Test(ctx, "invalid-host:3389", "admin", "password", 2*time.Second)
+	result := p.Test(ctx, "invalid-host:3389", "admin", "password", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -52,7 +52,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	ctx := context.Background()
 
 	// Use a blackhole IP that won't respond (connection should timeout)
-	result := p.Test(ctx, "192.0.2.1:3389", "admin", "password", 1*time.Second)
+	result := p.Test(ctx, "192.0.2.1:3389", "admin", "password", 1*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -138,7 +138,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel the context before calling Test.
 	cancel()
 
-	result := p.Test(ctx, "192.0.2.1:3389", "admin", "password", 5*time.Second)
+	result := p.Test(ctx, "192.0.2.1:3389", "admin", "password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -150,7 +150,7 @@ func TestPlugin_Test_ResultFields(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "invalid-host:3389", "testuser", "testpass", 2*time.Second)
+	result := p.Test(ctx, "invalid-host:3389", "testuser", "testpass", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -207,19 +207,14 @@ func TestClassifyError(t *testing.T) {
 	}
 }
 
-func TestShouldRunUtilmanCheck(t *testing.T) {
-	// Default context: both checks enabled
-	ctx := context.Background()
-	assert.True(t, shouldRunUtilmanCheck(ctx))
+func TestPluginConfigStickyKeysUtilman(t *testing.T) {
+	// Default: both checks enabled
+	cfg := brutus.PluginConfig{}
+	assert.False(t, cfg.NoStickyKeys)
 
-	// Sticky keys disabled: utilman also disabled
-	ctx = brutus.ContextWithNoStickyKeys(ctx)
-	assert.False(t, shouldRunUtilmanCheck(ctx))
-
-	// Only utilman disabled
-	ctx = context.Background()
-	ctx = brutus.ContextWithNoUtilman(ctx)
-	assert.False(t, shouldRunUtilmanCheck(ctx))
+	// Sticky keys disabled: utilman also implicitly disabled
+	cfg = brutus.PluginConfig{NoStickyKeys: true}
+	assert.True(t, cfg.NoStickyKeys)
 }
 
 func TestFormatUtilmanBanner_Confirmed(t *testing.T) {
@@ -291,7 +286,7 @@ func TestPlugin_Integration_ValidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, host, user, pass, 10*time.Second)
+	result := p.Test(ctx, host, user, pass, 10*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -309,7 +304,7 @@ func TestPlugin_Integration_InvalidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, host, user, "definitely-wrong-password-xyz", 10*time.Second)
+	result := p.Test(ctx, host, user, "definitely-wrong-password-xyz", 10*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -330,7 +325,7 @@ func TestPlugin_Integration_DomainUsername(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, host, domainUser, pass, 10*time.Second)
+	result := p.Test(ctx, host, domainUser, pass, 10*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)

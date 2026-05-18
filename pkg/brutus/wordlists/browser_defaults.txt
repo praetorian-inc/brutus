@@ -1,0 +1,22 @@
+# Browser Form Login Default Credentials
+# Format: username:password
+# Common defaults for web panels, routers, IoT devices, CMSes, and appliances
+admin:admin
+admin:password
+admin:1234
+admin:12345
+admin:123456
+admin:
+admin:changeme
+admin:default
+root:root
+root:password
+root:admin
+root:toor
+user:user
+user:password
+guest:guest
+test:test
+administrator:administrator
+administrator:password
+manager:manager

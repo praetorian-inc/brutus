@@ -147,7 +147,7 @@ func printVersion(useColor bool) {
 }
 
 // printTargetInfo displays target configuration details
-func printTargetInfo(target, protocol string, base *baseConfigOptions, aiCreds []brutus.Credential) {
+func printTargetInfo(target, protocol string, base *runConfig, aiCreds []brutus.Credential) {
 	useColor := base.useColor
 
 	isBrowserAI := protocol == "browser"

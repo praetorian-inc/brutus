@@ -54,7 +54,7 @@ func (p *Plugin) Name() string {
 //
 // Note: VNC uses password-only authentication. The username parameter is ignored.
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("vnc", target, username, password)

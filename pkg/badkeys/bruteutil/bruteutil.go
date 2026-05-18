@@ -56,13 +56,12 @@ func NewSSHConfig(target string) *brutus.Config {
 	}
 
 	return &brutus.Config{
-		Target:        target,
-		Protocol:      "ssh",
-		Usernames:     usernames,
-		Keys:          keys,
-		Timeout:       10 * time.Second,
-		Threads:       10,
-		StopOnSuccess: true,
+		Target:    target,
+		Protocol:  "ssh",
+		Usernames: usernames,
+		Keys:      keys,
+		Timeout:   10 * time.Second,
+		Threads:   10,
 	}
 }
 
@@ -92,13 +91,12 @@ func NewSSHConfigForProduct(target, product string) *brutus.Config {
 	}
 
 	return &brutus.Config{
-		Target:        target,
-		Protocol:      "ssh",
-		Usernames:     usernames,
-		Keys:          keys,
-		Timeout:       10 * time.Second,
-		Threads:       10,
-		StopOnSuccess: true,
+		Target:    target,
+		Protocol:  "ssh",
+		Usernames: usernames,
+		Keys:      keys,
+		Timeout:   10 * time.Second,
+		Threads:   10,
 	}
 }
 
@@ -128,14 +126,13 @@ func NewSSHConfigWithPasswords(target string, usernames, passwords []string) *br
 	}
 
 	return &brutus.Config{
-		Target:        target,
-		Protocol:      "ssh",
-		Usernames:     allUsernames,
-		Passwords:     passwords,
-		Keys:          badkeys.GetKeys(),
-		Timeout:       10 * time.Second,
-		Threads:       10,
-		StopOnSuccess: true,
+		Target:    target,
+		Protocol:  "ssh",
+		Usernames: allUsernames,
+		Passwords: passwords,
+		Keys:      badkeys.GetKeys(),
+		Timeout:   10 * time.Second,
+		Threads:   10,
 	}
 }
 

@@ -24,7 +24,7 @@ import (
 
 func TestDetectStickyKeys_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "invalid-host:3389", 2*time.Second, "(sticky-keys)")
+	result := DetectStickyKeys(ctx, "invalid-host:3389", 2*time.Second, "(sticky-keys)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -36,7 +36,7 @@ func TestDetectStickyKeys_ConnectionError(t *testing.T) {
 
 func TestDetectStickyKeys_ResultFields(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys)")
+	result := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "(sticky-keys)", result.Username)
@@ -46,7 +46,7 @@ func TestDetectStickyKeys_ResultFields(t *testing.T) {
 
 func TestDetectUtilman_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "invalid-host:3389", 2*time.Second, "(utilman)")
+	result := DetectUtilman(ctx, "invalid-host:3389", 2*time.Second, "(utilman)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -58,7 +58,7 @@ func TestDetectUtilman_ConnectionError(t *testing.T) {
 
 func TestDetectUtilman_ResultFields(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "192.0.2.1:3389", 1*time.Second, "(utilman)")
+	result := DetectUtilman(ctx, "192.0.2.1:3389", 1*time.Second, "(utilman)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "(utilman)", result.Username)
@@ -71,11 +71,11 @@ func TestDetectUtilman_ResultFields(t *testing.T) {
 func TestScanTypeLabeling(t *testing.T) {
 	ctx := context.Background()
 
-	stickyResult := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys)")
+	stickyResult := DetectStickyKeys(ctx, "192.0.2.1:3389", 1*time.Second, "(sticky-keys)", false)
 	assert.NotNil(t, stickyResult)
 	assert.Equal(t, "sticky_keys", stickyResult.ScanType, "DetectStickyKeys should set ScanType to 'sticky_keys'")
 
-	utilmanResult := DetectUtilman(ctx, "192.0.2.1:3389", 1*time.Second, "(utilman)")
+	utilmanResult := DetectUtilman(ctx, "192.0.2.1:3389", 1*time.Second, "(utilman)", false)
 	assert.NotNil(t, utilmanResult)
 	assert.Equal(t, "utilman", utilmanResult.ScanType, "DetectUtilman should set ScanType to 'utilman'")
 }

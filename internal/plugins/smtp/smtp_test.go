@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -35,7 +37,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:587", "user@example.com", "password", 5*time.Second)
+	result := p.Test(ctx, "localhost:587", "user@example.com", "password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smtp", result.Protocol)
@@ -54,7 +56,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:587", "user@example.com", "wrongpassword", 5*time.Second)
+	result := p.Test(ctx, "localhost:587", "user@example.com", "wrongpassword", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smtp", result.Protocol)
@@ -71,7 +73,7 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	ctx := context.Background()
 
 	// Invalid host should cause connection error
-	result := p.Test(ctx, "invalid-host:587", "user@example.com", "password", 2*time.Second)
+	result := p.Test(ctx, "invalid-host:587", "user@example.com", "password", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smtp", result.Protocol)
@@ -90,7 +92,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel immediately
 	cancel()
 
-	result := p.Test(ctx, "localhost:587", "user@example.com", "password", 5*time.Second)
+	result := p.Test(ctx, "localhost:587", "user@example.com", "password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -102,7 +104,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	ctx := context.Background()
 
 	// Use a blackhole IP that won't respond (connection should timeout)
-	result := p.Test(ctx, "192.0.2.1:587", "user@example.com", "password", 1*time.Second)
+	result := p.Test(ctx, "192.0.2.1:587", "user@example.com", "password", 1*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)

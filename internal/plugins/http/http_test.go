@@ -24,6 +24,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 func TestPlugin_Name(t *testing.T) {
@@ -59,7 +61,7 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	p := &Plugin{Path: "/", UseHTTPS: false}
 	ctx := context.Background()
 
-	result := p.Test(ctx, target, "admin", "secret", 5*time.Second)
+	result := p.Test(ctx, target, "admin", "secret", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.Equal(t, "http", result.Protocol)
@@ -90,7 +92,7 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	p := &Plugin{Path: "/", UseHTTPS: false}
 	ctx := context.Background()
 
-	result := p.Test(ctx, target, "admin", "wrongpassword", 5*time.Second)
+	result := p.Test(ctx, target, "admin", "wrongpassword", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.Equal(t, "http", result.Protocol)
@@ -118,7 +120,7 @@ func TestPlugin_Test_BannerCapture_Grafana(t *testing.T) {
 	ctx := context.Background()
 
 	// Test without auth to capture banner
-	result := p.Test(ctx, target, "", "", 5*time.Second)
+	result := p.Test(ctx, target, "", "", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.False(t, result.Success) // No auth provided
@@ -145,7 +147,7 @@ func TestPlugin_Test_BannerCapture_Jenkins(t *testing.T) {
 	p := &Plugin{Path: "/", UseHTTPS: false}
 	ctx := context.Background()
 
-	result := p.Test(ctx, target, "", "", 5*time.Second)
+	result := p.Test(ctx, target, "", "", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.Contains(t, result.Banner, "X-Powered-By: Jenkins")
@@ -167,7 +169,7 @@ func TestPlugin_Test_BannerCapture_MultipleApps(t *testing.T) {
 	p := &Plugin{Path: "/", UseHTTPS: false}
 	ctx := context.Background()
 
-	result := p.Test(ctx, target, "", "", 5*time.Second)
+	result := p.Test(ctx, target, "", "", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.Contains(t, result.Banner, "App-Identifier:")
@@ -192,7 +194,7 @@ func TestPlugin_Test_NoBasicAuth_FalsePositive(t *testing.T) {
 
 	// Even though the server returns 200, these should NOT be reported as valid
 	// because the server doesn't actually require Basic Auth.
-	result := p.Test(ctx, target, "admin", "changeme", 5*time.Second)
+	result := p.Test(ctx, target, "admin", "changeme", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.False(t, result.Success, "should not report success when server doesn't require Basic Auth")
@@ -204,7 +206,7 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	ctx := context.Background()
 
 	// Invalid host should cause connection error
-	result := p.Test(ctx, "invalid-host:8080", "admin", "password", 2*time.Second)
+	result := p.Test(ctx, "invalid-host:8080", "admin", "password", 2*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.Equal(t, "http", result.Protocol)
@@ -230,7 +232,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel immediately
 	cancel()
 
-	result := p.Test(ctx, target, "admin", "password", 5*time.Second)
+	result := p.Test(ctx, target, "admin", "password", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -242,7 +244,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	ctx := context.Background()
 
 	// Use a blackhole IP that won't respond (connection should timeout)
-	result := p.Test(ctx, "192.0.2.1:8080", "admin", "password", 1*time.Second)
+	result := p.Test(ctx, "192.0.2.1:8080", "admin", "password", 1*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -263,7 +265,7 @@ func TestPlugin_Test_ForbiddenResponse(t *testing.T) {
 	p := &Plugin{Path: "/", UseHTTPS: false}
 	ctx := context.Background()
 
-	result := p.Test(ctx, target, "admin", "password", 5*time.Second)
+	result := p.Test(ctx, target, "admin", "password", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -295,7 +297,7 @@ func TestPlugin_Test_CustomPath(t *testing.T) {
 	p := &Plugin{Path: "/admin", UseHTTPS: false}
 	ctx := context.Background()
 
-	result := p.Test(ctx, target, "admin", "secret", 5*time.Second)
+	result := p.Test(ctx, target, "admin", "secret", 5*time.Second, brutus.PluginConfig{})
 
 	require.NotNil(t, result)
 	assert.True(t, result.Success)

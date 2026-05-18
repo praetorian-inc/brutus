@@ -55,7 +55,7 @@ func (p *Plugin) Name() string {
 // - Success=false, Error=nil: Invalid credentials (535 response)
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("smtp", target, username, password)
@@ -92,7 +92,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Try STARTTLS if available
 	// Read TLS mode from context
-	tlsMode := brutus.TLSModeFromContext(ctx)
+	tlsMode := pluginCfg.TLSMode
 	if tlsMode != "disable" {
 		if ok, _ := client.Extension("STARTTLS"); ok {
 			var tlsConfig *tls.Config

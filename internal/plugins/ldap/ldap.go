@@ -60,7 +60,7 @@ func (p *Plugin) Name() string {
 // and if that fails with an auth error, attempts to construct a DN
 // (Distinguished Name) and try again.
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("ldap", target, username, password)
@@ -77,7 +77,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Connect to LDAP server with timeout
 	// Read TLS mode from context
-	tlsMode := brutus.TLSModeFromContext(ctx)
+	tlsMode := pluginCfg.TLSMode
 
 	// Configure TLS based on mode
 	// Note: For LDAP, even "disable" needs TLS config for LDAPS (port 636)

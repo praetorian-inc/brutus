@@ -55,7 +55,7 @@ type mockHTTPPlugin struct{}
 
 func (m *mockHTTPPlugin) Name() string { return "http" }
 
-func (m *mockHTTPPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration) *Result {
+func (m *mockHTTPPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
 	return &Result{
 		Protocol: "http",
 		Target:   target,

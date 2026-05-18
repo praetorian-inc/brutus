@@ -55,7 +55,7 @@ func (p *Plugin) Name() string {
 //
 // Note: SNMP uses UDP, so timeout = invalid community string is expected behavior.
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
-	timeout time.Duration) *brutus.Result {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 
 	result := brutus.NewResult("snmp", target, username, password)

@@ -89,6 +89,57 @@ func TestDetectFormFields_VariousPatterns(t *testing.T) {
 	}
 }
 
+func TestDetectFormFields_ExpandedIndicators(t *testing.T) {
+	testCases := []struct {
+		name         string
+		html         string
+		wantUsername string
+	}{
+		{
+			name:         "uname_indicator",
+			html:         `<input name="uname"><input type="password">`,
+			wantUsername: `input[name="uname"]`,
+		},
+		{
+			name:         "signin_indicator",
+			html:         `<input id="signin-field"><input type="password">`,
+			wantUsername: "#signin-field",
+		},
+		{
+			name:         "logon_indicator",
+			html:         `<input name="logon_name"><input type="password">`,
+			wantUsername: `input[name="logon_name"]`,
+		},
+		{
+			name:         "auth_indicator",
+			html:         `<input id="auth-user"><input type="password">`,
+			wantUsername: "#auth-user",
+		},
+		{
+			name:         "uid_indicator",
+			html:         `<input name="uid"><input type="password">`,
+			wantUsername: `input[name="uid"]`,
+		},
+		{
+			name:         "usr_indicator",
+			html:         `<input placeholder="Enter usr"><input type="password">`,
+			wantUsername: `input[placeholder="Enter usr"]`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fields, err := DetectFormFields(tc.html)
+			if err != nil {
+				t.Fatalf("DetectFormFields failed: %v", err)
+			}
+			if fields.UsernameSelector != tc.wantUsername {
+				t.Errorf("username selector = %q, want %q", fields.UsernameSelector, tc.wantUsername)
+			}
+		})
+	}
+}
+
 func TestDetectFormFields_NoLoginForm(t *testing.T) {
 	html := `<html><body><h1>Welcome</h1><p>No form here</p></body></html>`
 

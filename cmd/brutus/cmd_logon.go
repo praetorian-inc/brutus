@@ -58,7 +58,10 @@ confirmation via screenshot analysis.`,
   echo "10.0.0.50:3389" | brutus logon
 
   # Pipe URI targets
-  echo "rdp://10.0.0.50:3389" | brutus logon`,
+  echo "rdp://10.0.0.50:3389" | brutus logon
+
+  # Import targets from nmap XML scan (only RDP services tested)
+  brutus logon --nmap-file scan.xml`,
 	RunE: runLogon,
 }
 
@@ -126,9 +129,18 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		var scanResults []brutus.Result
 		var hasSuccess bool
 
+		// Validate mutual exclusivity of target sources.
+		if err := validateTargetSources(useStdin); err != nil {
+			return err
+		}
+
 		switch {
 		case useStdin:
 			scanResults, hasSuccess = runScanFromStdin(rc)
+		case flagNmapFile != "":
+			scanResults, hasSuccess = runScanFromNmapFile(rc)
+		case flagMasscanFile != "":
+			scanResults, hasSuccess = runScanFromMasscanFile(rc)
 		case flagTargetsFile != "":
 			targetsList, loadErr := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 			if loadErr != nil {

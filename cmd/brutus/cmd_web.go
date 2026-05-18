@@ -50,7 +50,10 @@ In pipeline/fingerprint mode, only HTTP-like services are tested.`,
   brutus web --target 192.168.1.1:443 --https --experimental-ai
 
   # Browser with visible window (demo mode)
-  brutus web --target 192.168.1.1:8080 --experimental-ai --browser-visible`,
+  brutus web --target 192.168.1.1:8080 --experimental-ai --browser-visible
+
+  # Import targets from nmap XML scan
+  brutus web --nmap-file scan.xml --experimental-ai`,
 	RunE: runWeb,
 }
 

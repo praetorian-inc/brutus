@@ -50,7 +50,13 @@ In pipeline/fingerprint mode, HTTP and SNMP services are automatically skipped.`
   naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
 
   # Pipe URI targets (protocol from scheme, no fingerprinting needed)
-  echo "ssh://192.168.1.10:22" | brutus creds -p "password,Password1"`,
+  echo "ssh://192.168.1.10:22" | brutus creds -p "password,Password1"
+
+  # Import targets from nmap XML scan
+  brutus creds --nmap-file scan.xml -P passwords.txt
+
+  # Import targets from masscan (requires --protocol or auto-fingerprints with Nerva)
+  brutus creds --masscan-file scan.json --protocol ssh -P passwords.txt`,
 	RunE: runCreds,
 }
 

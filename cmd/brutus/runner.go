@@ -54,9 +54,9 @@ func runFromTargetsFile(targets []string, base *runConfig, jsonOut bool) ([]brut
 			continue
 		}
 
-		// AI mode for HTTP services (mirrors single-target dispatch).
+		// Detect HTTP auth type for web subcommand (form-based → browser protocol).
 		var aiCreds []brutus.Credential
-		if base.aiMode && (protocol == "http" || protocol == "https") {
+		if base.web != nil && (protocol == "http" || protocol == "https") {
 			protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 		}
 
@@ -184,7 +184,7 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *runConfig, jsonOut b
 	target := nrv.TargetAddr()
 
 	var aiCreds []brutus.Credential
-	if base.aiMode && (protocol == "http" || protocol == "https") {
+	if base.web != nil && (protocol == "http" || protocol == "https") {
 		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 	}
 
@@ -218,7 +218,7 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 	target := parsed.HostPort
 
 	var aiCreds []brutus.Credential
-	if base.aiMode && (protocol == "http" || protocol == "https") {
+	if base.web != nil && (protocol == "http" || protocol == "https") {
 		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 	}
 
@@ -274,28 +274,39 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		config.Timeout = base.web.browserTimeout
 		config.Usernames = nil
 		config.Passwords = nil
-		browserCreds, browserPlugin, browserErr := web.ResearchBrowserCredentials(context.Background(), target, web.BrowserConfig{
-			Tabs:          base.web.browserTabs,
-			Timeout:       base.web.browserTimeout,
-			UseHTTPS:      base.web.useHTTPS || tlsMode == "skip-verify" || tlsMode == "verify",
-			Visible:       base.web.browserVisible,
-			AIVerify:      base.web.aiVerify,
-			AnthropicKey:  base.anthropicKey,
-			PerplexityKey: base.perplexityKey,
-			LLMConfig:     base.llmConfig,
-		})
-		if browserErr != nil {
-			errMsg(base.useColor, "browser credential research for %s: %v", target, browserErr)
+		useHTTPS := base.web.useHTTPS || tlsMode == "skip-verify" || tlsMode == "verify"
+
+		// AI credential research (only when AI mode is enabled)
+		if base.aiMode {
+			browserCreds, browserPlugin, browserErr := web.ResearchBrowserCredentials(context.Background(), target, web.BrowserConfig{
+				Tabs:          base.web.browserTabs,
+				Timeout:       base.web.browserTimeout,
+				UseHTTPS:      useHTTPS,
+				Visible:       base.web.browserVisible,
+				AIVerify:      true,
+				AnthropicKey:  base.anthropicKey,
+				PerplexityKey: base.perplexityKey,
+				LLMConfig:     base.llmConfig,
+			})
+			if browserErr != nil {
+				errMsg(base.useColor, "browser credential research for %s: %v", target, browserErr)
+			}
+			if len(browserCreds) > 0 {
+				config.Credentials = append(config.Credentials, browserCreds...)
+				logVerbose(base.verbose, "AI researched %d credentials for browser", len(browserCreds))
+			}
+			if browserPlugin != nil {
+				config.Plugin = browserPlugin
+			}
 		}
-		if len(browserCreds) > 0 {
-			config.Credentials = append(config.Credentials, browserCreds...)
-			logVerbose(base.verbose, "AI researched %d credentials for browser", len(browserCreds))
+
+		// Ensure browser plugin exists (non-AI mode creates a basic one)
+		if config.Plugin == nil {
+			config.Plugin = web.NewBrowserPlugin(base.web.browserTabs, base.web.browserTimeout, useHTTPS, base.web.browserVisible)
 		}
-		if browserPlugin != nil {
-			config.Plugin = browserPlugin
-		}
-		if len(config.Credentials) == 0 && config.Plugin == nil {
-			errMsg(base.useColor, "browser mode: no credentials discovered and no browser plugin configured for %s", target)
+
+		if len(config.Credentials) == 0 {
+			errMsg(base.useColor, "browser mode: no credentials for %s (use -c/-C or --experimental-ai)", target)
 			return nil, false
 		}
 	}

@@ -90,7 +90,7 @@ func TestNervaIntegration(t *testing.T) {
 	defer os.Remove("brutus_test")
 
 	// Run brutus with nerva output via stdin (auto-detected)
-	brutusCmd := exec.Command("./brutus_test", "web", "-p", "admin", "--json")
+	brutusCmd := exec.Command("./brutus_test", "web", "-c", "admin:admin", "--json")
 	brutusCmd.Stdin = bytes.NewReader(nrvOutput)
 	brutusOutput, err := brutusCmd.CombinedOutput()
 
@@ -255,7 +255,7 @@ func TestStdinMode(t *testing.T) {
 	defer os.Remove("brutus_test")
 
 	// Run brutus with stdin and valid credentials (auto-detected)
-	brutusCmd := exec.Command("./brutus_test", "web", "-u", "testuser", "-p", "testpass", "--json")
+	brutusCmd := exec.Command("./brutus_test", "web", "-c", "testuser:testpass", "--json")
 	brutusCmd.Stdin = strings.NewReader(nrvJSON)
 	output, err := brutusCmd.CombinedOutput()
 

@@ -101,6 +101,17 @@ func ResearchCredentialsWithLLM(target, banner string, llmConfig *brutus.LLMConf
 	return brutus.ResearchCredentials(ctx, target, banner, llmConfig)
 }
 
+// NewBrowserPlugin creates a basic browser plugin for form-based credential testing
+// without AI analyzers. Used in non-AI mode when credentials are supplied via -c/-C.
+func NewBrowserPlugin(tabs int, timeout time.Duration, useHTTPS, visible bool) brutus.Plugin {
+	return &browser.Plugin{
+		TabCount:        tabs,
+		PageLoadTimeout: 15 * time.Second,
+		UseHTTPS:        useHTTPS,
+		Visible:         visible,
+	}
+}
+
 // ConfigureAICredentials returns a credential slice with the AI-researched credentials
 // plus an admin:admin fallback. The caller should assign this to config.Credentials.
 func ConfigureAICredentials(aiCreds []brutus.Credential) []brutus.Credential {

@@ -15,8 +15,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus/web"
@@ -25,34 +23,33 @@ import (
 var webCmd = &cobra.Command{
 	Use:     "web",
 	Aliases: []string{"http", "panels"},
-	Short:   "Audit HTTP/web panel credentials (Basic Auth, form login, AI-powered)",
-	Long: `Test credentials on HTTP services including Basic Auth, form-based login
-with browser automation, and AI-powered credential detection.
+	Short:   "Audit HTTP/web panel credentials (AI-powered or credential list)",
+	Long: `Test credentials on HTTP services using AI-powered credential detection
+or explicit credential lists.
+
+Use --experimental-ai to enable automatic credential discovery via
+Perplexity web search and Claude Vision screenshot analysis.
+
+Alternatively, supply credentials directly with -c or -C for manual testing.
 
 For single targets, the protocol (http/https) is auto-detected via Nerva
 fingerprinting, or can be set explicitly with --protocol or --https.
 
-Use --experimental-ai to enable Claude Vision screenshot analysis and
-Perplexity-powered default credential lookup for web panels.
-
 In pipeline/fingerprint mode, only HTTP-like services are tested.`,
-	Example: `  # Single target (auto-detected via Nerva)
-  brutus web --target 192.168.1.1:80 -u admin -p "admin,password"
-
-  # HTTPS target (auto-detected or explicit)
-  brutus web --target 192.168.1.1:443 -u admin -p "admin"
-  brutus web --target 192.168.1.1:443 --https -u admin -p "admin"
-
-  # AI-powered credential detection for web panels
+	Example: `  # AI-powered credential detection (recommended)
   brutus web --target 192.168.1.1:80 --experimental-ai
 
-  # Pipeline mode with Nerva JSON (only HTTP services are tested)
+  # Pipeline mode with Nerva JSON
   naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai
 
-  # Pipe URI targets
-  echo "https://192.168.1.1:443" | brutus web --experimental-ai
+  # Manual credential list
+  brutus web --target 192.168.1.1:80 -c "admin:admin,root:toor"
+  brutus web --target 192.168.1.1:80 -C creds.txt
 
-  # Browser form-based login with visible browser
+  # HTTPS target
+  brutus web --target 192.168.1.1:443 --https --experimental-ai
+
+  # Browser with visible window (demo mode)
   brutus web --target 192.168.1.1:8080 --experimental-ai --browser-visible`,
 	RunE: runWeb,
 }
@@ -64,16 +61,14 @@ func init() {
 func runWeb(cmd *cobra.Command, args []string) error {
 	base := buildBaseConfig(cmd)
 
-	// Load credentials
-	usernames, passwords, credPairs, err := loadCredentialInputs(cmd)
+	// Load credential pairs (-c/-C)
+	credPairs, err := loadCredentials(flagCredentials, flagCredentialsFile)
 	if err != nil {
 		return err
 	}
-	base.usernames = usernames
-	base.passwords = passwords
 	base.credentials = credPairs
 
-	// AI config (web-specific)
+	// AI config (opt-in)
 	if base.aiMode {
 		llmCfg, aiErr := setupAIConfig(true, base.anthropicKey, base.perplexityKey)
 		if aiErr != nil {
@@ -81,17 +76,12 @@ func runWeb(cmd *cobra.Command, args []string) error {
 		}
 		base.llmConfig = llmCfg
 	}
-	if flagAIVerify && base.anthropicKey == "" {
-		return fmt.Errorf("--experimental-ai-verify requires ANTHROPIC_API_KEY environment variable")
-	}
-
 	// Build web-specific config
 	wc := &webConfig{
 		browserTimeout: flagBrowserTimeout,
 		browserTabs:    flagBrowserTabs,
 		browserVisible: flagBrowserVisible,
 		useHTTPS:       flagHTTPS,
-		aiVerify:       flagAIVerify,
 	}
 
 	// Protocol filter: only HTTP-like services

@@ -5,7 +5,7 @@ import (
 )
 
 func TestDefaultCredentials_LoadsWordlists(t *testing.T) {
-	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "vnc", "rdp", "smb", "mongodb", "snmp", "http", "https", "elasticsearch"}
+	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "vnc", "rdp", "smb", "mongodb", "snmp", "http", "https", "browser", "elasticsearch"}
 	for _, proto := range protocols {
 		creds := DefaultCredentials(proto)
 		if len(creds) == 0 {
@@ -164,6 +164,26 @@ func TestApplyDefaults_FTP(t *testing.T) {
 	}
 }
 
+func TestApplyDefaults_Browser(t *testing.T) {
+	cfg := &Config{Target: "x:80", Protocol: "browser", UseDefaults: true}
+	cfg.applyDefaults()
+
+	if len(cfg.Credentials) == 0 {
+		t.Fatal("expected browser default credentials")
+	}
+
+	hasAdmin := false
+	for _, c := range cfg.Credentials {
+		if c.Username == "admin" && c.Password == "admin" {
+			hasAdmin = true
+			break
+		}
+	}
+	if !hasAdmin {
+		t.Error("expected 'admin:admin' in browser default credentials")
+	}
+}
+
 func TestApplyDefaults_Disabled(t *testing.T) {
 	cfg := &Config{Target: "x:22", Protocol: "ssh", UseDefaults: false}
 	cfg.applyDefaults()
@@ -174,7 +194,7 @@ func TestApplyDefaults_Disabled(t *testing.T) {
 }
 
 func TestValidate_UseDefaults_PassesWithoutExplicitCreds(t *testing.T) {
-	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "http", "https", "elasticsearch"}
+	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "http", "https", "browser", "elasticsearch"}
 	for _, proto := range protocols {
 		cfg := &Config{Target: "x:1234", Protocol: proto, UseDefaults: true}
 		if err := cfg.validate(); err != nil {

@@ -108,6 +108,8 @@ func detectUsernameField(html string) string {
 	// Common username field indicators
 	indicators := []string{
 		"username", "user", "login", "email", "userid", "account",
+		"uname", "name", "usr", "uid",
+		"signin", "logon", "auth",
 	}
 
 	// Try to find input with id containing indicator

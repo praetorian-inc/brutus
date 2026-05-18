@@ -55,7 +55,6 @@ type webConfig struct {
 	browserTabs    int
 	browserVisible bool
 	useHTTPS       bool
-	aiVerify       bool
 }
 
 // logonConfig holds settings specific to the logon subcommand.

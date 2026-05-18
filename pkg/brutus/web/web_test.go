@@ -52,6 +52,12 @@ func TestIsWebProtocol_ComplementsCreds(t *testing.T) {
 	}
 }
 
+func TestNewBrowserPlugin_ReturnsPlugin(t *testing.T) {
+	plugin := NewBrowserPlugin(3, 60000000000, false, false)
+	assert.NotNil(t, plugin)
+	assert.Equal(t, "browser", plugin.Name())
+}
+
 func TestConfigureAICredentials_AddsAdminFallback(t *testing.T) {
 	aiCreds := []brutus.Credential{
 		{Username: "root", Password: "toor"},

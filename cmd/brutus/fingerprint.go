@@ -180,9 +180,9 @@ func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brut
 
 		target := nrv.TargetAddr()
 
-		// AI mode for HTTP services.
+		// Detect HTTP auth type for web subcommand (form-based → browser protocol).
 		var aiCreds []brutus.Credential
-		if base.aiMode && (protocol == "http" || protocol == "https") {
+		if base.web != nil && (protocol == "http" || protocol == "https") {
 			protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 		}
 

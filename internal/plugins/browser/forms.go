@@ -44,7 +44,7 @@ func FillAndSubmitWithNavigate(tabCtx context.Context, url, username, password s
 			// Find username input: text/email input in same form, or before password
 			let usernameInput = null;
 			if (form) {
-				const inputs = form.querySelectorAll('input[type="text"], input[type="email"], input:not([type])');
+				const inputs = form.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input:not([type])');
 				for (const inp of inputs) {
 					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
 						usernameInput = inp;
@@ -55,7 +55,7 @@ func FillAndSubmitWithNavigate(tabCtx context.Context, url, username, password s
 
 			// Fallback: find any visible text input on page
 			if (!usernameInput) {
-				const allInputs = document.querySelectorAll('input[type="text"], input[type="email"]');
+				const allInputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]');
 				for (const inp of allInputs) {
 					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
 						usernameInput = inp;
@@ -165,7 +165,7 @@ func FillSubmitAndScreenshot(tabCtx context.Context, url, username, password str
 			const form = pwd.closest('form');
 			let usernameInput = null;
 			if (form) {
-				const inputs = form.querySelectorAll('input[type="text"], input[type="email"], input:not([type])');
+				const inputs = form.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input:not([type])');
 				for (const inp of inputs) {
 					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
 						usernameInput = inp;
@@ -174,7 +174,7 @@ func FillSubmitAndScreenshot(tabCtx context.Context, url, username, password str
 				}
 			}
 			if (!usernameInput) {
-				const allInputs = document.querySelectorAll('input[type="text"], input[type="email"]');
+				const allInputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]');
 				for (const inp of allInputs) {
 					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
 						usernameInput = inp;
@@ -285,7 +285,7 @@ func FillAndSubmit(tabCtx context.Context, fields *FormFields, username, passwor
 			const form = pwd.closest('form');
 			let usernameInput = null;
 			if (form) {
-				const inputs = form.querySelectorAll('input[type="text"], input[type="email"], input:not([type])');
+				const inputs = form.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input:not([type])');
 				for (const inp of inputs) {
 					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
 						usernameInput = inp;
@@ -294,7 +294,7 @@ func FillAndSubmit(tabCtx context.Context, fields *FormFields, username, passwor
 				}
 			}
 			if (!usernameInput) {
-				const allInputs = document.querySelectorAll('input[type="text"], input[type="email"]');
+				const allInputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]');
 				for (const inp of allInputs) {
 					if (inp.offsetParent !== null || inp.offsetWidth > 0) {
 						usernameInput = inp;

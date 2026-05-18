@@ -79,7 +79,6 @@ var (
 	flagBrowserVisible bool
 	flagHTTPS          bool
 	flagAIMode         bool
-	flagAIVerify       bool
 )
 
 // Logon flags
@@ -150,14 +149,16 @@ func registerSNMPFlags(cmd *cobra.Command) {
 
 // registerWebFlags registers flags specific to the web subcommand.
 func registerWebFlags(cmd *cobra.Command) {
-	registerCredentialFlags(cmd)
-	cmd.Flags().StringVar(&flagProtocol, "protocol", "", "Protocol override (http or https)")
-	cmd.Flags().DurationVar(&flagBrowserTimeout, "browser-timeout", 60*time.Second, "Total timeout for browser operations")
-	cmd.Flags().IntVar(&flagBrowserTabs, "browser-tabs", 3, "Number of concurrent browser tabs")
-	cmd.Flags().BoolVar(&flagBrowserVisible, "browser-visible", false, "Show browser window (demo mode)")
-	cmd.Flags().BoolVar(&flagHTTPS, "https", false, "Use HTTPS for browser connections")
-	cmd.Flags().BoolVar(&flagAIMode, "experimental-ai", false, "Enable AI-powered credential detection for HTTP services")
-	cmd.Flags().BoolVar(&flagAIVerify, "experimental-ai-verify", false, "Use Claude Vision to verify login success")
+	f := cmd.Flags()
+	f.StringVarP(&flagCredentials, "credentials", "c", "", "Comma-separated user:pass pairs (e.g., admin:admin,root:toor)")
+	f.StringVarP(&flagCredentialsFile, "credentials-file", "C", "", "Credentials file (user:pass per line)")
+	f.StringVar(&flagProtocol, "protocol", "", "Protocol override (http or https)")
+	f.DurationVar(&flagBrowserTimeout, "browser-timeout", 60*time.Second, "Total timeout for browser operations")
+	f.IntVar(&flagBrowserTabs, "browser-tabs", 3, "Number of concurrent browser tabs")
+	f.BoolVar(&flagBrowserVisible, "browser-visible", false, "Show browser window (demo mode)")
+	f.BoolVar(&flagHTTPS, "https", false, "Use HTTPS for browser connections")
+	f.BoolVar(&flagAIMode, "experimental-ai", false, "Enable AI-powered credential detection and Vision verification")
+	f.BoolVar(&flagVerifyTLS, "verify", false, "Require strict TLS certificate verification")
 }
 
 // registerLogonFlags registers flags specific to the logon subcommand.

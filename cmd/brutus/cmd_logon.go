@@ -67,6 +67,10 @@ func init() {
 }
 
 func runLogon(cmd *cobra.Command, args []string) error {
+	if flagOpen && !flagWeb {
+		return fmt.Errorf("--open requires --web (starts a web terminal and opens the browser)")
+	}
+
 	base := buildBaseConfig(cmd)
 
 	// AI config (logon-specific)

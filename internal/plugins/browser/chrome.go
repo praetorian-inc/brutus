@@ -113,6 +113,21 @@ func (b *Browser) Navigate(tabCtx context.Context, url string, timeout time.Dura
 	return chromedp.Run(ctx, chromedp.Navigate(url))
 }
 
+// NavigateAndGetHTML navigates to a URL and retrieves the full page HTML in a single operation.
+// This avoids chromedp context issues that occur when doing multiple separate chromedp.Run calls.
+func (b *Browser) NavigateAndGetHTML(tabCtx context.Context, url string, timeout time.Duration) (string, error) {
+	ctx, cancel := context.WithTimeout(tabCtx, timeout)
+	defer cancel()
+
+	var html string
+	err := chromedp.Run(ctx,
+		chromedp.Navigate(url),
+		chromedp.WaitReady("body", chromedp.ByQuery),
+		chromedp.OuterHTML("html", &html, chromedp.ByQuery),
+	)
+	return html, err
+}
+
 // NavigateAndScreenshot navigates to a URL and captures a screenshot in a single operation.
 // This avoids context lifecycle issues between separate Navigate and Screenshot calls.
 func (b *Browser) NavigateAndScreenshot(tabCtx context.Context, url string, timeout time.Duration) ([]byte, error) {

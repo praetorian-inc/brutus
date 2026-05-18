@@ -47,9 +47,6 @@ func generateTestKey(t *testing.T) []byte {
 }
 
 func TestPlugin_TestKey_ParseValidKey(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping network test in short mode")
-	}
 	plugin := &Plugin{}
 
 	// Generate valid test key
@@ -150,16 +147,13 @@ encrypted data here
 }
 
 func TestPlugin_TestKey_ConnectionError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping network test in short mode")
-	}
 	plugin := &Plugin{}
 
 	validKey := generateTestKey(t)
 
 	// Use invalid target to force connection error
 	ctx := context.Background()
-	result := plugin.TestKey(ctx, "invalid-host:22", "testuser", validKey, 1*time.Second, brutus.PluginConfig{})
+	result := plugin.TestKey(ctx, "127.0.0.1:1", "testuser", validKey, 1*time.Second, brutus.PluginConfig{})
 
 	// Should return connection error
 	if result == nil {
@@ -176,9 +170,6 @@ func TestPlugin_TestKey_ConnectionError(t *testing.T) {
 }
 
 func TestPlugin_TestKey_ContextCancellation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping network test in short mode")
-	}
 	plugin := &Plugin{}
 
 	validKey := generateTestKey(t)
@@ -213,10 +204,6 @@ func getKeyTestConfig() (host, user string) {
 
 // Integration test - tests SSH key authentication against CI server
 func TestPlugin_TestKey_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host, user := getKeyTestConfig()
 	if host == "" {
 		t.Skip("Skipping: SSH_KEY_TEST_HOST not configured")
@@ -305,10 +292,6 @@ func TestPlugin_TestKey_Integration(t *testing.T) {
 // spray a single private key across multiple usernames.
 // This simulates the use case: "found a key, spray it across the network"
 func TestPlugin_TestKey_KeySpraying(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host, _ := getKeyTestConfig()
 	if host == "" {
 		t.Skip("Skipping: SSH_KEY_TEST_HOST not configured")
@@ -362,10 +345,6 @@ func TestPlugin_TestKey_KeySpraying(t *testing.T) {
 // TestPlugin_TestKey_BadKeysIntegration tests authentication using all embedded bad keys.
 // This is a comprehensive test that verifies the badkeys package integration.
 func TestPlugin_TestKey_BadKeysIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host, user := getKeyTestConfig()
 	if host == "" {
 		t.Skip("Skipping: SSH_KEY_TEST_HOST not configured")

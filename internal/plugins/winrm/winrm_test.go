@@ -200,7 +200,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	ctx := context.Background()
 	timeout := 2 * time.Second
 
-	result := p.Test(ctx, "invalid.host.nonexistent:5985", "admin", "password", timeout, brutus.PluginConfig{})
+	result := p.Test(ctx, "127.0.0.1:1", "admin", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "winrm", result.Protocol)
@@ -215,7 +215,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	ctx := context.Background()
 
 	// Use blackhole IP that won't respond
-	result := p.Test(ctx, "192.0.2.1:5985", "admin", "password", 1*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, "198.51.100.1:5985", "admin", "password", 500*time.Millisecond, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -328,7 +328,7 @@ func TestPlugin_Test_NoGoroutineLeak(t *testing.T) {
 
 	// Use blackhole IP that won't respond
 	start := time.Now()
-	result := p.Test(ctx, "192.0.2.1:5985", "admin", "password", 100*time.Millisecond, brutus.PluginConfig{})
+	result := p.Test(ctx, "198.51.100.1:5985", "admin", "password", 100*time.Millisecond, brutus.PluginConfig{})
 	elapsed := time.Since(start)
 
 	// Verify the method returned promptly (within timeout + small grace period)

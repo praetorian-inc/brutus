@@ -70,18 +70,15 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_ConnectionError(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping network test in short mode")
-	}
 	p := &Plugin{}
 	ctx := context.Background()
 
 	// Invalid host should cause connection error
-	result := p.Test(ctx, "invalid-host:5900", "", "password", 2*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, "127.0.0.1:1", "", "password", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "vnc", result.Protocol)
-	assert.Equal(t, "invalid-host:5900", result.Target)
+	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error) // Connection error returns wrapped error
 	assert.Contains(t, result.Error.Error(), "connection error")
@@ -104,14 +101,11 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping network test in short mode")
-	}
 	p := &Plugin{}
 	ctx := context.Background()
 
 	// Use a blackhole IP that won't respond (connection should timeout)
-	result := p.Test(ctx, "192.0.2.1:5900", "", "password", 1*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, "198.51.100.1:5900", "", "password", 500*time.Millisecond, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)

@@ -42,10 +42,6 @@ func TestPlugin_Name(t *testing.T) {
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	// Skip if no MSSQL server configured
 	// Configure via MSSQL_TEST_HOST, MSSQL_TEST_USER, MSSQL_TEST_PASS
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host, user, pass := getTestConfig()
 	if host == "" {
 		t.Skip("Skipping: MSSQL_TEST_HOST not configured")
@@ -69,10 +65,6 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	// Skip if no MSSQL server configured
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host, user, _ := getTestConfig()
 	if host == "" {
 		t.Skip("Skipping: MSSQL_TEST_HOST not configured")
@@ -117,11 +109,11 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use an invalid hostname
-	result := p.Test(ctx, "invalid.host.nonexistent:1433", "sa", "password", timeout, brutus.PluginConfig{})
+	result := p.Test(ctx, "127.0.0.1:1", "sa", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "mssql", result.Protocol)
-	assert.Equal(t, "invalid.host.nonexistent:1433", result.Target)
+	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.False(t, result.Success, "Expected connection failure")
 	assert.NotNil(t, result.Error, "DNS error should have non-nil error")
 	assert.Contains(t, result.Error.Error(), "connection error")
@@ -144,10 +136,6 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
 

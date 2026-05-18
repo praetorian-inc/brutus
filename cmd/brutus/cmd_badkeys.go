@@ -43,7 +43,10 @@ collection of known bad keys.`,
   echo "192.168.1.10:22" | brutus badkeys
 
   # URI format
-  echo "ssh://192.168.1.10:22" | brutus badkeys`,
+  echo "ssh://192.168.1.10:22" | brutus badkeys
+
+  # Import targets from nmap XML scan (only SSH services tested)
+  brutus badkeys --nmap-file scan.xml`,
 	RunE: runBadkeys,
 }
 

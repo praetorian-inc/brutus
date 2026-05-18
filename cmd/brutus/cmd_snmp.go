@@ -49,7 +49,10 @@ Custom community strings can also be provided via -c or -C.`,
   naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp
 
   # Targets file
-  brutus snmp --targets-file snmp-hosts.txt --mode extended`,
+  brutus snmp --targets-file snmp-hosts.txt --mode extended
+
+  # Import targets from nmap XML scan (only SNMP services tested)
+  brutus snmp --nmap-file scan.xml --mode extended`,
 	RunE: runSNMP,
 }
 

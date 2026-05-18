@@ -482,3 +482,126 @@ func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool)
 
 	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode)
 }
+
+// runFromNmapFile loads targets from an nmap XML file and processes each
+// discovered service. Nmap provides service identification, so results are
+// fed through processNervaResult (same path as Nerva JSON stdin input).
+func runFromNmapFile(base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
+	nmapResults, err := brutusinput.LoadNmapFile(flagNmapFile)
+	if err != nil {
+		errMsg(base.useColor, "%v", err)
+		return nil, false
+	}
+	if len(nmapResults) == 0 {
+		warnMsg(base.useColor, "nmap file %q contains no open ports", flagNmapFile)
+		return nil, false
+	}
+
+	logVerbose(base.verbose, "Loaded %d open port(s) from nmap file %s", len(nmapResults), flagNmapFile)
+
+	var allResults []brutus.Result
+	hasSuccess := false
+
+	for i := range nmapResults {
+		nrv := &nmapResults[i]
+
+		// Skip ports where nmap couldn't identify the service.
+		if nrv.Protocol == "" {
+			logVerbose(base.verbose, "skipping %s:%d — nmap could not identify service",
+				nrv.IP, nrv.Port)
+			continue
+		}
+
+		// When a protocol override is set (from --protocol flag or subcommand
+		// like snmp/badkeys/logon), only test ports whose nmap-detected service
+		// matches. Without this, "brutus snmp --nmap-file scan.xml" would run
+		// SNMP checks against every open port (SSH, HTTP, etc.).
+		if base.protocolOverride != "" && nrv.Protocol != base.protocolOverride {
+			logVerbose(base.verbose, "skipping %s:%d — nmap service %q doesn't match protocol %q",
+				nrv.IP, nrv.Port, nrv.Protocol, base.protocolOverride)
+			continue
+		}
+
+		res, success := processNervaResult(nrv, base, jsonOut)
+		allResults = append(allResults, res...)
+		if success {
+			hasSuccess = true
+		}
+	}
+
+	return allResults, hasSuccess
+}
+
+// runFromMasscanFile loads targets from a masscan JSON file and processes
+// each discovered open port. Because masscan does not fingerprint services,
+// targets are handled like bare host:port entries:
+//   - If --protocol is set, targets are tested directly with that protocol.
+//   - If --protocol is not set, targets are batch-fingerprinted with Nerva.
+func runFromMasscanFile(base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
+	masscanResults, err := brutusinput.LoadMasscanFile(flagMasscanFile)
+	if err != nil {
+		errMsg(base.useColor, "%v", err)
+		return nil, false
+	}
+	if len(masscanResults) == 0 {
+		warnMsg(base.useColor, "masscan file %q contains no open ports", flagMasscanFile)
+		return nil, false
+	}
+
+	logVerbose(base.verbose, "Loaded %d open port(s) from masscan file %s", len(masscanResults), flagMasscanFile)
+
+	// Convert NervaResults to host:port strings for the existing pipelines.
+	targets := make([]string, 0, len(masscanResults))
+	for _, nrv := range masscanResults {
+		targets = append(targets, nrv.TargetAddr())
+	}
+
+	if base.protocolOverride != "" {
+		return runFromTargetsFile(targets, base, jsonOut)
+	}
+	return runFromFingerprint(targets, base, jsonOut)
+}
+
+// runScanFromNmapFile loads nmap results and runs logon-screen detection
+// on any RDP services found.
+func runScanFromNmapFile(base *runConfig) ([]brutus.Result, bool) {
+	nmapResults, err := brutusinput.LoadNmapFile(flagNmapFile)
+	if err != nil {
+		errMsg(base.useColor, "%v", err)
+		return nil, false
+	}
+
+	var allResults []brutus.Result
+	hasSuccess := false
+	for _, nrv := range nmapResults {
+		if nrv.Protocol == "" {
+			continue
+		}
+		if base.protocolFilter != nil && !base.protocolFilter(nrv.Protocol) {
+			continue
+		}
+		res, success := runScanSingleTarget(nrv.TargetAddr(), base)
+		allResults = append(allResults, res...)
+		if success {
+			hasSuccess = true
+		}
+	}
+	return allResults, hasSuccess
+}
+
+// runScanFromMasscanFile loads masscan results and fingerprints them with
+// Nerva, then runs logon-screen detection on any discovered RDP services.
+func runScanFromMasscanFile(base *runConfig) ([]brutus.Result, bool) {
+	masscanResults, err := brutusinput.LoadMasscanFile(flagMasscanFile)
+	if err != nil {
+		errMsg(base.useColor, "%v", err)
+		return nil, false
+	}
+
+	targets := make([]string, 0, len(masscanResults))
+	for _, nrv := range masscanResults {
+		targets = append(targets, nrv.TargetAddr())
+	}
+
+	return runLogonFingerprint(targets, base)
+}

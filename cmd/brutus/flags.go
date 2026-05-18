@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -34,6 +35,8 @@ var (
 	flagTarget      string
 	flagTargetsFile string
 	flagProtocol    string
+	flagNmapFile    string
+	flagMasscanFile string
 )
 
 // Credential flags
@@ -108,6 +111,8 @@ func registerSharedFlags(cmd *cobra.Command) {
 	// Target
 	pf.StringVar(&flagTarget, "target", "", "Target host:port")
 	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
+	pf.StringVar(&flagNmapFile, "nmap-file", "", "Nmap XML file (-oX output) to import targets from")
+	pf.StringVar(&flagMasscanFile, "masscan-file", "", "Masscan JSON file (-oJ output) to import targets from")
 
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
@@ -279,13 +284,39 @@ func shouldShowBanner(jsonOutput, stdinMode, quiet, useColor bool) bool {
 }
 
 // detectStdinMode returns true if stdin mode should be used.
-// Stdin is auto-detected when no --target or --targets-file is provided
+// Stdin is auto-detected when no explicit target source is provided
 // and data is being piped in.
 func detectStdinMode(target, targetsFile string) bool {
-	if targetsFile != "" || target != "" {
+	if targetsFile != "" || target != "" || flagNmapFile != "" || flagMasscanFile != "" {
 		return false
 	}
 	return hasStdinData()
+}
+
+// validateTargetSources checks that at most one target source is specified.
+// The target sources are: --target, --targets-file, --nmap-file, --masscan-file, and stdin.
+func validateTargetSources(stdinDetected bool) error {
+	var names []string
+	if flagTarget != "" {
+		names = append(names, "--target")
+	}
+	if flagTargetsFile != "" {
+		names = append(names, "--targets-file")
+	}
+	if flagNmapFile != "" {
+		names = append(names, "--nmap-file")
+	}
+	if flagMasscanFile != "" {
+		names = append(names, "--masscan-file")
+	}
+	if stdinDetected {
+		names = append(names, "stdin")
+	}
+	if len(names) > 1 {
+		return fmt.Errorf("conflicting target sources: %s are mutually exclusive",
+			strings.Join(names, ", "))
+	}
+	return nil
 }
 
 // isColorEnabled returns true if colored output should be used.

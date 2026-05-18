@@ -44,7 +44,11 @@ Subcommands:
 All subcommands accept targets via stdin (one per line, formats can be mixed):
   Nerva JSON:  {"ip":"10.0.0.1","port":22,"protocol":"ssh"}
   URI scheme:  ssh://192.168.1.1:22, rdp://10.0.0.50:3389
-  Bare target: 192.168.1.1:22 (auto-fingerprinted with Nerva)`,
+  Bare target: 192.168.1.1:22 (auto-fingerprinted with Nerva)
+
+Targets can also be imported from scan tool output:
+  Nmap XML:     brutus creds --nmap-file scan.xml
+  Masscan JSON: brutus creds --masscan-file scan.json`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runRoot,
@@ -79,6 +83,11 @@ func runRoot(cmd *cobra.Command, args []string) error {
 func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 	useStdin := detectStdinMode(flagTarget, flagTargetsFile)
 
+	// Validate mutual exclusivity of target sources.
+	if err := validateTargetSources(useStdin); err != nil {
+		return err
+	}
+
 	// Set up output writer before banner check so --output can imply --json.
 	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
 	if err != nil {
@@ -101,15 +110,15 @@ func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 
 	switch {
 	case useStdin:
-		if flagTargetsFile != "" {
-			return fmt.Errorf("--targets-file is mutually exclusive with piped stdin")
-		}
 		allResults, hasSuccess = runFromStdin(baseConfig, flagJSON)
 
+	case flagNmapFile != "":
+		allResults, hasSuccess = runFromNmapFile(baseConfig, flagJSON)
+
+	case flagMasscanFile != "":
+		allResults, hasSuccess = runFromMasscanFile(baseConfig, flagJSON)
+
 	case flagTargetsFile != "":
-		if flagTarget != "" {
-			return fmt.Errorf("--targets-file is mutually exclusive with --target")
-		}
 		targetsList, err := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 		if err != nil {
 			return err
@@ -156,7 +165,7 @@ func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 	}
 
 	// Final JSON output for multi-target modes
-	if flagJSON && (useStdin || flagTargetsFile != "") {
+	if flagJSON && (useStdin || flagTargetsFile != "" || flagNmapFile != "" || flagMasscanFile != "") {
 		outputJSONL(jsonWriter, allResults)
 	}
 

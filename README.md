@@ -28,7 +28,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
 - **24 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
-- **Pipeline integration:** Native support for Nerva and naabu workflows
+- **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
 - **Go library:** Import directly into your security automation tools
 - **Production ready:** Rate limiting, connection pooling, and comprehensive error handling
@@ -43,7 +43,7 @@ Traditional tools like **THC Hydra** have served the security community well, bu
 
 - **True zero-dependency deployment:** Download a single binary and run. No `libssh-dev`, no `libmysqlclient-dev`, no compilation errors. Works identically on Linux, macOS, and Windows.
 
-- **Native pipeline integration:** Brutus speaks JSON and integrates directly with [Nerva](https://github.com/praetorian-inc/nerva) and [naabu](https://github.com/projectdiscovery/naabu). Pipe discovered services straight into credential testing without format conversion or scripting.
+- **Native pipeline integration:** Brutus speaks JSON and integrates directly with [Nerva](https://github.com/praetorian-inc/nerva), [naabu](https://github.com/projectdiscovery/naabu), [nmap](https://nmap.org), and [masscan](https://github.com/robertdavidgraham/masscan). Pipe discovered services straight into credential testing without format conversion or scripting.
 
 - **Embedded intelligence:** Known SSH bad keys (Vagrant, F5 BIG-IP, ExaGrid, etc.) are compiled into the binary and tested automatically for SSH targets.
 
@@ -325,6 +325,63 @@ naabu -host 10.0.0.0/24 -p 27017 -silent | \
   brutus -u admin,root,mongodb -p admin,password,mongodb
 ```
 
+### Scan Tool Import (Nmap & Masscan)
+
+Brutus can import targets directly from **nmap** and **masscan** scan output files, eliminating the need for format conversion or intermediate tools.
+
+#### Nmap XML Import (`--nmap-file`)
+
+Import targets from nmap's XML output (`-oX`). Nmap provides service fingerprinting, so Brutus automatically maps detected services to the correct protocol:
+
+```bash
+# Run an nmap service scan
+nmap -sV -oX scan.xml 10.0.0.0/24 -p 22,3306,5432,6379,445,3389
+
+# Feed nmap results directly to Brutus
+brutus creds --nmap-file scan.xml -P passwords.txt
+
+# Test web services from nmap scan
+brutus web --nmap-file scan.xml -c "admin:admin,root:password"
+
+# Test SNMP from nmap scan
+brutus snmp --nmap-file scan.xml --mode extended
+
+# JSON output for scripting
+brutus creds --nmap-file scan.xml --json -o results.json
+```
+
+Nmap service names are automatically mapped to Brutus protocols (e.g., `ms-wbt-server` → `rdp`, `microsoft-ds` → `smb`). TLS is detected from nmap's `tunnel="ssl"` attribute. Only open ports on up hosts are imported.
+
+#### Masscan JSON Import (`--masscan-file`)
+
+Import targets from masscan's JSON output (`-oJ`). Since masscan is a port scanner only (no service fingerprinting), you must either specify `--protocol` or let Brutus auto-fingerprint with Nerva:
+
+```bash
+# Run a masscan port scan
+masscan 10.0.0.0/24 -p 22,3306,5432,6379 -oJ scan.json --rate 10000
+
+# Test all discovered ports as SSH (when you know what's running)
+brutus creds --masscan-file scan.json --protocol ssh -u root -P passwords.txt
+
+# Auto-fingerprint with Nerva (when services are unknown)
+brutus creds --masscan-file scan.json -P passwords.txt
+```
+
+#### Combining with Other Workflows
+
+The `--nmap-file` and `--masscan-file` flags work with all subcommands and are mutually exclusive with `--target`, `--targets-file`, and stdin:
+
+```bash
+# Scan for RDP backdoors from nmap results
+brutus logon --nmap-file scan.xml
+
+# Test SSH bad keys from nmap results
+brutus badkeys --nmap-file scan.xml
+
+# Override protocol for all masscan targets
+brutus creds --masscan-file scan.json --protocol redis -p "redis,password"
+```
+
 ### Pipeline Input Format
 
 Brutus accepts multiple input formats from stdin:
@@ -379,6 +436,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 | Single Binary | ❌ | ❌ | ❌ | ✅ |
 | Zero Dependencies | ❌ | ❌ | ❌ | ✅ |
 | Nerva Pipeline | ❌ | ❌ | ❌ | ✅ |
+| Nmap/Masscan Import | ❌ | ❌ | ❌ | ✅ |
 | JSON Streaming | ⚠️ | ❌ | ❌ | ✅ |
 | Cross-Platform | ⚠️ | ⚠️ | ⚠️ | ✅ |
 | Consistent Errors | ⚠️ | ⚠️ | ⚠️ | ✅ |

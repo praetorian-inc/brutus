@@ -70,6 +70,9 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_ConnectionError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -101,6 +104,9 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -132,6 +138,9 @@ func TestPlugin_Test_DomainUsername(t *testing.T) {
 }
 
 func TestPlugin_Test_IPv6Target(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	if os.Getenv("SMB_TEST_HOST") != "" {
 		t.Skip("SMB service is running; IPv6 loopback on port 445 reaches the Docker container")
 	}
@@ -151,6 +160,9 @@ func TestPlugin_Test_IPv6Target(t *testing.T) {
 }
 
 func TestPlugin_Test_IPv6TargetNoPort(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	if os.Getenv("SMB_TEST_HOST") != "" {
 		t.Skip("SMB service is running; IPv6 loopback on default port 445 reaches the Docker container")
 	}

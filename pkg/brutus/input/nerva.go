@@ -173,10 +173,22 @@ func ServiceToNervaResult(svc *nervaplugins.Service) NervaResult {
 }
 
 // HasNoAuth returns true if Nerva detected that the service does not require
-// authentication. This checks the AnonymousAccess field (set from either the
-// top-level Service.AnonymousAccess or per-service auth_required metadata).
+// authentication. Checks both the top-level AnonymousAccess field and the
+// per-service auth_required metadata (used by PostgreSQL, Redis plugins).
+// This works regardless of whether the NervaResult was created from
+// ServiceToNervaResult (library path) or JSON unmarshal (stdin path).
 func (nrv *NervaResult) HasNoAuth() bool {
-	return nrv.AnonymousAccess
+	if nrv.AnonymousAccess {
+		return true
+	}
+	if nrv.Metadata != nil {
+		if authReq, ok := nrv.Metadata["auth_required"]; ok {
+			if b, ok := authReq.(bool); ok && !b {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // StdinLineType classifies a line read from stdin.

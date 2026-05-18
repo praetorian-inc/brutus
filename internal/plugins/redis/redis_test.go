@@ -174,6 +174,9 @@ func TestPlugin_Test_NoAuthRequired(t *testing.T) {
 }
 
 func TestPlugin_Test_ConnectionRefused(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 	timeout := 2 * time.Second
@@ -191,6 +194,9 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 }
 
 func TestPlugin_Test_InvalidTarget(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 	timeout := 2 * time.Second
@@ -208,6 +214,9 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -242,6 +251,9 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 }
 
 func TestPlugin_Test_MissingPort(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 	timeout := 2 * time.Second

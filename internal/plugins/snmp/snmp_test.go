@@ -74,6 +74,9 @@ func TestParseTarget_InvalidPort(t *testing.T) {
 }
 
 func TestPlugin_Test_ConnectionRefused(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 

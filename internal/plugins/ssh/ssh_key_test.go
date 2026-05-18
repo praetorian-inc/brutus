@@ -47,6 +47,9 @@ func generateTestKey(t *testing.T) []byte {
 }
 
 func TestPlugin_TestKey_ParseValidKey(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	plugin := &Plugin{}
 
 	// Generate valid test key
@@ -147,6 +150,9 @@ encrypted data here
 }
 
 func TestPlugin_TestKey_ConnectionError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	plugin := &Plugin{}
 
 	validKey := generateTestKey(t)
@@ -170,6 +176,9 @@ func TestPlugin_TestKey_ConnectionError(t *testing.T) {
 }
 
 func TestPlugin_TestKey_ContextCancellation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	plugin := &Plugin{}
 
 	validKey := generateTestKey(t)

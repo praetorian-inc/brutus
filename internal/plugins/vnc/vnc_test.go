@@ -70,6 +70,9 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_ConnectionError(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 
@@ -101,6 +104,9 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping network test in short mode")
+	}
 	p := &Plugin{}
 	ctx := context.Background()
 

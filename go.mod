@@ -7,7 +7,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/go-ldap/ldap/v3 v3.4.13
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.0
 	github.com/gocql/gocql v1.7.0
 	github.com/gosnmp/gosnmp v1.43.2
 	github.com/hirochachacha/go-smb2 v1.1.0
@@ -29,7 +29,7 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Azure/go-ntlmssp v0.1.0 // indirect
 	github.com/ChrisTrenkamp/goxpath v0.0.0-20210404020558-97928f7e12b6 // indirect
 	github.com/bodgit/ntlmssp v0.0.0-20240506230425-31973bb52d9b // indirect

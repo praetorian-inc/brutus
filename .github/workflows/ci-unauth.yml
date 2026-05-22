@@ -1,0 +1,146 @@
+name: Unauthenticated Access Tests
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.25.0'
+
+jobs:
+  unauth:
+    name: Unauthenticated Access Detection
+    runs-on: ubuntu-latest
+    environment: internal
+    services:
+      # PostgreSQL with trust authentication (no password required)
+      postgres-noauth:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Redis without requirepass (open access)
+      redis-noauth:
+        image: redis:7.2
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      # Elasticsearch without X-Pack security
+      elasticsearch-noauth:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+        ports:
+          - 9200:9200
+        options: >-
+          --health-cmd "curl -f http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 10
+
+      # Docker-in-Docker with TCP API exposed (no TLS)
+      docker-noauth:
+        image: docker:dind
+        env:
+          DOCKER_TLS_CERTDIR: ''
+        ports:
+          - 2375:2375
+        options: >-
+          --privileged
+          --health-cmd "wget -q -O /dev/null http://localhost:2375/version || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Wait for services
+        run: |
+          echo "Waiting for services to be ready..."
+
+          echo "Waiting for PostgreSQL (trust auth)..."
+          timeout 60 bash -c 'until nc -z localhost 5432; do sleep 1; done'
+
+          echo "Waiting for Redis (no auth)..."
+          timeout 60 bash -c 'until nc -z localhost 6379; do sleep 1; done'
+
+          echo "Waiting for Elasticsearch (no security)..."
+          timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health > /dev/null; do sleep 2; done'
+
+          echo "Waiting for Docker-in-Docker..."
+          timeout 60 bash -c 'until curl -sf http://localhost:2375/version > /dev/null; do sleep 1; done'
+
+          echo "All services should be ready"
+
+      - name: Build brutus
+        run: CGO_ENABLED=0 go build -o brutus ./cmd/brutus
+
+      - name: Run unauth integration tests
+        run: CGO_ENABLED=0 go test -tags=integration -v -timeout 5m -run TestUnauth ./internal/plugins/...
+        env:
+          UNAUTH_POSTGRES_HOST: localhost:5432
+          UNAUTH_REDIS_HOST: localhost:6379
+          UNAUTH_ELASTICSEARCH_HOST: localhost:9200
+          UNAUTH_DOCKER_HOST: localhost:2375
+
+      - name: Smoke test - PostgreSQL trust auth detection
+        run: |
+          ./brutus creds --target localhost:5432 --protocol postgresql -u nobody -p wrong 2>&1 | tee /tmp/pg.out
+          echo "--- PostgreSQL output ---"
+          cat /tmp/pg.out
+          grep -q '\[CRITICAL\]' /tmp/pg.out
+
+      - name: Smoke test - Redis no-auth detection
+        run: |
+          ./brutus creds --target localhost:6379 --protocol redis -p wrong 2>&1 | tee /tmp/redis.out
+          echo "--- Redis output ---"
+          cat /tmp/redis.out
+          grep -q '\[CRITICAL\]' /tmp/redis.out
+
+      - name: Smoke test - Elasticsearch no-security detection
+        run: |
+          ./brutus creds --target localhost:9200 --protocol elasticsearch -u nobody -p wrong 2>&1 | tee /tmp/es.out
+          echo "--- Elasticsearch output ---"
+          cat /tmp/es.out
+          grep -q '\[CRITICAL\]' /tmp/es.out
+
+      - name: Smoke test - Docker exposed API detection
+        run: |
+          ./brutus creds --target localhost:2375 --protocol docker 2>&1 | tee /tmp/docker.out
+          echo "--- Docker output ---"
+          cat /tmp/docker.out
+          grep -q '\[CRITICAL\]' /tmp/docker.out
+
+      - name: Smoke test - JSON output format
+        run: |
+          ./brutus creds --target localhost:6379 --protocol redis --json 2>&1 | tee /tmp/redis.json
+          echo "--- Redis JSON output ---"
+          cat /tmp/redis.json
+          grep -q '"unauthenticated_access"' /tmp/redis.json

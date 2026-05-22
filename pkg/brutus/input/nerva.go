@@ -29,14 +29,15 @@ import (
 
 // NervaResult represents the JSON output from nerva service discovery.
 type NervaResult struct {
-	Host      string                 `json:"host,omitempty"`
-	IP        string                 `json:"ip"`
-	Port      int                    `json:"port"`
-	Protocol  string                 `json:"protocol"`
-	TLS       bool                   `json:"tls"`
-	Transport string                 `json:"transport"`
-	Version   string                 `json:"version,omitempty"`
-	Metadata  map[string]interface{} `json:"metadata"`
+	Host            string                 `json:"host,omitempty"`
+	IP              string                 `json:"ip"`
+	Port            int                    `json:"port"`
+	Protocol        string                 `json:"protocol"`
+	TLS             bool                   `json:"tls"`
+	Transport       string                 `json:"transport"`
+	Version         string                 `json:"version,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata"`
+	AnonymousAccess bool                   `json:"anonymous_access,omitempty"`
 }
 
 // TargetAddr returns "host:port" for this result, preferring the hostname
@@ -83,6 +84,11 @@ func MapServiceToProtocol(service string) string {
 		"pop3": "pop3",
 
 		"snmp": "snmp",
+
+		"docker":     "docker",
+		"kubernetes": "kubernetes",
+		"k8s":        "kubernetes",
+		"kubelet":    "kubernetes",
 
 		"http":  "http",
 		"https": "https",
@@ -141,16 +147,48 @@ func ServiceToNervaResult(svc *nervaplugins.Service) NervaResult {
 	if len(svc.Raw) > 0 {
 		_ = json.Unmarshal(svc.Raw, &metadata)
 	}
-	return NervaResult{
-		Host:      svc.Host,
-		IP:        svc.IP,
-		Port:      svc.Port,
-		Protocol:  svc.Protocol,
-		TLS:       svc.TLS,
-		Transport: svc.Transport,
-		Version:   svc.Version,
-		Metadata:  metadata,
+
+	// Determine anonymous access: use the canonical top-level field first,
+	// then fall back to per-service metadata (auth_required: false).
+	anonAccess := svc.AnonymousAccess
+	if !anonAccess && metadata != nil {
+		if authReq, ok := metadata["auth_required"]; ok {
+			if b, ok := authReq.(bool); ok && !b {
+				anonAccess = true
+			}
+		}
 	}
+
+	return NervaResult{
+		Host:            svc.Host,
+		IP:              svc.IP,
+		Port:            svc.Port,
+		Protocol:        svc.Protocol,
+		TLS:             svc.TLS,
+		Transport:       svc.Transport,
+		Version:         svc.Version,
+		Metadata:        metadata,
+		AnonymousAccess: anonAccess,
+	}
+}
+
+// HasNoAuth returns true if Nerva detected that the service does not require
+// authentication. Checks both the top-level AnonymousAccess field and the
+// per-service auth_required metadata (used by PostgreSQL, Redis plugins).
+// This works regardless of whether the NervaResult was created from
+// ServiceToNervaResult (library path) or JSON unmarshal (stdin path).
+func (nrv *NervaResult) HasNoAuth() bool {
+	if nrv.AnonymousAccess {
+		return true
+	}
+	if nrv.Metadata != nil {
+		if authReq, ok := nrv.Metadata["auth_required"]; ok {
+			if b, ok := authReq.(bool); ok && !b {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // StdinLineType classifies a line read from stdin.

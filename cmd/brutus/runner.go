@@ -64,7 +64,7 @@ func runFromTargetsFile(targets []string, base *runConfig, jsonOut bool) ([]brut
 			printTargetInfo(target, protocol, base, aiCreds)
 		}
 
-		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds)
+		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds, false)
 		allResults = append(allResults, results...)
 		if success {
 			hasSuccess = true
@@ -183,12 +183,17 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *runConfig, jsonOut b
 
 	target := nrv.TargetAddr()
 
+	// Nerva JSON from stdin may indicate no auth — log it but still verify live
+	if nrv.HasNoAuth() {
+		logVerbose(base.verbose, "Nerva JSON indicates unauthenticated access on %s (%s) — verifying live", target, protocol)
+	}
+
 	var aiCreds []brutus.Credential
 	if base.web != nil && (protocol == "http" || protocol == "https") {
 		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 	}
 
-	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, false)
 
 	if !jsonOut {
 		outputValidOnly(results, base.useColor)
@@ -226,7 +231,7 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 		printTargetInfo(target, protocol, base, aiCreds)
 	}
 
-	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, false)
 
 	if !jsonOut {
 		outputValidOnly(results, base.useColor)
@@ -236,27 +241,51 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 	return results, success
 }
 
-// runSingleTarget runs brutus against a single target
-func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential) ([]brutus.Result, bool) {
+// isUnauthOnlyProtocol returns true for protocols that only support
+// unauthenticated access detection (no credential testing).
+// This checks the unauth-only registry rather than hardcoding protocol names.
+func isUnauthOnlyProtocol(protocol string) bool {
+	_, err := brutus.GetUnauthChecker(protocol)
+	return err == nil
+}
+
+// runSingleTarget runs brutus against a single target.
+// skipUnauthCheck tells the worker pool to skip its own CheckUnauth probe
+// (used when Nerva live fingerprinting already detected anonymous access).
+func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential, skipUnauthCheck bool) ([]brutus.Result, bool) {
+	// Unauth-only protocols: run CheckUnauthAccess directly, skip brute force
+	if isUnauthOnlyProtocol(protocol) {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		pluginCfg := brutus.PluginConfig{TLSMode: tlsMode}
+		r := brutus.CheckUnauthAccess(ctx, target, protocol, base.timeout, pluginCfg)
+		if r == nil {
+			return nil, false
+		}
+		return []brutus.Result{*r}, r.Success
+	}
+
 	config := &brutus.Config{
-		Target:      target,
-		Protocol:    protocol,
-		Usernames:   base.usernames,
-		Passwords:   base.passwords,
-		Credentials: base.credentials,
-		Keys:        base.keys,
-		UseDefaults: true,
-		NoBadkeys:   !base.useBadkeys,
-		BadkeysOnly: base.badkeysOnly,
-		Threads:     base.threads,
-		Timeout:     base.timeout,
-		LLMConfig:   base.llmConfig,
-		TLSMode:     tlsMode,
-		RateLimit:   base.rateLimit,
-		Jitter:      base.jitter,
-		MaxAttempts: base.maxAttempts,
-		MaxRetries:  base.maxRetries,
-		Verbose:     base.verbose,
+		Target:          target,
+		Protocol:        protocol,
+		Usernames:       base.usernames,
+		Passwords:       base.passwords,
+		Credentials:     base.credentials,
+		Keys:            base.keys,
+		UseDefaults:     true,
+		NoBadkeys:       !base.useBadkeys,
+		BadkeysOnly:     base.badkeysOnly,
+		Threads:         base.threads,
+		Timeout:         base.timeout,
+		LLMConfig:       base.llmConfig,
+		TLSMode:         tlsMode,
+		RateLimit:       base.rateLimit,
+		Jitter:          base.jitter,
+		MaxAttempts:     base.maxAttempts,
+		MaxRetries:      base.maxRetries,
+		Verbose:         base.verbose,
+		SkipUnauthCheck: skipUnauthCheck,
 	}
 
 	// Handle HTTP with AI-researched credentials

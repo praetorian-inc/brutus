@@ -84,6 +84,57 @@ func ResetPlugins() {
 }
 
 // =============================================================================
+// Unauth-Only Checker Registry
+// =============================================================================
+
+var (
+	unauthRegistryMu sync.RWMutex
+	unauthRegistry   = make(map[string]func() UnauthOnlyChecker)
+)
+
+// RegisterUnauthChecker registers a factory for an unauthenticated-access-only checker.
+func RegisterUnauthChecker(name string, factory func() UnauthOnlyChecker) {
+	unauthRegistryMu.Lock()
+	defer unauthRegistryMu.Unlock()
+	if _, exists := unauthRegistry[name]; exists {
+		panic(fmt.Sprintf("brutus: unauth checker %q already registered", name))
+	}
+	unauthRegistry[name] = factory
+}
+
+// GetUnauthChecker retrieves an unauth-only checker by name.
+func GetUnauthChecker(name string) (UnauthOnlyChecker, error) {
+	unauthRegistryMu.RLock()
+	factory, exists := unauthRegistry[name]
+	unauthRegistryMu.RUnlock()
+	if !exists {
+		available := ListUnauthCheckers()
+		return nil, fmt.Errorf("unknown unauth checker %q (available: %v)", name, available)
+	}
+	return factory(), nil
+}
+
+// ListUnauthCheckers returns a sorted list of all registered unauth-only checker names.
+func ListUnauthCheckers() []string {
+	unauthRegistryMu.RLock()
+	defer unauthRegistryMu.RUnlock()
+	names := make([]string, 0, len(unauthRegistry))
+	for name := range unauthRegistry {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ResetUnauthCheckers clears all registered unauth-only checkers.
+// This function is intended for testing only.
+func ResetUnauthCheckers() {
+	unauthRegistryMu.Lock()
+	defer unauthRegistryMu.Unlock()
+	unauthRegistry = make(map[string]func() UnauthOnlyChecker)
+}
+
+// =============================================================================
 // Analyzer Registry
 // =============================================================================
 

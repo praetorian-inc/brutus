@@ -169,7 +169,7 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "invalid.host.nonexistent:1521", "system", "oracle", 500*time.Millisecond, brutus.PluginConfig{})
+	result := p.Test(ctx, "127.0.0.1:1", "system", "oracle", 500*time.Millisecond, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "oracle", result.Protocol)

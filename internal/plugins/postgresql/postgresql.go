@@ -95,4 +95,33 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
+// CheckUnauth probes for PostgreSQL trust authentication (no password required).
+func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
+	result := brutus.NewResult("postgresql", target, "(unauthenticated)", "")
+	start := time.Now()
+	defer func() { result.Duration = time.Since(start) }()
+
+	host, port := brutus.ParseTarget(target, "5432")
+
+	connStr := fmt.Sprintf("dbname=postgres user=postgres password='' host=%s port=%s sslmode=disable connect_timeout=%d",
+		host, port, int(timeout.Seconds()))
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return result
+	}
+	defer func() { _ = db.Close() }()
+
+	pingCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	if err := db.PingContext(pingCtx); err != nil {
+		return result
+	}
+
+	result.Success = true
+	result.Banner = "[CRITICAL] PostgreSQL trust authentication enabled - unauthenticated access as 'postgres' superuser"
+	return result
+}
+
 var classifyError = brutus.NewClassifier(postgresqlAuthIndicators)

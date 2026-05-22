@@ -122,11 +122,11 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	timeout := 2 * time.Second
 
 	// Use an invalid hostname
-	result := p.Test(ctx, "invalid.host.nonexistent:143", "user@example.com", "password", timeout, brutus.PluginConfig{})
+	result := p.Test(ctx, "127.0.0.1:1", "user@example.com", "password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "imap", result.Protocol)
-	assert.Equal(t, "invalid.host.nonexistent:143", result.Target)
+	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.False(t, result.Success, "Expected connection failure")
 	assert.NotNil(t, result.Error, "DNS error should have non-nil error")
 	assert.Contains(t, result.Error.Error(), "connection error")

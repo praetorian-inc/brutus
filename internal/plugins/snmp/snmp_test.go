@@ -99,10 +99,6 @@ func getTestHost(t *testing.T) string {
 
 // TestPlugin_Integration_ValidCommunity tests successful SNMP authentication
 func TestPlugin_Integration_ValidCommunity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host := getTestHost(t)
 	community := os.Getenv("SNMP_TEST_COMMUNITY")
 	if community == "" {
@@ -126,10 +122,6 @@ func TestPlugin_Integration_ValidCommunity(t *testing.T) {
 
 // TestPlugin_Integration_InvalidCommunity tests SNMP auth failure behavior
 func TestPlugin_Integration_InvalidCommunity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host := getTestHost(t)
 
 	p := &Plugin{}
@@ -147,10 +139,6 @@ func TestPlugin_Integration_InvalidCommunity(t *testing.T) {
 
 // TestPlugin_Integration_ReadWriteCommunity tests RW community string
 func TestPlugin_Integration_ReadWriteCommunity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host := getTestHost(t)
 	rwCommunity := os.Getenv("SNMP_TEST_COMMUNITY_RW")
 	if rwCommunity == "" {
@@ -171,10 +159,6 @@ func TestPlugin_Integration_ReadWriteCommunity(t *testing.T) {
 
 // TestPlugin_Integration_BannerCapture validates banner content is useful
 func TestPlugin_Integration_BannerCapture(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host := getTestHost(t)
 	community := os.Getenv("SNMP_TEST_COMMUNITY")
 	if community == "" {
@@ -215,10 +199,6 @@ func TestPlugin_Integration_BannerCapture(t *testing.T) {
 
 // TestPlugin_Integration_ContextCancellation tests that context cancellation works
 func TestPlugin_Integration_ContextCancellation(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host := getTestHost(t)
 
 	p := &Plugin{}
@@ -240,10 +220,6 @@ func TestPlugin_Integration_ContextCancellation(t *testing.T) {
 
 // TestPlugin_Integration_MultipleCommunities tests brute-forcing multiple strings
 func TestPlugin_Integration_MultipleCommunities(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host := getTestHost(t)
 
 	p := &Plugin{}
@@ -278,10 +254,6 @@ func TestPlugin_Integration_MultipleCommunities(t *testing.T) {
 
 // TestPlugin_Integration_TierDefault tests the default tier community strings
 func TestPlugin_Integration_TierDefault(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
 	host := getTestHost(t)
 
 	p := &Plugin{}

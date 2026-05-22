@@ -137,6 +137,7 @@ func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 		if flagTarget == "" {
 			return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 		}
+		var nervaNoAuth bool
 		if protocol == "" {
 			// No --protocol specified — fingerprint with Nerva to auto-detect.
 			fp, err := fingerprintSingleTarget(flagTarget, baseConfig)
@@ -144,6 +145,7 @@ func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 				return err
 			}
 			protocol = fp.protocol
+			nervaNoAuth = fp.noAuth
 
 			// Apply subcommand protocol filter.
 			if baseConfig.protocolFilter != nil && !baseConfig.protocolFilter(protocol) {
@@ -161,7 +163,7 @@ func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 				}
 			}
 		}
-		allResults, hasSuccess = runSingleTargetMode(flagTarget, protocol, baseConfig, flagJSON, jsonWriter)
+		allResults, hasSuccess = runSingleTargetMode(flagTarget, protocol, baseConfig, flagJSON, jsonWriter, nervaNoAuth)
 	}
 
 	// Final JSON output for multi-target modes
@@ -176,7 +178,8 @@ func runSubcommand(cmd *cobra.Command, baseConfig *runConfig) error {
 }
 
 // runSingleTargetMode handles the single-target execution path.
-func runSingleTargetMode(target, protocol string, baseConfig *runConfig, jsonOutput bool, jsonWriter io.Writer) ([]brutus.Result, bool) {
+// nervaNoAuth indicates Nerva live fingerprinting detected anonymous access.
+func runSingleTargetMode(target, protocol string, baseConfig *runConfig, jsonOutput bool, jsonWriter io.Writer, nervaNoAuth bool) ([]brutus.Result, bool) {
 	// AI mode for single target with HTTP protocol
 	var aiCreds []brutus.Credential
 	if baseConfig.aiMode && (protocol == "http" || protocol == "https") {
@@ -188,7 +191,23 @@ func runSingleTargetMode(target, protocol string, baseConfig *runConfig, jsonOut
 		printTargetInfo(target, protocol, baseConfig, aiCreds)
 	}
 
-	results, success := runSingleTarget(target, protocol, baseConfig.tlsMode, baseConfig, aiCreds)
+	var preResults []brutus.Result
+	if nervaNoAuth {
+		logVerbose(baseConfig.verbose, "Nerva detected unauthenticated access on %s (%s)", target, protocol)
+		preResults = append(preResults, brutus.Result{
+			Protocol: protocol,
+			Target:   target,
+			Username: "(unauthenticated)",
+			Success:  true,
+			Banner:   fmt.Sprintf("[CRITICAL] %s accessible without authentication (detected by Nerva fingerprinting)", protocol),
+		})
+	}
+
+	results, success := runSingleTarget(target, protocol, baseConfig.tlsMode, baseConfig, aiCreds, nervaNoAuth)
+	results = append(preResults, results...)
+	if nervaNoAuth {
+		success = true
+	}
 
 	// Output for single-target mode
 	if jsonOutput {

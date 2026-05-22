@@ -91,27 +91,28 @@ type Credential struct {
 
 // Config defines the configuration for a brute force attack.
 type Config struct {
-	Target      string        // host:port (e.g., "10.0.0.50:22")
-	Protocol    string        // plugin name (e.g., "ssh")
-	Usernames   []string      // usernames to test (Cartesian product with Passwords/Keys)
-	Passwords   []string      // passwords to test (Cartesian product with Usernames)
-	Keys        [][]byte      // SSH private keys to test (Cartesian product with Usernames)
-	Credentials []Credential  // pre-paired credentials (no Cartesian product)
-	UseDefaults bool          // load protocol-specific default credentials from embedded wordlists
-	NoBadkeys   bool          // skip embedded bad SSH keys when UseDefaults is true
-	BadkeysOnly bool          // only test embedded bad SSH keys (skip password wordlists)
-	Timeout     time.Duration // per-credential timeout (default: 10s)
-	Threads     int           // concurrent workers (default: 10)
-	LLMConfig   *LLMConfig    // optional LLM-based banner analysis (nil = disabled)
-	Plugin      Plugin        // optional: pre-configured plugin instance (bypasses GetPlugin)
-	TLSMode     string        // TLS/SSL verification mode: "disable", "verify", "skip-verify" (default: "disable")
-	RateLimit   float64       // max requests per second (0 = unlimited, default: 0)
-	Jitter      time.Duration // random delay variance added to rate limiting (default: 0)
-	MaxAttempts int           // max password attempts per username (0 = unlimited)
-	MaxRetries  int           // max retries per credential on connection error (0 = no retry, default: 0)
-	Verbose     bool          // enable verbose logging to stderr (default: false)
-	StickyKeys  bool          // enable sticky keys backdoor detection (RDP)
-	AIMode      bool          // enable Vision API for screenshot analysis (RDP)
+	Target          string        // host:port (e.g., "10.0.0.50:22")
+	Protocol        string        // plugin name (e.g., "ssh")
+	Usernames       []string      // usernames to test (Cartesian product with Passwords/Keys)
+	Passwords       []string      // passwords to test (Cartesian product with Usernames)
+	Keys            [][]byte      // SSH private keys to test (Cartesian product with Usernames)
+	Credentials     []Credential  // pre-paired credentials (no Cartesian product)
+	UseDefaults     bool          // load protocol-specific default credentials from embedded wordlists
+	NoBadkeys       bool          // skip embedded bad SSH keys when UseDefaults is true
+	BadkeysOnly     bool          // only test embedded bad SSH keys (skip password wordlists)
+	Timeout         time.Duration // per-credential timeout (default: 10s)
+	Threads         int           // concurrent workers (default: 10)
+	LLMConfig       *LLMConfig    // optional LLM-based banner analysis (nil = disabled)
+	Plugin          Plugin        // optional: pre-configured plugin instance (bypasses GetPlugin)
+	TLSMode         string        // TLS/SSL verification mode: "disable", "verify", "skip-verify" (default: "disable")
+	RateLimit       float64       // max requests per second (0 = unlimited, default: 0)
+	Jitter          time.Duration // random delay variance added to rate limiting (default: 0)
+	MaxAttempts     int           // max password attempts per username (0 = unlimited)
+	MaxRetries      int           // max retries per credential on connection error (0 = no retry, default: 0)
+	Verbose         bool          // enable verbose logging to stderr (default: false)
+	StickyKeys      bool          // enable sticky keys backdoor detection (RDP)
+	AIMode          bool          // enable Vision API for screenshot analysis (RDP)
+	SkipUnauthCheck bool          // skip CheckUnauth probe (when Nerva already detected it)
 }
 
 // Result contains the outcome of testing a single credential.
@@ -215,6 +216,24 @@ type KeyPlugin interface {
 
 	// TestKey attempts authentication with username and SSH private key
 	TestKey(ctx context.Context, target, username string, key []byte, timeout time.Duration, pluginCfg PluginConfig) *Result
+}
+
+// UnauthChecker is an optional interface for plugins that can detect
+// unauthenticated access to a service. The worker pool calls CheckUnauth
+// once per target before credential testing begins.
+type UnauthChecker interface {
+	// CheckUnauth probes the target for unauthenticated access.
+	// Returns a Result with:
+	//   - Success=true, Banner contains finding: unauthenticated access confirmed
+	//   - Success=false: service requires authentication (normal)
+	CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg PluginConfig) *Result
+}
+
+// UnauthOnlyChecker is for services that only support unauthenticated access
+// detection with no credential testing (e.g., Docker, Kubernetes).
+type UnauthOnlyChecker interface {
+	Name() string
+	CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg PluginConfig) *Result
 }
 
 // PluginFactory is a function that creates a new Plugin instance.
@@ -325,6 +344,28 @@ func BruteWithContext(ctx context.Context, cfg *Config) ([]Result, error) {
 	}
 
 	return results, nil
+}
+
+// CheckUnauthAccess probes a target for unauthenticated access.
+// For protocols that implement UnauthChecker (postgresql, redis, elasticsearch),
+// it resolves the standard plugin and calls CheckUnauth.
+// For unauth-only protocols (docker, kubernetes), it resolves from the
+// unauth registry. Returns nil if the protocol does not support unauth checking.
+func CheckUnauthAccess(ctx context.Context, target, protocol string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	// Try the standard plugin registry first
+	if plug, err := GetPlugin(protocol); err == nil {
+		if checker, ok := plug.(UnauthChecker); ok {
+			return checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+		}
+		return nil
+	}
+
+	// Try the unauth-only registry
+	if checker, err := GetUnauthChecker(protocol); err == nil {
+		return checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+	}
+
+	return nil
 }
 
 // Brute executes a brute force attack using the provided configuration.

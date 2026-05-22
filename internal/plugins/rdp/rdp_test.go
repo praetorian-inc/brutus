@@ -37,11 +37,11 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	ctx := context.Background()
 
 	// Invalid host should cause connection error
-	result := p.Test(ctx, "invalid-host:3389", "admin", "password", 2*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, "127.0.0.1:1", "admin", "password", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, "invalid-host:3389", result.Target)
+	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
@@ -52,7 +52,7 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	ctx := context.Background()
 
 	// Use a blackhole IP that won't respond (connection should timeout)
-	result := p.Test(ctx, "192.0.2.1:3389", "admin", "password", 1*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, "198.51.100.1:3389", "admin", "password", 500*time.Millisecond, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -138,7 +138,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel the context before calling Test.
 	cancel()
 
-	result := p.Test(ctx, "192.0.2.1:3389", "admin", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, "198.51.100.1:3389", "admin", "password", 500*time.Millisecond, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -150,11 +150,11 @@ func TestPlugin_Test_ResultFields(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "invalid-host:3389", "testuser", "testpass", 2*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, "127.0.0.1:1", "testuser", "testpass", 2*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, "invalid-host:3389", result.Target)
+	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.Equal(t, "testuser", result.Username)
 	assert.Equal(t, "testpass", result.Password)
 	assert.False(t, result.Success)

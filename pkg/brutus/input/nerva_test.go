@@ -374,3 +374,182 @@ func TestClassifyStdinLine_Invalid(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// HasNoAuth / Anonymous Access Detection
+// =============================================================================
+
+func TestHasNoAuth_TopLevelAnonymousAccess(t *testing.T) {
+	nrv := NervaResult{
+		IP:              "10.0.0.1",
+		Port:            6379,
+		Protocol:        "redis",
+		AnonymousAccess: true,
+	}
+	assert.True(t, nrv.HasNoAuth())
+}
+
+func TestHasNoAuth_MetadataAuthRequiredFalse(t *testing.T) {
+	// Simulates Nerva JSON from stdin: {"ip":"10.0.0.1","port":6379,"protocol":"redis","metadata":{"auth_required":false}}
+	nrv := NervaResult{
+		IP:       "10.0.0.1",
+		Port:     6379,
+		Protocol: "redis",
+		Metadata: map[string]interface{}{
+			"auth_required": false,
+		},
+	}
+	assert.True(t, nrv.HasNoAuth(), "auth_required=false in metadata should indicate no auth")
+}
+
+func TestHasNoAuth_MetadataAuthRequiredTrue(t *testing.T) {
+	nrv := NervaResult{
+		IP:       "10.0.0.1",
+		Port:     6379,
+		Protocol: "redis",
+		Metadata: map[string]interface{}{
+			"auth_required": true,
+		},
+	}
+	assert.False(t, nrv.HasNoAuth(), "auth_required=true should NOT indicate no auth")
+}
+
+func TestHasNoAuth_NoAuthFields(t *testing.T) {
+	nrv := NervaResult{
+		IP:       "10.0.0.1",
+		Port:     22,
+		Protocol: "ssh",
+	}
+	assert.False(t, nrv.HasNoAuth(), "no auth fields should return false")
+}
+
+func TestHasNoAuth_EmptyMetadata(t *testing.T) {
+	nrv := NervaResult{
+		IP:       "10.0.0.1",
+		Port:     22,
+		Protocol: "ssh",
+		Metadata: map[string]interface{}{},
+	}
+	assert.False(t, nrv.HasNoAuth())
+}
+
+func TestHasNoAuth_MetadataAuthRequiredNonBool(t *testing.T) {
+	// Guard against malformed metadata where auth_required is a string instead of bool
+	nrv := NervaResult{
+		IP:       "10.0.0.1",
+		Port:     6379,
+		Protocol: "redis",
+		Metadata: map[string]interface{}{
+			"auth_required": "false", // string, not bool
+		},
+	}
+	assert.False(t, nrv.HasNoAuth(), "non-bool auth_required should not match")
+}
+
+// Test JSON stdin parsing preserves auth detection fields
+func TestClassifyStdinLine_JSON_AnonymousAccess(t *testing.T) {
+	line := `{"ip":"10.0.0.1","port":6379,"protocol":"redis","anonymous_access":true}`
+	parsed, err := ClassifyStdinLine(line)
+	require.NoError(t, err)
+	assert.Equal(t, StdinLineJSON, parsed.Type)
+	assert.True(t, parsed.NervaResult.AnonymousAccess)
+	assert.True(t, parsed.NervaResult.HasNoAuth())
+}
+
+func TestClassifyStdinLine_JSON_MetadataAuthRequired(t *testing.T) {
+	// Nerva Redis output: auth_required in metadata, no top-level anonymous_access
+	line := `{"ip":"10.0.0.1","port":6379,"protocol":"redis","metadata":{"auth_required":false}}`
+	parsed, err := ClassifyStdinLine(line)
+	require.NoError(t, err)
+	assert.Equal(t, StdinLineJSON, parsed.Type)
+	assert.False(t, parsed.NervaResult.AnonymousAccess, "top-level field should not be set")
+	assert.True(t, parsed.NervaResult.HasNoAuth(), "HasNoAuth should check metadata fallback")
+}
+
+func TestClassifyStdinLine_JSON_AuthRequired(t *testing.T) {
+	// Service that requires auth — HasNoAuth should be false
+	line := `{"ip":"10.0.0.1","port":6379,"protocol":"redis","metadata":{"auth_required":true}}`
+	parsed, err := ClassifyStdinLine(line)
+	require.NoError(t, err)
+	assert.False(t, parsed.NervaResult.HasNoAuth())
+}
+
+func TestClassifyStdinLine_JSON_NoAuthMetadata(t *testing.T) {
+	// Normal service with no auth metadata — HasNoAuth should be false
+	line := `{"ip":"10.0.0.1","port":22,"protocol":"ssh"}`
+	parsed, err := ClassifyStdinLine(line)
+	require.NoError(t, err)
+	assert.False(t, parsed.NervaResult.HasNoAuth())
+}
+
+// Test ServiceToNervaResult propagates anonymous access from library
+func TestServiceToNervaResult_AnonymousAccess(t *testing.T) {
+	svc := nervaplugins.Service{
+		IP:              "10.0.0.1",
+		Port:            6379,
+		Protocol:        "redis",
+		AnonymousAccess: true,
+	}
+	nrv := ServiceToNervaResult(&svc)
+	assert.True(t, nrv.AnonymousAccess)
+	assert.True(t, nrv.HasNoAuth())
+}
+
+func TestServiceToNervaResult_AuthRequiredFalseInMetadata(t *testing.T) {
+	// Simulates Redis plugin setting auth_required=false in metadata
+	raw, _ := json.Marshal(map[string]interface{}{
+		"auth_required": false,
+	})
+	svc := nervaplugins.Service{
+		IP:       "10.0.0.1",
+		Port:     6379,
+		Protocol: "redis",
+		Raw:      raw,
+	}
+	nrv := ServiceToNervaResult(&svc)
+	assert.True(t, nrv.AnonymousAccess, "auth_required=false in metadata should set AnonymousAccess")
+	assert.True(t, nrv.HasNoAuth())
+}
+
+func TestServiceToNervaResult_AuthRequiredTrueInMetadata(t *testing.T) {
+	raw, _ := json.Marshal(map[string]interface{}{
+		"auth_required": true,
+	})
+	svc := nervaplugins.Service{
+		IP:       "10.0.0.1",
+		Port:     6379,
+		Protocol: "redis",
+		Raw:      raw,
+	}
+	nrv := ServiceToNervaResult(&svc)
+	assert.False(t, nrv.AnonymousAccess)
+	assert.False(t, nrv.HasNoAuth())
+}
+
+func TestServiceToNervaResult_NoAuthMetadata(t *testing.T) {
+	svc := nervaplugins.Service{
+		IP:       "10.0.0.1",
+		Port:     22,
+		Protocol: "ssh",
+	}
+	nrv := ServiceToNervaResult(&svc)
+	assert.False(t, nrv.AnonymousAccess)
+	assert.False(t, nrv.HasNoAuth())
+}
+
+func TestMapServiceToProtocol_UnauthProtocols(t *testing.T) {
+	tests := []struct {
+		service  string
+		expected string
+	}{
+		{"docker", "docker"},
+		{"kubernetes", "kubernetes"},
+		{"k8s", "kubernetes"},
+		{"kubelet", "kubernetes"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.service, func(t *testing.T) {
+			assert.Equal(t, tt.expected, MapServiceToProtocol(tt.service))
+		})
+	}
+}

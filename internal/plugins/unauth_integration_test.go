@@ -147,7 +147,8 @@ func TestUnauth_NegativeControl(t *testing.T) {
 	t.Run("PostgreSQL", func(t *testing.T) {
 		plug, err := brutus.GetPlugin("postgresql")
 		require.NoError(t, err)
-		checker := plug.(brutus.UnauthChecker)
+		checker, ok := plug.(brutus.UnauthChecker)
+		require.True(t, ok, "postgresql plugin must implement UnauthChecker")
 		result := checker.CheckUnauth(ctx, "127.0.0.1:1", timeout, brutus.PluginConfig{})
 		require.NotNil(t, result)
 		assert.False(t, result.Success, "should not detect unauth on closed port")
@@ -157,7 +158,8 @@ func TestUnauth_NegativeControl(t *testing.T) {
 	t.Run("Redis", func(t *testing.T) {
 		plug, err := brutus.GetPlugin("redis")
 		require.NoError(t, err)
-		checker := plug.(brutus.UnauthChecker)
+		checker, ok := plug.(brutus.UnauthChecker)
+		require.True(t, ok, "redis plugin must implement UnauthChecker")
 		result := checker.CheckUnauth(ctx, "127.0.0.1:1", timeout, brutus.PluginConfig{})
 		require.NotNil(t, result)
 		assert.False(t, result.Success, "should not detect unauth on closed port")
@@ -167,7 +169,8 @@ func TestUnauth_NegativeControl(t *testing.T) {
 	t.Run("Elasticsearch", func(t *testing.T) {
 		plug, err := brutus.GetPlugin("elasticsearch")
 		require.NoError(t, err)
-		checker := plug.(brutus.UnauthChecker)
+		checker, ok := plug.(brutus.UnauthChecker)
+		require.True(t, ok, "elasticsearch plugin must implement UnauthChecker")
 		result := checker.CheckUnauth(ctx, "127.0.0.1:1", timeout, brutus.PluginConfig{})
 		require.NotNil(t, result)
 		assert.False(t, result.Success, "should not detect unauth on closed port")

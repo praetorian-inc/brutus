@@ -32,7 +32,7 @@ jobs:
 
       # Redis without requirepass (open access)
       redis-noauth:
-        image: redis:latest
+        image: redis:7.2
         ports:
           - 6379:6379
         options: >-
@@ -73,6 +73,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -84,16 +86,16 @@ jobs:
           echo "Waiting for services to be ready..."
 
           echo "Waiting for PostgreSQL (trust auth)..."
-          timeout 60 bash -c 'until nc -z localhost 5432; do sleep 1; done' || true
+          timeout 60 bash -c 'until nc -z localhost 5432; do sleep 1; done'
 
           echo "Waiting for Redis (no auth)..."
-          timeout 60 bash -c 'until nc -z localhost 6379; do sleep 1; done' || true
+          timeout 60 bash -c 'until nc -z localhost 6379; do sleep 1; done'
 
           echo "Waiting for Elasticsearch (no security)..."
-          timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health > /dev/null; do sleep 2; done' || true
+          timeout 120 bash -c 'until curl -sf http://localhost:9200/_cluster/health > /dev/null; do sleep 2; done'
 
           echo "Waiting for Docker-in-Docker..."
-          timeout 60 bash -c 'until curl -sf http://localhost:2375/version > /dev/null; do sleep 1; done' || true
+          timeout 60 bash -c 'until curl -sf http://localhost:2375/version > /dev/null; do sleep 1; done'
 
           echo "All services should be ready"
 

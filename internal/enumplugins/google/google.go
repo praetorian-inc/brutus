@@ -27,12 +27,18 @@ import (
 
 func init() {
 	enum.Register("google", func() enum.Plugin {
-		return &Plugin{}
+		return &Plugin{
+			accountChooserBaseURL: "https://accounts.google.com",
+			gxluBaseURL:           "https://mail.google.com",
+		}
 	})
 }
 
 // Plugin checks Google Workspace account existence using AccountChooser SSO and GXLU.
-type Plugin struct{}
+type Plugin struct {
+	accountChooserBaseURL string // base URL for AccountChooser (overridable for testing)
+	gxluBaseURL           string // base URL for GXLU (overridable for testing)
+}
 
 func (p *Plugin) Name() string { return "google" }
 
@@ -44,7 +50,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	}
 
 	// Try AccountChooser SSO redirect (primary — detects Workspace accounts with SSO)
-	exists, err := checkAccountChooser(ctx, email, timeout)
+	exists, err := p.checkAccountChooser(ctx, email, timeout)
 	if err == nil && exists {
 		result.Exists = true
 		result.Confidence = enum.ConfidenceHigh
@@ -53,7 +59,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	}
 
 	// Try GXLU (detects Gmail-enabled accounts)
-	exists, err = checkGXLU(ctx, email, timeout)
+	exists, err = p.checkGXLU(ctx, email, timeout)
 	if err == nil && exists {
 		result.Exists = true
 		result.Confidence = enum.ConfidenceHigh
@@ -71,8 +77,8 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 // checkAccountChooser checks if Google redirects to a SAML IdP for this email.
 // SSO-configured domains redirect valid accounts to their IdP; invalid accounts
 // redirect back to accounts.google.com/ServiceLogin.
-func checkAccountChooser(ctx context.Context, email string, timeout time.Duration) (bool, error) {
-	u := "https://accounts.google.com/AccountChooser?Email=" + email + "&continue=https://mail.google.com/mail/"
+func (p *Plugin) checkAccountChooser(ctx context.Context, email string, timeout time.Duration) (bool, error) {
+	u := p.accountChooserBaseURL + "/AccountChooser?Email=" + email + "&continue=https://mail.google.com/mail/"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return false, fmt.Errorf("creating AccountChooser request: %w", err)
@@ -107,8 +113,8 @@ func checkAccountChooser(ctx context.Context, email string, timeout time.Duratio
 // checkGXLU checks if an email has a Gmail-enabled Google account.
 // GET https://mail.google.com/mail/gxlu?email=USER@DOMAIN
 // If response contains GMAIL_AT cookie → account exists.
-func checkGXLU(ctx context.Context, email string, timeout time.Duration) (bool, error) {
-	url := "https://mail.google.com/mail/gxlu?email=" + email
+func (p *Plugin) checkGXLU(ctx context.Context, email string, timeout time.Duration) (bool, error) {
+	url := p.gxluBaseURL + "/mail/gxlu?email=" + email
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return false, fmt.Errorf("creating GXLU request: %w", err)

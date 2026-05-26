@@ -1,0 +1,53 @@
+name: Account Enumeration Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pkg/enum/**'
+      - 'internal/enumplugins/**'
+      - 'cmd/brutus/cmd_enum*.go'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'pkg/enum/**'
+      - 'internal/enumplugins/**'
+      - 'cmd/brutus/cmd_enum*.go'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: '1.25.0'
+
+jobs:
+  enum-tests:
+    name: Enumeration Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run Kerberos enumeration tests
+        run: go test -race -v -count=1 -timeout 2m ./pkg/enum/kerberos/...
+
+      - name: Run Google plugin tests
+        run: go test -race -v -count=1 -timeout 2m ./internal/enumplugins/google/...
+
+      - name: Run Microsoft 365 plugin tests
+        run: go test -race -v -count=1 -timeout 2m ./internal/enumplugins/microsoft365/...
+
+      - name: Run cmd enum tests
+        run: go test -race -v -count=1 -timeout 2m -run TestEnum ./cmd/brutus/...

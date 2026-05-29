@@ -66,16 +66,25 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Create options for dialing with context
-	options := &imapclient.Options{
-		// Use the context from the cancel function
-	}
+	// Create options
+	options := &imapclient.Options{}
 
-	// Dial IMAP server
-	client, err := imapclient.DialInsecure(addr, options)
-	if err != nil {
-		result.Error = classifyError(err)
-		return result
+	// Dial IMAP server (proxy-aware)
+	var client *imapclient.Client
+	if pluginCfg.ProxyURL != "" {
+		conn, dialErr := brutus.DialWithProxy(dialCtx, "tcp", addr, timeout, pluginCfg.ProxyURL)
+		if dialErr != nil {
+			result.Error = classifyError(dialErr)
+			return result
+		}
+		client = imapclient.New(conn, options)
+	} else {
+		var dialErr error
+		client, dialErr = imapclient.DialInsecure(addr, options)
+		if dialErr != nil {
+			result.Error = classifyError(dialErr)
+			return result
+		}
 	}
 	defer func() { _ = client.Close() }()
 
@@ -91,7 +100,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Attempt LOGIN authentication
 	loginCmd := client.Login(username, password)
-	err = loginCmd.Wait()
+	err := loginCmd.Wait()
 
 	// Check if context was canceled during login
 	if loginCtx.Err() != nil {

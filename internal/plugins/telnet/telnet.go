@@ -63,7 +63,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer func() { result.Duration = time.Since(start) }()
 
 	// Connect with context-aware timeout
-	conn, err := brutus.DialWithContext(ctx, "tcp", target, timeout)
+	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result

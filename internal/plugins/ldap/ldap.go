@@ -81,7 +81,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Configure TLS based on mode
 	// Note: For LDAP, even "disable" needs TLS config for LDAPS (port 636)
-	dialer := &net.Dialer{Timeout: timeout}
 	var tlsConfig *tls.Config
 	switch tlsMode {
 	case "verify":
@@ -93,7 +92,45 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			InsecureSkipVerify: true,
 		}
 	}
-	conn, err := ldap.DialURL(ldapURL, ldap.DialWithDialer(dialer), ldap.DialWithTLSConfig(tlsConfig))
+
+	// Build dial options: use proxy-aware dialer when configured, else standard dialer.
+	dialOpts := []ldap.DialOpt{ldap.DialWithTLSConfig(tlsConfig)}
+	if pluginCfg.ProxyURL != "" {
+		dialFunc, dialErr := brutus.NewProxyDialFunc(pluginCfg.ProxyURL, timeout)
+		if dialErr != nil {
+			result.Error = brutus.WrapConnError(dialErr)
+			return result
+		}
+		// Wrap ProxyDialFunc into a net.Dialer-compatible interface via DialWithDialer
+		// go-ldap's DialWithDialer expects *net.Dialer, so we use a custom dial opt
+		// that sets a DialContext on the transport.
+		dialer := &net.Dialer{Timeout: timeout}
+		dialOpts = append(dialOpts, ldap.DialWithDialer(dialer))
+		// Override: use raw TCP dial through proxy
+		conn, rawErr := dialFunc(ctx, "tcp", net.JoinHostPort(host, port))
+		if rawErr != nil {
+			result.Error = brutus.WrapConnError(rawErr)
+			return result
+		}
+		// Wrap the raw connection into an LDAP connection
+		ldapConn := ldap.NewConn(conn, port == "636")
+		ldapConn.Start()
+		defer func() { _ = ldapConn.Close() }()
+
+		ldapConn.SetTimeout(timeout)
+
+		bindErr := ldapConn.Bind(username, password)
+		if bindErr == nil {
+			result.Success = true
+			return result
+		}
+		result.Error = classifyError(bindErr)
+		return result
+	}
+
+	dialer := &net.Dialer{Timeout: timeout}
+	dialOpts = append(dialOpts, ldap.DialWithDialer(dialer))
+	conn, err := ldap.DialURL(ldapURL, dialOpts...)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result

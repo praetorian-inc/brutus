@@ -93,10 +93,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read TLS mode from context
 	tlsMode := pluginCfg.TLSMode
 
-	// Helper to create HTTP clients with consistent config
+	// Helper to create HTTP clients with consistent config (proxy-aware)
 	tlsCfg := brutus.BuildTLSConfig(tlsMode)
 	newClient := func() *http.Client {
-		c := brutus.NewHTTPClient(timeout, tlsCfg)
+		c := brutus.NewHTTPClientWithProxy(timeout, tlsCfg, pluginCfg.ProxyURL)
 		// Don't follow redirects - we want to see the auth response
 		c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse

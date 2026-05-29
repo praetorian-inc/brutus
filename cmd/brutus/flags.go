@@ -72,6 +72,9 @@ var (
 // TLS flags
 var flagVerifyTLS bool
 
+// Proxy flags
+var flagProxy string
+
 // Mode flag (global)
 var flagMode string
 
@@ -123,6 +126,9 @@ func registerSharedFlags(cmd *cobra.Command) {
 
 	// Mode
 	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, exhaustive")
+
+	// Proxy
+	pf.StringVar(&flagProxy, "proxy", "", "SOCKS5 proxy URL (e.g., socks5://127.0.0.1:1080 or socks5://user:pass@host:port)")
 
 	// Output
 	pf.BoolVar(&flagJSON, "json", false, "JSON output format")
@@ -242,6 +248,7 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 		mode:             flagMode,
 		anthropicKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		perplexityKey:    os.Getenv("PERPLEXITY_API_KEY"),
+		proxyURL:         flagProxy,
 	}
 }
 

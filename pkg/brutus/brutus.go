@@ -78,6 +78,7 @@ type PluginConfig struct {
 	TLSMode      string // "disable", "verify", "skip-verify" (default: "disable")
 	NoVision     bool   // disable Vision API for screenshot analysis (RDP)
 	NoStickyKeys bool   // disable sticky keys backdoor detection (RDP)
+	ProxyURL     string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
 }
 
 // Credential represents a pre-paired username with password or key.
@@ -114,6 +115,7 @@ type Config struct {
 	AIMode          bool          // enable Vision API for screenshot analysis (RDP)
 	SkipUnauthCheck bool          // skip CheckUnauth probe (when Nerva already detected it)
 	Mode            Mode          // aggressiveness tier for wordlist depth (default: ModeDefault)
+	ProxyURL        string        // SOCKS5 proxy URL for all connections (e.g., "socks5://127.0.0.1:1080")
 }
 
 // Result contains the outcome of testing a single credential.
@@ -251,6 +253,12 @@ type PluginFactory func() Plugin
 func (c *Config) applyDefaults() {
 	if !c.UseDefaults {
 		return
+	}
+
+	// Normalize mode (empty string → ModeDefault for backward compat).
+	mode := c.Mode
+	if mode == "" {
+		mode = ModeDefault
 	}
 
 	hasCreds := len(c.Credentials) > 0

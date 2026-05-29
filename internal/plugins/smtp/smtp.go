@@ -61,8 +61,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("smtp", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Connect with timeout
-	conn, err := net.DialTimeout("tcp", target, timeout)
+	// Connect with timeout (proxy-aware)
+	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result

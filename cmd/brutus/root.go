@@ -26,7 +26,7 @@ import (
 )
 
 // errNoSubcommand is returned when the root command is invoked without a subcommand.
-var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, snmp, badkeys, logon)")
+var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, snmp, badkeys, logon, enum)")
 
 var rootCmd = &cobra.Command{
 	Use:   "brutus",
@@ -40,6 +40,7 @@ Subcommands:
   snmp     Test SNMP community strings against targets
   badkeys  Test known weak/compromised SSH keys against targets
   logon    Detect Windows logon-screen backdoors (sticky keys, utilman)
+  enum     Enumerate email accounts against SaaS services (M365, Google, etc.)
 
 All subcommands accept targets via stdin (one per line, formats can be mixed):
   Nerva JSON:  {"ip":"10.0.0.1","port":22,"protocol":"ssh"}
@@ -58,11 +59,20 @@ func init() {
 	registerSharedFlags(rootCmd)
 	registerRootFlags(rootCmd)
 
+	// Validate shared flags before any subcommand runs.
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if !brutus.ValidMode(flagMode) {
+			return fmt.Errorf("invalid --mode %q (valid: cautious, default, exhaustive)", flagMode)
+		}
+		return nil
+	}
+
 	rootCmd.AddCommand(credsCmd)
 	rootCmd.AddCommand(webCmd)
 	rootCmd.AddCommand(snmpCmd)
 	rootCmd.AddCommand(badkeysCmd)
 	rootCmd.AddCommand(logonCmd)
+	rootCmd.AddCommand(enumCmd)
 }
 
 // runRoot handles the root command (no subcommand). It only supports --version;

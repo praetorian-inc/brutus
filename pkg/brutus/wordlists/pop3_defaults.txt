@@ -3,7 +3,14 @@
 admin@localhost:admin
 admin@localhost:password
 user@localhost:password
+# --- cautious ---
 test@localhost:test
 postmaster@localhost:password
 root@localhost:root
 webmaster@localhost:password
+# --- exhaustive ---
+admin@localhost:changeme
+mail@localhost:mail
+pop3@localhost:pop3
+user@localhost:user
+admin@localhost:admin123

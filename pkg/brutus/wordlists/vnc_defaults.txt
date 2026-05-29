@@ -4,8 +4,16 @@
 :
 :password
 :123456
+# --- cautious ---
 :admin
 :vnc
 :Password1
 :raspberry
 :12345678
+# --- exhaustive ---
+:secret
+:changeme
+:1234
+:vncpass
+:qwerty
+:00000000

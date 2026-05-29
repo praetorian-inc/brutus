@@ -3,7 +3,14 @@
 anonymous:
 anonymous:anonymous
 ftp:ftp
+# --- cautious ---
 admin:admin
 root:root
 user:user
 ftpuser:ftpuser
+# --- exhaustive ---
+ftp:password
+anonymous:ftp
+test:test
+upload:upload
+backup:backup

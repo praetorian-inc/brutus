@@ -2,8 +2,16 @@
 # Format: username:password (plugin tries simple username first, then constructs DN)
 admin:admin
 admin:password
-administrator:administrator
 cn=admin:admin
+# --- cautious ---
+administrator:administrator
 cn=admin:password
 ldapadmin:ldapadmin
 root:root
+# --- exhaustive ---
+cn=Manager:secret
+cn=admin:changeme
+ldap:ldap
+admin:ldap
+cn=root:password
+directory:directory

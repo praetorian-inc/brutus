@@ -2,7 +2,14 @@
 # Format: username:password
 admin:admin
 admin:password
-administrator:administrator
 root:root
+# --- cautious ---
+administrator:administrator
 couchdb:couchdb
 admin:couchdb
+# --- exhaustive ---
+couchdb:password
+admin:changeme
+couchdb:admin
+admin:couch
+couchdb:couchdb123

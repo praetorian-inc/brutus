@@ -3,8 +3,15 @@
 root:
 root:root
 root:password
+# --- cautious ---
 root:toor
 root:mysql
 root:admin
 mysql:mysql
 admin:admin
+# --- exhaustive ---
+root:mysql123
+dbadmin:dbadmin
+mysql:password
+root:123456
+mysql:admin

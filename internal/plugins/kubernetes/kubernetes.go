@@ -54,7 +54,10 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 	if tlsMode == "" {
 		tlsMode = "skip-verify"
 	}
-	client := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
+	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
+	if err != nil {
+		return result
+	}
 	scheme := brutus.SchemeFromTLSMode(tlsMode)
 
 	// For kubelet (port 10250), check the /pods endpoint directly

@@ -70,7 +70,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	req.SetBasicAuth(username, password)
 
 	// Create HTTP client with TLS config (proxy-aware)
-	client := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
+	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
 
 	// Execute request
 	resp, err := client.Do(req)
@@ -116,7 +120,10 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	}
 	// Intentionally no Basic Auth header
 
-	client := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(pluginCfg.TLSMode), pluginCfg.ProxyURL)
+	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(pluginCfg.TLSMode), pluginCfg.ProxyURL)
+	if err != nil {
+		return result
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return result

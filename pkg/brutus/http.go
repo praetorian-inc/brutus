@@ -26,28 +26,32 @@ import (
 // NewHTTPClient creates an *http.Client with the given timeout and TLS config.
 // This is a shared helper for plugins that make HTTP requests (elasticsearch, couchdb, influxdb, http).
 func NewHTTPClient(timeout time.Duration, tlsConfig *tls.Config) *http.Client {
-	return NewHTTPClientWithProxy(timeout, tlsConfig, "")
+	// Empty proxy never errors.
+	client, _ := NewHTTPClientWithProxy(timeout, tlsConfig, "")
+	return client
 }
 
 // NewHTTPClientWithProxy creates an *http.Client that routes requests through a
-// SOCKS5 proxy when proxyURL is non-empty. Falls back to a direct connection when
-// no proxy is configured.
-func NewHTTPClientWithProxy(timeout time.Duration, tlsConfig *tls.Config, proxyURL string) *http.Client {
+// SOCKS5 proxy when proxyURL is non-empty. Returns an error if the proxy URL is
+// invalid or uses an unsupported scheme, rather than silently falling back to a
+// direct connection.
+func NewHTTPClientWithProxy(timeout time.Duration, tlsConfig *tls.Config, proxyURL string) (*http.Client, error) {
 	transport := &http.Transport{
 		TLSClientConfig: tlsConfig,
 	}
 
 	if proxyURL != "" {
 		dialFunc, err := NewProxyDialFunc(proxyURL, timeout)
-		if err == nil && dialFunc != nil {
-			transport.DialContext = dialFunc
+		if err != nil {
+			return nil, fmt.Errorf("configuring proxy: %w", err)
 		}
+		transport.DialContext = dialFunc
 	}
 
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: transport,
-	}
+	}, nil
 }
 
 // SchemeFromTLSMode returns "https" if TLS is enabled, "http" otherwise.

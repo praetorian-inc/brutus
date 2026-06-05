@@ -94,26 +94,33 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Build dial options: use proxy-aware dialer when configured, else standard dialer.
-	dialOpts := []ldap.DialOpt{ldap.DialWithTLSConfig(tlsConfig)}
 	if pluginCfg.ProxyURL != "" {
 		dialFunc, dialErr := brutus.NewProxyDialFunc(pluginCfg.ProxyURL, timeout)
 		if dialErr != nil {
 			result.Error = brutus.WrapConnError(dialErr)
 			return result
 		}
-		// Wrap ProxyDialFunc into a net.Dialer-compatible interface via DialWithDialer
-		// go-ldap's DialWithDialer expects *net.Dialer, so we use a custom dial opt
-		// that sets a DialContext on the transport.
-		dialer := &net.Dialer{Timeout: timeout}
-		dialOpts = append(dialOpts, ldap.DialWithDialer(dialer))
-		// Override: use raw TCP dial through proxy
+		// Dial raw TCP through the SOCKS5 proxy.
 		conn, rawErr := dialFunc(ctx, "tcp", net.JoinHostPort(host, port))
 		if rawErr != nil {
 			result.Error = brutus.WrapConnError(rawErr)
 			return result
 		}
-		// Wrap the raw connection into an LDAP connection
-		ldapConn := ldap.NewConn(conn, port == "636")
+		// LDAPS (port 636) requires an explicit TLS handshake;
+		// ldap.NewConn only records the isTLS flag, it does not handshake.
+		isTLS := port == "636"
+		if isTLS {
+			tlsConfig.ServerName = host
+			tlsConn := tls.Client(conn, tlsConfig)
+			if hsErr := tlsConn.HandshakeContext(ctx); hsErr != nil {
+				_ = conn.Close()
+				result.Error = brutus.WrapConnError(hsErr)
+				return result
+			}
+			conn = tlsConn
+		}
+		// Wrap the connection into an LDAP connection
+		ldapConn := ldap.NewConn(conn, isTLS)
 		ldapConn.Start()
 		defer func() { _ = ldapConn.Close() }()
 
@@ -128,6 +135,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
+	dialOpts := []ldap.DialOpt{ldap.DialWithTLSConfig(tlsConfig)}
 	dialer := &net.Dialer{Timeout: timeout}
 	dialOpts = append(dialOpts, ldap.DialWithDialer(dialer))
 	conn, err := ldap.DialURL(ldapURL, dialOpts...)

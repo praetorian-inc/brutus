@@ -82,7 +82,10 @@ func TestDialWithProxy_UnreachableProxy(t *testing.T) {
 }
 
 func TestNewHTTPClientWithProxy_EmptyProxy(t *testing.T) {
-	client := NewHTTPClientWithProxy(5*time.Second, nil, "")
+	client, err := NewHTTPClientWithProxy(5*time.Second, nil, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if client == nil {
 		t.Fatal("expected non-nil client")
 	}
@@ -92,15 +95,18 @@ func TestNewHTTPClientWithProxy_EmptyProxy(t *testing.T) {
 }
 
 func TestNewHTTPClientWithProxy_InvalidProxy(t *testing.T) {
-	// Invalid proxy is silently ignored — client should still be returned.
-	client := NewHTTPClientWithProxy(5*time.Second, nil, "http://bad:1080")
-	if client == nil {
-		t.Fatal("expected non-nil client even with invalid proxy")
+	// Invalid proxy should return an error instead of silently falling back.
+	_, err := NewHTTPClientWithProxy(5*time.Second, nil, "http://bad:1080")
+	if err == nil {
+		t.Fatal("expected error for invalid proxy scheme")
 	}
 }
 
 func TestNewHTTPClientWithProxy_ValidSOCKS5(t *testing.T) {
-	client := NewHTTPClientWithProxy(5*time.Second, nil, "socks5://127.0.0.1:1080")
+	client, err := NewHTTPClientWithProxy(5*time.Second, nil, "socks5://127.0.0.1:1080")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if client == nil {
 		t.Fatal("expected non-nil client")
 	}

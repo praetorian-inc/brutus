@@ -95,13 +95,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Helper to create HTTP clients with consistent config (proxy-aware)
 	tlsCfg := brutus.BuildTLSConfig(tlsMode)
-	newClient := func() *http.Client {
-		c := brutus.NewHTTPClientWithProxy(timeout, tlsCfg, pluginCfg.ProxyURL)
+	newClient := func() (*http.Client, error) {
+		c, err := brutus.NewHTTPClientWithProxy(timeout, tlsCfg, pluginCfg.ProxyURL)
+		if err != nil {
+			return nil, err
+		}
 		// Don't follow redirects - we want to see the auth response
 		c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
-		return c
+		return c, nil
 	}
 
 	// Probe once to verify the server actually requires Basic Auth.
@@ -116,7 +119,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	client := newClient()
+	client, err := newClient()
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
 	defer client.CloseIdleConnections()
 
 	// Create request
@@ -168,8 +175,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 // isOpenAccess makes an unauthenticated request to check whether the server
 // returns a 2xx response without credentials. If so, the server does not
 // require Basic Auth and any authenticated response would be a false positive.
-func (p *Plugin) isOpenAccess(ctx context.Context, url string, newClient func() *http.Client) bool {
-	client := newClient()
+func (p *Plugin) isOpenAccess(ctx context.Context, url string, newClient func() (*http.Client, error)) bool {
+	client, err := newClient()
+	if err != nil {
+		return false
+	}
 	defer client.CloseIdleConnections()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)

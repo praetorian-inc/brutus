@@ -71,7 +71,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	req.SetBasicAuth(username, password)
 
 	// Create HTTP client with TLS config
-	client := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
+	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
 
 	// Send HTTP request
 	resp, err := client.Do(req)

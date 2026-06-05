@@ -21,7 +21,7 @@ require (
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
-	github.com/tetratelabs/wazero v1.11.0
+	github.com/tetratelabs/wazero v1.12.0
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.51.0
 	golang.org/x/sync v0.20.0

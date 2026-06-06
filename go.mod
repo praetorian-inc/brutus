@@ -16,7 +16,7 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6
-	github.com/praetorian-inc/nerva v1.4.0
+	github.com/praetorian-inc/nerva v1.11.2
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/spf13/cobra v1.10.2

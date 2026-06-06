@@ -21,6 +21,7 @@ import (
 
 	// Import plugins and analyzers to register them
 	_ "github.com/praetorian-inc/brutus/internal/analyzers"
+	_ "github.com/praetorian-inc/brutus/internal/enumplugins"
 	_ "github.com/praetorian-inc/brutus/internal/plugins"
 )
 

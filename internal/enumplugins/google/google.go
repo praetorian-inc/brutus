@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -78,7 +79,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 // SSO-configured domains redirect valid accounts to their IdP; invalid accounts
 // redirect back to accounts.google.com/ServiceLogin.
 func (p *Plugin) checkAccountChooser(ctx context.Context, email string, timeout time.Duration) (bool, error) {
-	u := p.accountChooserBaseURL + "/AccountChooser?Email=" + email + "&continue=https://mail.google.com/mail/"
+	u := p.accountChooserBaseURL + "/AccountChooser?Email=" + url.QueryEscape(email) + "&continue=https://mail.google.com/mail/"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return false, fmt.Errorf("creating AccountChooser request: %w", err)
@@ -94,7 +95,7 @@ func (p *Plugin) checkAccountChooser(ctx context.Context, email string, timeout 
 	if err != nil {
 		return false, fmt.Errorf("AccountChooser request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check for SAML redirect header — present only for valid accounts on SSO domains
 	if resp.Header.Get("Google-Accounts-SAML") != "" {
@@ -114,8 +115,8 @@ func (p *Plugin) checkAccountChooser(ctx context.Context, email string, timeout 
 // GET https://mail.google.com/mail/gxlu?email=USER@DOMAIN
 // If response contains GMAIL_AT cookie → account exists.
 func (p *Plugin) checkGXLU(ctx context.Context, email string, timeout time.Duration) (bool, error) {
-	url := p.gxluBaseURL + "/mail/gxlu?email=" + email
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	gxluURL := p.gxluBaseURL + "/mail/gxlu?email=" + url.QueryEscape(email)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gxluURL, nil)
 	if err != nil {
 		return false, fmt.Errorf("creating GXLU request: %w", err)
 	}
@@ -125,7 +126,7 @@ func (p *Plugin) checkGXLU(ctx context.Context, email string, timeout time.Durat
 	if err != nil {
 		return false, fmt.Errorf("GXLU request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check for GMAIL_AT cookie — its presence indicates the account exists
 	for _, cookie := range resp.Cookies() {
@@ -135,11 +136,4 @@ func (p *Plugin) checkGXLU(ctx context.Context, email string, timeout time.Durat
 	}
 
 	return false, nil
-}
-
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
 }

@@ -173,8 +173,9 @@ func buildASReq(username, realm string) ([]byte, error) {
 // sendKerberosTCP sends a Kerberos message over TCP and reads the response.
 // Kerberos TCP protocol uses 4-byte big-endian length prefix.
 func sendKerberosTCP(ctx context.Context, addr string, data []byte, timeout time.Duration) ([]byte, error) {
-	// Add :88 if no port specified
-	if !strings.Contains(addr, ":") {
+	// Add :88 if no port specified.
+	// net.SplitHostPort fails when there is no port, so use that to detect bare addresses.
+	if _, _, splitErr := net.SplitHostPort(addr); splitErr != nil {
 		addr = net.JoinHostPort(addr, "88")
 	}
 
@@ -184,10 +185,13 @@ func sendKerberosTCP(ctx context.Context, addr string, data []byte, timeout time
 	if err != nil {
 		return nil, fmt.Errorf("dialing KDC: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
-	// Set deadline
+	// Set deadline — use the earlier of timeout or context deadline.
 	deadline := time.Now().Add(timeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
 	if err := conn.SetDeadline(deadline); err != nil {
 		return nil, fmt.Errorf("setting deadline: %w", err)
 	}

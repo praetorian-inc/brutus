@@ -144,7 +144,7 @@ func loadGzippedWordlist(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decompressing %s: %w", path, err)
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	var lines []string
 	scanner := bufio.NewScanner(gz)

@@ -113,6 +113,7 @@ type Config struct {
 	StickyKeys      bool          // enable sticky keys backdoor detection (RDP)
 	AIMode          bool          // enable Vision API for screenshot analysis (RDP)
 	SkipUnauthCheck bool          // skip CheckUnauth probe (when Nerva already detected it)
+	Mode            Mode          // aggressiveness tier for wordlist depth (default: ModeDefault)
 }
 
 // Result contains the outcome of testing a single credential.
@@ -275,7 +276,11 @@ func (c *Config) applyDefaults() {
 
 	// Load wordlist defaults when no user-supplied credentials were provided
 	if !hasCreds && !hasPasswords && !hasKeys {
-		if defaults := DefaultCredentials(c.Protocol); len(defaults) > 0 {
+		mode := c.Mode
+		if mode == "" {
+			mode = ModeDefault
+		}
+		if defaults := DefaultCredentialsForMode(c.Protocol, mode); len(defaults) > 0 {
 			c.Credentials = append(c.Credentials, defaults...)
 		}
 	}

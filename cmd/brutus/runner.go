@@ -286,6 +286,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		MaxRetries:      base.maxRetries,
 		Verbose:         base.verbose,
 		SkipUnauthCheck: skipUnauthCheck,
+		Mode:            brutus.NormalizeMode(base.mode),
 	}
 
 	// Handle HTTP with AI-researched credentials

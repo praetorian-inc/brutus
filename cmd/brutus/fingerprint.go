@@ -181,26 +181,6 @@ func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brut
 
 		target := nrv.TargetAddr()
 
-		// If Nerva detected anonymous access, report the finding and skip
-		// credential testing — every password "works" on a service that
-		// doesn't enforce auth, so brute force results would be misleading.
-		if nrv.HasNoAuth() {
-			logVerbose(base.verbose, "Nerva detected unauthenticated access on %s (%s) — skipping credential testing", target, protocol)
-			finding := brutus.Result{
-				Protocol: protocol,
-				Target:   target,
-				Username: "(unauthenticated)",
-				Success:  true,
-				Banner:   fmt.Sprintf("[CRITICAL] %s accessible without authentication (detected by Nerva fingerprinting)", protocol),
-			}
-			allResults = append(allResults, finding)
-			hasSuccess = true
-			if !jsonOut {
-				emitSecurityFindings([]brutus.Result{finding}, base.useColor)
-			}
-			continue
-		}
-
 		// Detect HTTP auth type for web subcommand (form-based → browser protocol).
 		var aiCreds []brutus.Credential
 		if base.web != nil && (protocol == "http" || protocol == "https") {

@@ -40,7 +40,6 @@ Subcommands:
   snmp     Test SNMP community strings against targets
   badkeys  Test known weak/compromised SSH keys against targets
   logon    Detect Windows logon-screen backdoors (sticky keys, utilman)
-  enum     Enumerate email accounts against SaaS services (M365, Google, etc.)
 
 All subcommands accept targets via stdin (one per line, formats can be mixed):
   Nerva JSON:  {"ip":"10.0.0.1","port":22,"protocol":"ssh"}

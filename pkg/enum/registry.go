@@ -66,11 +66,3 @@ func ListPlugins() []string {
 	sort.Strings(names)
 	return names
 }
-
-// resetPlugins clears all registered enum plugins (for testing).
-func resetPlugins() {
-	pluginRegistryMu.Lock()
-	defer pluginRegistryMu.Unlock()
-
-	pluginRegistry = make(map[string]PluginFactory)
-}

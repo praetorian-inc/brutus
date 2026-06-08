@@ -169,9 +169,9 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 
 	// From --email-file flag
 	if flagSaasEmailFile != "" {
-		fileEmails, err := loadLinesFromFile(flagSaasEmailFile)
-		if err != nil {
-			return fmt.Errorf("loading email file: %w", err)
+		fileEmails, loadErr := loadLinesFromFile(flagSaasEmailFile)
+		if loadErr != nil {
+			return fmt.Errorf("loading email file: %w", loadErr)
 		}
 		emails = append(emails, fileEmails...)
 	}
@@ -185,9 +185,9 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "%s Generating emails with format %q for %s...\n",
 				dim(useColor, SymbolInfo), flagEnumFormat, flagEnumDomain)
 		}
-		generated, err := enum.GenerateEmails(flagEnumFormat, flagEnumDomain)
-		if err != nil {
-			return fmt.Errorf("generating emails: %w", err)
+		generated, genErr := enum.GenerateEmails(flagEnumFormat, flagEnumDomain)
+		if genErr != nil {
+			return fmt.Errorf("generating emails: %w", genErr)
 		}
 		logVerbose(flagVerbose, "Generated %d emails", len(generated))
 		emails = append(emails, generated...)

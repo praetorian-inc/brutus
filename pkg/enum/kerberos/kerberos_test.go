@@ -260,8 +260,8 @@ func TestSendKerberosTCP(t *testing.T) {
 	defer func() { _ = ln.Close() }()
 
 	go func() {
-		conn, err := ln.Accept()
-		if err != nil {
+		conn, acceptErr := ln.Accept()
+		if acceptErr != nil {
 			return
 		}
 		defer func() { _ = conn.Close() }()

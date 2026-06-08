@@ -23,9 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/praetorian-inc/brutus/pkg/enum"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
 // newMockMicrosoftServer creates an httptest.Server that simulates the

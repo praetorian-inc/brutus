@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/praetorian-inc/brutus/pkg/enum"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
 // newMockGoogleServer creates an httptest.Server that simulates Google's
@@ -151,7 +152,7 @@ func TestCheck_ContextCancelled(t *testing.T) {
 	p := &Plugin{accountChooserBaseURL: srv.URL, gxluBaseURL: srv.URL}
 	result := p.Check(ctx, "saml@example.com", 5*time.Second)
 
-	// With cancelled context, HTTP requests fail. The check functions return
+	// With canceled context, HTTP requests fail. The check functions return
 	// errors but Check() treats errors as "not confirmed" and falls through.
 	assert.False(t, result.Exists)
 }

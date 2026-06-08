@@ -71,7 +71,7 @@ var txtPrefixPatterns = []struct {
 	{"perplexity-ai-domain-verification-", "perplexity"},
 	{"anthropic-domain-verification-", "anthropic"},
 	{"elevenlabs=", "elevenlabs"},
-	{"extensis-domain-verification=", "extensis"},
+	{"extensis-domain-verification=", "extensis"}, //nolint:misspell // Extensis is a company name, not "extensions"
 	{"jamf-site-verification=", "jamf"},
 	{"gamma-domain-verification-", "gamma"},
 	{"postman-domain-verification=", "postman"},

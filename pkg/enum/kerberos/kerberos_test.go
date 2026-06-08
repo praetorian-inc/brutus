@@ -266,12 +266,12 @@ func TestSendKerberosTCP(t *testing.T) {
 		}
 		defer func() { _ = conn.Close() }()
 		lenBuf := make([]byte, 4)
-		if _, err := io.ReadFull(conn, lenBuf); err != nil {
+		if _, readErr := io.ReadFull(conn, lenBuf); readErr != nil {
 			return
 		}
 		msgLen := binary.BigEndian.Uint32(lenBuf)
 		buf := make([]byte, msgLen)
-		if _, err := io.ReadFull(conn, buf); err != nil {
+		if _, readErr := io.ReadFull(conn, buf); readErr != nil {
 			return
 		}
 		respLen := make([]byte, 4)

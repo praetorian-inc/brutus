@@ -190,8 +190,8 @@ github.com/praetorian-inc/nerva v1.11.2 h1:2OeC4xtaTQypfaXqqZCyL2Py1pW4lg55aM56q
 github.com/praetorian-inc/nerva v1.11.2/go.mod h1:FHEc0IZVvyCu8NjjErOsd7rY2e4Yo76apBeFdWpYSBE=
 github.com/projectdiscovery/wappalyzergo v0.2.17 h1:pYRBRJhR0Wuvx6O08DuicDZVltq1kbSlI5xr8nHXq/0=
 github.com/projectdiscovery/wappalyzergo v0.2.17/go.mod h1:F8X79ljvmvrG+EIxdxWS9VbdkVTsQupHYz+kXlp8O0o=
-github.com/redis/go-redis/v9 v9.19.0 h1:XPVaaPSnG6RhYf7p+rmSa9zZfeVAnWsH5h3lxthOm/k=
-github.com/redis/go-redis/v9 v9.19.0/go.mod h1:v/M13XI1PVCDcm01VtPFOADfZtHf8YW3baQf57KlIkA=
+github.com/redis/go-redis/v9 v9.20.0 h1:WnQYxLkgO2xiXTCJY0ldIiI8dNqCDlQAG+AtaH7a2a0=
+github.com/redis/go-redis/v9 v9.20.0/go.mod h1:v/M13XI1PVCDcm01VtPFOADfZtHf8YW3baQf57KlIkA=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/sijms/go-ora/v2 v2.9.0 h1:+iQbUeTeCOFMb5BsOMgUhV8KWyrv9yjKpcK4x7+MFrg=
 github.com/sijms/go-ora/v2 v2.9.0/go.mod h1:QgFInVi3ZWyqAiJwzBQA+nbKYKH77tdp1PYoCqhR2dU=

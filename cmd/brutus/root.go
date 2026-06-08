@@ -26,7 +26,7 @@ import (
 )
 
 // errNoSubcommand is returned when the root command is invoked without a subcommand.
-var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, snmp, badkeys, logon, enum)")
+var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, snmp, badkeys, logon)")
 
 var rootCmd = &cobra.Command{
 	Use:   "brutus",
@@ -61,7 +61,10 @@ func init() {
 
 	// Validate shared flags before any subcommand runs.
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if !brutus.ValidMode(flagMode) {
+		// SNMP has its own tier names (extended, full) that predate the global
+		// mode system. Skip strict validation for SNMP so legacy modes pass
+		// through to ConfigureSNMP which handles the mapping.
+		if cmd.Name() != "snmp" && !brutus.ValidMode(flagMode) {
 			return fmt.Errorf("invalid --mode %q (valid: cautious, default, exhaustive)", flagMode)
 		}
 		return nil
@@ -72,7 +75,6 @@ func init() {
 	rootCmd.AddCommand(snmpCmd)
 	rootCmd.AddCommand(badkeysCmd)
 	rootCmd.AddCommand(logonCmd)
-	rootCmd.AddCommand(enumCmd)
 }
 
 // runRoot handles the root command (no subcommand). It only supports --version;

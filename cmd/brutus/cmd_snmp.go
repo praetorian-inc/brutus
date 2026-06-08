@@ -70,9 +70,11 @@ func runSNMP(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// If no custom community strings, load from mode
+	// If no custom community strings, load from mode.
+	// Use flagMode directly since SNMP has its own legacy tier names
+	// (extended, full) that NormalizeMode would map to "default".
 	if len(passwords) == 0 {
-		passwords, err = snmpPkg.ConfigureSNMP(base.mode)
+		passwords, err = snmpPkg.ConfigureSNMP(flagMode)
 		if err != nil {
 			return err
 		}

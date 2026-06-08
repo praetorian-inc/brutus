@@ -47,7 +47,7 @@ type ModePresets struct {
 }
 
 // NormalizeMode converts a user-supplied string to a validated Mode constant.
-// Unrecognised values fall back to ModeDefault.
+// Unrecognized values fall back to ModeDefault.
 func NormalizeMode(s string) Mode {
 	switch Mode(strings.ToLower(strings.TrimSpace(s))) {
 	case ModeCautious:
@@ -59,7 +59,7 @@ func NormalizeMode(s string) Mode {
 	}
 }
 
-// ValidMode returns true if s is a recognised mode string.
+// ValidMode returns true if s is a recognized mode string.
 func ValidMode(s string) bool {
 	switch Mode(strings.ToLower(strings.TrimSpace(s))) {
 	case ModeCautious, ModeDefault, ModeExhaustive:

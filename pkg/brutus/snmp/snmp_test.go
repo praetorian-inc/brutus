@@ -69,9 +69,9 @@ func TestMapModeToSNMPTier(t *testing.T) {
 	}{
 		{"cautious", "default"},
 		{"exhaustive", "full"},
-		{"default", "default"},     // passes through
-		{"extended", "extended"},   // legacy, passes through
-		{"full", "full"},           // legacy, passes through
+		{"default", "default"},   // passes through
+		{"extended", "extended"}, // legacy, passes through
+		{"full", "full"},         // legacy, passes through
 	}
 	for _, tt := range tests {
 		if got := mapModeToSNMPTier(tt.mode); got != tt.want {

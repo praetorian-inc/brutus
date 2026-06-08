@@ -28,6 +28,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
 - **24 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
+- **Aggressiveness modes:** `--mode cautious|default|exhaustive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
 - **Go library:** Import directly into your security automation tools
@@ -528,6 +529,33 @@ naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus --badkeys-only
 | Array Networks | - | sync | vAPV/vxAG appliances |
 | Quantum DXi | - | root | Deduplication appliances |
 | Loadbalancer.org | - | root | Enterprise load balancers |
+
+---
+
+## Aggressiveness Modes
+
+The global `--mode` flag (`-m`) controls aggressiveness across all subcommands. It sets performance tuning presets that balance coverage against safety:
+
+| Mode | Threads | Timeout | Rate Limit | Jitter | Retries | Use Case |
+|------|---------|---------|------------|--------|---------|----------|
+| `cautious` | 5 | 15s | 2 req/s | 500ms | 1 | Production environments, avoid lockouts |
+| `default` | 10 | 10s | Unlimited | None | 2 | Standard testing |
+| `exhaustive` | 20 | 10s | Unlimited | None | 3 | Lab/CTF environments, maximum coverage |
+
+Mode presets are applied first, then any explicit CLI flags override them:
+
+```bash
+# Safe mode for production Active Directory (low concurrency, rate-limited)
+brutus creds --target dc.corp.local:445 --protocol smb -m cautious -U users.txt -P passwords.txt
+
+# Maximum coverage for a CTF
+brutus creds --target 10.10.10.100:22 --protocol ssh -m exhaustive -U users.txt -P rockyou.txt
+
+# Cautious mode but override threads
+brutus creds --target 192.168.1.100:22 --protocol ssh -m cautious --threads 20
+```
+
+For SNMP, the mode also controls the built-in wordlist depth (see [SNMP Community String Testing](#snmp-community-string-testing)).
 
 ---
 

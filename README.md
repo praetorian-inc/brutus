@@ -14,6 +14,7 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#pipeline-integration">Pipeline</a> •
   <a href="#supported-protocols">Protocols</a> •
+  <a href="#socks5-proxy-support">Proxy</a> •
   <a href="#library-integration">Library</a>
 </p>
 
@@ -28,6 +29,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
 - **24 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
+- **SOCKS5 proxy support:** Route all traffic through a SOCKS5 proxy with `--proxy`
 - **Aggressiveness modes:** `--mode cautious|default|exhaustive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
@@ -436,6 +438,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 |---------|:-----:|:------:|:------:|:----------:|
 | Single Binary | ❌ | ❌ | ❌ | ✅ |
 | Zero Dependencies | ❌ | ❌ | ❌ | ✅ |
+| SOCKS5 Proxy | ✅ | ❌ | ❌ | ✅ |
 | Nerva Pipeline | ❌ | ❌ | ❌ | ✅ |
 | Nmap/Masscan Import | ❌ | ❌ | ❌ | ✅ |
 | JSON Streaming | ⚠️ | ❌ | ❌ | ✅ |
@@ -556,6 +559,34 @@ brutus creds --target 192.168.1.100:22 --protocol ssh -m cautious --threads 20
 ```
 
 For SNMP, the mode also controls the built-in wordlist depth (see [SNMP Community String Testing](#snmp-community-string-testing)).
+
+---
+
+## SOCKS5 Proxy Support
+
+The `--proxy` flag routes all connections through a SOCKS5 proxy. This works across all protocols and subcommands:
+
+```bash
+# Route SSH testing through a SOCKS5 proxy
+brutus creds --target 10.0.0.100:22 --protocol ssh --proxy socks5://127.0.0.1:1080
+
+# Proxy with authentication
+brutus creds --target 10.0.0.100:3306 --protocol mysql --proxy socks5://user:pass@proxy.example.com:1080
+
+# DNS resolution on the proxy side (socks5h)
+brutus creds --target internal.corp:22 --protocol ssh --proxy socks5h://127.0.0.1:1080
+
+# Combine with pipeline input
+naabu -host 10.0.0.0/24 -p 22,3306 -silent | nerva --json | brutus creds --proxy socks5://127.0.0.1:1080
+
+# Works with all subcommands
+brutus web --target 192.168.1.1:8080 --proxy socks5://127.0.0.1:1080
+brutus snmp --target 192.168.1.1:161 --proxy socks5://127.0.0.1:1080
+```
+
+Supported schemes:
+- `socks5://` — Standard SOCKS5 proxy (client-side DNS resolution)
+- `socks5h://` — SOCKS5 with remote DNS resolution (useful when targeting internal hostnames)
 
 ---
 

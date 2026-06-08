@@ -47,8 +47,8 @@ type ModePresets struct {
 	MaxRetries  int
 }
 
-// NormalizeMode converts a user-supplied string to a validated Mode constant.
-// Unrecognized values fall back to ModeDefault.
+// NormalizeMode converts a user-supplied string to a validated [Mode] constant.
+// Unrecognized values fall back to [ModeDefault].
 func NormalizeMode(s string) Mode {
 	switch Mode(strings.ToLower(strings.TrimSpace(s))) {
 	case ModeCautious:

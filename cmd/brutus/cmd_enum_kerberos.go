@@ -236,12 +236,13 @@ func outputKerberosHuman(results []*kerberos.Result, useColor bool) {
 		var symbol, status string
 		var color string
 
-		if r.Error != nil {
+		switch {
+		case r.Error != nil:
 			symbol = SymbolError
 			status = fmt.Sprintf("ERROR     %-20s %s (%s)", r.Username, r.Error, r.Duration)
 			color = ColorRed
 			errors++
-		} else if r.Exists {
+		case r.Exists:
 			symbol = SymbolSuccess
 			if r.NoPreAuth {
 				status = fmt.Sprintf("EXISTS    %-20s (no preauth — AS-REP roastable, %s)", r.Username, r.Duration)
@@ -250,7 +251,7 @@ func outputKerberosHuman(results []*kerberos.Result, useColor bool) {
 			}
 			color = ColorGreen
 			exists++
-		} else {
+		default:
 			symbol = " "
 			status = fmt.Sprintf("NOT FOUND %-20s (%s)", r.Username, r.Duration)
 			color = ColorDim

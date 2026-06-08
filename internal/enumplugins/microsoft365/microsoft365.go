@@ -81,7 +81,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 		result.Duration = time.Since(start)
 		return result
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		result.Error = fmt.Errorf("unexpected status: %d", resp.StatusCode)

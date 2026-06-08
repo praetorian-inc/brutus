@@ -80,7 +80,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 // redirect back to accounts.google.com/ServiceLogin.
 func (p *Plugin) checkAccountChooser(ctx context.Context, email string, timeout time.Duration) (bool, error) {
 	u := p.accountChooserBaseURL + "/AccountChooser?Email=" + url.QueryEscape(email) + "&continue=https://mail.google.com/mail/"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return false, fmt.Errorf("creating AccountChooser request: %w", err)
 	}
@@ -116,7 +116,7 @@ func (p *Plugin) checkAccountChooser(ctx context.Context, email string, timeout 
 // If response contains GMAIL_AT cookie → account exists.
 func (p *Plugin) checkGXLU(ctx context.Context, email string, timeout time.Duration) (bool, error) {
 	gxluURL := p.gxluBaseURL + "/mail/gxlu?email=" + url.QueryEscape(email)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gxluURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gxluURL, http.NoBody)
 	if err != nil {
 		return false, fmt.Errorf("creating GXLU request: %w", err)
 	}

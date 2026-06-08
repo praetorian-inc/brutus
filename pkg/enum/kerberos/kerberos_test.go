@@ -56,7 +56,7 @@ func (m *mockKDC) Addr() string { return m.listener.Addr().String() }
 
 func (m *mockKDC) Close() {
 	close(m.done)
-	m.listener.Close()
+	_ = m.listener.Close()
 	m.wg.Wait()
 }
 
@@ -79,7 +79,7 @@ func (m *mockKDC) serve() {
 
 func (m *mockKDC) handleConn(conn net.Conn) {
 	defer m.wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
 
 	lenBuf := make([]byte, 4)
@@ -196,7 +196,7 @@ func TestEnumUser_Timeout(t *testing.T) {
 	t.Parallel()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	go func() {
 		for {
@@ -205,7 +205,7 @@ func TestEnumUser_Timeout(t *testing.T) {
 				return
 			}
 			go func(c net.Conn) {
-				defer c.Close()
+				defer func() { _ = c.Close() }()
 				_, _ = io.Copy(io.Discard, c)
 			}(conn)
 		}
@@ -257,14 +257,14 @@ func TestSendKerberosTCP(t *testing.T) {
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	go func() {
 		conn, err := ln.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		lenBuf := make([]byte, 4)
 		if _, err := io.ReadFull(conn, lenBuf); err != nil {
 			return

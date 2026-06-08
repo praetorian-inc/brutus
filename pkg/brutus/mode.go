@@ -20,7 +20,8 @@ import (
 )
 
 // Mode represents the aggressiveness tier for credential testing.
-// It controls wordlist depth and performance tuning presets.
+// It controls wordlist depth and performance tuning presets (threads,
+// timeout, rate limit, jitter, max attempts, and retries).
 type Mode string
 
 const (

@@ -64,7 +64,7 @@ func runFromTargetsFile(targets []string, base *runConfig, jsonOut bool) ([]brut
 			printTargetInfo(target, protocol, base, aiCreds)
 		}
 
-		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds)
+		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds, false)
 		allResults = append(allResults, results...)
 		if success {
 			hasSuccess = true
@@ -206,7 +206,7 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *runConfig, jsonOut b
 		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 	}
 
-	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, false)
 
 	if !jsonOut {
 		outputValidOnly(results, base.useColor)
@@ -244,7 +244,7 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 		printTargetInfo(target, protocol, base, aiCreds)
 	}
 
-	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, false)
 
 	if !jsonOut {
 		outputValidOnly(results, base.useColor)
@@ -263,7 +263,7 @@ func isUnauthOnlyProtocol(protocol string) bool {
 }
 
 // runSingleTarget runs brutus against a single target.
-func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential) ([]brutus.Result, bool) {
+func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential, nervaNoAuth bool) ([]brutus.Result, bool) {
 	// Unauth-only protocols: run CheckUnauthAccess directly, skip brute force
 	if isUnauthOnlyProtocol(protocol) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -296,7 +296,7 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		MaxAttempts:     base.maxAttempts,
 		MaxRetries:      base.maxRetries,
 		Verbose:         base.verbose,
-		SkipUnauthCheck: false,
+		SkipUnauthCheck: nervaNoAuth,
 		Mode:            brutus.NormalizeMode(base.mode),
 		ProxyURL:        base.proxyURL,
 	}

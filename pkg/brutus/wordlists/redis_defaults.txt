@@ -4,6 +4,13 @@
 default:
 default:redis
 default:password
+# --- cautious ---
 admin:admin
 root:root
 redis:redis
+# --- exhaustive ---
+redis:password
+redis:admin
+default:admin
+cache:cache
+redis:123456

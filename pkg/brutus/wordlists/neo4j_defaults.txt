@@ -2,6 +2,13 @@
 # Format: username:password
 neo4j:neo4j
 neo4j:password
+# --- cautious ---
 neo4j:admin
 admin:admin
 neo4j:neo4j123
+# --- exhaustive ---
+neo4j:changeme
+neo4j:graph
+admin:neo4j
+neo4j:neo
+neo4j:123456

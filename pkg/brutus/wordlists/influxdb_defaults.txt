@@ -3,5 +3,12 @@
 admin:admin
 admin:password
 root:root
+# --- cautious ---
 influxdb:influxdb
 admin:influxdb
+# --- exhaustive ---
+influxdb:password
+influx:influx
+admin:changeme
+influxdb:admin
+influxdb:123456

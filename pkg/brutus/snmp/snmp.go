@@ -27,11 +27,30 @@ func IsSNMPProtocol(protocol string) bool {
 	return protocol == "snmp"
 }
 
-// ConfigureSNMP validates the tier string and returns the corresponding community
-// strings. The caller is responsible for assigning them to config.Passwords.
-func ConfigureSNMP(tier string) ([]string, error) {
-	if !snmpplugin.ValidateTier(tier) {
-		return nil, fmt.Errorf("invalid --mode: %s (use: default, extended, full)", tier)
+// ConfigureSNMP validates the mode string and returns the corresponding community
+// strings. It accepts both the new mode names (cautious, default, exhaustive) and
+// the legacy SNMP tier names (default, extended, full).
+// The caller is responsible for assigning the result to config.Passwords.
+func ConfigureSNMP(mode string) ([]string, error) {
+	snmpTier := mapModeToSNMPTier(mode)
+	if !snmpplugin.ValidateTier(snmpTier) {
+		return nil, fmt.Errorf("invalid --mode: %s (use: cautious, default, exhaustive)", mode)
 	}
-	return snmpplugin.GetCommunityStrings(snmpplugin.Tier(tier)), nil
+	return snmpplugin.GetCommunityStrings(snmpplugin.Tier(snmpTier)), nil
+}
+
+// mapModeToSNMPTier converts the global mode names to SNMP-specific tier names.
+// The SNMP plugin has its own tier constants (default, extended, full) that
+// predate the global mode system; this mapping bridges the two.
+func mapModeToSNMPTier(mode string) string {
+	switch mode {
+	case "cautious":
+		return "default" // SNMP's smallest tier (~25 strings)
+	case "exhaustive":
+		return "full" // SNMP's largest tier (~200+ strings)
+	default:
+		// "default" passes through; legacy "extended" and "full" also pass through
+		// since the SNMP plugin's ValidateTier accepts them directly.
+		return mode
+	}
 }

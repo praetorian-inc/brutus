@@ -3,7 +3,14 @@
 sa:
 sa:sa
 sa:password
+# --- cautious ---
 sa:Password1
 sa:admin
 administrator:administrator
 admin:admin
+# --- exhaustive ---
+sa:P@ssw0rd
+sa:Admin123
+sa:sqlserver
+mssql:mssql
+sqladmin:sqladmin

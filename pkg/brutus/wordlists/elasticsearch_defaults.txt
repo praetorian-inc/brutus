@@ -3,5 +3,12 @@
 elastic:elastic
 elastic:changeme
 elastic:password
+# --- cautious ---
 admin:admin
 elasticsearch:elasticsearch
+# --- exhaustive ---
+elastic:admin
+kibana:kibana
+elastic:elastic123
+admin:elastic
+elastic:secret

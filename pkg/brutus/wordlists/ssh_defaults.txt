@@ -1,10 +1,18 @@
 # SSH Default Credentials
 # Format: username:password
-root:toor
 root:root
 root:password
+admin:admin
+# --- cautious ---
+root:toor
 root:alpine
 ubuntu:ubuntu
 pi:raspberry
-admin:admin
 vagrant:vagrant
+# --- exhaustive ---
+deploy:deploy
+ec2-user:ec2-user
+centos:centos
+git:git
+test:test
+oracle:oracle

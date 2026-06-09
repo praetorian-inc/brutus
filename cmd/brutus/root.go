@@ -58,6 +58,17 @@ func init() {
 	registerSharedFlags(rootCmd)
 	registerRootFlags(rootCmd)
 
+	// Validate shared flags before any subcommand runs.
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		// SNMP has its own tier names (extended, full) that predate the global
+		// mode system. Skip strict validation for SNMP so legacy modes pass
+		// through to ConfigureSNMP which handles the mapping.
+		if cmd.Name() != "snmp" && !brutus.ValidMode(flagMode) {
+			return fmt.Errorf("invalid --mode %q (valid: cautious, default, exhaustive)", flagMode)
+		}
+		return nil
+	}
+
 	rootCmd.AddCommand(credsCmd)
 	rootCmd.AddCommand(webCmd)
 	rootCmd.AddCommand(snmpCmd)

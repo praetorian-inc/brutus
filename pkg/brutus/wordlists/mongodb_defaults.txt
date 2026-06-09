@@ -3,7 +3,14 @@
 admin:admin
 admin:password
 root:root
+# --- cautious ---
 root:password
 mongodb:mongodb
 user:user
 dbadmin:dbadmin
+# --- exhaustive ---
+mongo:mongo
+admin:mongo
+mongodb:password
+admin:mongodb
+root:mongo

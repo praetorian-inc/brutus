@@ -3,8 +3,9 @@
 # Same as HTTP defaults — covers TLS-enabled admin panels
 admin:admin
 admin:password
-admin:changeme
 admin:
+# --- cautious ---
+admin:changeme
 root:root
 root:password
 root:changeme
@@ -12,3 +13,11 @@ elastic:elastic
 elastic:changeme
 user:user
 guest:guest
+# --- exhaustive ---
+admin:admin123
+admin:Password1
+tomcat:tomcat
+admin:secret
+grafana:grafana
+jenkins:jenkins
+admin:default

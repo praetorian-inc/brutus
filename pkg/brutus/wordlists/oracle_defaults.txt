@@ -2,9 +2,10 @@
 # Format: username:password
 sys:change_on_install
 system:manager
-system:oracle
-system:password
 scott:tiger
+system:password
+# --- cautious ---
+system:oracle
 hr:hr
 dbsnmp:dbsnmp
 outln:outln
@@ -17,3 +18,11 @@ xdb:xdb
 anonymous:anonymous
 apex_public_user:oracle
 flows_files:flows_files
+# --- exhaustive ---
+sys:oracle
+system:system
+sys:sys
+oracle:oracle
+sysman:sysman
+sys:manager
+ords_public_user:oracle

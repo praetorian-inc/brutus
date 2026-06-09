@@ -122,7 +122,7 @@ func registerSharedFlags(cmd *cobra.Command) {
 	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
 
 	// Mode
-	pf.StringVarP(&flagMode, "mode", "m", "default", "Credential/community tier: default, extended, full")
+	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, exhaustive")
 
 	// Output
 	pf.BoolVar(&flagJSON, "json", false, "JSON output format")
@@ -194,20 +194,51 @@ func registerRootFlags(cmd *cobra.Command) {
 // buildBaseConfig constructs a baseConfigOptions with only the shared fields.
 // Subcommand-specific loading (credentials, keys, AI config) is handled by
 // each subcommand's runXxx function.
-func buildBaseConfig(_ *cobra.Command) *baseConfigOptions {
+//
+// Mode presets supply defaults for threads, timeout, rate-limit, jitter,
+// max-attempts, and retries. Explicit CLI flags override presets.
+func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
+	mode := brutus.NormalizeMode(flagMode)
+	presets := mode.Presets()
+
+	threads := presets.Threads
+	if isFlagChanged(cmd, "threads") {
+		threads = flagThreads
+	}
+	timeout := presets.Timeout
+	if isFlagChanged(cmd, "timeout") {
+		timeout = flagTimeout
+	}
+	rateLimit := presets.RateLimit
+	if isFlagChanged(cmd, "rate-limit") {
+		rateLimit = flagRateLimit
+	}
+	jitter := presets.Jitter
+	if isFlagChanged(cmd, "jitter") {
+		jitter = flagJitter
+	}
+	maxAttempts := presets.MaxAttempts
+	if isFlagChanged(cmd, "max-attempts") {
+		maxAttempts = flagMaxAttempts
+	}
+	maxRetries := presets.MaxRetries
+	if isFlagChanged(cmd, "retries") {
+		maxRetries = flagRetries
+	}
+
 	return &baseConfigOptions{
-		threads:          flagThreads,
-		timeout:          flagTimeout,
+		threads:          threads,
+		timeout:          timeout,
 		useColor:         isColorEnabled(flagNoColor),
 		quiet:            flagQuiet,
 		verbose:          flagVerbose,
 		protocolOverride: flagProtocol,
 		aiMode:           flagAIMode,
 		tlsMode:          determineTLSMode(flagVerifyTLS),
-		rateLimit:        flagRateLimit,
-		jitter:           flagJitter,
-		maxAttempts:      flagMaxAttempts,
-		maxRetries:       flagRetries,
+		rateLimit:        rateLimit,
+		jitter:           jitter,
+		maxAttempts:      maxAttempts,
+		maxRetries:       maxRetries,
 		mode:             flagMode,
 		anthropicKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		perplexityKey:    os.Getenv("PERPLEXITY_API_KEY"),

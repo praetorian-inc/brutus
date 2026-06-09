@@ -3,13 +3,14 @@
 # Common defaults for web panels, routers, IoT devices, CMSes, and appliances
 admin:admin
 admin:password
+admin:
+root:root
+# --- cautious ---
 admin:1234
 admin:12345
 admin:123456
-admin:
 admin:changeme
 admin:default
-root:root
 root:password
 root:admin
 root:toor
@@ -20,3 +21,12 @@ test:test
 administrator:administrator
 administrator:password
 manager:manager
+# --- exhaustive ---
+admin:router
+admin:public
+admin:private
+support:support
+admin:letmein
+admin:welcome
+admin:Admin123
+admin:system

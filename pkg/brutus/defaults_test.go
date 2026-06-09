@@ -252,6 +252,115 @@ func TestParseWordlist_LineWithoutColon_TreatedAsPasswordOnly(t *testing.T) {
 	}
 }
 
+// --- Tiered loading tests ---
+
+func TestParseWordlistTiered_WithMarkers(t *testing.T) {
+	content := `# Test wordlist
+root:root
+admin:admin
+# --- cautious ---
+root:password
+root:toor
+# --- exhaustive ---
+vendor:vendor123
+obscure:cred`
+
+	cautious := parseWordlistTiered(content, ModeCautious)
+	if len(cautious) != 2 {
+		t.Errorf("cautious: expected 2 credentials, got %d", len(cautious))
+	}
+
+	dflt := parseWordlistTiered(content, ModeDefault)
+	if len(dflt) != 4 {
+		t.Errorf("default: expected 4 credentials, got %d", len(dflt))
+	}
+
+	exhaustive := parseWordlistTiered(content, ModeExhaustive)
+	if len(exhaustive) != 6 {
+		t.Errorf("exhaustive: expected 6 credentials, got %d", len(exhaustive))
+	}
+}
+
+func TestParseWordlistTiered_NoMarkers_CautiousCapped(t *testing.T) {
+	content := "root:root\nroot:password\nadmin:admin\nuser:user\ntest:test\nguest:guest\nfoo:bar"
+
+	cautious := parseWordlistTiered(content, ModeCautious)
+	if len(cautious) != maxCautiousFallback {
+		t.Errorf("cautious without markers: expected %d credentials, got %d", maxCautiousFallback, len(cautious))
+	}
+
+	dflt := parseWordlistTiered(content, ModeDefault)
+	if len(dflt) != 7 {
+		t.Errorf("default without markers: expected 7 credentials, got %d", len(dflt))
+	}
+
+	exhaustive := parseWordlistTiered(content, ModeExhaustive)
+	if len(exhaustive) != 7 {
+		t.Errorf("exhaustive without markers: expected 7 credentials, got %d", len(exhaustive))
+	}
+}
+
+func TestParseWordlistTiered_NoMarkers_SmallFile(t *testing.T) {
+	content := "root:root\nadmin:admin\nuser:user"
+
+	// File has fewer than maxCautiousFallback entries — all returned.
+	cautious := parseWordlistTiered(content, ModeCautious)
+	if len(cautious) != 3 {
+		t.Errorf("cautious small file: expected 3 credentials, got %d", len(cautious))
+	}
+}
+
+func TestDefaultCredentialsForMode_BackwardCompat(t *testing.T) {
+	// DefaultCredentials() should return same count as ModeDefault.
+	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql"}
+	for _, proto := range protocols {
+		old := DefaultCredentials(proto)
+		dflt := DefaultCredentialsForMode(proto, ModeDefault)
+		if len(old) != len(dflt) {
+			t.Errorf("%s: DefaultCredentials returned %d, DefaultCredentialsForMode(ModeDefault) returned %d",
+				proto, len(old), len(dflt))
+		}
+	}
+}
+
+func TestDefaultCredentialsForMode_CautiousSubsetOfDefault(t *testing.T) {
+	protocols := []string{"ssh", "mysql", "rdp", "http", "ftp"}
+	for _, proto := range protocols {
+		cautious := DefaultCredentialsForMode(proto, ModeCautious)
+		dflt := DefaultCredentialsForMode(proto, ModeDefault)
+		if len(cautious) >= len(dflt) {
+			t.Errorf("%s: cautious (%d) should be smaller than default (%d)",
+				proto, len(cautious), len(dflt))
+		}
+	}
+}
+
+func TestDefaultCredentialsForMode_ExhaustiveSupersetOfDefault(t *testing.T) {
+	protocols := []string{"ssh", "mysql", "rdp", "http", "ftp"}
+	for _, proto := range protocols {
+		dflt := DefaultCredentialsForMode(proto, ModeDefault)
+		exhaustive := DefaultCredentialsForMode(proto, ModeExhaustive)
+		if len(exhaustive) < len(dflt) {
+			t.Errorf("%s: exhaustive (%d) should be >= default (%d)",
+				proto, len(exhaustive), len(dflt))
+		}
+	}
+}
+
+func TestApplyDefaults_WithMode(t *testing.T) {
+	// Cautious mode should load fewer defaults than default mode.
+	cautious := &Config{Target: "x:22", Protocol: "ssh", UseDefaults: true, Mode: ModeCautious, NoBadkeys: true}
+	cautious.applyDefaults()
+
+	dflt := &Config{Target: "x:22", Protocol: "ssh", UseDefaults: true, Mode: ModeDefault, NoBadkeys: true}
+	dflt.applyDefaults()
+
+	if len(cautious.Credentials) >= len(dflt.Credentials) {
+		t.Errorf("cautious mode (%d creds) should have fewer than default mode (%d creds)",
+			len(cautious.Credentials), len(dflt.Credentials))
+	}
+}
+
 func TestDefaultCredentials_SNMP_CommunityStringsAsPasswords(t *testing.T) {
 	// SNMP uses community strings which should be in the Password field
 	creds := DefaultCredentials("snmp")

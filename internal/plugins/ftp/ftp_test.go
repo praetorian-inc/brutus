@@ -94,7 +94,7 @@ func TestReadFTPResponse(t *testing.T) {
 
 // mockFTPServer starts a TCP listener that speaks a scripted FTP conversation.
 // handler receives the server-side conn and runs the FTP dialogue.
-func mockFTPServer(t *testing.T, handler func(conn net.Conn)) (string, func()) {
+func mockFTPServer(t *testing.T, handler func(conn net.Conn)) (addr string, cleanup func()) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -106,25 +106,35 @@ func mockFTPServer(t *testing.T, handler func(conn net.Conn)) (string, func()) {
 		if acceptErr != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		handler(conn)
 	}()
 
-	cleanup := func() {
-		ln.Close()
+	cleanup = func() {
+		_ = ln.Close()
 		<-done
 	}
 	return ln.Addr().String(), cleanup
 }
 
+// ftpSend writes an FTP response line to the connection.
+func ftpSend(conn net.Conn, msg string) {
+	_, _ = fmt.Fprint(conn, msg)
+}
+
+// ftpRecv reads one line from the connection (consumes a client command).
+func ftpRecv(reader *bufio.Reader) {
+	_, _ = reader.ReadString('\n')
+}
+
 func TestPlugin_SingleLineBanner_Success(t *testing.T) {
 	addr, cleanup := mockFTPServer(t, func(conn net.Conn) {
 		reader := bufio.NewReader(conn)
-		fmt.Fprint(conn, "220 Ready\r\n")
-		reader.ReadString('\n') // USER
-		fmt.Fprint(conn, "331 Password required\r\n")
-		reader.ReadString('\n') // PASS
-		fmt.Fprint(conn, "230 Login successful\r\n")
+		ftpSend(conn, "220 Ready\r\n")
+		ftpRecv(reader) // USER
+		ftpSend(conn, "331 Password required\r\n")
+		ftpRecv(reader) // PASS
+		ftpSend(conn, "230 Login successful\r\n")
 	})
 	defer cleanup()
 
@@ -137,11 +147,11 @@ func TestPlugin_SingleLineBanner_Success(t *testing.T) {
 func TestPlugin_MultiLineBanner_Success(t *testing.T) {
 	addr, cleanup := mockFTPServer(t, func(conn net.Conn) {
 		reader := bufio.NewReader(conn)
-		fmt.Fprint(conn, "220-Welcome to FTP\r\n220-Please read our policy\r\n220 Ready\r\n")
-		reader.ReadString('\n') // USER
-		fmt.Fprint(conn, "331 Password required\r\n")
-		reader.ReadString('\n') // PASS
-		fmt.Fprint(conn, "230 Login successful\r\n")
+		ftpSend(conn, "220-Welcome to FTP\r\n220-Please read our policy\r\n220 Ready\r\n")
+		ftpRecv(reader) // USER
+		ftpSend(conn, "331 Password required\r\n")
+		ftpRecv(reader) // PASS
+		ftpSend(conn, "230 Login successful\r\n")
 	})
 	defer cleanup()
 
@@ -154,11 +164,11 @@ func TestPlugin_MultiLineBanner_Success(t *testing.T) {
 func TestPlugin_MultiLineBanner_AuthFailure(t *testing.T) {
 	addr, cleanup := mockFTPServer(t, func(conn net.Conn) {
 		reader := bufio.NewReader(conn)
-		fmt.Fprint(conn, "220-Welcome\r\n220 Ready\r\n")
-		reader.ReadString('\n') // USER
-		fmt.Fprint(conn, "331 Password required\r\n")
-		reader.ReadString('\n') // PASS
-		fmt.Fprint(conn, "530 Login incorrect\r\n")
+		ftpSend(conn, "220-Welcome\r\n220 Ready\r\n")
+		ftpRecv(reader) // USER
+		ftpSend(conn, "331 Password required\r\n")
+		ftpRecv(reader) // PASS
+		ftpSend(conn, "530 Login incorrect\r\n")
 	})
 	defer cleanup()
 
@@ -171,9 +181,9 @@ func TestPlugin_MultiLineBanner_AuthFailure(t *testing.T) {
 func TestPlugin_Anonymous_230_After_USER(t *testing.T) {
 	addr, cleanup := mockFTPServer(t, func(conn net.Conn) {
 		reader := bufio.NewReader(conn)
-		fmt.Fprint(conn, "220 Ready\r\n")
-		reader.ReadString('\n') // USER
-		fmt.Fprint(conn, "230 Anonymous login ok\r\n")
+		ftpSend(conn, "220 Ready\r\n")
+		ftpRecv(reader) // USER
+		ftpSend(conn, "230 Anonymous login ok\r\n")
 	})
 	defer cleanup()
 
@@ -186,9 +196,9 @@ func TestPlugin_Anonymous_230_After_USER(t *testing.T) {
 func TestPlugin_USER_Rejected_530(t *testing.T) {
 	addr, cleanup := mockFTPServer(t, func(conn net.Conn) {
 		reader := bufio.NewReader(conn)
-		fmt.Fprint(conn, "220 Ready\r\n")
-		reader.ReadString('\n') // USER
-		fmt.Fprint(conn, "530 User not allowed\r\n")
+		ftpSend(conn, "220 Ready\r\n")
+		ftpRecv(reader) // USER
+		ftpSend(conn, "530 User not allowed\r\n")
 	})
 	defer cleanup()
 
@@ -201,9 +211,9 @@ func TestPlugin_USER_Rejected_530(t *testing.T) {
 func TestPlugin_USER_UnexpectedResponse(t *testing.T) {
 	addr, cleanup := mockFTPServer(t, func(conn net.Conn) {
 		reader := bufio.NewReader(conn)
-		fmt.Fprint(conn, "220 Ready\r\n")
-		reader.ReadString('\n') // USER
-		fmt.Fprint(conn, "500 Syntax error\r\n")
+		ftpSend(conn, "220 Ready\r\n")
+		ftpRecv(reader) // USER
+		ftpSend(conn, "500 Syntax error\r\n")
 	})
 	defer cleanup()
 

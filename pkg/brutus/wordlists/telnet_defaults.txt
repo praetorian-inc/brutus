@@ -10,7 +10,7 @@ admin:1234
 admin:
 ubnt:ubnt
 cisco:cisco
-# --- exhaustive ---
+# --- aggressive ---
 admin:12345
 telnetadmin:telnetadmin
 support:support

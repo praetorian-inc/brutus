@@ -6,7 +6,7 @@ root:root
 # --- cautious ---
 influxdb:influxdb
 admin:influxdb
-# --- exhaustive ---
+# --- aggressive ---
 influxdb:password
 influx:influx
 admin:changeme

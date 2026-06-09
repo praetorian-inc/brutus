@@ -18,7 +18,7 @@ xdb:xdb
 anonymous:anonymous
 apex_public_user:oracle
 flows_files:flows_files
-# --- exhaustive ---
+# --- aggressive ---
 sys:oracle
 system:system
 sys:sys

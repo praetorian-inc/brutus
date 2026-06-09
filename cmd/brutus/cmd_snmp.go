@@ -30,7 +30,7 @@ switches, and other SNMP-enabled infrastructure.
 Community strings are selected by mode:
   cautious    ~25 common strings (public, private, community, etc.)
   default     ~75 strings (adds vendor-specific: Cisco, HP, Juniper, etc.)
-  exhaustive  ~200+ strings (comprehensive: SCADA, IP cameras, storage, etc.)
+  aggressive  ~200+ strings (comprehensive: SCADA, IP cameras, storage, etc.)
 
 Custom community strings can also be provided via -c or -C.`,
 	Example: `  # Test with default community strings
@@ -39,8 +39,8 @@ Custom community strings can also be provided via -c or -C.`,
   # Use default mode for more coverage
   brutus snmp --target 192.168.1.1:161 --mode default
 
-  # Exhaustive mode for comprehensive testing
-  brutus snmp --target 10.0.0.1:161 --mode exhaustive
+  # Aggressive mode for comprehensive testing
+  brutus snmp --target 10.0.0.1:161 --mode aggressive
 
   # Custom community strings
   brutus snmp --target 192.168.1.1:161 -c "mycommunity,secretstring"

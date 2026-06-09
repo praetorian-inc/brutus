@@ -30,7 +30,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
 - **24 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
 - **SOCKS5 proxy support:** Route all traffic through a SOCKS5 proxy with `--proxy`
-- **Aggressiveness modes:** `--mode cautious|default|exhaustive` for tuning coverage vs. safety
+- **Aggressiveness modes:** `--mode cautious|default|aggressive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
 - **Go library:** Import directly into your security automation tools
@@ -543,7 +543,7 @@ The global `--mode` flag (`-m`) controls aggressiveness across all subcommands. 
 |------|---------|---------|------------|--------|---------|----------|
 | `cautious` | 5 | 15s | 2 req/s | 500ms | 1 | Production environments, avoid lockouts |
 | `default` | 10 | 10s | Unlimited | None | 2 | Standard testing |
-| `exhaustive` | 20 | 10s | Unlimited | None | 3 | Lab/CTF environments, maximum coverage |
+| `aggressive` | 20 | 10s | Unlimited | None | 3 | Lab/CTF environments, maximum coverage |
 
 Mode presets are applied first, then any explicit CLI flags override them:
 
@@ -552,7 +552,7 @@ Mode presets are applied first, then any explicit CLI flags override them:
 brutus creds --target dc.corp.local:445 --protocol smb -m cautious -U users.txt -P passwords.txt
 
 # Maximum coverage for a CTF
-brutus creds --target 10.10.10.100:22 --protocol ssh -m exhaustive -U users.txt -P rockyou.txt
+brutus creds --target 10.10.10.100:22 --protocol ssh -m aggressive -U users.txt -P rockyou.txt
 
 # Cautious mode but override threads
 brutus creds --target 192.168.1.100:22 --protocol ssh -m cautious --threads 20

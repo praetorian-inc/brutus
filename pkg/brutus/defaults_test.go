@@ -261,7 +261,7 @@ admin:admin
 # --- cautious ---
 root:password
 root:toor
-# --- exhaustive ---
+# --- aggressive ---
 vendor:vendor123
 obscure:cred`
 
@@ -275,9 +275,9 @@ obscure:cred`
 		t.Errorf("default: expected 4 credentials, got %d", len(dflt))
 	}
 
-	exhaustive := parseWordlistTiered(content, ModeExhaustive)
-	if len(exhaustive) != 6 {
-		t.Errorf("exhaustive: expected 6 credentials, got %d", len(exhaustive))
+	aggressive := parseWordlistTiered(content, ModeAggressive)
+	if len(aggressive) != 6 {
+		t.Errorf("aggressive: expected 6 credentials, got %d", len(aggressive))
 	}
 }
 
@@ -294,9 +294,9 @@ func TestParseWordlistTiered_NoMarkers_CautiousCapped(t *testing.T) {
 		t.Errorf("default without markers: expected 7 credentials, got %d", len(dflt))
 	}
 
-	exhaustive := parseWordlistTiered(content, ModeExhaustive)
-	if len(exhaustive) != 7 {
-		t.Errorf("exhaustive without markers: expected 7 credentials, got %d", len(exhaustive))
+	aggressive := parseWordlistTiered(content, ModeAggressive)
+	if len(aggressive) != 7 {
+		t.Errorf("aggressive without markers: expected 7 credentials, got %d", len(aggressive))
 	}
 }
 
@@ -335,14 +335,14 @@ func TestDefaultCredentialsForMode_CautiousSubsetOfDefault(t *testing.T) {
 	}
 }
 
-func TestDefaultCredentialsForMode_ExhaustiveSupersetOfDefault(t *testing.T) {
+func TestDefaultCredentialsForMode_AggressiveSupersetOfDefault(t *testing.T) {
 	protocols := []string{"ssh", "mysql", "rdp", "http", "ftp"}
 	for _, proto := range protocols {
 		dflt := DefaultCredentialsForMode(proto, ModeDefault)
-		exhaustive := DefaultCredentialsForMode(proto, ModeExhaustive)
-		if len(exhaustive) < len(dflt) {
-			t.Errorf("%s: exhaustive (%d) should be >= default (%d)",
-				proto, len(exhaustive), len(dflt))
+		aggressive := DefaultCredentialsForMode(proto, ModeAggressive)
+		if len(aggressive) < len(dflt) {
+			t.Errorf("%s: aggressive (%d) should be >= default (%d)",
+				proto, len(aggressive), len(dflt))
 		}
 	}
 }

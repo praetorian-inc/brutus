@@ -9,7 +9,7 @@ root:mysql
 root:admin
 mysql:mysql
 admin:admin
-# --- exhaustive ---
+# --- aggressive ---
 root:mysql123
 dbadmin:dbadmin
 mysql:password

@@ -8,7 +8,7 @@ root:password
 mongodb:mongodb
 user:user
 dbadmin:dbadmin
-# --- exhaustive ---
+# --- aggressive ---
 mongo:mongo
 admin:mongo
 mongodb:password

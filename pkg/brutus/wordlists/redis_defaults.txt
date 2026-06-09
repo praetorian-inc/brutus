@@ -8,7 +8,7 @@ default:password
 admin:admin
 root:root
 redis:redis
-# --- exhaustive ---
+# --- aggressive ---
 redis:password
 redis:admin
 default:admin

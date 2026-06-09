@@ -40,7 +40,7 @@ type baseConfigOptions struct {
 	jitter           time.Duration // Random delay variance for rate limiting
 	maxAttempts      int
 	maxRetries       int
-	mode             string // Aggressiveness tier: cautious, default, exhaustive
+	mode             string // Aggressiveness tier: cautious, default, aggressive
 	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
 	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
 	proxyURL         string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")

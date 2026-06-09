@@ -93,7 +93,7 @@ func TestReadFTPResponse(t *testing.T) {
 }
 
 // mockFTPServer starts a TCP listener that speaks a scripted FTP conversation.
-// handler receives the server-side conn and runs the FTP dialogue.
+// handler receives the server-side conn and runs the FTP dialog.
 func mockFTPServer(t *testing.T, handler func(conn net.Conn)) (addr string, cleanup func()) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

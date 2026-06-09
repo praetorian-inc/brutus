@@ -25,6 +25,7 @@ require (
 	github.com/tetratelabs/wazero v1.12.0
 	go.mongodb.org/mongo-driver v1.17.9
 	golang.org/x/crypto v0.52.0
+	golang.org/x/net v0.54.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/time v0.15.0
 )
@@ -75,7 +76,6 @@ require (
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251029180050-ab9386a59fda // indirect

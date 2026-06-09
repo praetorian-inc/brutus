@@ -60,13 +60,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "445")
 
-	// Create dialer with timeout
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-
-	// Connect with context timeout
-	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
+	// Connect with context timeout (proxy-aware)
+	conn, err := brutus.DialWithProxy(ctx, "tcp", net.JoinHostPort(host, port), timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result

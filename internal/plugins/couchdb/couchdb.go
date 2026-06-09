@@ -59,7 +59,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	url := fmt.Sprintf("%s://%s/_session", scheme, target)
 
 	// Create HTTP client with TLS config
-	client := brutus.NewHTTPClient(timeout, brutus.BuildTLSConfig(tlsMode))
+	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)

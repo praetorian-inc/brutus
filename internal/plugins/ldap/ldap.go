@@ -81,7 +81,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Configure TLS based on mode
 	// Note: For LDAP, even "disable" needs TLS config for LDAPS (port 636)
-	dialer := &net.Dialer{Timeout: timeout}
 	var tlsConfig *tls.Config
 	switch tlsMode {
 	case "verify":
@@ -93,7 +92,53 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			InsecureSkipVerify: true,
 		}
 	}
-	conn, err := ldap.DialURL(ldapURL, ldap.DialWithDialer(dialer), ldap.DialWithTLSConfig(tlsConfig))
+
+	// Build dial options: use proxy-aware dialer when configured, else standard dialer.
+	if pluginCfg.ProxyURL != "" {
+		dialFunc, dialErr := brutus.NewProxyDialFunc(pluginCfg.ProxyURL, timeout)
+		if dialErr != nil {
+			result.Error = brutus.WrapConnError(dialErr)
+			return result
+		}
+		// Dial raw TCP through the SOCKS5 proxy.
+		conn, rawErr := dialFunc(ctx, "tcp", net.JoinHostPort(host, port))
+		if rawErr != nil {
+			result.Error = brutus.WrapConnError(rawErr)
+			return result
+		}
+		// LDAPS (port 636) requires an explicit TLS handshake;
+		// ldap.NewConn only records the isTLS flag, it does not handshake.
+		isTLS := port == "636"
+		if isTLS {
+			tlsConfig.ServerName = host
+			tlsConn := tls.Client(conn, tlsConfig)
+			if hsErr := tlsConn.HandshakeContext(ctx); hsErr != nil {
+				_ = conn.Close()
+				result.Error = brutus.WrapConnError(hsErr)
+				return result
+			}
+			conn = tlsConn
+		}
+		// Wrap the connection into an LDAP connection
+		ldapConn := ldap.NewConn(conn, isTLS)
+		ldapConn.Start()
+		defer func() { _ = ldapConn.Close() }()
+
+		ldapConn.SetTimeout(timeout)
+
+		bindErr := ldapConn.Bind(username, password)
+		if bindErr == nil {
+			result.Success = true
+			return result
+		}
+		result.Error = classifyError(bindErr)
+		return result
+	}
+
+	dialOpts := []ldap.DialOpt{ldap.DialWithTLSConfig(tlsConfig)}
+	dialer := &net.Dialer{Timeout: timeout}
+	dialOpts = append(dialOpts, ldap.DialWithDialer(dialer))
+	conn, err := ldap.DialURL(ldapURL, dialOpts...)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result

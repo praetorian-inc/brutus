@@ -64,7 +64,7 @@ func runFromTargetsFile(targets []string, base *runConfig, jsonOut bool) ([]brut
 			printTargetInfo(target, protocol, base, aiCreds)
 		}
 
-		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds, false)
+		results, success := runSingleTarget(target, protocol, base.tlsMode, base, aiCreds)
 		allResults = append(allResults, results...)
 		if success {
 			hasSuccess = true
@@ -183,9 +183,22 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *runConfig, jsonOut b
 
 	target := nrv.TargetAddr()
 
-	// Nerva JSON from stdin may indicate no auth — log it but still verify live
+	// If Nerva JSON from stdin indicates no auth, report the finding and skip
+	// credential testing — every password "works" on a service that doesn't
+	// enforce auth, so brute force results would be misleading.
 	if nrv.HasNoAuth() {
-		logVerbose(base.verbose, "Nerva JSON indicates unauthenticated access on %s (%s) — verifying live", target, protocol)
+		logVerbose(base.verbose, "Nerva JSON indicates unauthenticated access on %s (%s) — skipping credential testing", target, protocol)
+		finding := brutus.Result{
+			Protocol: protocol,
+			Target:   target,
+			Username: "(unauthenticated)",
+			Success:  true,
+			Banner:   fmt.Sprintf("[CRITICAL] %s accessible without authentication (detected by Nerva scan)", protocol),
+		}
+		if !jsonOut {
+			emitSecurityFindings([]brutus.Result{finding}, base.useColor)
+		}
+		return []brutus.Result{finding}, true
 	}
 
 	var aiCreds []brutus.Credential
@@ -193,7 +206,7 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *runConfig, jsonOut b
 		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
 	}
 
-	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, false)
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
 
 	if !jsonOut {
 		outputValidOnly(results, base.useColor)
@@ -231,7 +244,7 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 		printTargetInfo(target, protocol, base, aiCreds)
 	}
 
-	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, false)
+	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds)
 
 	if !jsonOut {
 		outputValidOnly(results, base.useColor)
@@ -250,15 +263,13 @@ func isUnauthOnlyProtocol(protocol string) bool {
 }
 
 // runSingleTarget runs brutus against a single target.
-// skipUnauthCheck tells the worker pool to skip its own CheckUnauth probe
-// (used when Nerva live fingerprinting already detected anonymous access).
-func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential, skipUnauthCheck bool) ([]brutus.Result, bool) {
+func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds []brutus.Credential) ([]brutus.Result, bool) {
 	// Unauth-only protocols: run CheckUnauthAccess directly, skip brute force
 	if isUnauthOnlyProtocol(protocol) {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 
-		pluginCfg := brutus.PluginConfig{TLSMode: tlsMode}
+		pluginCfg := brutus.PluginConfig{TLSMode: tlsMode, ProxyURL: base.proxyURL}
 		r := brutus.CheckUnauthAccess(ctx, target, protocol, base.timeout, pluginCfg)
 		if r == nil {
 			return nil, false
@@ -285,8 +296,9 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		MaxAttempts:     base.maxAttempts,
 		MaxRetries:      base.maxRetries,
 		Verbose:         base.verbose,
-		SkipUnauthCheck: skipUnauthCheck,
+		SkipUnauthCheck: false,
 		Mode:            brutus.NormalizeMode(base.mode),
+		ProxyURL:        base.proxyURL,
 	}
 
 	// Handle HTTP with AI-researched credentials

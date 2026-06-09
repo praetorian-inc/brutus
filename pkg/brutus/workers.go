@@ -101,6 +101,7 @@ func pluginConfigFromConfig(cfg *Config) PluginConfig {
 		TLSMode:      cfg.TLSMode,
 		NoVision:     !cfg.AIMode,
 		NoStickyKeys: !cfg.StickyKeys,
+		ProxyURL:     cfg.ProxyURL,
 	}
 }
 
@@ -108,11 +109,13 @@ func pluginConfigFromConfig(cfg *Config) PluginConfig {
 func runWorkers(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error) {
 	// Pre-check: unauthenticated access detection (runs once per target).
 	// Skip when Nerva has already detected anonymous access (SkipUnauthCheck).
-	var preResults []Result
 	if !cfg.SkipUnauthCheck {
 		if checker, ok := plug.(UnauthChecker); ok {
 			if r := checker.CheckUnauth(ctx, cfg.Target, cfg.Timeout, pluginConfigFromConfig(cfg)); r != nil && r.Success {
-				preResults = append(preResults, *r)
+				// Service doesn't enforce authentication — credential testing
+				// would produce misleading results (every password "works").
+				// Return only the unauthenticated access finding.
+				return []Result{*r}, nil
 			}
 		}
 	}
@@ -120,22 +123,12 @@ func runWorkers(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error)
 	// Check if LLM analysis is enabled AND protocol supports it
 	// LLM banner analysis only makes sense for HTTP Basic Auth where we can
 	// detect the application from the response headers/body
-	var results []Result
-	var err error
 	if cfg.LLMConfig != nil && cfg.LLMConfig.Enabled && isHTTPProtocol(cfg.Protocol) {
 		// Use LLM-enhanced flow: capture banner, analyze, test suggestions
-		results, err = runWorkersWithLLM(ctx, cfg, plug)
-	} else {
-		// Default flow: test credentials without LLM analysis
-		results, err = runWorkersDefault(ctx, cfg, plug)
+		return runWorkersWithLLM(ctx, cfg, plug)
 	}
-
-	// Prepend unauthenticated access findings
-	if len(preResults) > 0 {
-		results = append(preResults, results...)
-	}
-
-	return results, err
+	// Default flow: test credentials without LLM analysis
+	return runWorkersDefault(ctx, cfg, plug)
 }
 
 // executeWorkerPool is the shared worker pool implementation used by both

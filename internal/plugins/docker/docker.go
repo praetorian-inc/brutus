@@ -59,7 +59,10 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 		return result
 	}
 
-	client := brutus.NewHTTPClient(timeout, brutus.BuildTLSConfig(pluginCfg.TLSMode))
+	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(pluginCfg.TLSMode), pluginCfg.ProxyURL)
+	if err != nil {
+		return result
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return result

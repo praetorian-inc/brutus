@@ -16,7 +16,6 @@ package vnc
 
 import (
 	"context"
-	"net"
 	"time"
 
 	"github.com/mitchellh/go-vnc"
@@ -60,13 +59,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("vnc", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Create dialer with timeout
-	dialer := &net.Dialer{
-		Timeout: timeout,
-	}
-
-	// Connect to VNC server
-	conn, err := dialer.DialContext(ctx, "tcp", target)
+	// Connect to VNC server (proxy-aware)
+	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result

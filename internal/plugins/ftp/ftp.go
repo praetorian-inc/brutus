@@ -70,8 +70,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	reader := bufio.NewReader(conn)
 
-	// Read welcome message (220)
-	_, err = brutus.ReadLine(reader)
+	// Read welcome message (220), consuming any multi-line banner
+	_, err = readFTPResponse(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
 		return result
@@ -85,7 +85,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Read response (331 = need password, 230 = already logged in for anonymous)
-	response, err := brutus.ReadLine(reader)
+	response, err := readFTPResponse(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
 		return result
@@ -97,6 +97,18 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
+	// Only proceed to PASS if the server accepted USER and is waiting for a password.
+	// 331 = "User name okay, need password"
+	if !strings.HasPrefix(response, "331") {
+		if strings.HasPrefix(response, "530") {
+			// User rejected (e.g. user not allowed)
+			result.Error = nil
+			return result
+		}
+		result.Error = fmt.Errorf("connection error: unexpected FTP response to USER: %s", response)
+		return result
+	}
+
 	// Send PASS command
 	_, err = fmt.Fprintf(conn, "PASS %s\r\n", password)
 	if err != nil {
@@ -105,7 +117,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Read response (230 = success, 530 = failure)
-	response, err = brutus.ReadLine(reader)
+	response, err = readFTPResponse(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
 		return result
@@ -124,6 +136,23 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	return result
+}
+
+// readFTPResponse reads a complete FTP response, consuming multi-line replies.
+// Multi-line FTP responses use "NNN-" for continuation lines and "NNN " (with
+// a space) for the final line (RFC 959 Section 4.2). Returns the final line.
+func readFTPResponse(reader *bufio.Reader) (string, error) {
+	for {
+		line, err := brutus.ReadLine(reader)
+		if err != nil {
+			return "", err
+		}
+		// Final line: 3-digit code followed by space (or end of string).
+		// Continuation line: 3-digit code followed by hyphen.
+		if len(line) == 3 || (len(line) > 3 && line[3] != '-') {
+			return line, nil
+		}
+	}
 }
 
 // classifyAuthError classifies FTP authentication errors.

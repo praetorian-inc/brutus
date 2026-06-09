@@ -15,3 +15,5 @@ dbadmin:dbadmin
 mysql:password
 root:123456
 mysql:admin
+# GPON OLT vendors (Cloud EMS)
+root:vsol2019

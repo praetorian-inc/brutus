@@ -85,7 +85,6 @@ func MapServiceToProtocol(service string) string {
 
 		"snmp": "snmp",
 		"turn": "turn",
-		"stun": "turn",
 
 		"docker":     "docker",
 		"kubernetes": "kubernetes",

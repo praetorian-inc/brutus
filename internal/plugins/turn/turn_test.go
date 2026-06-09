@@ -16,6 +16,8 @@ package turn
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -162,6 +164,100 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	}
 }
 
+func TestPlugin_Test_ValidCredentials_VerifyHMAC(t *testing.T) {
+	const (
+		testRealm    = "example.com"
+		testNonce    = "testnonce"
+		testUsername = "admin"
+		testPassword = "secret"
+	)
+	hmacValid := make(chan bool, 1)
+
+	addr, cleanup := mockTURNServer(t, func(pc net.PacketConn) {
+		// Receive unauthenticated Allocate.
+		msg, client := stunRecv(pc)
+		txID := extractTxID(msg)
+		// Send 401 challenge.
+		stunSend(pc, buildMockErrorResponse(txID, 401, testRealm, testNonce), client)
+
+		// Receive authenticated Allocate — verify MESSAGE-INTEGRITY.
+		msg, client = stunRecv(pc)
+		txID = extractTxID(msg)
+
+		// Server-side HMAC verification: recompute over everything
+		// before the MESSAGE-INTEGRITY attribute and compare.
+		_, _, attrs, err := parseSTUNMessage(msg)
+		if err != nil {
+			hmacValid <- false
+			stunSend(pc, buildMockErrorResponse(txID, 401, "", ""), client)
+			return
+		}
+
+		miData, hasMI := attrs[attrMessageIntegrity]
+		if !hasMI || len(miData) != 20 {
+			hmacValid <- false
+			stunSend(pc, buildMockErrorResponse(txID, 401, "", ""), client)
+			return
+		}
+
+		// Find MI attribute offset: scan for attrMessageIntegrity type.
+		miOffset := -1
+		offset := stunHeaderSize
+		attrLen := int(binary.BigEndian.Uint16(msg[2:4]))
+		end := stunHeaderSize + attrLen
+		for offset+4 <= end {
+			aType := binary.BigEndian.Uint16(msg[offset : offset+2])
+			aLen := int(binary.BigEndian.Uint16(msg[offset+2 : offset+4]))
+			if aType == attrMessageIntegrity {
+				miOffset = offset
+				break
+			}
+			offset += 4 + aLen
+			if pad := aLen % 4; pad != 0 {
+				offset += 4 - pad
+			}
+		}
+		if miOffset < 0 {
+			hmacValid <- false
+			stunSend(pc, buildMockErrorResponse(txID, 401, "", ""), client)
+			return
+		}
+
+		// Per RFC 5389 §15.4: adjust header length to include MI only,
+		// then compute HMAC over msg[0:miOffset].
+		adjustedMsg := make([]byte, miOffset)
+		copy(adjustedMsg, msg[:miOffset])
+		binary.BigEndian.PutUint16(adjustedMsg[2:4], uint16(miOffset-stunHeaderSize+24))
+
+		key := longTermKey(testUsername, testRealm, testPassword)
+		mac := hmac.New(sha1.New, key)
+		mac.Write(adjustedMsg)
+		expected := mac.Sum(nil)
+
+		hmacValid <- hmac.Equal(expected, miData)
+
+		// Accept the request.
+		stunSend(pc, buildMockSuccessResponse(txID), client)
+
+		// Consume deallocation.
+		stunRecv(pc)
+	})
+	defer cleanup()
+
+	p := &Plugin{}
+	result := p.Test(context.Background(), addr, testUsername, testPassword, 5*time.Second, brutus.PluginConfig{})
+
+	assert.True(t, result.Success)
+	assert.Nil(t, result.Error)
+
+	select {
+	case valid := <-hmacValid:
+		assert.True(t, valid, "server-side MESSAGE-INTEGRITY HMAC verification failed")
+	case <-time.After(2 * time.Second):
+		t.Fatal("did not receive HMAC verification result")
+	}
+}
+
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	addr, cleanup := mockTURNServer(t, func(pc net.PacketConn) {
 		// Receive unauthenticated Allocate.
@@ -184,6 +280,30 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.Nil(t, result.Error, "auth failure should return nil error")
 	assert.Equal(t, "turn", result.Protocol)
+}
+
+func TestPlugin_Test_QuotaReached(t *testing.T) {
+	addr, cleanup := mockTURNServer(t, func(pc net.PacketConn) {
+		// Receive unauthenticated Allocate.
+		msg, client := stunRecv(pc)
+		txID := extractTxID(msg)
+		// Send 401 challenge.
+		stunSend(pc, buildMockErrorResponse(txID, 401, "example.com", "testnonce"), client)
+
+		// Receive authenticated Allocate.
+		msg, client = stunRecv(pc)
+		txID = extractTxID(msg)
+		// 486 = creds were valid but quota exceeded.
+		stunSend(pc, buildMockErrorResponse(txID, 486, "", ""), client)
+	})
+	defer cleanup()
+
+	p := &Plugin{}
+	result := p.Test(context.Background(), addr, "admin", "password", 5*time.Second, brutus.PluginConfig{})
+
+	assert.True(t, result.Success)
+	assert.Nil(t, result.Error)
+	assert.Contains(t, result.Banner, "quota")
 }
 
 func TestPlugin_Test_StaleNonce_RetrySucceeds(t *testing.T) {
@@ -254,11 +374,22 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 }
 
 func TestPlugin_Test_UnauthSuccess_DuringTest(t *testing.T) {
+	refreshReceived := make(chan struct{}, 1)
+
 	// Server responds with success to the unauthenticated request (open relay).
 	addr, cleanup := mockTURNServer(t, func(pc net.PacketConn) {
 		msg, client := stunRecv(pc)
 		txID := extractTxID(msg)
 		stunSend(pc, buildMockSuccessResponse(txID), client)
+
+		// Expect unauthenticated deallocation Refresh.
+		msg, _ = stunRecv(pc)
+		if len(msg) >= stunHeaderSize {
+			msgType := binary.BigEndian.Uint16(msg[0:2])
+			if msgType == msgRefreshRequest {
+				refreshReceived <- struct{}{}
+			}
+		}
 	})
 	defer cleanup()
 
@@ -268,6 +399,32 @@ func TestPlugin_Test_UnauthSuccess_DuringTest(t *testing.T) {
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)
 	assert.Contains(t, result.Banner, "unauthenticated")
+
+	select {
+	case <-refreshReceived:
+		// OK — unauthenticated deallocation was sent.
+	case <-time.After(2 * time.Second):
+		t.Error("expected unauthenticated Refresh(LIFETIME=0) after open-relay detection")
+	}
+}
+
+func TestPlugin_Test_TransactionIDMismatch(t *testing.T) {
+	addr, cleanup := mockTURNServer(t, func(pc net.PacketConn) {
+		// Receive unauthenticated Allocate.
+		msg, client := stunRecv(pc)
+		_ = extractTxID(msg)
+		// Respond with a DIFFERENT transaction ID.
+		wrongTxID := [12]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+		stunSend(pc, buildMockErrorResponse(wrongTxID, 401, "example.com", "testnonce"), client)
+	})
+	defer cleanup()
+
+	p := &Plugin{}
+	result := p.Test(context.Background(), addr, "admin", "pass", 5*time.Second, brutus.PluginConfig{})
+
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "transaction ID mismatch")
 }
 
 func TestPlugin_Test_NonSTUNResponse(t *testing.T) {
@@ -308,11 +465,22 @@ func TestPlugin_Test_MissingRealmOrNonce(t *testing.T) {
 // =============================================================================
 
 func TestPlugin_CheckUnauth_OpenRelay(t *testing.T) {
+	refreshReceived := make(chan struct{}, 1)
+
 	addr, cleanup := mockTURNServer(t, func(pc net.PacketConn) {
 		msg, client := stunRecv(pc)
 		txID := extractTxID(msg)
 		// Accept allocation without credentials.
 		stunSend(pc, buildMockSuccessResponse(txID), client)
+
+		// Expect unauthenticated deallocation Refresh.
+		msg, _ = stunRecv(pc)
+		if len(msg) >= stunHeaderSize {
+			msgType := binary.BigEndian.Uint16(msg[0:2])
+			if msgType == msgRefreshRequest {
+				refreshReceived <- struct{}{}
+			}
+		}
 	})
 	defer cleanup()
 
@@ -322,6 +490,13 @@ func TestPlugin_CheckUnauth_OpenRelay(t *testing.T) {
 	assert.True(t, result.Success)
 	assert.Contains(t, result.Banner, "[CRITICAL]")
 	assert.Contains(t, result.Banner, "unauthenticated")
+
+	select {
+	case <-refreshReceived:
+		// OK — deallocation was sent.
+	case <-time.After(2 * time.Second):
+		t.Error("expected unauthenticated Refresh(LIFETIME=0) after open-relay detection")
+	}
 }
 
 func TestPlugin_CheckUnauth_Secure(t *testing.T) {
@@ -361,8 +536,9 @@ func TestBuildAllocateRequest(t *testing.T) {
 	assert.Equal(t, txID[:], msg[8:20])
 
 	// Parse and verify attributes.
-	_, attrs, err := parseSTUNMessage(msg)
+	_, respTxID, attrs, err := parseSTUNMessage(msg)
 	require.NoError(t, err)
+	assert.Equal(t, txID, respTxID)
 	require.Contains(t, attrs, uint16(attrRequestedTransport))
 	assert.Equal(t, byte(protoUDP), attrs[attrRequestedTransport][0])
 }
@@ -371,16 +547,26 @@ func TestParseSTUNMessage_Valid(t *testing.T) {
 	txID := [12]byte{0xAA, 0xBB, 0xCC, 0xDD, 0, 0, 0, 0, 0, 0, 0, 0}
 	resp := buildMockErrorResponse(txID, 401, "myrealm", "mynonce")
 
-	msgType, attrs, err := parseSTUNMessage(resp)
+	msgType, respTxID, attrs, err := parseSTUNMessage(resp)
 	require.NoError(t, err)
 	assert.Equal(t, uint16(msgAllocateError), msgType)
+	assert.Equal(t, txID, respTxID)
 	assert.Equal(t, 401, getErrorCode(attrs))
 	assert.Equal(t, "myrealm", getStringAttr(attrs, attrRealm))
 	assert.Equal(t, "mynonce", getStringAttr(attrs, attrNonce))
 }
 
+func TestParseSTUNMessage_ReturnsTxID(t *testing.T) {
+	txID := [12]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C}
+	resp := buildMockSuccessResponse(txID)
+
+	_, respTxID, _, err := parseSTUNMessage(resp)
+	require.NoError(t, err)
+	assert.Equal(t, txID, respTxID)
+}
+
 func TestParseSTUNMessage_TooShort(t *testing.T) {
-	_, _, err := parseSTUNMessage([]byte{0, 0, 0})
+	_, _, _, err := parseSTUNMessage([]byte{0, 0, 0})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "too short")
 }
@@ -388,7 +574,7 @@ func TestParseSTUNMessage_TooShort(t *testing.T) {
 func TestParseSTUNMessage_BadCookie(t *testing.T) {
 	msg := make([]byte, stunHeaderSize)
 	binary.BigEndian.PutUint32(msg[4:8], 0xDEADBEEF)
-	_, _, err := parseSTUNMessage(msg)
+	_, _, _, err := parseSTUNMessage(msg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "magic cookie")
 }
@@ -397,9 +583,26 @@ func TestParseSTUNMessage_Truncated(t *testing.T) {
 	msg := make([]byte, stunHeaderSize)
 	binary.BigEndian.PutUint16(msg[2:4], 100) // claims 100 bytes of attrs
 	binary.BigEndian.PutUint32(msg[4:8], magicCookie)
-	_, _, err := parseSTUNMessage(msg)
+	_, _, _, err := parseSTUNMessage(msg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "truncated")
+}
+
+func TestParseSTUNMessage_DuplicateAttribute(t *testing.T) {
+	// Build a message with duplicate REALM attributes; first should win.
+	var attrs []byte
+	attrs = append(attrs, encodeStringAttr(attrRealm, "first")...)
+	attrs = append(attrs, encodeStringAttr(attrRealm, "second")...)
+
+	msg := make([]byte, stunHeaderSize+len(attrs))
+	binary.BigEndian.PutUint16(msg[0:2], msgAllocateError)
+	binary.BigEndian.PutUint16(msg[2:4], uint16(len(attrs)))
+	binary.BigEndian.PutUint32(msg[4:8], magicCookie)
+	copy(msg[stunHeaderSize:], attrs)
+
+	_, _, parsed, err := parseSTUNMessage(msg)
+	require.NoError(t, err)
+	assert.Equal(t, "first", getStringAttr(parsed, attrRealm), "should keep first occurrence per RFC 5389 §15")
 }
 
 func TestGetErrorCode(t *testing.T) {
@@ -456,9 +659,10 @@ func TestBuildAuthenticatedAllocateRequest(t *testing.T) {
 	msg := buildAuthenticatedAllocateRequest(txID, "user", "realm", "nonce", "pass")
 
 	// Should parse without error.
-	msgType, attrs, err := parseSTUNMessage(msg)
+	msgType, respTxID, attrs, err := parseSTUNMessage(msg)
 	require.NoError(t, err)
 	assert.Equal(t, uint16(msgAllocateRequest), msgType)
+	assert.Equal(t, txID, respTxID)
 
 	// Should contain expected attributes.
 	assert.Contains(t, attrs, uint16(attrRequestedTransport))
@@ -478,9 +682,10 @@ func TestBuildRefreshRequest(t *testing.T) {
 	txID := [12]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 	msg := buildRefreshRequest(txID, "user", "realm", "nonce", "pass", 0)
 
-	msgType, attrs, err := parseSTUNMessage(msg)
+	msgType, respTxID, attrs, err := parseSTUNMessage(msg)
 	require.NoError(t, err)
 	assert.Equal(t, uint16(msgRefreshRequest), msgType)
+	assert.Equal(t, txID, respTxID)
 
 	// Should contain LIFETIME=0.
 	require.Contains(t, attrs, uint16(attrLifetime))
@@ -492,4 +697,20 @@ func TestBuildRefreshRequest(t *testing.T) {
 	assert.Contains(t, attrs, uint16(attrNonce))
 	assert.Contains(t, attrs, uint16(attrMessageIntegrity))
 	assert.Len(t, attrs[attrMessageIntegrity], 20)
+}
+
+func TestBuildUnauthRefreshRequest(t *testing.T) {
+	txID := [12]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+	msg := buildUnauthRefreshRequest(txID, 0)
+
+	msgType, respTxID, attrs, err := parseSTUNMessage(msg)
+	require.NoError(t, err)
+	assert.Equal(t, uint16(msgRefreshRequest), msgType)
+	assert.Equal(t, txID, respTxID)
+
+	// Should contain LIFETIME=0 but no auth attributes.
+	require.Contains(t, attrs, uint16(attrLifetime))
+	assert.Equal(t, uint32(0), binary.BigEndian.Uint32(attrs[attrLifetime]))
+	assert.NotContains(t, attrs, uint16(attrUsername))
+	assert.NotContains(t, attrs, uint16(attrMessageIntegrity))
 }

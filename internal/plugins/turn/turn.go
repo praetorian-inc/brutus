@@ -42,7 +42,7 @@ const (
 	msgRefreshRequest = 0x0004 // Refresh method, Request class
 
 	// STUN attribute types.
-	attrUsername            = 0x0006
+	attrUsername           = 0x0006
 	attrMessageIntegrity   = 0x0008
 	attrErrorCode          = 0x0009
 	attrLifetime           = 0x000D
@@ -53,6 +53,7 @@ const (
 	// TURN error codes.
 	codeUnauthorized = 401
 	codeStaleNonce   = 438
+	codeQuotaReached = 486
 
 	// IANA protocol number for UDP.
 	protoUDP = 17
@@ -121,9 +122,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	msgType, attrs, err := parseSTUNMessage(buf[:n])
+	msgType, respTxID, attrs, err := parseSTUNMessage(buf[:n])
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
+		return result
+	}
+
+	if respTxID != txID {
+		result.Error = fmt.Errorf("connection error: transaction ID mismatch in initial response")
 		return result
 	}
 
@@ -131,6 +137,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if msgType == msgAllocateSuccess {
 		result.Success = true
 		result.Banner = "[CRITICAL] TURN server accepts unauthenticated allocations"
+		deallocateUnauth(conn)
 		return result
 	}
 
@@ -167,9 +174,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			return result
 		}
 
-		msgType, attrs, err = parseSTUNMessage(buf[:n])
+		msgType, respTxID, attrs, err = parseSTUNMessage(buf[:n])
 		if err != nil {
 			result.Error = brutus.WrapConnError(err)
+			return result
+		}
+
+		if respTxID != txID2 {
+			result.Error = fmt.Errorf("connection error: transaction ID mismatch in auth response")
 			return result
 		}
 
@@ -191,6 +203,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 					nonce = fresh
 				}
 				continue
+			case codeQuotaReached:
+				// 486 = creds were valid but allocation quota exceeded.
+				result.Success = true
+				result.Banner = "valid credentials (allocation quota reached)"
+				return result
 			default:
 				result.Error = fmt.Errorf("connection error: TURN error %d", getErrorCode(attrs))
 				return result
@@ -236,14 +253,19 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string,
 		return result
 	}
 
-	msgType, _, err := parseSTUNMessage(buf[:n])
+	msgType, respTxID, _, err := parseSTUNMessage(buf[:n])
 	if err != nil {
+		return result
+	}
+
+	if respTxID != txID {
 		return result
 	}
 
 	if msgType == msgAllocateSuccess {
 		result.Success = true
 		result.Banner = "[CRITICAL] TURN server accepts unauthenticated allocations"
+		deallocateUnauth(conn)
 	}
 
 	return result
@@ -253,12 +275,35 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string,
 // STUN Message Building
 // =============================================================================
 
-// deallocate sends a Refresh request with LIFETIME=0 to release a successful
-// TURN allocation. This prevents per-user quota exhaustion during brute force.
-// Errors are ignored (fire-and-forget before connection close).
+// deallocate sends an authenticated Refresh request with LIFETIME=0 to release
+// a successful TURN allocation. This prevents per-user quota exhaustion during
+// brute force. Errors are ignored (fire-and-forget before connection close).
 func deallocate(conn net.Conn, username, realm, nonce, password string) {
 	txID := newTransactionID()
 	_, _ = conn.Write(buildRefreshRequest(txID, username, realm, nonce, password, 0))
+}
+
+// deallocateUnauth sends an unauthenticated Refresh request with LIFETIME=0
+// to release an open-relay allocation (no credentials needed).
+func deallocateUnauth(conn net.Conn) {
+	txID := newTransactionID()
+	_, _ = conn.Write(buildUnauthRefreshRequest(txID, 0))
+}
+
+// buildUnauthRefreshRequest builds an unauthenticated TURN Refresh request.
+// Used to release open-relay allocations that were granted without credentials.
+func buildUnauthRefreshRequest(txID [12]byte, lifetime uint32) []byte {
+	lt := make([]byte, 4)
+	binary.BigEndian.PutUint32(lt, lifetime)
+	attrs := encodeAttr(attrLifetime, lt)
+
+	msg := make([]byte, stunHeaderSize+len(attrs))
+	binary.BigEndian.PutUint16(msg[0:2], msgRefreshRequest)
+	binary.BigEndian.PutUint16(msg[2:4], uint16(len(attrs)))
+	binary.BigEndian.PutUint32(msg[4:8], magicCookie)
+	copy(msg[8:20], txID[:])
+	copy(msg[stunHeaderSize:], attrs)
+	return msg
 }
 
 // buildRefreshRequest builds an authenticated TURN Refresh request.
@@ -348,11 +393,14 @@ func newTransactionID() [12]byte {
 // STUN Message Parsing
 // =============================================================================
 
-// parseSTUNMessage parses a STUN message, returning the message type and
-// a map of attribute type -> raw value bytes.
-func parseSTUNMessage(data []byte) (uint16, map[uint16][]byte, error) {
+// parseSTUNMessage parses a STUN message, returning the message type,
+// the 12-byte transaction ID, and a map of attribute type -> raw value bytes.
+// Per RFC 5389 §7.3.1, only the first occurrence of each attribute is kept.
+func parseSTUNMessage(data []byte) (uint16, [12]byte, map[uint16][]byte, error) {
+	var txID [12]byte
+
 	if len(data) < stunHeaderSize {
-		return 0, nil, fmt.Errorf("message too short: %d bytes", len(data))
+		return 0, txID, nil, fmt.Errorf("message too short: %d bytes", len(data))
 	}
 
 	msgType := binary.BigEndian.Uint16(data[0:2])
@@ -360,11 +408,13 @@ func parseSTUNMessage(data []byte) (uint16, map[uint16][]byte, error) {
 	cookie := binary.BigEndian.Uint32(data[4:8])
 
 	if cookie != magicCookie {
-		return 0, nil, fmt.Errorf("invalid magic cookie: 0x%08x", cookie)
+		return 0, txID, nil, fmt.Errorf("invalid magic cookie: 0x%08x", cookie)
 	}
 
+	copy(txID[:], data[8:20])
+
 	if stunHeaderSize+attrLen > len(data) {
-		return 0, nil, fmt.Errorf("truncated message: need %d bytes, have %d",
+		return 0, txID, nil, fmt.Errorf("truncated message: need %d bytes, have %d",
 			stunHeaderSize+attrLen, len(data))
 	}
 
@@ -383,7 +433,11 @@ func parseSTUNMessage(data []byte) (uint16, map[uint16][]byte, error) {
 
 		val := make([]byte, aLen)
 		copy(val, data[offset:offset+aLen])
-		attrs[aType] = val
+
+		// RFC 5389 §15: keep only the first occurrence of each attribute.
+		if _, exists := attrs[aType]; !exists {
+			attrs[aType] = val
+		}
 
 		// Advance past value + padding to 4-byte boundary.
 		offset += aLen
@@ -392,7 +446,7 @@ func parseSTUNMessage(data []byte) (uint16, map[uint16][]byte, error) {
 		}
 	}
 
-	return msgType, attrs, nil
+	return msgType, txID, attrs, nil
 }
 
 // getErrorCode extracts the numeric error code from an ERROR-CODE attribute.

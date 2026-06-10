@@ -255,12 +255,6 @@ func (c *Config) applyDefaults() {
 		return
 	}
 
-	// Normalize mode (empty string → ModeDefault for backward compat).
-	mode := c.Mode
-	if mode == "" {
-		mode = ModeDefault
-	}
-
 	hasCreds := len(c.Credentials) > 0
 	hasPasswords := len(c.Passwords) > 0
 	hasKeys := len(c.Keys) > 0

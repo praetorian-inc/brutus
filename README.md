@@ -50,7 +50,7 @@ Traditional tools like **THC Hydra** have served the security community well, bu
 
 - **Native pipeline integration:** Brutus speaks JSON and integrates directly with [Nerva](https://github.com/praetorian-inc/nerva), [naabu](https://github.com/projectdiscovery/naabu), [nmap](https://nmap.org), and [masscan](https://github.com/robertdavidgraham/masscan). Pipe discovered services straight into credential testing without format conversion or scripting.
 
-- **Embedded intelligence:** Known SSH bad keys (Vagrant, F5 BIG-IP, ExaGrid, etc.) are compiled into the binary and tested automatically for SSH targets.
+- **Embedded intelligence:** Known SSH bad keys (Vagrant, F5 BIG-IP, ExaGrid, etc.) are compiled into the binary. Use `brutus badkeys` to test them against SSH targets.
 
 - **Library-first design:** Import Brutus directly into your Go security tools. Build custom automation without shelling out to external processes.
 
@@ -189,7 +189,7 @@ brutus web --target 192.168.1.1:80 --experimental-ai
 brutus web --target 192.168.1.1:80 -c "admin:admin,root:toor"
 
 # Test SNMP community strings
-brutus snmp --target 192.168.1.1:161 --mode extended
+brutus snmp --target 192.168.1.1:161 --mode exhaustive
 
 # Detect Windows logon-screen backdoors
 brutus logon --target 10.0.0.50:3389
@@ -197,13 +197,13 @@ brutus logon --target 10.0.0.50:3389
 # Pipeline mode: creds skips HTTP/SNMP, web skips non-HTTP, snmp skips non-SNMP
 naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
 naabu -host 10.0.0.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai
-naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode full
+naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode exhaustive
 ```
 
 ### Basic Usage
 
 ```bash
-# Test SSH with embedded badkeys (tested by default)
+# Test SSH with default credentials
 brutus creds --target 192.168.1.100:22 --protocol ssh
 
 # Test with specific credentials
@@ -341,7 +341,7 @@ brutus creds --nmap-file scan.xml -P passwords.txt
 brutus web --nmap-file scan.xml -c "admin:admin,root:password"
 
 # Test SNMP from nmap scan
-brutus snmp --nmap-file scan.xml --mode extended
+brutus snmp --nmap-file scan.xml --mode exhaustive
 
 # JSON output for scripting
 brutus creds --nmap-file scan.xml --json -o results.json
@@ -422,7 +422,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 {"protocol":"ssh","target":"192.168.1.103:22","username":"vagrant","key":true,"duration":"2.345678ms","banner":"SSH-2.0-OpenSSH_9.6"}
 ```
 
-**Note:** Failed authentication attempts are not included in JSON output. The `key` field appears (as `true`) when authentication used an SSH key instead of a password.
+**Note:** Failed authentication attempts are not included in JSON output. The `key` field appears (as `true`) when authentication used an SSH key instead of a password. The `llm_suggested` field appears (as `true`) when credentials were suggested by the AI system (`--experimental-ai`).
 
 ---
 
@@ -446,7 +446,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 
 ## Supported Protocols
 
-Brutus supports **28 protocols**:
+Brutus supports **27 protocols**:
 
 ### Network Services
 | Protocol | Port | Auth Methods | Use Case |
@@ -522,9 +522,10 @@ brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p "password"
 
 | Product | CVE | Default User | Description |
 |---------|-----|--------------|-------------|
-| Vagrant | - | vagrant | HashiCorp Vagrant insecure key |
+| Vagrant | - | vagrant, root | HashiCorp Vagrant insecure key |
 | F5 BIG-IP | CVE-2012-1493 | root | Static SSH host key |
 | ExaGrid | CVE-2016-1561 | root | Backup appliance backdoor |
+| Monroe DASDEC | CVE-2013-0137 | root | Emergency alert systems |
 | Barracuda | CVE-2014-8428 | cluster | Load balancer VM |
 | Ceragon FibeAir | CVE-2015-0936 | mateidu | Wireless backhaul |
 | Array Networks | - | sync | vAPV/vxAG appliances |
@@ -594,19 +595,16 @@ The `snmp` subcommand provides dedicated SNMP v1/v2c community string testing wi
 
 | Mode | Strings | Coverage |
 |------|---------|----------|
-| `default` | ~20 | Common strings (public, private, community, etc.) |
-| `extended` | ~50 | Adds vendor-specific (Cisco, HP, Juniper, etc.) |
-| `full` | ~120 | Comprehensive (SCADA, IP cameras, storage, etc.) |
+| `cautious` | ~25 | Common strings (public, private, community, etc.) |
+| `default` | ~25 | Same as cautious |
+| `exhaustive` | 200+ | Comprehensive (vendor-specific, SCADA, IP cameras, storage, etc.) |
 
 ```bash
-# Test with default community strings
+# Test with default community strings (~25)
 brutus snmp --target 192.168.1.1:161
 
-# Extended mode for more coverage
-brutus snmp --target 192.168.1.1:161 --mode extended
-
-# Full mode for comprehensive testing
-brutus snmp --target 10.0.0.1:161 --mode full
+# Exhaustive mode for comprehensive testing (200+)
+brutus snmp --target 10.0.0.1:161 --mode exhaustive
 
 # Custom community strings
 brutus snmp --target 192.168.1.1:161 -c "mycommunity,secretstring"
@@ -615,7 +613,7 @@ brutus snmp --target 192.168.1.1:161 -c "mycommunity,secretstring"
 brutus snmp --target 192.168.1.1:161 -C community-strings.txt
 
 # Pipeline mode
-naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode extended
+naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode exhaustive
 ```
 
 ---
@@ -808,7 +806,7 @@ brutus logon --targets-file rdp-targets.txt --json
 jq 'select(.finding == "[CRITICAL]")' rdp-findings.json
 ```
 
-**Technical implementation:** RDP protocol support uses [IronRDP](https://github.com/Devolutions/IronRDP) (Rust) compiled to WebAssembly and executed via [wazero](https://github.com/tetragonalworks/wazero), maintaining Brutus's zero-CGO, single-binary design.
+**Technical implementation:** RDP protocol support uses [IronRDP](https://github.com/Devolutions/IronRDP) (Rust) compiled to WebAssembly and executed via [wazero](https://github.com/tetratelabs/wazero), maintaining Brutus's zero-CGO, single-binary design.
 
 ---
 

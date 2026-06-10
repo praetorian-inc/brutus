@@ -21,3 +21,5 @@ admin:secret
 grafana:grafana
 jenkins:jenkins
 admin:default
+# GPON OLT vendors
+admin:Xpon@Olt9417#

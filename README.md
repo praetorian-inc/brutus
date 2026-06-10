@@ -14,6 +14,7 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#pipeline-integration">Pipeline</a> •
   <a href="#supported-protocols">Protocols</a> •
+  <a href="#account-enumeration">Enumeration</a> •
   <a href="#socks5-proxy-support">Proxy</a> •
   <a href="#library-integration">Library</a>
 </p>
@@ -28,11 +29,12 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
-- **24 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
+- **27 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Oracle, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
 - **SOCKS5 proxy support:** Route all traffic through a SOCKS5 proxy with `--proxy`
 - **Aggressiveness modes:** `--mode cautious|default|exhaustive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
+- **Account enumeration:** SaaS email enumeration, Kerberos user enumeration, email generation
 - **Go library:** Import directly into your security automation tools
 - **Production ready:** Rate limiting, connection pooling, and comprehensive error handling
 
@@ -54,10 +56,10 @@ Traditional tools like **THC Hydra** have served the security community well, bu
 
 ```bash
 # Full network credential audit in one pipeline (JSON mode)
-naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | nerva --json | brutus --json
+naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | nerva --json | brutus creds --json
 
 # Or use Nerva's default URI output — no --json flags needed
-naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | nerva | brutus
+naabu -host 10.0.0.0/24 -p 22,3306,5432,6379 -silent | nerva | brutus creds
 ```
 
 ---
@@ -82,7 +84,7 @@ Found a private key on a compromised system? Spray it across the network to find
 # Discover SSH services and spray a found private key
 naabu -host 10.0.0.0/24 -p 22 -silent | \
   nerva --json | \
-  brutus -u root,admin,ubuntu,deploy -k /path/to/found_key --json
+  brutus creds -u root,admin,ubuntu,deploy -k /path/to/found_key --json
 ```
 
 This pipeline discovers all SSH services, identifies them with Nerva, and tests the compromised key against common usernames—revealing lateral movement opportunities in seconds.
@@ -154,7 +156,7 @@ go install github.com/praetorian-inc/brutus/cmd/brutus@latest
 
 ### Subcommands
 
-Brutus organizes its functionality into five focused subcommands:
+Brutus organizes its functionality into six focused subcommands:
 
 ```bash
 brutus creds    # Non-HTTP credential auditing (SSH, databases, SMB, etc.)
@@ -162,6 +164,7 @@ brutus web      # HTTP/web panel auditing (Basic Auth, form login, AI-powered)
 brutus snmp     # SNMP community string testing
 brutus badkeys  # Known weak/compromised SSH key testing
 brutus logon    # Windows logon-screen backdoor detection (sticky keys, utilman)
+brutus enum     # Account enumeration (SaaS services, Kerberos, email generation)
 ```
 
 Each subcommand has aliases for discoverability:
@@ -173,6 +176,7 @@ Each subcommand has aliases for discoverability:
 | `snmp` | `community` |
 | `badkeys` | `keys`, `ssh-keys`, `badkey` |
 | `logon` | `stickykeys`, `sticky-keys`, `utilman`, `sethc`, `winlogon`, `accessibility` |
+| `enum` | *(none)* |
 
 ```bash
 # Test SSH credentials
@@ -195,8 +199,6 @@ naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
 naabu -host 10.0.0.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai
 naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode full
 ```
-
-> **Backward compatible:** The flat CLI (`brutus --target ... --protocol ...`) still works. Subcommands are optional.
 
 ### Basic Usage
 
@@ -226,16 +228,14 @@ brutus creds --target 192.168.1.100:22 --protocol ssh --json
 ### Output Example
 
 ```
-$ brutus --target 192.168.1.100:22 --protocol ssh -u root,admin -p toor,password,admin
-[*] Loaded 9 badkeys for SSH testing
+$ brutus creds --target 192.168.1.100:22 --protocol ssh -u root,admin -p toor,password,admin
 [+] VALID: ssh root:toor @ 192.168.1.100:22 (1.23s)
 ```
 
 With verbose mode (`-v`):
 
 ```
-$ brutus --target 192.168.1.100:22 --protocol ssh -u root -p password,toor -v
-[*] Loaded 9 badkeys for SSH testing
+$ brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p password,toor -v
 [-] FAILED: ssh root:password @ 192.168.1.100:22 (0.45s)
 [+] VALID: ssh root:toor @ 192.168.1.100:22 (0.52s)
 ```
@@ -243,7 +243,7 @@ $ brutus --target 192.168.1.100:22 --protocol ssh -u root -p password,toor -v
 JSON output for pipeline integration (outputs only successful credentials):
 
 ```
-$ brutus --target 192.168.1.100:22 --protocol ssh -u root -p toor --json
+$ brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p toor --json
 {"protocol":"ssh","target":"192.168.1.100:22","username":"root","password":"toor","duration":"1.234567ms","banner":"SSH-2.0-OpenSSH_8.9p1"}
 ```
 
@@ -261,11 +261,11 @@ Brutus integrates seamlessly with **[Nerva](https://github.com/praetorian-inc/ne
 # Discover all open ports, identify services, test default credentials
 naabu -host 10.10.10.0/24 -p 22,23,21,3306,5432,6379,27017,445 -silent | \
   nerva --json | \
-  brutus --json -o results.json
+  brutus creds --json -o results.json
 
 # Same pipeline using Nerva's default URI output (no --json needed)
 naabu -host 10.10.10.0/24 -p 22,23,21,3306,5432,6379,27017,445 -silent | \
-  nerva | brutus -o results.json
+  nerva | brutus creds -o results.json
 
 # Review findings (all output is successful credentials)
 cat results.json | jq '.'
@@ -277,10 +277,10 @@ cat results.json | jq '.'
 # Full pipeline against a single target
 naabu -host target.example.com -top-ports 1000 -silent | \
   nerva --json | \
-  brutus
+  brutus creds
 
 # Or scan a list of subdomains
-cat subdomains.txt | naabu -silent | nerva --json | brutus
+cat subdomains.txt | naabu -silent | nerva --json | brutus creds
 ```
 
 #### Scenario 3: Database Hunting in an Internal Assessment
@@ -289,7 +289,7 @@ cat subdomains.txt | naabu -silent | nerva --json | brutus
 # Find and test all databases in a range
 naabu -host 192.168.0.0/16 -p 3306,5432,1433,27017,6379,9042 -silent | \
   nerva --json | \
-  brutus -t 5 --json | \
+  brutus creds -t 5 --json | \
   tee database-findings.json
 
 # Extract credentials in readable format
@@ -300,17 +300,11 @@ jq -r '"\(.target) \(.username):\(.password)"' database-findings.json
 
 ```bash
 # Test embedded bad keys (Vagrant, F5 BIG-IP, ExaGrid, etc.) across a range
-# Badkeys are tested by default for SSH services
 naabu -host 10.0.0.0/8 -p 22 -rate 1000 -silent | \
   nerva --json | \
-  brutus --json -o ssh-key-findings.json
+  brutus badkeys --json -o ssh-key-findings.json
 
-# Test ONLY bad keys (skip password wordlists and non-SSH protocols)
-naabu -host 10.0.0.0/8 -p 22 -rate 1000 -silent | \
-  nerva --json | \
-  brutus --badkeys-only --json -o ssh-key-findings.json
-
-# Find systems using SSH keys (key field is true)
+# Find systems using compromised SSH keys (key field is true)
 cat ssh-key-findings.json | jq 'select(.key == true)'
 ```
 
@@ -320,12 +314,12 @@ cat ssh-key-findings.json | jq 'select(.key == true)'
 # Test only Redis instances found in the network
 naabu -host 172.16.0.0/12 -p 6379 -silent | \
   nerva --json | \
-  brutus
+  brutus creds
 
 # Test only MongoDB with custom credentials
 naabu -host 10.0.0.0/24 -p 27017 -silent | \
   nerva --json | \
-  brutus -u admin,root,mongodb -p admin,password,mongodb
+  brutus creds -u admin,root,mongodb -p admin,password,mongodb
 ```
 
 ### Scan Tool Import (Nmap & Masscan)
@@ -452,7 +446,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 
 ## Supported Protocols
 
-Brutus supports **24 protocols**:
+Brutus supports **28 protocols**:
 
 ### Network Services
 | Protocol | Port | Auth Methods | Use Case |
@@ -490,6 +484,13 @@ Brutus supports **24 protocols**:
 | CouchDB | 5984 | HTTP Basic | Document stores |
 | Elasticsearch | 9200 | HTTP Basic | Search engines |
 | InfluxDB | 8086 | HTTP Basic | Time-series data |
+| Oracle | 1521 | Password | Enterprise databases |
+
+### Container & Orchestration
+| Protocol | Port | Auth Methods | Use Case |
+|----------|------|--------------|----------|
+| Docker | 2375/2376 | Unauthenticated | Exposed Docker daemons |
+| Kubernetes | 6443/10250 | Unauthenticated | Exposed K8s API/kubelet |
 
 ### Communications
 | Protocol | Port | Auth Methods | Use Case |
@@ -507,17 +508,14 @@ Single binary deployment with no external key files needed. Each key is paired w
 Brutus carries the **[rapid7/ssh-badkeys](https://github.com/rapid7/ssh-badkeys)** and **[Vagrant](https://github.com/hashicorp/vagrant)** key collections embedded in the binary:
 
 ```bash
-# Bad keys are tested by default for SSH targets (alongside password wordlists)
-brutus --target 192.168.1.100:22 --protocol ssh
+# Test bad keys against a single target
+brutus badkeys --target 192.168.1.100:22
 
-# Test ONLY bad keys (no password wordlists, skip non-SSH protocols)
-brutus --target 192.168.1.100:22 --protocol ssh --badkeys-only
+# Pipeline mode: scan a range for compromised SSH keys
+naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus badkeys
 
-# Disable bad key testing entirely
-brutus --target 192.168.1.100:22 --protocol ssh --no-badkeys -p "password"
-
-# Combine with pipeline for network-wide key-only testing
-naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus --badkeys-only
+# Test credentials (bad keys are NOT included in creds mode)
+brutus creds --target 192.168.1.100:22 --protocol ssh -u root -p "password"
 ```
 
 ### Embedded Key Collection
@@ -790,69 +788,84 @@ Open the displayed URL (e.g., `http://127.0.0.1:<port>`) in any browser to inter
 
 **B-TP (Benign True Positive) considerations:** The backdoor replacement may also indicate forgotten password recovery procedures or artifacts from authorized penetration tests.
 
-### Mass RDP Scanning Pipeline (`--nla-check` + `--sticky-keys-scan`)
+### Mass RDP Scanning Pipeline
 
-For large-scale assessments, Brutus provides two scan-only flags that bypass brute force entirely and output structured JSONL for pipeline integration:
-
-**Phase 1: NLA Fingerprinting** — Fast TCP-only probe (~100ms per target) that determines whether an RDP target requires Network Level Authentication:
+For large-scale assessments, the `logon` subcommand runs backdoor detection across multiple targets. It accepts pipeline input, targets files, or nmap/masscan imports — only RDP services are tested:
 
 ```bash
-# Check NLA status of a single target
-brutus --target 10.0.0.50:3389 --nla-check
-
-# Pipeline: scan a /24 for non-NLA RDP targets
+# Scan a /24 for sticky keys and utilman backdoors
 naabu -host 10.0.0.0/24 -p 3389 -silent | \
   nerva --json | \
-  brutus --nla-check --json
-```
+  brutus logon --json -o rdp-findings.json
 
-NLA check output classifies each target:
-- `[HIGH] Non-NLA target (protocol: rdp)` — Login screen exposed pre-auth, sticky keys testable
-- `[INFO] NLA required (protocol: nla)` — CredSSP required, credentials needed before login screen
+# Scan from nmap results
+brutus logon --nmap-file scan.xml --json -o rdp-findings.json
 
-**Phase 2: Sticky Keys Scan** — Connects to non-NLA targets, triggers the 5x Shift sequence, and checks for a backdoor. No credentials needed:
-
-```bash
-# Scan a single target for sticky keys backdoor
-brutus --target 10.0.0.50:3389 --sticky-keys-scan
-
-# Pipeline: scan only non-NLA targets
-naabu -host 10.0.0.0/24 -p 3389 -silent | \
-  nerva --json | \
-  brutus --sticky-keys-scan --json
-```
-
-**Full two-phase pipeline** — Combine both scans for complete RDP assessment:
-
-```bash
-# Phase 1: Find non-NLA targets
-naabu -host 10.0.0.0/16 -p 3389 -rate 1000 -silent | \
-  nerva --json | \
-  brutus --nla-check --json -o nla-results.json
-
-# Filter non-NLA targets
-jq -r 'select(.finding == "[HIGH]") | "\(.target)"' nla-results.json > non-nla-targets.txt
-
-# Phase 2: Check non-NLA targets for sticky keys backdoor
-cat non-nla-targets.txt | \
-  xargs -I {} brutus --target {} --sticky-keys-scan --json | \
-  tee sticky-keys-findings.json
+# Scan from targets file
+brutus logon --targets-file rdp-targets.txt --json
 
 # Extract critical findings
-jq 'select(.finding == "[CRITICAL]")' sticky-keys-findings.json
+jq 'select(.finding == "[CRITICAL]")' rdp-findings.json
 ```
-
-**Scan JSONL output format:**
-
-```json
-{"protocol":"rdp","target":"10.0.0.50:3389","scan_type":"nla_check","finding":"[HIGH]","banner":"[HIGH] Non-NLA target (protocol: rdp) - login screen exposed pre-auth","success":true}
-{"protocol":"rdp","target":"10.0.0.51:3389","scan_type":"nla_check","finding":"[INFO]","banner":"[INFO] NLA required (protocol: nla)","success":true}
-{"protocol":"rdp","target":"10.0.0.50:3389","scan_type":"sticky_keys_scan","finding":"[CRITICAL]","banner":"[CRITICAL] Sticky keys backdoor CONFIRMED (confidence: 85%)","success":true}
-```
-
-Both flags can be combined (`--nla-check --sticky-keys-scan`) to run both checks in a single pass. Both accept stdin from nerva (filtering to RDP targets automatically) or a single `--target`.
 
 **Technical implementation:** RDP protocol support uses [IronRDP](https://github.com/Devolutions/IronRDP) (Rust) compiled to WebAssembly and executed via [wazero](https://github.com/tetragonalworks/wazero), maintaining Brutus's zero-CGO, single-binary design.
+
+---
+
+## Account Enumeration
+
+The `enum` subcommand enumerates accounts against SaaS services or Active Directory without sending passwords.
+
+### SaaS Email Enumeration
+
+Discover SaaS services via DNS TXT records and enumerate email accounts using unauthenticated oracles:
+
+```bash
+# DNS TXT recon — discover SaaS services for a domain
+brutus enum saas --domain example.com
+
+# Enumerate specific emails against discovered services
+brutus enum saas --domain example.com -e user@example.com,admin@example.com
+
+# Enumerate emails from file
+brutus enum saas --domain example.com -E emails.txt
+
+# Generate emails from embedded name lists and enumerate
+brutus enum saas --domain example.com --generate --format flast
+
+# Validate oracles with a known-valid email before large-scale enumeration
+brutus enum saas discover --domain example.com --known-valid admin@example.com
+```
+
+### Kerberos User Enumeration
+
+Enumerate Active Directory usernames via Kerberos AS-REQ (no passwords sent, no lockout risk):
+
+```bash
+# Enumerate specific users
+brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator,guest,krbtgt
+
+# Enumerate from file
+brutus enum kerberos --dc dc01.corp.local --domain CORP.LOCAL -U users.txt
+
+# Generate usernames and pipe to Kerberos enum
+brutus enum generate --format flast | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -
+```
+
+### Email/Username Generation
+
+Generate email addresses or usernames from embedded first/last name wordlists:
+
+```bash
+# Generate emails: jsmith@example.com
+brutus enum generate --domain example.com --format flast
+
+# Generate usernames only (no domain): jsmith
+brutus enum generate --format flast
+
+# Available formats: first.last, flast, firstl, f.last, lastf, last.first, lastfirst, first
+brutus enum generate --domain example.com --format first.last
+```
 
 ---
 

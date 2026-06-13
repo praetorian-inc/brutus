@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   notify:
-    uses: praetorian-inc/public-workflows/.github/workflows/external-contrib-notify.yml@f970d6f759e1d18e547c7211d387213abcbfe68b  # v2.9.4
+    uses: praetorian-inc/public-workflows/.github/workflows/external-contrib-notify.yml@92e9fde658fcf792551927c7de0eb9cd14c24e47  # v2.10.1
     permissions:
       contents: read
       issues: write

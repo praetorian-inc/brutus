@@ -125,7 +125,7 @@ func registerSharedFlags(cmd *cobra.Command) {
 	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
 
 	// Mode
-	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, exhaustive")
+	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, aggressive")
 
 	// Proxy
 	pf.StringVar(&flagProxy, "proxy", "", "SOCKS5 proxy URL (e.g., socks5://127.0.0.1:1080 or socks5://user:pass@host:port)")

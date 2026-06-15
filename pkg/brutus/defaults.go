@@ -11,7 +11,7 @@ var wordlistsFS embed.FS
 // Tier marker comments recognized in wordlist files.
 const (
 	markerCautious   = "# --- cautious ---"
-	markerExhaustive = "# --- exhaustive ---"
+	markerAggressive = "# --- aggressive ---"
 )
 
 // maxCautiousFallback is the maximum number of credentials returned for
@@ -35,13 +35,13 @@ func DefaultCredentials(protocol string) []Credential {
 //	root:root           ← cautious tier (lines before first marker)
 //	admin:admin
 //	# --- cautious ---
-//	root:password       ← default tier (added for default + exhaustive)
+//	root:password       ← default tier (added for default + aggressive)
 //	root:toor
-//	# --- exhaustive ---
-//	vendor:vendor123    ← exhaustive tier (added only for exhaustive)
+//	# --- aggressive ---
+//	vendor:vendor123    ← aggressive tier (added only for aggressive)
 //
 // Files without markers: cautious returns the first 5 entries, default and
-// exhaustive return all entries.
+// aggressive return all entries.
 func DefaultCredentialsForMode(protocol string, mode Mode) []Credential {
 	data, err := wordlistsFS.ReadFile("wordlists/" + protocol + "_defaults.txt")
 	if err != nil {
@@ -55,7 +55,7 @@ func parseWordlistTiered(content string, mode Mode) []Credential {
 	lines := strings.Split(content, "\n")
 
 	// Partition lines into three sections based on markers.
-	var cautiousLines, defaultLines, exhaustiveLines []string
+	var cautiousLines, defaultLines, aggressiveLines []string
 	section := "cautious" // lines before any marker are highest-confidence
 	hasMarkers := false
 
@@ -67,9 +67,9 @@ func parseWordlistTiered(content string, mode Mode) []Credential {
 			section = "default"
 			continue
 		}
-		if trimmed == markerExhaustive {
+		if trimmed == markerAggressive {
 			hasMarkers = true
-			section = "exhaustive"
+			section = "aggressive"
 			continue
 		}
 
@@ -83,13 +83,13 @@ func parseWordlistTiered(content string, mode Mode) []Credential {
 			cautiousLines = append(cautiousLines, trimmed)
 		case "default":
 			defaultLines = append(defaultLines, trimmed)
-		case "exhaustive":
-			exhaustiveLines = append(exhaustiveLines, trimmed)
+		case "aggressive":
+			aggressiveLines = append(aggressiveLines, trimmed)
 		}
 	}
 
 	// When the file has no markers, all non-comment lines end up in
-	// cautiousLines. For ModeDefault and ModeExhaustive this is fine (they
+	// cautiousLines. For ModeDefault and ModeAggressive this is fine (they
 	// get everything). For ModeCautious we cap at maxCautiousFallback.
 	if !hasMarkers && mode == ModeCautious && len(cautiousLines) > maxCautiousFallback {
 		cautiousLines = cautiousLines[:maxCautiousFallback]
@@ -100,11 +100,11 @@ func parseWordlistTiered(content string, mode Mode) []Credential {
 	switch mode {
 	case ModeCautious:
 		selected = cautiousLines
-	case ModeExhaustive:
-		selected = make([]string, 0, len(cautiousLines)+len(defaultLines)+len(exhaustiveLines))
+	case ModeAggressive:
+		selected = make([]string, 0, len(cautiousLines)+len(defaultLines)+len(aggressiveLines))
 		selected = append(selected, cautiousLines...)
 		selected = append(selected, defaultLines...)
-		selected = append(selected, exhaustiveLines...)
+		selected = append(selected, aggressiveLines...)
 	default: // ModeDefault
 		selected = make([]string, 0, len(cautiousLines)+len(defaultLines))
 		selected = append(selected, cautiousLines...)

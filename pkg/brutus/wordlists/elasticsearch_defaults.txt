@@ -6,7 +6,7 @@ elastic:password
 # --- cautious ---
 admin:admin
 elasticsearch:elasticsearch
-# --- exhaustive ---
+# --- aggressive ---
 elastic:admin
 kibana:kibana
 elastic:elastic123

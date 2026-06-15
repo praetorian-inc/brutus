@@ -13,7 +13,7 @@ elastic:elastic
 elastic:changeme
 user:user
 guest:guest
-# --- exhaustive ---
+# --- aggressive ---
 admin:admin123
 admin:Password1
 tomcat:tomcat

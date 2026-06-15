@@ -6,7 +6,7 @@ neo4j:password
 neo4j:admin
 admin:admin
 neo4j:neo4j123
-# --- exhaustive ---
+# --- aggressive ---
 neo4j:changeme
 neo4j:graph
 admin:neo4j

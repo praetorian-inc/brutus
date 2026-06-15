@@ -9,7 +9,7 @@ root:alpine
 ubuntu:ubuntu
 pi:raspberry
 vagrant:vagrant
-# --- exhaustive ---
+# --- aggressive ---
 deploy:deploy
 ec2-user:ec2-user
 centos:centos

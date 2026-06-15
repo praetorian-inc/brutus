@@ -65,7 +65,7 @@ func init() {
 		// mode system. Skip strict validation for SNMP so legacy modes pass
 		// through to ConfigureSNMP which handles the mapping.
 		if cmd.Name() != "snmp" && !brutus.ValidMode(flagMode) {
-			return fmt.Errorf("invalid --mode %q (valid: cautious, default, exhaustive)", flagMode)
+			return fmt.Errorf("invalid --mode %q (valid: cautious, default, aggressive)", flagMode)
 		}
 		return nil
 	}

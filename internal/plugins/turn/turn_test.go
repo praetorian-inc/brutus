@@ -384,9 +384,16 @@ func TestPlugin_Test_UnauthSuccess_DuringTest(t *testing.T) {
 
 		// Expect unauthenticated deallocation Refresh.
 		msg, _ = stunRecv(pc)
-		if len(msg) >= stunHeaderSize {
+		_, _, refreshAttrs, parseErr := parseSTUNMessage(msg)
+		if parseErr == nil {
 			msgType := binary.BigEndian.Uint16(msg[0:2])
-			if msgType == msgRefreshRequest {
+			lifetime, hasLifetime := refreshAttrs[attrLifetime]
+			_, hasUsername := refreshAttrs[attrUsername]
+			_, hasMI := refreshAttrs[attrMessageIntegrity]
+			if msgType == msgRefreshRequest &&
+				hasLifetime && len(lifetime) == 4 &&
+				binary.BigEndian.Uint32(lifetime) == 0 &&
+				!hasUsername && !hasMI {
 				refreshReceived <- struct{}{}
 			}
 		}
@@ -402,9 +409,9 @@ func TestPlugin_Test_UnauthSuccess_DuringTest(t *testing.T) {
 
 	select {
 	case <-refreshReceived:
-		// OK — unauthenticated deallocation was sent.
+		// OK — unauthenticated deallocation with LIFETIME=0 and no auth attrs.
 	case <-time.After(2 * time.Second):
-		t.Error("expected unauthenticated Refresh(LIFETIME=0) after open-relay detection")
+		t.Error("expected unauthenticated Refresh(LIFETIME=0, no auth attrs) after open-relay detection")
 	}
 }
 
@@ -475,9 +482,16 @@ func TestPlugin_CheckUnauth_OpenRelay(t *testing.T) {
 
 		// Expect unauthenticated deallocation Refresh.
 		msg, _ = stunRecv(pc)
-		if len(msg) >= stunHeaderSize {
+		_, _, refreshAttrs, parseErr := parseSTUNMessage(msg)
+		if parseErr == nil {
 			msgType := binary.BigEndian.Uint16(msg[0:2])
-			if msgType == msgRefreshRequest {
+			lifetime, hasLifetime := refreshAttrs[attrLifetime]
+			_, hasUsername := refreshAttrs[attrUsername]
+			_, hasMI := refreshAttrs[attrMessageIntegrity]
+			if msgType == msgRefreshRequest &&
+				hasLifetime && len(lifetime) == 4 &&
+				binary.BigEndian.Uint32(lifetime) == 0 &&
+				!hasUsername && !hasMI {
 				refreshReceived <- struct{}{}
 			}
 		}
@@ -493,9 +507,9 @@ func TestPlugin_CheckUnauth_OpenRelay(t *testing.T) {
 
 	select {
 	case <-refreshReceived:
-		// OK — deallocation was sent.
+		// OK — deallocation with LIFETIME=0 and no auth attrs.
 	case <-time.After(2 * time.Second):
-		t.Error("expected unauthenticated Refresh(LIFETIME=0) after open-relay detection")
+		t.Error("expected unauthenticated Refresh(LIFETIME=0, no auth attrs) after open-relay detection")
 	}
 }
 

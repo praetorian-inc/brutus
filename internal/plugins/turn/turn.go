@@ -385,7 +385,9 @@ func longTermKey(username, realm, password string) []byte {
 // newTransactionID generates a random 96-bit STUN transaction ID.
 func newTransactionID() [12]byte {
 	var id [12]byte
-	_, _ = rand.Read(id[:])
+	if _, err := rand.Read(id[:]); err != nil {
+		panic("turn: failed to generate transaction ID: " + err.Error())
+	}
 	return id
 }
 
@@ -396,14 +398,12 @@ func newTransactionID() [12]byte {
 // parseSTUNMessage parses a STUN message, returning the message type,
 // the 12-byte transaction ID, and a map of attribute type -> raw value bytes.
 // Per RFC 5389 §7.3.1, only the first occurrence of each attribute is kept.
-func parseSTUNMessage(data []byte) (uint16, [12]byte, map[uint16][]byte, error) {
-	var txID [12]byte
-
+func parseSTUNMessage(data []byte) (msgType uint16, txID [12]byte, attrs map[uint16][]byte, err error) {
 	if len(data) < stunHeaderSize {
 		return 0, txID, nil, fmt.Errorf("message too short: %d bytes", len(data))
 	}
 
-	msgType := binary.BigEndian.Uint16(data[0:2])
+	msgType = binary.BigEndian.Uint16(data[0:2])
 	attrLen := int(binary.BigEndian.Uint16(data[2:4]))
 	cookie := binary.BigEndian.Uint32(data[4:8])
 
@@ -418,7 +418,7 @@ func parseSTUNMessage(data []byte) (uint16, [12]byte, map[uint16][]byte, error) 
 			stunHeaderSize+attrLen, len(data))
 	}
 
-	attrs := make(map[uint16][]byte)
+	attrs = make(map[uint16][]byte)
 	offset := stunHeaderSize
 	end := stunHeaderSize + attrLen
 

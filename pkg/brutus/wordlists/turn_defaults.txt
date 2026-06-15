@@ -11,7 +11,7 @@ admin:admin
 test:test
 test:test123
 webrtc:webrtc
-# --- exhaustive ---
+# --- aggressive ---
 admin:password
 turn:password
 turn:turnserver

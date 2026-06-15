@@ -189,7 +189,7 @@ brutus web --target 192.168.1.1:80 --experimental-ai
 brutus web --target 192.168.1.1:80 -c "admin:admin,root:toor"
 
 # Test SNMP community strings
-brutus snmp --target 192.168.1.1:161 --mode exhaustive
+brutus snmp --target 192.168.1.1:161 --mode aggressive
 
 # Detect Windows logon-screen backdoors
 brutus logon --target 10.0.0.50:3389
@@ -197,7 +197,7 @@ brutus logon --target 10.0.0.50:3389
 # Pipeline mode: creds skips HTTP/SNMP, web skips non-HTTP, snmp skips non-SNMP
 naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt
 naabu -host 10.0.0.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai
-naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode exhaustive
+naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode aggressive
 ```
 
 ### Basic Usage
@@ -341,7 +341,7 @@ brutus creds --nmap-file scan.xml -P passwords.txt
 brutus web --nmap-file scan.xml -c "admin:admin,root:password"
 
 # Test SNMP from nmap scan
-brutus snmp --nmap-file scan.xml --mode exhaustive
+brutus snmp --nmap-file scan.xml --mode aggressive
 
 # JSON output for scripting
 brutus creds --nmap-file scan.xml --json -o results.json
@@ -597,14 +597,14 @@ The `snmp` subcommand provides dedicated SNMP v1/v2c community string testing wi
 |------|---------|----------|
 | `cautious` | ~25 | Common strings (public, private, community, etc.) |
 | `default` | ~25 | Same as cautious |
-| `exhaustive` | 200+ | Comprehensive (vendor-specific, SCADA, IP cameras, storage, etc.) |
+| `aggressive` | 200+ | Comprehensive (vendor-specific, SCADA, IP cameras, storage, etc.) |
 
 ```bash
 # Test with default community strings (~25)
 brutus snmp --target 192.168.1.1:161
 
 # Exhaustive mode for comprehensive testing (200+)
-brutus snmp --target 10.0.0.1:161 --mode exhaustive
+brutus snmp --target 10.0.0.1:161 --mode aggressive
 
 # Custom community strings
 brutus snmp --target 192.168.1.1:161 -c "mycommunity,secretstring"
@@ -613,7 +613,7 @@ brutus snmp --target 192.168.1.1:161 -c "mycommunity,secretstring"
 brutus snmp --target 192.168.1.1:161 -C community-strings.txt
 
 # Pipeline mode
-naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode exhaustive
+naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp --mode aggressive
 ```
 
 ---

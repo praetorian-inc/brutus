@@ -34,7 +34,7 @@ func IsSNMPProtocol(protocol string) bool {
 func ConfigureSNMP(mode string) ([]string, error) {
 	snmpTier := mapModeToSNMPTier(mode)
 	if !snmpplugin.ValidateTier(snmpTier) {
-		return nil, fmt.Errorf("invalid --mode: %s (use: cautious, default, aggressive)", mode)
+		return nil, fmt.Errorf("invalid --mode: %s (use: cautious, default, aggressive, extended, full)", mode)
 	}
 	return snmpplugin.GetCommunityStrings(snmpplugin.Tier(snmpTier)), nil
 }

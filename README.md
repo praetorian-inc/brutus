@@ -603,7 +603,7 @@ The `snmp` subcommand provides dedicated SNMP v1/v2c community string testing wi
 # Test with default community strings (~25)
 brutus snmp --target 192.168.1.1:161
 
-# Exhaustive mode for comprehensive testing (200+)
+# Aggressive mode for comprehensive testing (200+)
 brutus snmp --target 10.0.0.1:161 --mode aggressive
 
 # Custom community strings

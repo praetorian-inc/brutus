@@ -29,17 +29,14 @@ switches, and other SNMP-enabled infrastructure.
 
 Community strings are selected by mode:
   cautious    ~25 common strings (public, private, community, etc.)
-  default     ~75 strings (adds vendor-specific: Cisco, HP, Juniper, etc.)
-  aggressive  ~200+ strings (comprehensive: SCADA, IP cameras, storage, etc.)
+  default     ~25 strings (same as cautious)
+  aggressive  ~200+ strings (comprehensive: vendor-specific, SCADA, IP cameras, storage, etc.)
 
 Custom community strings can also be provided via -c or -C.`,
 	Example: `  # Test with default community strings
   brutus snmp --target 192.168.1.1:161
 
-  # Use default mode for more coverage
-  brutus snmp --target 192.168.1.1:161 --mode default
-
-  # Aggressive mode for comprehensive testing
+  # Aggressive mode for comprehensive testing (~200+ strings)
   brutus snmp --target 10.0.0.1:161 --mode aggressive
 
   # Custom community strings
@@ -49,10 +46,10 @@ Custom community strings can also be provided via -c or -C.`,
   naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp
 
   # Targets file
-  brutus snmp --targets-file snmp-hosts.txt --mode extended
+  brutus snmp --targets-file snmp-hosts.txt --mode aggressive
 
   # Import targets from nmap XML scan (only SNMP services tested)
-  brutus snmp --nmap-file scan.xml --mode extended`,
+  brutus snmp --nmap-file scan.xml --mode aggressive`,
 	RunE: runSNMP,
 }
 

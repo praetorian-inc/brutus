@@ -17,3 +17,8 @@ support:support
 admin:public
 root:vizxv
 user:user
+# GPON OLT vendors
+admin:Xpon@Olt9417#
+root:admin123
+zte:zte
+GEPON:GEPON

@@ -16,3 +16,7 @@ centos:centos
 git:git
 test:test
 oracle:oracle
+# GPON OLT vendors
+admin:Xpon@Olt9417#
+root:admin123
+zte:zte

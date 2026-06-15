@@ -30,3 +30,8 @@ admin:letmein
 admin:welcome
 admin:Admin123
 admin:system
+# GPON OLT vendors
+admin:Xpon@Olt9417#
+root:admin123
+zte:zte
+GEPON:GEPON

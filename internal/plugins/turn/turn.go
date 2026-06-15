@@ -110,7 +110,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Step 1: Send unauthenticated Allocate to obtain realm and nonce.
 	txID := newTransactionID()
-	if _, err := conn.Write(buildAllocateRequest(txID)); err != nil {
+	if _, err = conn.Write(buildAllocateRequest(txID)); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
@@ -163,7 +163,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	for retry := 0; retry <= maxStaleRetries; retry++ {
 		txID2 := newTransactionID()
 		authReq := buildAuthenticatedAllocateRequest(txID2, username, realm, nonce, password)
-		if _, err := conn.Write(authReq); err != nil {
+		if _, err = conn.Write(authReq); err != nil {
 			result.Error = brutus.WrapConnError(err)
 			return result
 		}
@@ -243,7 +243,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string,
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	txID := newTransactionID()
-	if _, err := conn.Write(buildAllocateRequest(txID)); err != nil {
+	if _, err = conn.Write(buildAllocateRequest(txID)); err != nil {
 		return result
 	}
 

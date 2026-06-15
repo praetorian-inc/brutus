@@ -1,0 +1,21 @@
+# TURN Server Default Credentials
+# Format: username:password
+# Note: TURN uses realm-based auth; these are common defaults seen in the wild
+
+# coturn defaults and common tutorial passwords
+coturn:coturn
+user:pass
+turn:turn
+# --- cautious ---
+admin:admin
+test:test
+test:test123
+webrtc:webrtc
+# --- aggressive ---
+admin:password
+turn:password
+turn:turnserver
+user:password
+media:media
+conference:conference
+jitsi:jitsi

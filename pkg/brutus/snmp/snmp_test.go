@@ -53,13 +53,13 @@ func TestConfigureSNMP_GlobalModeNames(t *testing.T) {
 	assert.NotEmpty(t, cautious)
 	assert.Contains(t, cautious, "public")
 
-	// "exhaustive" maps to SNMP's "full" tier (~200+ strings)
-	exhaustive, err := ConfigureSNMP("exhaustive")
+	// "aggressive" maps to SNMP's "full" tier (~200+ strings)
+	aggressive, err := ConfigureSNMP("aggressive")
 	require.NoError(t, err)
-	assert.True(t, len(exhaustive) > 50)
+	assert.True(t, len(aggressive) > 50)
 
-	// exhaustive should have more strings than cautious
-	assert.Greater(t, len(exhaustive), len(cautious))
+	// aggressive should have more strings than cautious
+	assert.Greater(t, len(aggressive), len(cautious))
 }
 
 func TestMapModeToSNMPTier(t *testing.T) {
@@ -68,7 +68,7 @@ func TestMapModeToSNMPTier(t *testing.T) {
 		want string
 	}{
 		{"cautious", "default"},
-		{"exhaustive", "full"},
+		{"aggressive", "full"},
 		{"default", "default"},   // passes through
 		{"extended", "extended"}, // legacy, passes through
 		{"full", "full"},         // legacy, passes through

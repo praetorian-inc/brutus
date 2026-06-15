@@ -32,9 +32,9 @@ const (
 	// ModeDefault is the standard mode balancing coverage and safety.
 	ModeDefault Mode = "default"
 
-	// ModeExhaustive uses the full credential set and higher concurrency
+	// ModeAggressive uses the full credential set and higher concurrency
 	// for maximum coverage. Use in lab/CTF environments.
-	ModeExhaustive Mode = "exhaustive"
+	ModeAggressive Mode = "aggressive"
 )
 
 // ModePresets holds the performance tuning values associated with a Mode.
@@ -53,8 +53,8 @@ func NormalizeMode(s string) Mode {
 	switch Mode(strings.ToLower(strings.TrimSpace(s))) {
 	case ModeCautious:
 		return ModeCautious
-	case ModeExhaustive:
-		return ModeExhaustive
+	case ModeAggressive:
+		return ModeAggressive
 	default:
 		return ModeDefault
 	}
@@ -63,7 +63,7 @@ func NormalizeMode(s string) Mode {
 // ValidMode returns true if s is a recognized mode string.
 func ValidMode(s string) bool {
 	switch Mode(strings.ToLower(strings.TrimSpace(s))) {
-	case ModeCautious, ModeDefault, ModeExhaustive:
+	case ModeCautious, ModeDefault, ModeAggressive:
 		return true
 	default:
 		return false
@@ -82,7 +82,7 @@ func (m Mode) Presets() ModePresets {
 			MaxAttempts: 3,
 			MaxRetries:  1,
 		}
-	case ModeExhaustive:
+	case ModeAggressive:
 		return ModePresets{
 			Threads:     20,
 			Timeout:     10 * time.Second,

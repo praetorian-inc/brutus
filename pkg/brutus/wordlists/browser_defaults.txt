@@ -21,7 +21,7 @@ test:test
 administrator:administrator
 administrator:password
 manager:manager
-# --- exhaustive ---
+# --- aggressive ---
 admin:router
 admin:public
 admin:private
@@ -30,3 +30,8 @@ admin:letmein
 admin:welcome
 admin:Admin123
 admin:system
+# GPON OLT vendors
+admin:Xpon@Olt9417#
+root:admin123
+zte:zte
+GEPON:GEPON

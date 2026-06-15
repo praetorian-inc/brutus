@@ -13,7 +13,7 @@ elastic:elastic
 elastic:changeme
 user:user
 guest:guest
-# --- exhaustive ---
+# --- aggressive ---
 admin:admin123
 admin:Password1
 tomcat:tomcat
@@ -21,3 +21,5 @@ admin:secret
 grafana:grafana
 jenkins:jenkins
 admin:default
+# GPON OLT vendors
+admin:Xpon@Olt9417#

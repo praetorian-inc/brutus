@@ -6,7 +6,7 @@ postgres:password
 # --- cautious ---
 postgres:admin
 admin:admin
-# --- exhaustive ---
+# --- aggressive ---
 postgres:postgres123
 postgres:root
 dbadmin:dbadmin

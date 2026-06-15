@@ -8,7 +8,7 @@ administrator:administrator
 cn=admin:password
 ldapadmin:ldapadmin
 root:root
-# --- exhaustive ---
+# --- aggressive ---
 cn=Manager:secret
 cn=admin:changeme
 ldap:ldap

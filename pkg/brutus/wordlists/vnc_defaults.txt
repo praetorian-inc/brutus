@@ -10,7 +10,7 @@
 :Password1
 :raspberry
 :12345678
-# --- exhaustive ---
+# --- aggressive ---
 :secret
 :changeme
 :1234

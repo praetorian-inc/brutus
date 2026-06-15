@@ -12,8 +12,8 @@ func TestNormalizeMode(t *testing.T) {
 		{"  Cautious  ", ModeCautious},
 		{"default", ModeDefault},
 		{"DEFAULT", ModeDefault},
-		{"exhaustive", ModeExhaustive},
-		{"EXHAUSTIVE", ModeExhaustive},
+		{"aggressive", ModeAggressive},
+		{"AGGRESSIVE", ModeAggressive},
 		{"unknown", ModeDefault},
 		{"", ModeDefault},
 	}
@@ -26,7 +26,7 @@ func TestNormalizeMode(t *testing.T) {
 }
 
 func TestValidMode(t *testing.T) {
-	valid := []string{"cautious", "default", "exhaustive", "CAUTIOUS", "DEFAULT", "EXHAUSTIVE"}
+	valid := []string{"cautious", "default", "aggressive", "CAUTIOUS", "DEFAULT", "AGGRESSIVE"}
 	for _, s := range valid {
 		if !ValidMode(s) {
 			t.Errorf("ValidMode(%q) = false, want true", s)
@@ -50,10 +50,10 @@ func TestModePresets(t *testing.T) {
 		t.Error("cautious should have a non-zero rate limit")
 	}
 
-	// Exhaustive should have higher threads than default.
-	ep := ModeExhaustive.Presets()
+	// Aggressive should have higher threads than default.
+	ep := ModeAggressive.Presets()
 	dp := ModeDefault.Presets()
 	if ep.Threads <= dp.Threads {
-		t.Errorf("exhaustive threads (%d) should be greater than default (%d)", ep.Threads, dp.Threads)
+		t.Errorf("aggressive threads (%d) should be greater than default (%d)", ep.Threads, dp.Threads)
 	}
 }

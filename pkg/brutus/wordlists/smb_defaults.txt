@@ -9,7 +9,7 @@ Administrator:Password1
 Administrator:admin
 admin:admin
 root:root
-# --- exhaustive ---
+# --- aggressive ---
 Administrator:Admin123
 Administrator:Welcome1
 smbuser:smbuser

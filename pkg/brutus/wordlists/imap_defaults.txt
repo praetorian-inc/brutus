@@ -8,7 +8,7 @@ test@localhost:test
 postmaster@localhost:password
 root@localhost:root
 webmaster@localhost:password
-# --- exhaustive ---
+# --- aggressive ---
 admin@localhost:changeme
 mail@localhost:mail
 imap@localhost:imap

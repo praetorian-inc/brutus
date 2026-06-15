@@ -7,7 +7,7 @@ root:root
 admin:password
 cassandra:admin
 cassandra:password
-# --- exhaustive ---
+# --- aggressive ---
 cassandra:changeme
 admin:cassandra
 cassandra:123456

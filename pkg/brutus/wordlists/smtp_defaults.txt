@@ -8,7 +8,7 @@ postmaster:admin
 admin@localhost:password
 user@localhost:password
 test@localhost:test
-# --- exhaustive ---
+# --- aggressive ---
 smtp@localhost:smtp
 postmaster:postmaster
 admin@localhost:admin

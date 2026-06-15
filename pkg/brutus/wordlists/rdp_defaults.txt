@@ -13,7 +13,7 @@ guest:guest
 user:user
 user:password
 test:test
-# --- exhaustive ---
+# --- aggressive ---
 administrator:Welcome1
 administrator:Passw0rd!
 administrator:Administrator

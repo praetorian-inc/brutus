@@ -9,10 +9,14 @@ root:alpine
 ubuntu:ubuntu
 pi:raspberry
 vagrant:vagrant
-# --- exhaustive ---
+# --- aggressive ---
 deploy:deploy
 ec2-user:ec2-user
 centos:centos
 git:git
 test:test
 oracle:oracle
+# GPON OLT vendors
+admin:Xpon@Olt9417#
+root:admin123
+zte:zte

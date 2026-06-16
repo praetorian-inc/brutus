@@ -107,6 +107,7 @@ func init() {
 	enumCmd.AddCommand(enumSaasCmd)
 	enumCmd.AddCommand(enumKerberosCmd)
 	enumCmd.AddCommand(enumHunterCmd)
+	enumCmd.AddCommand(enumCustomCmd)
 	enumCmd.AddCommand(enumTeamsCmd)
 }
 

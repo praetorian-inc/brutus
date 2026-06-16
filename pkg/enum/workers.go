@@ -60,6 +60,14 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 		}
 	}
 
+	return runTasks(ctx, cfg, tasks)
+}
+
+// runTasks executes a pre-built task list using a bounded worker pool,
+// applying rate limiting, jitter, context cancellation, and per-goroutine panic
+// recovery. It is the shared execution core for both the registry-keyed
+// runWorkers and the registry-bypassing EnumerateWithPlugin.
+func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, error) {
 	// Setup errgroup with bounded concurrency
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

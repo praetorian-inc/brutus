@@ -102,6 +102,7 @@ func init() {
 	enumCmd.AddCommand(enumSaasCmd)
 	enumCmd.AddCommand(enumKerberosCmd)
 	enumCmd.AddCommand(enumHunterCmd)
+	enumCmd.AddCommand(enumCustomCmd)
 }
 
 // runEnumGenerate handles the "enum generate" subcommand.

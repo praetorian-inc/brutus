@@ -92,7 +92,7 @@ type APIError struct {
 }
 
 func (e *APIError) Error() string {
-	return fmt.Sprintf("entra device code error (HTTP %d): %s: %s", e.StatusCode, e.Code, e.Description)
+	return fmt.Sprintf("entra device code error (HTTP %d): %q: %q", e.StatusCode, e.Code, e.Description)
 }
 
 // ---------------------------------------------------------------------------

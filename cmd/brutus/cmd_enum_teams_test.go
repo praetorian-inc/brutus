@@ -175,7 +175,7 @@ func TestOutputTeamsTokenHuman(t *testing.T) {
 		assert.Contains(t, out, "<absent>")
 	})
 
-	t.Run("short access token always shows ellipsis", func(t *testing.T) {
+	t.Run("short access token is never revealed in full", func(t *testing.T) {
 		tok := &teams.TokenSet{
 			AccessToken: "shorttoken",
 			TokenType:   "Bearer",
@@ -185,8 +185,9 @@ func TestOutputTeamsTokenHuman(t *testing.T) {
 		outputTeamsTokenHuman(&buf, tok, false)
 		out := buf.String()
 
-		// Even short tokens are marked with "..." to avoid revealing the full value.
-		assert.Contains(t, out, "shorttoken...")
+		// Short tokens must never be printed in full; they show as <present>.
+		assert.NotContains(t, out, "shorttoken")
+		assert.Contains(t, out, "<present>")
 	})
 
 	t.Run("control chars in access token preview are stripped by sanitizeTerminal", func(t *testing.T) {

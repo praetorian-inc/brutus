@@ -231,7 +231,14 @@ func sanitizeTerminal(s string) string {
 					for i < len(b) {
 						ch := b[i]
 						i++
-						if ch == 0x07 || ch == 0x1B {
+						if ch == 0x07 {
+							break
+						}
+						if ch == 0x1B {
+							// ST is the two-byte sequence ESC \\; consume the trailing backslash.
+							if i < len(b) && b[i] == '\\' {
+								i++
+							}
 							break
 						}
 					}
@@ -372,8 +379,8 @@ func outputTeamsDeviceCodeHuman(w io.Writer, dc *teams.DeviceCode, useColor bool
 }
 
 // outputTeamsTokenHuman prints a summary of the token set. Full token values
-// are never printed — only the first 20 characters of each token are shown,
-// which is sufficient for debugging without leaking usable credentials (P0-1).
+// are never printed — long tokens are truncated to a short prefix and short
+// tokens are shown only as <present>, so usable credentials never leak (P0-1).
 func outputTeamsTokenHuman(w io.Writer, tok *teams.TokenSet, useColor bool) {
 	_, _ = fmt.Fprintf(w, "%s%s Authentication successful%s\n",
 		colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
@@ -418,18 +425,19 @@ func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
 	}
 }
 
-// tokenPreview returns the first 20 characters of a token sanitized for
-// terminal display, with "..." appended to mark truncation; returns "<absent>"
-// for empty tokens. Full token values are never printed in human output (P0-1).
+// tokenPreview renders a token for human output without leaking it (P0-1):
+// "<absent>" for empty, "<present>" for tokens of 20 runes or fewer, and the
+// sanitized first 20 runes plus "..." for longer tokens.
 func tokenPreview(token string) string {
+	token = sanitizeTerminal(token)
 	if token == "" {
 		return "<absent>"
 	}
 	r := []rune(token)
-	if len(r) > 20 {
-		return sanitizeTerminal(string(r[:20])) + "..."
+	if len(r) <= 20 {
+		return "<present>"
 	}
-	return sanitizeTerminal(string(r)) + "..."
+	return string(r[:20]) + "..."
 }
 
 // presence reports whether a token value is present without revealing it.

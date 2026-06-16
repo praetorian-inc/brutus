@@ -386,7 +386,7 @@ func TestWaitForToken_AccessDenied(t *testing.T) {
 }
 
 func TestWaitForToken_ContextCancellation(t *testing.T) {
-	// Server sleeps so it never responds before the context is cancelled.
+	// Server sleeps so it never responds before the context is canceled.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(10 * time.Second)
 		w.WriteHeader(http.StatusOK)

@@ -133,7 +133,7 @@ func classifyTeamsError(err error) error {
 	case errors.Is(err, teams.ErrExpiredToken):
 		return fmt.Errorf("teams auth: device code expired — run again to start a new session")
 	case errors.Is(err, teams.ErrAccessDenied):
-		return fmt.Errorf("teams auth: access denied — user cancelled or admin blocked the request")
+		return fmt.Errorf("teams auth: access denied — user canceled or admin blocked the request")
 	default:
 		return fmt.Errorf("teams auth failed: %w", err)
 	}

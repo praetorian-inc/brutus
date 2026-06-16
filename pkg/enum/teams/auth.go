@@ -185,7 +185,7 @@ func (c *Client) StartDeviceFlow(ctx context.Context) (*DeviceCode, error) {
 }
 
 // WaitForToken polls the token endpoint until the user completes (or rejects)
-// the authorization, the device code expires, or ctx is cancelled. It honours
+// the authorization, the device code expires, or ctx is canceled. It honours
 // the standard device-flow polling errors: authorization_pending continues,
 // slow_down increases the interval, and expired_token/access_denied terminate
 // with the matching sentinel error.

@@ -151,9 +151,12 @@ func loadOracleSpec(path string) (*custom.Spec, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	data, err := io.ReadAll(io.LimitReader(f, maxSpecBytes))
+	data, err := io.ReadAll(io.LimitReader(f, maxSpecBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading spec file: %w", err)
+	}
+	if int64(len(data)) > maxSpecBytes {
+		return nil, fmt.Errorf("spec file too large: more than %d bytes", maxSpecBytes)
 	}
 
 	spec, err := custom.Parse(data)

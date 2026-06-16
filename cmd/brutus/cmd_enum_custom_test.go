@@ -20,6 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/enum/custom"
 )
 
 // ---------------------------------------------------------------------------
@@ -181,4 +183,302 @@ func TestRunEnumCustom_OversizeFile(t *testing.T) {
 
 	err = runEnumCustom(enumCustomCmd, nil)
 	require.Error(t, err, "oversize spec file must be rejected before parse (R8)")
+}
+
+// ---------------------------------------------------------------------------
+// F1: Subject-building helpers (dedupe, prependKnownValid, buildCustomSubjects)
+// ---------------------------------------------------------------------------
+
+// TestDedupe_RemovesDuplicatesPreservingOrder verifies that dedupe removes
+// repeated values while preserving the first-seen order.
+func TestDedupe_RemovesDuplicatesPreservingOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		in    []string
+		want  []string
+	}{
+		{
+			name: "no duplicates — unchanged",
+			in:   []string{"a", "b", "c"},
+			want: []string{"a", "b", "c"},
+		},
+		{
+			name: "all duplicates — single element",
+			in:   []string{"x", "x", "x"},
+			want: []string{"x"},
+		},
+		{
+			name: "duplicates across non-adjacent positions",
+			in:   []string{"a", "b", "a", "c", "b"},
+			want: []string{"a", "b", "c"},
+		},
+		{
+			name: "empty input",
+			in:   nil,
+			want: []string{},
+		},
+		{
+			name: "single element",
+			in:   []string{"only"},
+			want: []string{"only"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := dedupe(tc.in)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestPrependKnownValid_SeedsComeFirst verifies that prependKnownValid places
+// seeds at the front of the list, followed by the remaining subjects, without
+// deduplication (dedupe is a separate step applied by buildCustomSubjects).
+func TestPrependKnownValid_SeedsComeFirst(t *testing.T) {
+	tests := []struct {
+		name  string
+		seeds []string
+		rest  []string
+		want  []string
+	}{
+		{
+			name:  "seeds before rest",
+			seeds: []string{"seed1", "seed2"},
+			rest:  []string{"other1", "other2"},
+			want:  []string{"seed1", "seed2", "other1", "other2"},
+		},
+		{
+			name:  "empty rest",
+			seeds: []string{"seed1"},
+			rest:  nil,
+			want:  []string{"seed1"},
+		},
+		{
+			name:  "empty seeds",
+			seeds: nil,
+			rest:  []string{"a", "b"},
+			want:  []string{"a", "b"},
+		},
+		{
+			name:  "seeds duplicated in rest — returned as-is (dedup is caller's job)",
+			seeds: []string{"seed1"},
+			rest:  []string{"seed1", "other"},
+			want:  []string{"seed1", "seed1", "other"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := prependKnownValid(tc.seeds, tc.rest)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// minimalSpecJSON returns JSON for a valid spec with no targets section.
+// Used by buildCustomSubjects tests to avoid a real file dependency.
+const minimalSpecJSON = `{
+	"version": "1",
+	"oracle": {
+		"name": "test-oracle",
+		"request": {
+			"method": "POST",
+			"url": "https://example.com/api"
+		},
+		"match": {
+			"rules": [{"when": {"status": 200}, "verdict": "exists"}],
+			"default": "error"
+		}
+	}
+}`
+
+// specWithTargets returns a spec JSON that includes a known_valid targets
+// section with the supplied seeds.
+func specWithTargets(seeds ...string) string {
+	encoded := `"`
+	for i, s := range seeds {
+		if i > 0 {
+			encoded += `", "`
+		}
+		encoded += s
+	}
+	encoded += `"`
+	return `{
+		"version": "1",
+		"oracle": {
+			"name": "test-oracle",
+			"request": {
+				"method": "POST",
+				"url": "https://example.com/api"
+			},
+			"match": {
+				"rules": [{"when": {"status": 200}, "verdict": "exists"}],
+				"default": "error"
+			}
+		},
+		"targets": {
+			"known_valid": [` + encoded + `]
+		}
+	}`
+}
+
+// parseSpec is a test helper that parses and validates a spec from JSON.
+func parseSpec(t *testing.T, data string) *custom.Spec {
+	t.Helper()
+	spec, err := custom.Parse([]byte(data))
+	require.NoError(t, err)
+	require.NoError(t, spec.Validate())
+	return spec
+}
+
+// TestBuildCustomSubjects_InlineEmails verifies the -e flag CSV path:
+// subjects are split on comma, trimmed of whitespace, and returned in order.
+func TestBuildCustomSubjects_InlineEmails(t *testing.T) {
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+	})
+
+	flagCustomEmails = "alice, bob,  charlie"
+	flagCustomEmailFile = ""
+	flagCustomGenerate = false
+
+	spec := parseSpec(t, minimalSpecJSON)
+	got, err := buildCustomSubjects(spec, false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"alice", "bob", "charlie"}, got)
+}
+
+// TestBuildCustomSubjects_EmailFile verifies the -E file path: subjects are
+// read one-per-line from the file.
+func TestBuildCustomSubjects_EmailFile(t *testing.T) {
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+	})
+
+	// Write a two-subject file.
+	tmp, err := os.CreateTemp(t.TempDir(), "subjects-*.txt")
+	require.NoError(t, err)
+	_, err = tmp.WriteString("user1\nuser2\n")
+	require.NoError(t, err)
+	require.NoError(t, tmp.Close())
+
+	flagCustomEmails = ""
+	flagCustomEmailFile = tmp.Name()
+	flagCustomGenerate = false
+
+	spec := parseSpec(t, minimalSpecJSON)
+	got, err := buildCustomSubjects(spec, false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"user1", "user2"}, got)
+}
+
+// TestBuildCustomSubjects_TargetsFallback verifies that when no CLI flags are
+// set, the spec's known_valid targets are used as the subject list.
+func TestBuildCustomSubjects_TargetsFallback(t *testing.T) {
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+	})
+
+	flagCustomEmails = ""
+	flagCustomEmailFile = ""
+	flagCustomGenerate = false
+
+	spec := parseSpec(t, specWithTargets("seed1", "seed2"))
+	got, err := buildCustomSubjects(spec, false)
+	require.NoError(t, err)
+	// When falling back to targets, known_valid is used directly then
+	// prependKnownValid+dedupe produces exactly the seeds.
+	assert.Equal(t, []string{"seed1", "seed2"}, got)
+}
+
+// TestBuildCustomSubjects_KnownValidPrependedAndDeduped verifies that when CLI
+// subjects are supplied AND the spec has known_valid, the seeds are prepended
+// and duplicates are removed.
+func TestBuildCustomSubjects_KnownValidPrependedAndDeduped(t *testing.T) {
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+	})
+
+	// CLI provides "other" and "seed1" (the latter is also a known_valid seed).
+	flagCustomEmails = "other,seed1"
+	flagCustomEmailFile = ""
+	flagCustomGenerate = false
+
+	spec := parseSpec(t, specWithTargets("seed1", "seed2"))
+	got, err := buildCustomSubjects(spec, false)
+	require.NoError(t, err)
+
+	// Expected order: seeds first (seed1, seed2), then remaining (other),
+	// with seed1 de-duplicated.
+	assert.Equal(t, []string{"seed1", "seed2", "other"}, got)
+}
+
+// TestBuildCustomSubjects_ConstraintRateLimitDefault verifies that the spec's
+// constraints.rate_limit_rps is applied to the enum config as a default only
+// when --rate-limit has not been set by the operator (isFlagChanged is false).
+//
+// buildCustomSubjects itself does not apply the rate-limit — that logic lives
+// in runEnumCustom. This test verifies the constraint field is accessible via
+// the Spec type (it's the glue the command wires up).
+func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
+	const constraintRPS = `{
+		"version": "1",
+		"oracle": {
+			"name": "rl-oracle",
+			"request": {"method": "GET", "url": "https://example.com/api"},
+			"match": {
+				"rules": [{"when": {"status": 200}, "verdict": "exists"}],
+				"default": "error"
+			}
+		},
+		"constraints": {
+			"rate_limit_rps": 5.0
+		},
+		"targets": {
+			"known_valid": ["seed@example.com"]
+		}
+	}`
+
+	spec := parseSpec(t, constraintRPS)
+
+	// Verify that the Spec carries the constraint value that runEnumCustom reads.
+	require.NotNil(t, spec.Constraints, "spec must have Constraints populated")
+	assert.Equal(t, 5.0, spec.Constraints.RateLimitRPS,
+		"Constraints.RateLimitRPS must equal the spec value (5.0)")
+
+	// Also verify buildCustomSubjects succeeds (targets fallback path).
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+	})
+	flagCustomEmails = ""
+	flagCustomEmailFile = ""
+	flagCustomGenerate = false
+
+	got, err := buildCustomSubjects(spec, false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"seed@example.com"}, got)
 }

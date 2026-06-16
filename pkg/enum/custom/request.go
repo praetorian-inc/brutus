@@ -107,6 +107,9 @@ func buildRequestURL(template string, vals map[string]string) (*url.URL, error) 
 	if u.Host == "" {
 		return nil, fmt.Errorf("post-substitution URL has no host")
 	}
+	if u.User != nil {
+		return nil, fmt.Errorf("post-substitution URL contains userinfo authority")
+	}
 	if hasDotDotSegment(u.Path) {
 		return nil, fmt.Errorf("post-substitution URL path contains traversal segment")
 	}

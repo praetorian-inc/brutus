@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -553,6 +552,44 @@ func TestBuildRequest_P0_5_SchemeAllowlistAtLoad(t *testing.T) {
 	}
 	require.Error(t, spec.Validate(),
 		"Validate must reject file:// scheme (P0-5 / R4)")
+}
 
-	_ = strings.Contains // suppress unused import warning if needed
+// ---------------------------------------------------------------------------
+// NF-1: userinfo authority injection — EXPECTED TO FAIL until production fix
+// ---------------------------------------------------------------------------
+
+// TestBuildRequest_RejectsUserinfoAuthority verifies that a subject whose value
+// smuggles a userinfo "@" into the authority of the post-substitution URL is
+// rejected by buildRequest. For example, with url "https://{{domain}}/x" and
+// subject "a@evil.com@realhost.com", the {{domain}} placeholder resolves to
+// "evil.com@realhost.com", making the parsed URL authority contain userinfo
+// "evil.com" and host "realhost.com" — a credential-smuggling bypass.
+//
+// This test is INTENTIONALLY FAILING: the current code does not check u.User.
+// A developer will add `if u.User != nil { return nil, fmt.Errorf(...) }` in
+// buildRequestURL to make it pass.
+func TestBuildRequest_RejectsUserinfoAuthority(t *testing.T) {
+	t.Parallel()
+	spec := buildSpecForRequest(t, []byte(`{
+		"version": "1",
+		"oracle": {
+			"name": "userinfo-authority-test",
+			"request": {
+				"method": "GET",
+				"url": "https://{{domain}}/x"
+			},
+			"match": {
+				"rules": [{"when": {"status": 200}, "verdict": "exists"}],
+				"default": "error"
+			}
+		}
+	}`))
+
+	// Subject "a@evil.com@realhost.com":
+	//   - {{domain}} → "evil.com@realhost.com"  (derivePlaceholders splits on first @)
+	//   - Post-sub URL → "https://evil.com@realhost.com/x"
+	//   - url.Parse sees host="realhost.com", userinfo="evil.com"
+	// buildRequest must return a non-nil error for this case.
+	_, err := buildRequest(spec, context.Background(), "a@evil.com@realhost.com")
+	require.Error(t, err, "buildRequest must reject userinfo in post-substitution URL authority (NF-1)")
 }

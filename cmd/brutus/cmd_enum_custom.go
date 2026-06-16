@@ -195,12 +195,9 @@ func buildCustomSubjects(spec *custom.Spec, useColor bool) ([]string, error) {
 		subjects = append(subjects, generated...)
 	}
 
-	// Fall back to spec targets when no CLI subjects were supplied.
-	if len(subjects) == 0 && spec.Targets != nil {
-		subjects = append(subjects, spec.Targets.KnownValid...)
-	}
-
 	// Prepend known_valid seeds (de-duplicated) so they are submitted first.
+	// When no CLI subjects were supplied this prepends onto an empty slice,
+	// yielding exactly the seeds (so known_valid also serves as the fallback).
 	if spec.Targets != nil && len(spec.Targets.KnownValid) > 0 {
 		subjects = prependKnownValid(spec.Targets.KnownValid, subjects)
 	}

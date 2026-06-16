@@ -24,7 +24,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -361,5 +360,4 @@ func TestE2E_ForgotPassword_ValidatesClean(t *testing.T) {
 	assert.NotEmpty(t, spec.Oracle.Name)
 	assert.NotEmpty(t, spec.Oracle.Request.URL)
 	assert.NotEmpty(t, spec.Oracle.Match.Rules)
-	_ = strings.Contains // suppress any import issues
 }

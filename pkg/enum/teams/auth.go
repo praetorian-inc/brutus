@@ -106,8 +106,9 @@ type Client struct {
 	scopes     string
 	httpClient *http.Client
 
-	deviceCodeBaseURL string // overridable for testing
-	tokenBaseURL      string // overridable for testing
+	deviceCodeBaseURL string        // overridable for testing
+	tokenBaseURL      string        // overridable for testing
+	pollInterval      time.Duration // 0 uses minPollInterval; overridable for testing
 }
 
 // NewClient builds a device code client. Empty arguments fall back to the
@@ -164,8 +165,8 @@ func (c *Client) StartDeviceFlow(ctx context.Context) (*DeviceCode, error) {
 		return nil, fmt.Errorf("decoding device code response: %w", err)
 	}
 
-	if dcResp.UserCode == "" || dcResp.VerificationURI == "" {
-		return nil, fmt.Errorf("incomplete device code response: missing user_code or verification_uri")
+	if dcResp.UserCode == "" || dcResp.VerificationURI == "" || dcResp.DeviceCode == "" {
+		return nil, fmt.Errorf("incomplete device code response: missing user_code, verification_uri, or device_code")
 	}
 
 	interval := dcResp.Interval
@@ -189,9 +190,16 @@ func (c *Client) StartDeviceFlow(ctx context.Context) (*DeviceCode, error) {
 // slow_down increases the interval, and expired_token/access_denied terminate
 // with the matching sentinel error.
 func (c *Client) WaitForToken(ctx context.Context, dc *DeviceCode) (*TokenSet, error) {
+	if dc == nil {
+		return nil, fmt.Errorf("WaitForToken: DeviceCode must not be nil")
+	}
+	floor := c.pollInterval
+	if floor == 0 {
+		floor = minPollInterval
+	}
 	interval := time.Duration(dc.interval) * time.Second
-	if interval < minPollInterval {
-		interval = minPollInterval
+	if interval < floor {
+		interval = floor
 	}
 
 	for {
@@ -248,6 +256,9 @@ func (c *Client) poll(ctx context.Context, deviceCode string) (*TokenSet, error)
 		var tokResp tokenAPIResponse
 		if err := json.Unmarshal(body, &tokResp); err != nil {
 			return nil, fmt.Errorf("decoding token response: %w", err)
+		}
+		if tokResp.AccessToken == "" || tokResp.TokenType == "" {
+			return nil, fmt.Errorf("incomplete token response: missing access_token or token_type")
 		}
 		return &TokenSet{
 			AccessToken:  tokResp.AccessToken,

@@ -417,17 +417,18 @@ func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
 	}
 }
 
-// tokenPreview returns the first 20 characters of a token, with an ellipsis
-// when it is longer, or "<absent>" when empty.
+// tokenPreview returns the first 20 characters of a token sanitized for
+// terminal display, with "..." appended to mark truncation; returns "<absent>"
+// for empty tokens. Full token values are never printed in human output (P0-1).
 func tokenPreview(token string) string {
 	if token == "" {
 		return "<absent>"
 	}
 	r := []rune(token)
-	if len(r) <= 20 {
-		return string(r)
+	if len(r) > 20 {
+		return sanitizeTerminal(string(r[:20])) + "..."
 	}
-	return string(r[:20]) + "..."
+	return sanitizeTerminal(string(r)) + "..."
 }
 
 // presence reports whether a token value is present without revealing it.

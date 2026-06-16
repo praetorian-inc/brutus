@@ -175,7 +175,7 @@ func TestOutputTeamsTokenHuman(t *testing.T) {
 		assert.Contains(t, out, "<absent>")
 	})
 
-	t.Run("short access token shown without ellipsis", func(t *testing.T) {
+	t.Run("short access token always shows ellipsis", func(t *testing.T) {
 		tok := &teams.TokenSet{
 			AccessToken: "shorttoken",
 			TokenType:   "Bearer",
@@ -185,8 +185,22 @@ func TestOutputTeamsTokenHuman(t *testing.T) {
 		outputTeamsTokenHuman(&buf, tok, false)
 		out := buf.String()
 
-		assert.Contains(t, out, "shorttoken")
-		assert.NotContains(t, out, "...")
+		// Even short tokens are marked with "..." to avoid revealing the full value.
+		assert.Contains(t, out, "shorttoken...")
+	})
+
+	t.Run("control chars in access token preview are stripped by sanitizeTerminal", func(t *testing.T) {
+		tok := &teams.TokenSet{
+			AccessToken: "abc\x1b[2Jdefghijklmnopqrstuv",
+			TokenType:   "Bearer",
+			ExpiresAt:   time.Now().Add(time.Hour),
+		}
+		var buf bytes.Buffer
+		outputTeamsTokenHuman(&buf, tok, false)
+		out := buf.String()
+
+		assert.NotContains(t, out, "\x1b")
+		assert.NotContains(t, out, "[2J")
 	})
 }
 

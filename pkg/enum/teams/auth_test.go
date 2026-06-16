@@ -33,6 +33,7 @@ func newTestClient(tenantID, clientID, scopes, deviceCodeURL, tokenURL string) *
 	c := NewClient(tenantID, clientID, scopes, 5*time.Second)
 	c.deviceCodeBaseURL = deviceCodeURL
 	c.tokenBaseURL = tokenURL
+	c.pollInterval = time.Millisecond
 	return c
 }
 
@@ -187,6 +188,26 @@ func TestStartDeviceFlow_MissingVerificationURI(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing")
 }
 
+func TestStartDeviceFlow_MissingDeviceCode(t *testing.T) {
+	resp := deviceCodeAPIResponse{
+		UserCode:        "ABCD-1234",
+		VerificationURI: "https://microsoft.com/devicelogin",
+		// DeviceCode intentionally absent
+	}
+	body, _ := json.Marshal(resp)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	c := newTestClient("", "", "", srv.URL, srv.URL)
+	_, err := c.StartDeviceFlow(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing")
+}
+
 // ---------------------------------------------------------------------------
 // WaitForToken
 // ---------------------------------------------------------------------------
@@ -200,6 +221,13 @@ func makeTokenResponse() tokenAPIResponse {
 		Scope:        DefaultScope,
 		ExpiresIn:    3600,
 	}
+}
+
+func TestWaitForToken_NilDeviceCode(t *testing.T) {
+	c := NewClient("", "", "", 5*time.Second)
+	_, err := c.WaitForToken(context.Background(), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil")
 }
 
 func TestWaitForToken_ImmediateSuccess(t *testing.T) {
@@ -403,6 +431,30 @@ func TestWaitForToken_UnknownError(t *testing.T) {
 	require.True(t, errors.As(err, &apiErr), "expected *APIError, got %T: %v", err, err)
 	assert.Equal(t, "some_new_error", apiErr.Code)
 	assert.Contains(t, apiErr.Description, "unexpected condition")
+}
+
+func TestWaitForToken_MissingAccessToken(t *testing.T) {
+	// Server returns HTTP 200 with valid JSON but missing access_token.
+	body, _ := json.Marshal(tokenAPIResponse{
+		TokenType: "Bearer",
+		// AccessToken intentionally absent
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	dc := &DeviceCode{deviceCode: "dc-incomplete", interval: 0}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	c := newTestClient("", "", "", srv.URL, srv.URL)
+	_, err := c.WaitForToken(ctx, dc)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing")
 }
 
 // ---------------------------------------------------------------------------

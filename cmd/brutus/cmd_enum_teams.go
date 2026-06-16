@@ -111,9 +111,7 @@ func runEnumTeamsAuth(cmd *cobra.Command, args []string) error {
 		return classifyTeamsError(err)
 	}
 
-	if !flagJSON {
-		outputTeamsDeviceCodeHuman(os.Stderr, dc, useColor)
-	}
+	outputTeamsDeviceCodeHuman(os.Stderr, dc, useColor)
 
 	tok, err := client.WaitForToken(ctx, dc)
 	if err != nil {

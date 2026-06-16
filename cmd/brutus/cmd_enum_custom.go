@@ -50,9 +50,9 @@ file (schema v1) — no Go required. The spec defines the HTTP request to send f
 each subject and an ordered set of match rules that map the response to an
 exists/absent/error verdict, then runs through the existing enum pipeline.
 
-Subjects come from --emails/-e, --email-file/-E, --generate, or the spec's
-"targets" section. Only http/https URLs are allowed; placeholder substitution is
-encoding-aware and redirects are not followed.`,
+Subjects come from --emails/-e, --email-file/-E, or --generate. Only http/https
+URLs are allowed; placeholder substitution is encoding-aware and redirects are
+not followed.`,
 	Example: `  # Run an oracle against inline subjects
   brutus enum custom -f oracle.json -e jsmith,asmith
 
@@ -88,12 +88,12 @@ func runEnumCustom(cmd *cobra.Command, args []string) error {
 	}
 	plugin := custom.New(spec)
 
-	subjects, err := buildCustomSubjects(spec)
+	subjects, err := buildCustomSubjects()
 	if err != nil {
 		return err
 	}
 	if len(subjects) == 0 {
-		return fmt.Errorf("no subjects: provide -e/-E/--generate or targets in the spec")
+		return fmt.Errorf("no subjects: provide -e/-E or --generate")
 	}
 
 	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
@@ -166,9 +166,9 @@ func loadOracleSpec(path string) (*custom.Spec, error) {
 	return spec, nil
 }
 
-// buildCustomSubjects assembles the ordered subject list from CLI flags, falling
-// back to the spec's targets. known_valid seeds are prepended (de-duplicated).
-func buildCustomSubjects(spec *custom.Spec) ([]string, error) {
+// buildCustomSubjects assembles the ordered subject list from CLI flags
+// (-e/-E/--generate), de-duplicated and preserving first-seen order.
+func buildCustomSubjects() ([]string, error) {
 	var subjects []string
 
 	if flagCustomEmails != "" {
@@ -195,13 +195,6 @@ func buildCustomSubjects(spec *custom.Spec) ([]string, error) {
 		subjects = append(subjects, generated...)
 	}
 
-	// Prepend known_valid seeds (de-duplicated) so they are submitted first.
-	// When no CLI subjects were supplied this prepends onto an empty slice,
-	// yielding exactly the seeds (so known_valid also serves as the fallback).
-	if spec.Targets != nil && len(spec.Targets.KnownValid) > 0 {
-		subjects = prependKnownValid(spec.Targets.KnownValid, subjects)
-	}
-
 	return dedupe(subjects), nil
 }
 
@@ -220,14 +213,6 @@ func generateCustomSubjects() ([]string, error) {
 		return nil, fmt.Errorf("generating emails: %w", err)
 	}
 	return emails, nil
-}
-
-// prependKnownValid returns seeds followed by the rest, preserving order.
-func prependKnownValid(seeds, rest []string) []string {
-	out := make([]string, 0, len(seeds)+len(rest))
-	out = append(out, seeds...)
-	out = append(out, rest...)
-	return out
 }
 
 // dedupe removes duplicate subjects while preserving first-seen order.

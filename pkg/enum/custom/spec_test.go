@@ -160,11 +160,6 @@ func TestSpec_FullTypes(t *testing.T) {
 				"default": "error"
 			}
 		},
-		"targets": {
-			"domains": ["example.com"],
-			"formats": ["flast"],
-			"known_valid": ["jsmith@example.com"]
-		},
 		"constraints": {
 			"rate_limit_rps": 5.0,
 			"lockout": false,
@@ -209,12 +204,6 @@ func TestSpec_FullTypes(t *testing.T) {
 	assert.Equal(t, "X-Account", r4.When.Header.Name)
 	require.NotNil(t, r4.When.Header.Present)
 	assert.True(t, *r4.When.Header.Present)
-
-	// Targets
-	require.NotNil(t, s.Targets)
-	assert.Equal(t, []string{"example.com"}, s.Targets.Domains)
-	assert.Equal(t, []string{"flast"}, s.Targets.Formats)
-	assert.Equal(t, []string{"jsmith@example.com"}, s.Targets.KnownValid)
 
 	// Constraints
 	require.NotNil(t, s.Constraints)

@@ -29,7 +29,6 @@ import (
 type Spec struct {
 	Version     string       `json:"version"      yaml:"version"`
 	Oracle      Oracle       `json:"oracle"       yaml:"oracle"`
-	Targets     *Targets     `json:"targets,omitempty"     yaml:"targets,omitempty"`
 	Constraints *Constraints `json:"constraints,omitempty" yaml:"constraints,omitempty"`
 
 	// compiledRe holds compiled body_regex per rule, populated by Validate() and
@@ -90,13 +89,6 @@ type HeaderMatch struct {
 	Name    string  `json:"name"             yaml:"name"`
 	Present *bool   `json:"present,omitempty" yaml:"present,omitempty"`
 	Equals  *string `json:"equals,omitempty"  yaml:"equals,omitempty"`
-}
-
-// Targets carries the agent-handoff seed set used when no CLI subjects are given.
-type Targets struct {
-	Domains    []string `json:"domains,omitempty"     yaml:"domains,omitempty"`
-	Formats    []string `json:"formats,omitempty"     yaml:"formats,omitempty"`
-	KnownValid []string `json:"known_valid,omitempty" yaml:"known_valid,omitempty"`
 }
 
 // Constraints carries operator hints about the target oracle.

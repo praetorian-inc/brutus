@@ -118,10 +118,10 @@ func TestRunEnumCustom_BadSpec(t *testing.T) {
 }
 
 // TestRunEnumCustom_NoSubjects verifies that runEnumCustom returns an error
-// when the spec is valid but no subjects are provided via -e/-E/--generate
-// and the spec has no targets.
+// whose message is exactly "no subjects: provide -e/-E or --generate" when the
+// spec is valid but no subjects are provided via -e/-E/--generate.
 func TestRunEnumCustom_NoSubjects(t *testing.T) {
-	// Write a valid spec to a temp file (no targets section).
+	// Write a valid spec to a temp file.
 	tmp, err := os.CreateTemp(t.TempDir(), "no-subjects-*.json")
 	require.NoError(t, err)
 	_, err = tmp.WriteString(`{
@@ -192,7 +192,7 @@ func TestRunEnumCustom_OversizeFile(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// F1: Subject-building helpers (dedupe, prependKnownValid, buildCustomSubjects)
+// F1: Subject-building helpers (dedupe, buildCustomSubjects)
 // ---------------------------------------------------------------------------
 
 // TestDedupe_RemovesDuplicatesPreservingOrder verifies that dedupe removes
@@ -237,96 +237,6 @@ func TestDedupe_RemovesDuplicatesPreservingOrder(t *testing.T) {
 	}
 }
 
-// TestPrependKnownValid_SeedsComeFirst verifies that prependKnownValid places
-// seeds at the front of the list, followed by the remaining subjects, without
-// deduplication (dedupe is a separate step applied by buildCustomSubjects).
-func TestPrependKnownValid_SeedsComeFirst(t *testing.T) {
-	tests := []struct {
-		name  string
-		seeds []string
-		rest  []string
-		want  []string
-	}{
-		{
-			name:  "seeds before rest",
-			seeds: []string{"seed1", "seed2"},
-			rest:  []string{"other1", "other2"},
-			want:  []string{"seed1", "seed2", "other1", "other2"},
-		},
-		{
-			name:  "empty rest",
-			seeds: []string{"seed1"},
-			rest:  nil,
-			want:  []string{"seed1"},
-		},
-		{
-			name:  "empty seeds",
-			seeds: nil,
-			rest:  []string{"a", "b"},
-			want:  []string{"a", "b"},
-		},
-		{
-			name:  "seeds duplicated in rest — returned as-is (dedup is caller's job)",
-			seeds: []string{"seed1"},
-			rest:  []string{"seed1", "other"},
-			want:  []string{"seed1", "seed1", "other"},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := prependKnownValid(tc.seeds, tc.rest)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
-
-// minimalSpecJSON returns JSON for a valid spec with no targets section.
-// Used by buildCustomSubjects tests to avoid a real file dependency.
-const minimalSpecJSON = `{
-	"version": "1",
-	"oracle": {
-		"name": "test-oracle",
-		"request": {
-			"method": "POST",
-			"url": "https://example.com/api"
-		},
-		"match": {
-			"rules": [{"when": {"status": 200}, "verdict": "exists"}],
-			"default": "error"
-		}
-	}
-}`
-
-// specWithTargets returns a spec JSON that includes a known_valid targets
-// section with the supplied seeds.
-func specWithTargets(seeds ...string) string {
-	encoded := `"`
-	for i, s := range seeds {
-		if i > 0 {
-			encoded += `", "`
-		}
-		encoded += s
-	}
-	encoded += `"`
-	return `{
-		"version": "1",
-		"oracle": {
-			"name": "test-oracle",
-			"request": {
-				"method": "POST",
-				"url": "https://example.com/api"
-			},
-			"match": {
-				"rules": [{"when": {"status": 200}, "verdict": "exists"}],
-				"default": "error"
-			}
-		},
-		"targets": {
-			"known_valid": [` + encoded + `]
-		}
-	}`
-}
-
 // parseSpec is a test helper that parses and validates a spec from JSON.
 func parseSpec(t *testing.T, data string) *custom.Spec {
 	t.Helper()
@@ -352,8 +262,7 @@ func TestBuildCustomSubjects_InlineEmails(t *testing.T) {
 	flagCustomEmailFile = ""
 	flagCustomGenerate = false
 
-	spec := parseSpec(t, minimalSpecJSON)
-	got, err := buildCustomSubjects(spec)
+	got, err := buildCustomSubjects()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"alice", "bob", "charlie"}, got)
 }
@@ -381,15 +290,14 @@ func TestBuildCustomSubjects_EmailFile(t *testing.T) {
 	flagCustomEmailFile = tmp.Name()
 	flagCustomGenerate = false
 
-	spec := parseSpec(t, minimalSpecJSON)
-	got, err := buildCustomSubjects(spec)
+	got, err := buildCustomSubjects()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"user1", "user2"}, got)
 }
 
-// TestBuildCustomSubjects_TargetsFallback verifies that when no CLI flags are
-// set, the spec's known_valid targets are used as the subject list.
-func TestBuildCustomSubjects_TargetsFallback(t *testing.T) {
+// TestBuildCustomSubjects_Dedupe verifies that buildCustomSubjects de-duplicates
+// subjects supplied via -e, preserving first-seen order.
+func TestBuildCustomSubjects_Dedupe(t *testing.T) {
 	origEmails := flagCustomEmails
 	origFile := flagCustomEmailFile
 	origGen := flagCustomGenerate
@@ -399,43 +307,14 @@ func TestBuildCustomSubjects_TargetsFallback(t *testing.T) {
 		flagCustomGenerate = origGen
 	})
 
-	flagCustomEmails = ""
+	// alice appears twice; bob once; charlie once — after dedupe: alice, bob, charlie.
+	flagCustomEmails = "alice,bob,alice,charlie"
 	flagCustomEmailFile = ""
 	flagCustomGenerate = false
 
-	spec := parseSpec(t, specWithTargets("seed1", "seed2"))
-	got, err := buildCustomSubjects(spec)
+	got, err := buildCustomSubjects()
 	require.NoError(t, err)
-	// When falling back to targets, known_valid is used directly then
-	// prependKnownValid+dedupe produces exactly the seeds.
-	assert.Equal(t, []string{"seed1", "seed2"}, got)
-}
-
-// TestBuildCustomSubjects_KnownValidPrependedAndDeduped verifies that when CLI
-// subjects are supplied AND the spec has known_valid, the seeds are prepended
-// and duplicates are removed.
-func TestBuildCustomSubjects_KnownValidPrependedAndDeduped(t *testing.T) {
-	origEmails := flagCustomEmails
-	origFile := flagCustomEmailFile
-	origGen := flagCustomGenerate
-	t.Cleanup(func() {
-		flagCustomEmails = origEmails
-		flagCustomEmailFile = origFile
-		flagCustomGenerate = origGen
-	})
-
-	// CLI provides "other" and "seed1" (the latter is also a known_valid seed).
-	flagCustomEmails = "other,seed1"
-	flagCustomEmailFile = ""
-	flagCustomGenerate = false
-
-	spec := parseSpec(t, specWithTargets("seed1", "seed2"))
-	got, err := buildCustomSubjects(spec)
-	require.NoError(t, err)
-
-	// Expected order: seeds first (seed1, seed2), then remaining (other),
-	// with seed1 de-duplicated.
-	assert.Equal(t, []string{"seed1", "seed2", "other"}, got)
+	assert.Equal(t, []string{"alice", "bob", "charlie"}, got)
 }
 
 // TestBuildCustomSubjects_ConstraintRateLimitDefault verifies that the spec's
@@ -458,9 +337,6 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 		},
 		"constraints": {
 			"rate_limit_rps": 5.0
-		},
-		"targets": {
-			"known_valid": ["seed@example.com"]
 		}
 	}`
 
@@ -471,7 +347,7 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 	assert.Equal(t, 5.0, spec.Constraints.RateLimitRPS,
 		"Constraints.RateLimitRPS must equal the spec value (5.0)")
 
-	// Also verify buildCustomSubjects succeeds (targets fallback path).
+	// Also verify buildCustomSubjects succeeds with a subject supplied via CLI.
 	origEmails := flagCustomEmails
 	origFile := flagCustomEmailFile
 	origGen := flagCustomGenerate
@@ -480,11 +356,11 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 		flagCustomEmailFile = origFile
 		flagCustomGenerate = origGen
 	})
-	flagCustomEmails = ""
+	flagCustomEmails = "seed@example.com"
 	flagCustomEmailFile = ""
 	flagCustomGenerate = false
 
-	got, err := buildCustomSubjects(spec)
+	got, err := buildCustomSubjects()
 	require.NoError(t, err)
 	assert.Equal(t, []string{"seed@example.com"}, got)
 }

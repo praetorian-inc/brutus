@@ -20,10 +20,12 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
 	"github.com/praetorian-inc/brutus/pkg/enum/hunter"
+	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
 // outputDNSReconHuman displays DNS TXT recon results in human-readable format.
@@ -343,4 +345,95 @@ func outputHunterJSONL(w io.Writer, result *hunter.DomainResult) {
 			fmt.Fprintf(os.Stderr, "Error encoding hunter JSON: %v\n", err)
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Teams (Microsoft Entra ID device code) output functions
+// ---------------------------------------------------------------------------
+
+// outputTeamsDeviceCodeHuman prints device code auth instructions.
+// All server-provided strings are sanitized via sanitizeTerminal (P0-4).
+func outputTeamsDeviceCodeHuman(w io.Writer, dc *teams.DeviceCode, useColor bool) {
+	uri := sanitizeTerminal(dc.VerificationURI)
+	code := sanitizeTerminal(dc.UserCode)
+
+	fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
+		heading(useColor, "Microsoft device code authentication"))
+	fmt.Fprintf(w, "  Open: %s%s%s\n", colorIf(useColor, ColorCyan), uri, colorIf(useColor, ColorReset))
+	fmt.Fprintf(w, "  Code: %s%s%s\n", colorIf(useColor, ColorBold), code, colorIf(useColor, ColorReset))
+	if dc.Message != "" {
+		fmt.Fprintf(w, "  %s\n", dim(useColor, sanitizeTerminal(dc.Message)))
+	}
+	if dc.ExpiresIn > 0 {
+		fmt.Fprintf(w, "  Expires in: %dm\n", dc.ExpiresIn/60)
+	}
+	fmt.Fprintf(w, "\n  %s Waiting for you to complete sign-in...\n\n", dim(useColor, SymbolInfo))
+}
+
+// outputTeamsTokenHuman prints a summary of the token set. Full token values
+// are never printed — only the first 20 characters of each token are shown,
+// which is sufficient for debugging without leaking usable credentials (P0-1).
+func outputTeamsTokenHuman(w io.Writer, tok *teams.TokenSet, useColor bool) {
+	fmt.Fprintf(w, "%s%s Authentication successful%s\n",
+		colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
+	fmt.Fprintf(w, "  Token type:   %s\n", sanitizeTerminal(tok.TokenType))
+	fmt.Fprintf(w, "  Expires at:   %s\n", tok.ExpiresAt.Format(time.RFC3339))
+	if tok.Scope != "" {
+		fmt.Fprintf(w, "  Scope:        %s\n", sanitizeTerminal(tok.Scope))
+	}
+	fmt.Fprintf(w, "  Access token: %s\n", tokenPreview(tok.AccessToken))
+	fmt.Fprintf(w, "  Refresh token: %s\n", presence(tok.RefreshToken))
+	fmt.Fprintf(w, "  ID token:     %s\n", presence(tok.IDToken))
+	fmt.Fprintln(w)
+}
+
+// outputTeamsTokenJSONL writes the full TokenSet as a single JSON line.
+// encoding/json escapes control characters, so no sanitization is needed.
+func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
+	type teamsTokenJSON struct {
+		Type         string    `json:"type"`
+		AccessToken  string    `json:"access_token"`
+		RefreshToken string    `json:"refresh_token,omitempty"`
+		IDToken      string    `json:"id_token,omitempty"`
+		TokenType    string    `json:"token_type"`
+		ExpiresIn    int       `json:"expires_in"`
+		Scope        string    `json:"scope,omitempty"`
+		ExpiresAt    time.Time `json:"expires_at"`
+	}
+
+	jr := teamsTokenJSON{
+		Type:         "teams_token",
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		IDToken:      tok.IDToken,
+		TokenType:    tok.TokenType,
+		ExpiresIn:    tok.ExpiresIn,
+		Scope:        tok.Scope,
+		ExpiresAt:    tok.ExpiresAt,
+	}
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(jr); err != nil {
+		fmt.Fprintf(os.Stderr, "Error encoding teams token JSON: %v\n", err)
+	}
+}
+
+// tokenPreview returns the first 20 characters of a token, with an ellipsis
+// when it is longer, or "<absent>" when empty.
+func tokenPreview(token string) string {
+	if token == "" {
+		return "<absent>"
+	}
+	r := []rune(token)
+	if len(r) <= 20 {
+		return string(r)
+	}
+	return string(r[:20]) + "..."
+}
+
+// presence reports whether a token value is present without revealing it.
+func presence(token string) string {
+	if token == "" {
+		return "<absent>"
+	}
+	return "<present>"
 }

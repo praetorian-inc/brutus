@@ -59,28 +59,28 @@ func TestEvaluate_Status(t *testing.T) {
 	}`))
 
 	tests := []struct {
-		name       string
-		in         matchInput
+		name        string
+		in          matchInput
 		wantVerdict string
-		wantConf   enum.Confidence
+		wantConf    enum.Confidence
 	}{
 		{
-			name:       "200 → exists/high",
-			in:         matchInput{status: 200},
+			name:        "200 → exists/high",
+			in:          matchInput{status: 200},
 			wantVerdict: "exists",
-			wantConf:   enum.ConfidenceHigh,
+			wantConf:    enum.ConfidenceHigh,
 		},
 		{
-			name:       "404 → absent/high",
-			in:         matchInput{status: 404},
+			name:        "404 → absent/high",
+			in:          matchInput{status: 404},
 			wantVerdict: "absent",
-			wantConf:   enum.ConfidenceHigh,
+			wantConf:    enum.ConfidenceHigh,
 		},
 		{
-			name:       "500 → default error/low",
-			in:         matchInput{status: 500},
+			name:        "500 → default error/low",
+			in:          matchInput{status: 500},
 			wantVerdict: "error",
-			wantConf:   enum.ConfidenceLow,
+			wantConf:    enum.ConfidenceLow,
 		},
 	}
 
@@ -494,6 +494,25 @@ func TestEvaluate_Header(t *testing.T) {
 		h.Set("x-account", "yes") // lowercase set, matched case-insensitively
 		verdict, _ := specPresent.evaluate(matchInput{status: 200, header: h})
 		assert.Equal(t, "exists", verdict)
+	})
+
+	// present-but-empty-valued header must count as present (fix: Values() > 0).
+	t.Run("header present with empty value → exists (empty value still present)", func(t *testing.T) {
+		t.Parallel()
+		h := http.Header{}
+		h.Set("X-Account", "")
+		verdict, conf := specPresent.evaluate(matchInput{status: 200, header: h})
+		assert.Equal(t, "exists", verdict,
+			"a header set to an empty string is still present (len(Values())>0)")
+		assert.Equal(t, enum.ConfidenceHigh, conf)
+	})
+
+	t.Run("header truly absent → default absent", func(t *testing.T) {
+		t.Parallel()
+		// No X-Account header set at all.
+		verdict, _ := specPresent.evaluate(matchInput{status: 200, header: http.Header{}})
+		assert.Equal(t, "absent", verdict,
+			"a header that was never set must not count as present")
 	})
 }
 

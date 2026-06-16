@@ -60,7 +60,12 @@ func (p *Plugin) Check(ctx context.Context, subject string, timeout time.Duratio
 	defer func() { _ = resp.Body.Close() }()
 
 	// Read at most 1 MB (security-lead R6/P0-6) — never io.ReadAll(resp.Body).
-	body, _ := enum.ReadResponseBody(resp, 0)
+	body, err := enum.ReadResponseBody(resp, 0)
+	if err != nil {
+		result.Error = err
+		result.Duration = time.Since(start)
+		return result
+	}
 
 	verdict, conf := p.spec.evaluate(matchInput{
 		status: resp.StatusCode,

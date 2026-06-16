@@ -35,12 +35,12 @@ func TestDerivePlaceholders(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		subject        string
-		wantUsername   string
-		wantEmail      string
-		wantLocalpart  string
-		wantDomain     string
+		name          string
+		subject       string
+		wantUsername  string
+		wantEmail     string
+		wantLocalpart string
+		wantDomain    string
 	}{
 		{
 			name:          "email subject",
@@ -287,12 +287,16 @@ func TestBuildRequest_P0_4_PostSubURLRevalidation(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := buildRequest(spec, context.Background(), tc.subject)
+			req, err := buildRequest(spec, context.Background(), tc.subject)
 			// Either an error is returned (expected for bad URLs), or if the
-			// subject happens to be valid, we just verify no scheme bypass.
+			// subject happens to yield a valid URL, verify no scheme bypass.
 			if err != nil {
 				return // Good: rejected as expected.
 			}
+			require.NotNil(t, req, "non-error buildRequest must return a non-nil *http.Request")
+			t.Logf("subject %q produced URL %q (scheme=%q)", tc.subject, req.URL.String(), req.URL.Scheme)
+			assert.True(t, req.URL.Scheme == "http" || req.URL.Scheme == "https",
+				"on success, URL scheme must be http or https (no scheme bypass)")
 		})
 	}
 

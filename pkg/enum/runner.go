@@ -15,7 +15,10 @@
 // pkg/enum/runner.go
 package enum
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // EnumerateWithPlugin runs cfg.Emails against a single provided Plugin instance,
 // bypassing the registry. It is used by runtime-constructed oracles (e.g. the
@@ -24,6 +27,12 @@ import "context"
 // The same Plugin instance is shared across all goroutines, so the Plugin MUST
 // be stateless (enum.Plugin contract). cfg.Services is ignored.
 func EnumerateWithPlugin(ctx context.Context, cfg *Config, p Plugin) ([]Result, error) {
+	if cfg == nil {
+		return nil, errors.New("enum: nil config")
+	}
+	if p == nil {
+		return nil, errors.New("enum: nil plugin")
+	}
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}

@@ -63,7 +63,7 @@ type Match struct {
 // Rule is a single match rule: when its conditions hold, its verdict wins.
 type Rule struct {
 	When       When   `json:"when"       yaml:"when"`
-	Verdict    string `json:"verdict"    yaml:"verdict"`    // exists|absent|error
+	Verdict    string `json:"verdict"    yaml:"verdict"`                        // exists|absent|error
 	Confidence string `json:"confidence,omitempty" yaml:"confidence,omitempty"` // high|medium|low
 }
 
@@ -80,7 +80,7 @@ type When struct {
 // JSONFieldMatch tests a value reached by a dot-path (+ numeric indices) in a
 // JSON response body. Exactly one of Equals/In must be set.
 type JSONFieldMatch struct {
-	Path   string   `json:"path"           yaml:"path"`            // dot-path + numeric indices ONLY (no JSONPath)
+	Path   string   `json:"path"           yaml:"path"`               // dot-path + numeric indices ONLY (no JSONPath)
 	Equals *string  `json:"equals,omitempty" yaml:"equals,omitempty"` // compared as string
 	In     []string `json:"in,omitempty"   yaml:"in,omitempty"`
 }

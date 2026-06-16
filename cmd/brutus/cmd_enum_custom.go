@@ -88,7 +88,7 @@ func runEnumCustom(cmd *cobra.Command, args []string) error {
 	}
 	plugin := custom.New(spec)
 
-	subjects, err := buildCustomSubjects(spec, useColor)
+	subjects, err := buildCustomSubjects(spec)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func loadOracleSpec(path string) (*custom.Spec, error) {
 
 // buildCustomSubjects assembles the ordered subject list from CLI flags, falling
 // back to the spec's targets. known_valid seeds are prepended (de-duplicated).
-func buildCustomSubjects(spec *custom.Spec, useColor bool) ([]string, error) {
+func buildCustomSubjects(spec *custom.Spec) ([]string, error) {
 	var subjects []string
 
 	if flagCustomEmails != "" {

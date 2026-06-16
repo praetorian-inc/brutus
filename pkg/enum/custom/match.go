@@ -107,15 +107,15 @@ func statusMatches(sm *StatusMatch, status int) bool {
 }
 
 // headerMatches evaluates a HeaderMatch against the response headers using
-// case-insensitive lookup (http.Header.Get).
+// case-insensitive lookup. Presence uses http.Header.Values so a present
+// header with an empty value still counts as present; Equals uses Get.
 func headerMatches(hm *HeaderMatch, header http.Header) bool {
-	got := header.Get(hm.Name)
 	if hm.Present != nil {
-		present := got != ""
+		present := len(header.Values(hm.Name)) > 0
 		return present == *hm.Present
 	}
 	if hm.Equals != nil {
-		return got == *hm.Equals
+		return header.Get(hm.Name) == *hm.Equals
 	}
 	return false
 }

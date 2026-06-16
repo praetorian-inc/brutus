@@ -199,9 +199,9 @@ func TestRunEnumCustom_OversizeFile(t *testing.T) {
 // repeated values while preserving the first-seen order.
 func TestDedupe_RemovesDuplicatesPreservingOrder(t *testing.T) {
 	tests := []struct {
-		name  string
-		in    []string
-		want  []string
+		name string
+		in   []string
+		want []string
 	}{
 		{
 			name: "no duplicates — unchanged",
@@ -353,7 +353,7 @@ func TestBuildCustomSubjects_InlineEmails(t *testing.T) {
 	flagCustomGenerate = false
 
 	spec := parseSpec(t, minimalSpecJSON)
-	got, err := buildCustomSubjects(spec, false)
+	got, err := buildCustomSubjects(spec)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"alice", "bob", "charlie"}, got)
 }
@@ -382,7 +382,7 @@ func TestBuildCustomSubjects_EmailFile(t *testing.T) {
 	flagCustomGenerate = false
 
 	spec := parseSpec(t, minimalSpecJSON)
-	got, err := buildCustomSubjects(spec, false)
+	got, err := buildCustomSubjects(spec)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"user1", "user2"}, got)
 }
@@ -404,7 +404,7 @@ func TestBuildCustomSubjects_TargetsFallback(t *testing.T) {
 	flagCustomGenerate = false
 
 	spec := parseSpec(t, specWithTargets("seed1", "seed2"))
-	got, err := buildCustomSubjects(spec, false)
+	got, err := buildCustomSubjects(spec)
 	require.NoError(t, err)
 	// When falling back to targets, known_valid is used directly then
 	// prependKnownValid+dedupe produces exactly the seeds.
@@ -430,7 +430,7 @@ func TestBuildCustomSubjects_KnownValidPrependedAndDeduped(t *testing.T) {
 	flagCustomGenerate = false
 
 	spec := parseSpec(t, specWithTargets("seed1", "seed2"))
-	got, err := buildCustomSubjects(spec, false)
+	got, err := buildCustomSubjects(spec)
 	require.NoError(t, err)
 
 	// Expected order: seeds first (seed1, seed2), then remaining (other),
@@ -484,7 +484,7 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 	flagCustomEmailFile = ""
 	flagCustomGenerate = false
 
-	got, err := buildCustomSubjects(spec, false)
+	got, err := buildCustomSubjects(spec)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"seed@example.com"}, got)
 }

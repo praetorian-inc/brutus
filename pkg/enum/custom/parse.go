@@ -172,8 +172,16 @@ func (s *Spec) validateRule(i int) error {
 		return &SpecError{Field: "oracle.match.rules", Reason: fmt.Sprintf("rule %d: when must have at least one active condition", i)}
 	}
 
-	if r.When.Status != nil && len(r.When.Status.Values()) > maxStatuses {
-		return &SpecError{Field: "oracle.match.rules", Reason: fmt.Sprintf("rule %d: too many status codes: %d (max %d)", i, len(r.When.Status.Values()), maxStatuses)}
+	if r.When.Status != nil {
+		vals := r.When.Status.Values()
+		if len(vals) > maxStatuses {
+			return &SpecError{Field: "oracle.match.rules", Reason: fmt.Sprintf("rule %d: too many status codes: %d (max %d)", i, len(vals), maxStatuses)}
+		}
+		for _, code := range vals {
+			if code < 100 || code > 599 {
+				return &SpecError{Field: "oracle.match.rules", Reason: fmt.Sprintf("rule %d: invalid status code %d (want 100-599)", i, code)}
+			}
+		}
 	}
 
 	if r.When.BodyRegex != "" {
@@ -278,11 +286,11 @@ func neutralizePlaceholders(s string) string {
 		if open < 0 {
 			break
 		}
-		close := strings.Index(s[open:], "}}")
-		if close < 0 {
+		closeIdx := strings.Index(s[open:], "}}")
+		if closeIdx < 0 {
 			break
 		}
-		s = s[:open] + "x" + s[open+close+2:]
+		s = s[:open] + "x" + s[open+closeIdx+2:]
 	}
 	return s
 }

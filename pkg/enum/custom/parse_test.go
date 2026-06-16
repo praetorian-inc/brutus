@@ -112,10 +112,10 @@ func TestParse_JSONEqualsYAML(t *testing.T) {
 
 // invalidSpecCase describes a single invalid-spec test.
 type invalidSpecCase struct {
-	name        string
-	data        []byte
+	name         string
+	data         []byte
 	wantParseErr bool   // error must occur in Parse (not Validate)
-	wantField   string  // expected SpecError.Field (empty = any)
+	wantField    string // expected SpecError.Field (empty = any)
 }
 
 // buildInvalidSpecCases returns the ≥14 invalid-spec cases required by plan.md T2.
@@ -386,9 +386,9 @@ func TestValidate_CompilesRegexes(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, spec.Validate())
 
-	// compiledRe is unexported; we verify it indirectly by calling evaluate
-	// (matched in match_test.go). Here we just ensure Validate succeeds.
-	// The compiled regex correctness is tested in match_test.go via evaluate.
+	require.Len(t, spec.compiledRe, 2)
+	require.NotNil(t, spec.compiledRe[0], "rule with body_regex should be compiled")
+	assert.Nil(t, spec.compiledRe[1], "rule without body_regex should remain nil")
 }
 
 // TestValidate_DefaultError verifies that the default "error" verdict is

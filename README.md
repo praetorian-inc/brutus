@@ -867,6 +867,29 @@ brutus enum generate --domain example.com --format first.last
 
 ---
 
+### Hunter.io Domain Search
+
+Discover people (email, name, job title, phone, department, seniority, confidence) associated with a domain via the Hunter.io Domain Search API. Paginates automatically until all results are retrieved.
+
+```bash
+# Requires a Hunter.io API key — set via env var (preferred, keeps key out of process list)
+export HUNTER_API_KEY=your_key_here
+
+# Discover people for a domain
+brutus enum hunter --domain example.com
+
+# Provide the key explicitly (visible in process list and shell history — prefer HUNTER_API_KEY)
+brutus enum hunter --domain example.com --api-key your_key_here
+
+# JSONL output to file (one record per person, with type:"hunter" discriminator)
+brutus enum hunter --domain example.com --output people.jsonl
+
+# Adjust pagination page size (default: 100)
+brutus enum hunter --domain example.com --limit 50
+```
+
+---
+
 ## Known Limitations
 
 ### Sticky Keys Heuristic Detection

@@ -15,7 +15,13 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -481,4 +487,142 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 	got, err := buildCustomSubjects(spec, false)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"seed@example.com"}, got)
+}
+
+// ---------------------------------------------------------------------------
+// New: TestRunEnumCustom_EndToEnd — 32% → higher coverage of runEnumCustom
+// ---------------------------------------------------------------------------
+
+// oracleSpecForTest builds the JSON for a schema-v1 oracle whose URL points at
+// srv. The oracle uses a POST with a JSON body that includes the {{username}}
+// placeholder; it matches 200 → exists and 404 → absent.
+func oracleSpecForTest(t *testing.T, serverURL string) string {
+	t.Helper()
+	return fmt.Sprintf(`{
+	"version": "1",
+	"oracle": {
+		"name": "test-oracle",
+		"request": {
+			"method": "POST",
+			"url": %q,
+			"headers": {"Content-Type": "application/json"},
+			"body": "{\"user\":\"{{username}}\"}",
+			"body_encoding": "json"
+		},
+		"match": {
+			"rules": [
+				{"when": {"status": 200}, "verdict": "exists"},
+				{"when": {"status": 404}, "verdict": "absent"}
+			],
+			"default": "absent"
+		}
+	}
+}`, serverURL)
+}
+
+// TestRunEnumCustom_EndToEnd exercises the full runEnumCustom happy path:
+//   - a real httptest.Server returns 200 for "jsmith" and 404 for "nobody"
+//   - a temp oracle spec file is written with the server URL
+//   - package-level flag vars are set and restored with defer
+//   - output is captured to a temp file (which forces JSON via flagOutputFile)
+//   - the JSONL output is parsed to confirm jsmith exists=true, nobody exists=false
+func TestRunEnumCustom_EndToEnd(t *testing.T) {
+	// Spin up a test HTTP server that maps subject → verdict via the POST body.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The oracle sends JSON body {"user":"<subject>"}
+		var body struct {
+			User string `json:"user"`
+		}
+		// Best-effort decode; fall through to 404 on failure.
+		_ = json.NewDecoder(r.Body).Decode(&body)
+
+		switch body.User {
+		case "jsmith":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("reset link sent"))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	// Write the oracle spec to a temp file with the test server URL.
+	specDir := t.TempDir()
+	specPath := specDir + "/oracle.json"
+	specData := oracleSpecForTest(t, srv.URL)
+	require.NoError(t, os.WriteFile(specPath, []byte(specData), 0o600))
+
+	// Write output to a temp file so we can read it back and force JSON mode.
+	outDir := t.TempDir()
+	outPath := outDir + "/results.jsonl"
+
+	// Save and restore ALL package-level flag vars touched by runEnumCustom.
+	origCustomFile := flagCustomFile
+	origCustomEmails := flagCustomEmails
+	origCustomEmailFile := flagCustomEmailFile
+	origCustomGenerate := flagCustomGenerate
+	origOutputFile := flagOutputFile
+	origJSON := flagJSON
+	origThreads := flagThreads
+	origTimeout := flagTimeout
+	defer func() {
+		flagCustomFile = origCustomFile
+		flagCustomEmails = origCustomEmails
+		flagCustomEmailFile = origCustomEmailFile
+		flagCustomGenerate = origCustomGenerate
+		flagOutputFile = origOutputFile
+		flagJSON = origJSON
+		flagThreads = origThreads
+		flagTimeout = origTimeout
+	}()
+
+	flagCustomFile = specPath
+	flagCustomEmails = "jsmith,nobody"
+	flagCustomEmailFile = ""
+	flagCustomGenerate = false
+	flagOutputFile = outPath
+	flagJSON = false // setupOutputWriter will force it to true via outPath
+	flagThreads = 1
+	flagTimeout = 0 // use default (10s)
+
+	// Call the command function directly (same-package test, unexported OK).
+	err := runEnumCustom(enumCustomCmd, nil)
+	require.NoError(t, err, "runEnumCustom must succeed with valid spec and subjects")
+
+	// Read and parse JSONL output.
+	outBytes, readErr := os.ReadFile(outPath)
+	require.NoError(t, readErr, "output file must be readable")
+	require.NotEmpty(t, outBytes, "output file must not be empty")
+
+	type enumLine struct {
+		Type    string `json:"type"`
+		Email   string `json:"email"`
+		Exists  bool   `json:"exists"`
+		Service string `json:"service"`
+	}
+
+	resultsByEmail := make(map[string]enumLine)
+	scanner := bufio.NewScanner(strings.NewReader(string(outBytes)))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var el enumLine
+		require.NoError(t, json.Unmarshal([]byte(line), &el),
+			"each JSONL line must be valid JSON: %s", line)
+		resultsByEmail[el.Email] = el
+	}
+	require.NoError(t, scanner.Err())
+
+	// Assert jsmith exists=true.
+	jsmith, ok := resultsByEmail["jsmith"]
+	require.True(t, ok, "output must contain a result for 'jsmith'")
+	assert.True(t, jsmith.Exists, "jsmith must be reported as exists=true")
+	assert.Equal(t, "test-oracle", jsmith.Service)
+
+	// Assert nobody exists=false.
+	nobody, ok := resultsByEmail["nobody"]
+	require.True(t, ok, "output must contain a result for 'nobody'")
+	assert.False(t, nobody.Exists, "nobody must be reported as exists=false")
 }

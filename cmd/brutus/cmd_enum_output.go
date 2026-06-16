@@ -384,7 +384,7 @@ func outputTeamsTokenHuman(w io.Writer, tok *teams.TokenSet, useColor bool) {
 	fmt.Fprintf(w, "  Access token: %s\n", tokenPreview(tok.AccessToken))
 	fmt.Fprintf(w, "  Refresh token: %s\n", presence(tok.RefreshToken))
 	fmt.Fprintf(w, "  ID token:     %s\n", presence(tok.IDToken))
-	_ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 }
 
 // outputTeamsTokenJSONL writes the full TokenSet as a single JSON line.

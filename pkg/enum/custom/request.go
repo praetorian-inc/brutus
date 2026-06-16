@@ -64,12 +64,7 @@ func buildRequest(spec *Spec, ctx context.Context, subject string) (*http.Reques
 // derivePlaceholders maps a subject (a bare username OR an email) to the four
 // substitution values.
 func derivePlaceholders(subject string) map[string]string {
-	localpart := subject
-	domain := ""
-	if idx := strings.Index(subject, "@"); idx >= 0 {
-		localpart = subject[:idx]
-		domain = subject[idx+1:]
-	}
+	localpart, domain, _ := strings.Cut(subject, "@")
 	return map[string]string{
 		"username":  subject,
 		"email":     subject,
@@ -83,12 +78,7 @@ func derivePlaceholders(subject string) map[string]string {
 func buildRequestURL(template string, vals map[string]string) (*url.URL, error) {
 	// Split off the query so query values can be QueryEscape'd and the rest
 	// PathEscape'd, each in its own channel.
-	rawPath := template
-	rawQuery := ""
-	if idx := strings.Index(template, "?"); idx >= 0 {
-		rawPath = template[:idx]
-		rawQuery = template[idx+1:]
-	}
+	rawPath, rawQuery, _ := strings.Cut(template, "?")
 
 	substitutedPath := substitute(rawPath, url.PathEscape, vals)
 	finalURLStr := substitutedPath

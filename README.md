@@ -34,7 +34,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 - **Aggressiveness modes:** `--mode cautious|default|aggressive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
-- **Account enumeration:** SaaS email enumeration, Kerberos user enumeration, email generation
+- **Account enumeration:** SaaS email enumeration, Kerberos user enumeration, email generation, Microsoft Teams/Entra ID device code auth
 - **Go library:** Import directly into your security automation tools
 - **Production ready:** Rate limiting, connection pooling, and comprehensive error handling
 
@@ -164,7 +164,7 @@ brutus web      # HTTP/web panel auditing (Basic Auth, form login, AI-powered)
 brutus snmp     # SNMP community string testing
 brutus badkeys  # Known weak/compromised SSH key testing
 brutus logon    # Windows logon-screen backdoor detection (sticky keys, utilman)
-brutus enum     # Account enumeration (SaaS services, Kerberos, email generation)
+brutus enum     # Account enumeration (SaaS services, Kerberos, Teams auth, email generation)
 ```
 
 Each subcommand has aliases for discoverability:
@@ -886,6 +886,62 @@ brutus enum hunter --domain example.com --output people.jsonl
 
 # Adjust pagination page size (default: 100)
 brutus enum hunter --domain example.com --limit 50
+```
+
+---
+
+### Microsoft Teams / Entra ID Authentication
+
+Obtain an OAuth2 access token, refresh token, and ID token from Microsoft Entra ID (Azure AD) using the [device code flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code) (RFC 8628). The resulting tokens can be used for Microsoft Graph API calls, Teams enumeration, and auditing via tools like [ROADtools](https://github.com/dirkjanm/ROADtools) or custom Graph queries.
+
+```bash
+# Authenticate against the common endpoint (any Microsoft tenant)
+brutus enum teams auth
+
+# Authenticate against a specific tenant by domain or GUID
+brutus enum teams auth --tenant contoso.com
+brutus enum teams auth --tenant 00000000-0000-0000-0000-000000000000
+
+# Request additional Graph scopes (space-separated)
+brutus enum teams auth --scope "openid offline_access https://graph.microsoft.com/.default"
+
+# Use a custom app registration (your own Azure app client ID)
+brutus enum teams auth --client-id 00000000-0000-0000-0000-000000000000
+
+# Capture the full token set as JSONL for piping to other tools
+brutus enum teams auth -o tokens.jsonl
+brutus enum teams auth --json
+```
+
+**How it works:**
+
+1. Brutus requests a device code from `login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode`
+2. A short code and URL are displayed — open the URL in any browser and enter the code
+3. Brutus polls until you complete sign-in, the code expires, or you press `Ctrl+C`
+4. On success, the access token, refresh token, and ID token are printed
+
+**Human output** shows only the first 20 characters of the access token (sufficient for verification). Use `--json` or `-o` to capture the full token values.
+
+**Default client ID:** The Microsoft Teams desktop application (`1fec8e78-bce4-4aaf-ab1b-5451cc387264`), a first-party public client that supports device code flow. Override with `--client-id` to use your own app registration.
+
+```
+$ brutus enum teams auth --tenant contoso.com
+[*] Starting Microsoft device code authentication...
+
+[*] Microsoft device code authentication
+  Open: https://microsoft.com/devicelogin
+  Code: ABCD-1234
+  Expires in: 15m
+
+  [*] Waiting for you to complete sign-in...
+
+[+] Authentication successful
+  Token type:    Bearer
+  Expires at:    2026-06-16T13:00:00Z
+  Scope:         openid profile offline_access User.Read
+  Access token:  eyJ0eXAiOiJKV1Qi...
+  Refresh token: <present>
+  ID token:      <present>
 ```
 
 ---

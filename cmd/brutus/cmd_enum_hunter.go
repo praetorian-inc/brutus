@@ -121,7 +121,7 @@ func resolveHunterAPIKey(flagValue string) (string, error) {
 	if key := os.Getenv("HUNTER_API_KEY"); key != "" {
 		return key, nil
 	}
-	return "", fmt.Errorf("Hunter.io API key required: set HUNTER_API_KEY or pass --api-key")
+	return "", fmt.Errorf("hunter.io API key required: set HUNTER_API_KEY or pass --api-key")
 }
 
 // classifyHunterError converts hunter sentinel errors into actionable, key-free messages.

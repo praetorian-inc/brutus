@@ -42,12 +42,14 @@ Subcommands:
   kerberos   Enumerate Active Directory users via Kerberos AS-REQ
   generate   Generate email addresses or usernames from embedded name lists
   hunter     Discover people and emails via Hunter.io Domain Search
+  teams      Authenticate with Microsoft Entra ID via device code flow
 
 See subcommand help for details:
   brutus enum saas --help
   brutus enum kerberos --help
   brutus enum generate --help
-  brutus enum hunter --help`,
+  brutus enum hunter --help
+  brutus enum teams --help`,
 	Example: `  # SaaS email enumeration
   brutus enum saas --domain praetorian.com -e test@praetorian.com
 
@@ -58,7 +60,10 @@ See subcommand help for details:
   brutus enum generate --domain example.com --format flast
 
   # Discover people via Hunter.io
-  brutus enum hunter --domain example.com`,
+  brutus enum hunter --domain example.com
+
+  # Authenticate with Microsoft Entra ID via device code
+  brutus enum teams auth --tenant contoso.com`,
 }
 
 var enumGenerateCmd = &cobra.Command{
@@ -103,6 +108,7 @@ func init() {
 	enumCmd.AddCommand(enumKerberosCmd)
 	enumCmd.AddCommand(enumHunterCmd)
 	enumCmd.AddCommand(enumCustomCmd)
+	enumCmd.AddCommand(enumTeamsCmd)
 }
 
 // runEnumGenerate handles the "enum generate" subcommand.

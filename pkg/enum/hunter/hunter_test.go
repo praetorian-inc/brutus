@@ -50,7 +50,7 @@ func TestToPerson(t *testing.T) {
 			{URI: "https://linkedin.com/in/alice"},
 		},
 	}
-	got := toPerson(src)
+	got := toPerson(&src)
 	assert.Equal(t, "alice@example.com", got.Email)
 	assert.Equal(t, "personal", got.Type)
 	assert.Equal(t, 90, got.Confidence)

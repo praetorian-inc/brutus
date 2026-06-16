@@ -134,8 +134,8 @@ func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, erro
 			result.Total = page.Meta.Results
 		}
 
-		for _, e := range page.Data.Emails {
-			result.People = append(result.People, toPerson(e))
+		for i := range page.Data.Emails {
+			result.People = append(result.People, toPerson(&page.Data.Emails[i]))
 		}
 
 		fetched := len(page.Data.Emails)
@@ -178,7 +178,7 @@ func (c *Client) fetchPage(ctx context.Context, domain string, offset int) (*api
 	}
 	rawURL := c.baseURL + "?" + q.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("building hunter request: %w", err)
 	}
@@ -213,7 +213,7 @@ func (c *Client) fetchPage(ctx context.Context, domain string, offset int) (*api
 }
 
 // toPerson converts the API email struct to the public Person type.
-func toPerson(e apiEmail) Person {
+func toPerson(e *apiEmail) Person {
 	sources := make([]string, len(e.Sources))
 	for i, s := range e.Sources {
 		sources[i] = s.URI

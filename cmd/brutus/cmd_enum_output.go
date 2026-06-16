@@ -214,7 +214,8 @@ func sanitizeTerminal(s string) string {
 			i += size
 			if r == 0x1B && i < len(b) {
 				next := b[i]
-				if next == '[' {
+				switch next {
+				case '[':
 					// CSI sequence: consume up through the final byte (A-Z, a-z, or @).
 					i++ // skip '['
 					for i < len(b) {
@@ -224,7 +225,7 @@ func sanitizeTerminal(s string) string {
 							break
 						}
 					}
-				} else if next == ']' {
+				case ']':
 					// OSC sequence: consume until ST (ESC \\) or BEL.
 					i++
 					for i < len(b) {
@@ -234,10 +235,10 @@ func sanitizeTerminal(s string) string {
 							break
 						}
 					}
-				} else {
+				default:
 					// Lone ESC (followed by a printable char, not [ or ]): strip
 					// only the ESC itself. The next byte stays — it is NOT part of
-					// a recognised escape sequence and must be kept.
+					// a recognized escape sequence and must be kept.
 				}
 			}
 			continue
@@ -254,36 +255,36 @@ func sanitizeTerminal(s string) string {
 	return out.String()
 }
 
-// truncate shortens s to at most max runes, appending "\u2026" (…) when cut.
-func truncate(s string, max int) string {
+// truncate shortens s to at most n runes, appending "\u2026" (…) when cut.
+func truncate(s string, n int) string {
 	r := []rune(s)
-	if len(r) <= max {
+	if len(r) <= n {
 		return s
 	}
-	if max <= 1 {
-		return string(r[:max])
+	if n <= 1 {
+		return string(r[:n])
 	}
-	return string(r[:max-1]) + "\u2026"
+	return string(r[:n-1]) + "\u2026"
 }
 
 // outputHunterHuman renders Hunter.io domain search results as an aligned table.
 // All attacker-controlled strings are sanitized via sanitizeTerminal (P0-4).
 func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) {
-	fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
+	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
 		heading(useColor, "Hunter.io: "+sanitizeTerminal(result.Domain)))
 	if result.Organization != "" {
-		fmt.Fprintf(w, "  Organization: %s\n", sanitizeTerminal(result.Organization))
+		_, _ = fmt.Fprintf(w, "  Organization: %s\n", sanitizeTerminal(result.Organization))
 	}
-	fmt.Fprintf(w, "  People found: %d (total available: %d)\n", len(result.People), result.Total)
+	_, _ = fmt.Fprintf(w, "  People found: %d (total available: %d)\n", len(result.People), result.Total)
 
 	if len(result.People) == 0 {
-		fmt.Fprintf(w, "\n  %s No people found for this domain\n", dim(useColor, SymbolInfo))
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintf(w, "\n  %s No people found for this domain\n", dim(useColor, SymbolInfo))
+		_, _ = fmt.Fprintln(w)
 		return
 	}
 
 	// Header row.
-	fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-16s %-12s %-5s%s\n",
+	_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-16s %-12s %-5s%s\n",
 		colorIf(useColor, ColorBold),
 		"Email", "Name", "Title", "Phone", "Dept", "Conf",
 		colorIf(useColor, ColorReset))
@@ -291,7 +292,7 @@ func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) 
 	for i := range result.People {
 		p := &result.People[i]
 		name := strings.TrimSpace(sanitizeTerminal(p.FirstName) + " " + sanitizeTerminal(p.LastName))
-		fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-16s %-12s %s%3d%s\n",
+		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-16s %-12s %s%3d%s\n",
 			colorIf(useColor, ColorGreen),
 			truncate(sanitizeTerminal(p.Email), 32),
 			colorIf(useColor, ColorReset),
@@ -301,7 +302,7 @@ func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) 
 			truncate(sanitizeTerminal(p.Department), 12),
 			colorIf(useColor, ColorCyan), p.Confidence, colorIf(useColor, ColorReset))
 	}
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 }
 
 // outputHunterJSONL writes one JSON object per discovered person.
@@ -342,7 +343,7 @@ func outputHunterJSONL(w io.Writer, result *hunter.DomainResult) {
 			Sources:      p.Sources,
 		}
 		if err := enc.Encode(jr); err != nil {
-			fmt.Fprintf(os.Stderr, "Error encoding hunter JSON: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding hunter JSON: %v\n", err)
 		}
 	}
 }
@@ -357,33 +358,33 @@ func outputTeamsDeviceCodeHuman(w io.Writer, dc *teams.DeviceCode, useColor bool
 	uri := sanitizeTerminal(dc.VerificationURI)
 	code := sanitizeTerminal(dc.UserCode)
 
-	fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
+	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
 		heading(useColor, "Microsoft device code authentication"))
-	fmt.Fprintf(w, "  Open: %s%s%s\n", colorIf(useColor, ColorCyan), uri, colorIf(useColor, ColorReset))
-	fmt.Fprintf(w, "  Code: %s%s%s\n", colorIf(useColor, ColorBold), code, colorIf(useColor, ColorReset))
+	_, _ = fmt.Fprintf(w, "  Open: %s%s%s\n", colorIf(useColor, ColorCyan), uri, colorIf(useColor, ColorReset))
+	_, _ = fmt.Fprintf(w, "  Code: %s%s%s\n", colorIf(useColor, ColorBold), code, colorIf(useColor, ColorReset))
 	if dc.Message != "" {
-		fmt.Fprintf(w, "  %s\n", dim(useColor, sanitizeTerminal(dc.Message)))
+		_, _ = fmt.Fprintf(w, "  %s\n", dim(useColor, sanitizeTerminal(dc.Message)))
 	}
 	if dc.ExpiresIn > 0 {
-		fmt.Fprintf(w, "  Expires in: %dm\n", dc.ExpiresIn/60)
+		_, _ = fmt.Fprintf(w, "  Expires in: %dm\n", dc.ExpiresIn/60)
 	}
-	fmt.Fprintf(w, "\n  %s Waiting for you to complete sign-in...\n\n", dim(useColor, SymbolInfo))
+	_, _ = fmt.Fprintf(w, "\n  %s Waiting for you to complete sign-in...\n\n", dim(useColor, SymbolInfo))
 }
 
 // outputTeamsTokenHuman prints a summary of the token set. Full token values
 // are never printed — only the first 20 characters of each token are shown,
 // which is sufficient for debugging without leaking usable credentials (P0-1).
 func outputTeamsTokenHuman(w io.Writer, tok *teams.TokenSet, useColor bool) {
-	fmt.Fprintf(w, "%s%s Authentication successful%s\n",
+	_, _ = fmt.Fprintf(w, "%s%s Authentication successful%s\n",
 		colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
-	fmt.Fprintf(w, "  Token type:   %s\n", sanitizeTerminal(tok.TokenType))
-	fmt.Fprintf(w, "  Expires at:   %s\n", tok.ExpiresAt.Format(time.RFC3339))
+	_, _ = fmt.Fprintf(w, "  Token type:   %s\n", sanitizeTerminal(tok.TokenType))
+	_, _ = fmt.Fprintf(w, "  Expires at:   %s\n", tok.ExpiresAt.Format(time.RFC3339))
 	if tok.Scope != "" {
-		fmt.Fprintf(w, "  Scope:        %s\n", sanitizeTerminal(tok.Scope))
+		_, _ = fmt.Fprintf(w, "  Scope:        %s\n", sanitizeTerminal(tok.Scope))
 	}
-	fmt.Fprintf(w, "  Access token: %s\n", tokenPreview(tok.AccessToken))
-	fmt.Fprintf(w, "  Refresh token: %s\n", presence(tok.RefreshToken))
-	fmt.Fprintf(w, "  ID token:     %s\n", presence(tok.IDToken))
+	_, _ = fmt.Fprintf(w, "  Access token: %s\n", tokenPreview(tok.AccessToken))
+	_, _ = fmt.Fprintf(w, "  Refresh token: %s\n", presence(tok.RefreshToken))
+	_, _ = fmt.Fprintf(w, "  ID token:     %s\n", presence(tok.IDToken))
 	_, _ = fmt.Fprintln(w)
 }
 
@@ -413,7 +414,7 @@ func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
 	}
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(jr); err != nil {
-		fmt.Fprintf(os.Stderr, "Error encoding teams token JSON: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams token JSON: %v\n", err)
 	}
 }
 

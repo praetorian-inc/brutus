@@ -23,6 +23,9 @@ import (
 	"strings"
 	"syscall"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
+
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
@@ -456,8 +459,7 @@ func runStickyKeysInteractive(target string, base *runConfig) ([]brutus.Result, 
 // backdoor detection) on RDP targets. Accepts the same three line formats as
 // runFromStdin: Nerva JSON, URI scheme, and bare host:port.
 func runScanFromStdin(base *runConfig) ([]brutus.Result, bool) {
-	var allResults []brutus.Result
-	hasSuccess := false
+	var scanTargets []string
 	var bareTargets []string
 
 	scanner := bufio.NewScanner(os.Stdin)
@@ -479,22 +481,13 @@ func runScanFromStdin(base *runConfig) ([]brutus.Result, bool) {
 			if base.protocolFilter != nil && !base.protocolFilter(protocol) {
 				continue
 			}
-			target := parsed.NervaResult.TargetAddr()
-			results, success := runScanSingleTarget(target, base)
-			allResults = append(allResults, results...)
-			if success {
-				hasSuccess = true
-			}
+			scanTargets = append(scanTargets, parsed.NervaResult.TargetAddr())
 
 		case brutusinput.StdinLineURI:
 			if base.protocolFilter != nil && !base.protocolFilter(parsed.Protocol) {
 				continue
 			}
-			results, success := runScanSingleTarget(parsed.HostPort, base)
-			allResults = append(allResults, results...)
-			if success {
-				hasSuccess = true
-			}
+			scanTargets = append(scanTargets, parsed.HostPort)
 
 		case brutusinput.StdinLineHostPort:
 			bareTargets = append(bareTargets, parsed.Raw)
@@ -504,6 +497,8 @@ func runScanFromStdin(base *runConfig) ([]brutus.Result, bool) {
 	if err := scanner.Err(); err != nil {
 		errMsg(base.useColor, "reading stdin: %v", err)
 	}
+
+	allResults, hasSuccess := runScanTargetsConcurrent(scanTargets, base)
 
 	// Batch-fingerprint bare targets, then scan any discovered RDP services.
 	if len(bareTargets) > 0 {
@@ -523,6 +518,74 @@ func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool)
 	defer stop()
 
 	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode)
+}
+
+// scanTargetFn performs detection for a single target. It is a package-level
+// variable so tests can substitute a fake without a live RDP server.
+var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]brutus.Result, bool) {
+	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode)
+}
+
+// runScanTargetsConcurrent runs sticky-keys/utilman detection across many targets
+// in parallel, bounded by base.threads. This is the scan-path equivalent of the
+// credential brute-force worker pool (pkg/brutus/workers.go): on the detection path
+// --threads controls host-level concurrency, because there is exactly one probe per
+// host (credential-level threading does not apply). Results are returned in input
+// order so output stays deterministic regardless of completion order.
+func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Result, bool) {
+	if len(targets) == 0 {
+		return nil, false
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	threads := base.threads
+	if threads < 1 {
+		threads = 1
+	}
+
+	// Optional rate limiting across host scans, mirroring the brute-force path.
+	// --rate-limit caps how many host scans may start per second (0 = unlimited).
+	var limiter *rate.Limiter
+	if base.rateLimit > 0 {
+		limiter = rate.NewLimiter(rate.Limit(base.rateLimit), 1)
+	}
+
+	perTarget := make([][]brutus.Result, len(targets))
+	success := make([]bool, len(targets))
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(threads)
+
+	for i := range targets {
+		i, target := i, targets[i]
+		g.Go(func() error {
+			if limiter != nil {
+				if err := limiter.Wait(ctx); err != nil {
+					return nil // context cancelled; stop quietly
+				}
+			}
+			if ctx.Err() != nil {
+				return nil
+			}
+			results, ok := scanTargetFn(ctx, target, base)
+			perTarget[i] = results
+			success[i] = ok
+			return nil
+		})
+	}
+	_ = g.Wait()
+
+	var all []brutus.Result
+	hasSuccess := false
+	for i := range targets {
+		all = append(all, perTarget[i]...)
+		if success[i] {
+			hasSuccess = true
+		}
+	}
+	return all, hasSuccess
 }
 
 // runFromNmapFile loads targets from an nmap XML file and processes each
@@ -613,8 +676,7 @@ func runScanFromNmapFile(base *runConfig) ([]brutus.Result, bool) {
 		return nil, false
 	}
 
-	var allResults []brutus.Result
-	hasSuccess := false
+	var scanTargets []string
 	for _, nrv := range nmapResults {
 		if nrv.Protocol == "" {
 			continue
@@ -622,13 +684,9 @@ func runScanFromNmapFile(base *runConfig) ([]brutus.Result, bool) {
 		if base.protocolFilter != nil && !base.protocolFilter(nrv.Protocol) {
 			continue
 		}
-		res, success := runScanSingleTarget(nrv.TargetAddr(), base)
-		allResults = append(allResults, res...)
-		if success {
-			hasSuccess = true
-		}
+		scanTargets = append(scanTargets, nrv.TargetAddr())
 	}
-	return allResults, hasSuccess
+	return runScanTargetsConcurrent(scanTargets, base)
 }
 
 // runScanFromMasscanFile loads masscan results and fingerprints them with

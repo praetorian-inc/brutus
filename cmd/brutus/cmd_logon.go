@@ -196,9 +196,7 @@ func runLogonFingerprint(targets []string, base *runConfig) ([]brutus.Result, bo
 	}
 	defer stop()
 
-	var allResults []brutus.Result
-	hasSuccess := false
-
+	var scanTargets []string
 	for i := range services {
 		nrv := brutusinput.ServiceToNervaResult(&services[i])
 		protocol := brutusinput.MapServiceToProtocol(nrv.Protocol)
@@ -206,13 +204,8 @@ func runLogonFingerprint(targets []string, base *runConfig) ([]brutus.Result, bo
 			logVerbose(base.verbose, "skipping %s:%d - not RDP (detected: %s)", nrv.IP, nrv.Port, nrv.Protocol)
 			continue
 		}
-
-		results, success := runScanSingleTarget(nrv.TargetAddr(), base)
-		allResults = append(allResults, results...)
-		if success {
-			hasSuccess = true
-		}
+		scanTargets = append(scanTargets, nrv.TargetAddr())
 	}
 
-	return allResults, hasSuccess
+	return runScanTargetsConcurrent(scanTargets, base)
 }

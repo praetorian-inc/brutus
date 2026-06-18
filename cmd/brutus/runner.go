@@ -517,7 +517,7 @@ func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode)
+	return scanTargetFn(ctx, target, base)
 }
 
 // scanTargetFn performs detection for a single target. It is a package-level
@@ -559,19 +559,19 @@ func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Resul
 	g.SetLimit(threads)
 
 	for i := range targets {
-		i, target := i, targets[i]
+		idx, target := i, targets[i]
 		g.Go(func() error {
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
-					return nil // context cancelled; stop quietly
+					return nil // context canceled; stop quietly
 				}
 			}
 			if ctx.Err() != nil {
 				return nil
 			}
 			results, ok := scanTargetFn(ctx, target, base)
-			perTarget[i] = results
-			success[i] = ok
+			perTarget[idx] = results
+			success[idx] = ok
 			return nil
 		})
 	}

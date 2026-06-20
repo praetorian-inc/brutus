@@ -186,8 +186,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6 h1:Hihpd+SwV+24JJBBHX4Eur8B3bZm6NiggzvkJxVRq4c=
 github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6/go.mod h1:/qQhuKn0EqiccC5zOv2ExYa5amYrlDJP1PV5t1LsjM8=
-github.com/praetorian-inc/nerva v1.18.0 h1:KwvgHtfqd69afnqKKtXbBmiKx2X5bLWZ4LfcK5KAUX8=
-github.com/praetorian-inc/nerva v1.18.0/go.mod h1:FHEc0IZVvyCu8NjjErOsd7rY2e4Yo76apBeFdWpYSBE=
+github.com/praetorian-inc/nerva v1.21.0 h1:RxcAyR3ooNQsfjEm2zHyh5qyEU3if/QM/pFL8342CS8=
+github.com/praetorian-inc/nerva v1.21.0/go.mod h1:FHEc0IZVvyCu8NjjErOsd7rY2e4Yo76apBeFdWpYSBE=
 github.com/projectdiscovery/wappalyzergo v0.2.17 h1:pYRBRJhR0Wuvx6O08DuicDZVltq1kbSlI5xr8nHXq/0=
 github.com/projectdiscovery/wappalyzergo v0.2.17/go.mod h1:F8X79ljvmvrG+EIxdxWS9VbdkVTsQupHYz+kXlp8O0o=
 github.com/redis/go-redis/v9 v9.20.1 h1:sfCU6A8P3dXbKyWes02uxA2baehGux9dZHfEKtsTB1w=

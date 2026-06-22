@@ -30,9 +30,10 @@ import (
 // File-local flag variables for the teams subcommand.
 // Separate from other enum flags to avoid cross-command state bleed.
 var (
-	flagTeamsTenant   string
-	flagTeamsClientID string
-	flagTeamsScope    string
+	flagTeamsTenant    string
+	flagTeamsClientID  string
+	flagTeamsScope     string
+	flagTeamsNoBrowser bool
 )
 
 var enumTeamsCmd = &cobra.Command{
@@ -60,8 +61,11 @@ command is interrupted.
 
 Token values are never written to logs. In human output only a short prefix of
 each token is shown; use --json (or -o) to capture the full token set.`,
-	Example: `  # Authenticate against the common tenant (interactive)
+	Example: `  # Authenticate against the default (organizations / work-school) tenant (interactive)
   brutus enum teams auth
+
+  # Headless / SSH: print the URL and code, don't open a browser
+  brutus enum teams auth --no-browser
 
   # Authenticate against a specific tenant by domain
   brutus enum teams auth --tenant contoso.com
@@ -77,9 +81,12 @@ each token is shown; use --json (or -o) to capture the full token set.`,
 
 func init() {
 	f := enumTeamsAuthCmd.Flags()
-	f.StringVarP(&flagTeamsTenant, "tenant", "t", "common", "Tenant ID, domain, or \"common\"")
+	// NOTE: no -t shorthand: it collides with the global persistent --threads/-t
+	// flag, which cobra merges into this subcommand at execute time (panic otherwise).
+	f.StringVar(&flagTeamsTenant, "tenant", "organizations", "Tenant ID, domain, or \"organizations\"/\"common\"")
 	f.StringVar(&flagTeamsClientID, "client-id", teams.DefaultClientID, "Azure app (client) ID")
 	f.StringVarP(&flagTeamsScope, "scope", "s", teams.DefaultScope, "Space-separated OAuth2 scopes")
+	f.BoolVar(&flagTeamsNoBrowser, "no-browser", false, "Don't automatically open the verification URL in a browser")
 	enumTeamsCmd.AddCommand(enumTeamsAuthCmd)
 }
 
@@ -99,7 +106,10 @@ func runEnumTeamsAuth(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client := teams.NewClient(flagTeamsTenant, flagTeamsClientID, flagTeamsScope, flagTimeout)
+	client, err := teams.NewClient(flagTeamsTenant, flagTeamsClientID, flagTeamsScope, flagProxy, flagTimeout)
+	if err != nil {
+		return fmt.Errorf("teams auth: %w", err)
+	}
 
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s Starting Microsoft device code authentication...\n",
@@ -112,6 +122,16 @@ func runEnumTeamsAuth(cmd *cobra.Command, args []string) error {
 	}
 
 	outputTeamsDeviceCodeHuman(os.Stderr, dc, useColor)
+
+	if !flagTeamsNoBrowser {
+		if err := openBrowser(dc.VerificationURI); err != nil {
+			if !flagQuiet && !flagJSON {
+				fmt.Fprintf(os.Stderr, "%s Couldn't open a browser automatically — open the URL above manually.\n", dim(useColor, SymbolInfo))
+			}
+		} else if !flagQuiet && !flagJSON {
+			fmt.Fprintf(os.Stderr, "%s Opened your browser to the sign-in page — enter the code above.\n", dim(useColor, SymbolInfo))
+		}
+	}
 
 	tok, err := client.WaitForToken(ctx, dc)
 	if err != nil {

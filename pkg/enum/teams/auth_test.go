@@ -29,8 +29,10 @@ import (
 )
 
 // newTestClient creates a Client with overridden base URLs for testing.
-func newTestClient(tenantID, clientID, scopes, deviceCodeURL, tokenURL string) *Client {
-	c := NewClient(tenantID, clientID, scopes, 5*time.Second)
+func newTestClient(t *testing.T, tenantID, clientID, scopes, deviceCodeURL, tokenURL string) *Client {
+	t.Helper()
+	c, err := NewClient(tenantID, clientID, scopes, "", 5*time.Second)
+	require.NoError(t, err)
 	c.deviceCodeBaseURL = deviceCodeURL
 	c.tokenBaseURL = tokenURL
 	c.pollInterval = time.Millisecond
@@ -54,8 +56,9 @@ func TestAPIError_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestNewClient_Defaults(t *testing.T) {
-	c := NewClient("", "", "", 5*time.Second)
-	assert.Equal(t, "common", c.tenantID)
+	c, err := NewClient("", "", "", "", 5*time.Second)
+	require.NoError(t, err)
+	assert.Equal(t, "organizations", c.tenantID)
 	assert.Equal(t, DefaultClientID, c.clientID)
 	assert.Equal(t, DefaultScope, c.scopes)
 }
@@ -81,7 +84,7 @@ func TestStartDeviceFlow_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newTestClient("mytenant", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "mytenant", "", "", srv.URL, srv.URL)
 	dc, err := c.StartDeviceFlow(context.Background())
 	require.NoError(t, err)
 
@@ -107,7 +110,7 @@ func TestStartDeviceFlow_SmallInterval(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	dc, err := c.StartDeviceFlow(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int(minPollInterval.Seconds()), dc.interval, "interval should be floored to minPollInterval")
@@ -125,7 +128,7 @@ func TestStartDeviceFlow_NonOKResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.StartDeviceFlow(context.Background())
 	require.Error(t, err)
 
@@ -142,7 +145,7 @@ func TestStartDeviceFlow_MalformedJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.StartDeviceFlow(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decoding")
@@ -162,7 +165,7 @@ func TestStartDeviceFlow_MissingUserCode(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.StartDeviceFlow(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing")
@@ -182,7 +185,7 @@ func TestStartDeviceFlow_MissingVerificationURI(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.StartDeviceFlow(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing")
@@ -202,7 +205,7 @@ func TestStartDeviceFlow_MissingDeviceCode(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.StartDeviceFlow(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing")
@@ -224,8 +227,9 @@ func makeTokenResponse() tokenAPIResponse {
 }
 
 func TestWaitForToken_NilDeviceCode(t *testing.T) {
-	c := NewClient("", "", "", 5*time.Second)
-	_, err := c.WaitForToken(context.Background(), nil)
+	c, err := NewClient("", "", "", "", 5*time.Second)
+	require.NoError(t, err)
+	_, err = c.WaitForToken(context.Background(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nil")
 }
@@ -250,7 +254,7 @@ func TestWaitForToken_ImmediateSuccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	tok, err := c.WaitForToken(ctx, dc)
 	require.NoError(t, err)
 	require.NotNil(t, tok)
@@ -304,7 +308,7 @@ func TestWaitForToken_PendingThenSuccess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	tok, err := c.WaitForToken(ctx, dc)
 	require.NoError(t, err)
 	require.NotNil(t, tok)
@@ -336,7 +340,7 @@ func TestWaitForToken_SlowDown(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	tok, err := c.WaitForToken(ctx, dc)
 	// After slow_down the interval grows by 5s, but the loop continues.
 	// The second call returns success.
@@ -359,7 +363,7 @@ func TestWaitForToken_ExpiredToken(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.WaitForToken(ctx, dc)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrExpiredToken), "expected ErrExpiredToken, got %v", err)
@@ -379,7 +383,7 @@ func TestWaitForToken_AccessDenied(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.WaitForToken(ctx, dc)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrAccessDenied), "expected ErrAccessDenied, got %v", err)
@@ -398,7 +402,7 @@ func TestWaitForToken_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.WaitForToken(ctx, dc)
 	require.Error(t, err)
 	assert.True(t,
@@ -423,7 +427,7 @@ func TestWaitForToken_UnknownError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.WaitForToken(ctx, dc)
 	require.Error(t, err)
 
@@ -451,10 +455,107 @@ func TestWaitForToken_MissingAccessToken(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	c := newTestClient("", "", "", srv.URL, srv.URL)
+	c := newTestClient(t, "", "", "", srv.URL, srv.URL)
 	_, err := c.WaitForToken(ctx, dc)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing")
+}
+
+// ---------------------------------------------------------------------------
+// NewClient — timeout flooring
+// ---------------------------------------------------------------------------
+
+func TestNewClient_TimeoutFloor(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		want    time.Duration
+	}{
+		{
+			name:    "zero timeout is floored to defaultHTTPTimeout",
+			timeout: 0,
+			want:    defaultHTTPTimeout,
+		},
+		{
+			name:    "5s timeout is floored to defaultHTTPTimeout",
+			timeout: 5 * time.Second,
+			want:    defaultHTTPTimeout,
+		},
+		{
+			name:    "10s timeout (scan default) is floored to defaultHTTPTimeout",
+			timeout: 10 * time.Second,
+			want:    defaultHTTPTimeout,
+		},
+		{
+			name:    "30s timeout equals the floor and is unchanged",
+			timeout: 30 * time.Second,
+			want:    defaultHTTPTimeout,
+		},
+		{
+			name:    "60s timeout is above the floor and is preserved",
+			timeout: 60 * time.Second,
+			want:    60 * time.Second,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := NewClient("", "", "", "", tc.timeout)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, c.httpClient.Timeout)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// NewClient — proxy URL validation
+// ---------------------------------------------------------------------------
+
+func TestNewClient_Proxy(t *testing.T) {
+	tests := []struct {
+		name      string
+		proxyURL  string
+		wantErr   bool
+		wantNil   bool
+	}{
+		{
+			name:     "empty proxy uses direct connection",
+			proxyURL: "",
+			wantErr:  false,
+			wantNil:  false,
+		},
+		{
+			name:     "valid socks5 proxy succeeds without dialing",
+			proxyURL: "socks5://127.0.0.1:1080",
+			wantErr:  false,
+			wantNil:  false,
+		},
+		{
+			name:    "malformed URL errors at construction",
+			proxyURL: "://bad",
+			wantErr: true,
+			wantNil: true,
+		},
+		{
+			name:    "unsupported scheme errors at construction",
+			proxyURL: "ftp://nope",
+			wantErr: true,
+			wantNil: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := NewClient("", "", "", tc.proxyURL, 5*time.Second)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, c)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, c)
+			}
+		})
+	}
 }
 
 // ---------------------------------------------------------------------------

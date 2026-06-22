@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -53,11 +54,11 @@ func TestTeamsCommandRegistered(t *testing.T) {
 	}
 	require.True(t, authFound, "auth subcommand must be registered with enumTeamsCmd")
 
-	// Verify --tenant / -t flag.
+	// Verify --tenant flag (long-form only).
 	tenantFlag := enumTeamsAuthCmd.Flags().Lookup("tenant")
 	require.NotNil(t, tenantFlag, "--tenant flag must exist on auth subcommand")
 	tenantShort := enumTeamsAuthCmd.Flags().ShorthandLookup("t")
-	require.NotNil(t, tenantShort, "-t shorthand must exist on auth subcommand")
+	require.Nil(t, tenantShort, "auth subcommand must not define a local -t shorthand (collides with global --threads/-t)")
 
 	// Verify --client-id flag.
 	clientIDFlag := enumTeamsAuthCmd.Flags().Lookup("client-id")
@@ -68,6 +69,92 @@ func TestTeamsCommandRegistered(t *testing.T) {
 	require.NotNil(t, scopeFlag, "--scope flag must exist on auth subcommand")
 	scopeShort := enumTeamsAuthCmd.Flags().ShorthandLookup("s")
 	require.NotNil(t, scopeShort, "-s shorthand must exist on auth subcommand")
+}
+
+// ---------------------------------------------------------------------------
+// Flag-default guards (CLI layer regressions for fixes #2 and #3)
+// ---------------------------------------------------------------------------
+
+// TestEnumTeamsAuthFlagDefaults guards two CLI-layer regressions:
+//
+//   - Fix #2: default tenant must be "organizations" (not "common"). A regression
+//     back to "common" reintroduces AADSTS70002 failures because the Teams client
+//     is not enabled for consumer accounts. This complements the library-layer
+//     TestNewClient_Defaults by checking the value that users actually observe
+//     through the flag.
+//
+//   - Fix #3: --no-browser flag must exist and default to false. The flag gates
+//     auto-opening the verification URL; its absence would silently break headless
+//     workflows.
+func TestEnumTeamsAuthFlagDefaults(t *testing.T) {
+	t.Run("tenant default is organizations not common", func(t *testing.T) {
+		f := enumTeamsAuthCmd.Flags().Lookup("tenant")
+		require.NotNil(t, f, "--tenant flag must exist on auth subcommand")
+		assert.Equal(t, "organizations", f.DefValue,
+			"--tenant default must be \"organizations\"; regression to \"common\" reintroduces AADSTS70002")
+	})
+
+	t.Run("no-browser flag exists and defaults to false", func(t *testing.T) {
+		f := enumTeamsAuthCmd.Flags().Lookup("no-browser")
+		require.NotNil(t, f, "--no-browser flag must exist on auth subcommand")
+		assert.Equal(t, "false", f.DefValue,
+			"--no-browser must default to false (browser auto-opens unless explicitly disabled)")
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Panic-regression test (fix #1: --tenant shorthand -t collision with global --threads/-t)
+// ---------------------------------------------------------------------------
+
+// TestEnumTeamsAuth_NoFlagCollisionPanic is a keystone regression test for the
+// cobra panic that fired in mergePersistentFlags when the global persistent
+// --threads/-t flag collided with a local -t shorthand on the auth subcommand.
+//
+// The test:
+//  1. Asserts the precondition: rootCmd still registers --threads with shorthand
+//     "t", so the collision scenario remains meaningful.
+//  2. Executes "enum teams auth --help" through the real rootCmd command tree.
+//     --help short-circuits cobra before reaching PersistentPreRunE or the
+//     device-code network flow, but it does trigger the flag-merging path that
+//     previously panicked.
+//  3. Asserts Execute() returns no error and does not panic.
+//
+// If the -t shorthand is ever re-added to enumTeamsAuthCmd, cobra will panic
+// (failing this test) before any assertion runs, making the regression immediately
+// visible.
+func TestEnumTeamsAuth_NoFlagCollisionPanic(t *testing.T) {
+	// Precondition: global --threads flag must still carry the -t shorthand so
+	// the collision scenario this test guards is still live. If --threads ever
+	// loses its -t shorthand the original bug disappears and this test would
+	// become vacuous — asserting the precondition documents that intent.
+	threadsFlag := rootCmd.PersistentFlags().ShorthandLookup("t")
+	require.NotNil(t, threadsFlag, "global persistent -t shorthand must still exist (expected on --threads)")
+	require.Equal(t, "threads", threadsFlag.Name, "global -t shorthand must map to --threads flag")
+
+	// Redirect cobra output so --help text doesn't pollute test output.
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"enum", "teams", "auth", "--help"})
+
+	// Restore global rootCmd state after the test so subsequent tests in the
+	// package are not affected by the mutated args/output writers.
+	t.Cleanup(func() {
+		rootCmd.SetArgs(nil)
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+	})
+
+	// Execute must not panic and must return no error. A plain Execute() call
+	// panics the test goroutine immediately if the flag-collision bug regresses,
+	// which already fails the test. We additionally wrap in a deferred recover
+	// to emit a clear diagnostic message rather than an opaque goroutine dump.
+	var panicVal interface{}
+	func() {
+		defer func() { panicVal = recover() }()
+		err := rootCmd.Execute()
+		assert.NoError(t, err, "rootCmd.Execute() must not return an error for --help")
+	}()
+	require.Nil(t, panicVal, "rootCmd.Execute() panicked: %v (flag -t shorthand collision?)", panicVal)
 }
 
 // ---------------------------------------------------------------------------

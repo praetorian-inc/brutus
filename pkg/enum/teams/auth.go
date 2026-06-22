@@ -28,6 +28,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // DefaultClientID is the public Microsoft Teams desktop client ID. It is a
@@ -45,6 +47,11 @@ const (
 	maxResponseBody       int64 = 64 << 10
 	minPollInterval             = 5 * time.Second
 	maxPollInterval             = 60 * time.Second
+
+	// defaultHTTPTimeout is the minimum per-request timeout for the OAuth
+	// endpoints. The device-code flow is interactive and must tolerate slow
+	// networks/proxies, so it is NOT governed by the aggressive scan timeout.
+	defaultHTTPTimeout = 30 * time.Second
 )
 
 // Sentinel errors for use with errors.Is by callers.
@@ -112,13 +119,22 @@ type Client struct {
 }
 
 // NewClient builds a device code client. Empty arguments fall back to the
-// common tenant, the Microsoft Teams client ID, and the default scopes.
+// organizations tenant, the Microsoft Teams client ID, and the default scopes.
 //
-// It uses a plain *http.Client (not enum.NewEnumHTTPClient) because the OAuth2
-// endpoints redirect and those redirects must be followed.
-func NewClient(tenantID, clientID, scopes string, timeout time.Duration) *Client {
+// The HTTP client is built via brutus.NewHTTPClientWithProxy, which routes
+// requests through the SOCKS5 --proxy when proxyURL is set and still follows
+// redirects (unlike enum.NewEnumHTTPClient). Following redirects is required:
+// the OAuth2 endpoints redirect and those redirects must be followed.
+//
+// The HTTP timeout is floored at defaultHTTPTimeout before the client is built
+// so interactive auth is not governed by the aggressive per-target scan timeout
+// and so the proxy dial timeout is floored too.
+func NewClient(tenantID, clientID, scopes, proxyURL string, timeout time.Duration) (*Client, error) {
 	if tenantID == "" {
-		tenantID = "common"
+		// Default to the "organizations" endpoint, not "common": the default
+		// Teams first-party client is not enabled for consumer (personal MSA)
+		// accounts, so /common and /consumers return AADSTS70002 invalid_client.
+		tenantID = "organizations"
 	}
 	if clientID == "" {
 		clientID = DefaultClientID
@@ -126,14 +142,23 @@ func NewClient(tenantID, clientID, scopes string, timeout time.Duration) *Client
 	if scopes == "" {
 		scopes = DefaultScope
 	}
+	if timeout < defaultHTTPTimeout {
+		timeout = defaultHTTPTimeout
+	}
+
+	httpClient, err := brutus.NewHTTPClientWithProxy(timeout, nil, proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("teams: configuring HTTP client: %w", err)
+	}
+
 	return &Client{
 		tenantID:          tenantID,
 		clientID:          clientID,
 		scopes:            scopes,
-		httpClient:        &http.Client{Timeout: timeout},
+		httpClient:        httpClient,
 		deviceCodeBaseURL: fmt.Sprintf(deviceCodeEndpointFmt, tenantID),
 		tokenBaseURL:      fmt.Sprintf(tokenEndpointFmt, tenantID),
-	}
+	}, nil
 }
 
 // StartDeviceFlow requests a device code from the authorization endpoint and

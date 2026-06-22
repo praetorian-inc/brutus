@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
@@ -37,30 +36,63 @@ const (
 
 // DetectBackdoors runs sticky keys and utilman detection against a single RDP
 // target. Returns results and whether any backdoor was found.
-func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
-	noVision := !aiMode
+//
+// A process-wide decode slot (admission.go) is acquired before any dial so that
+// queued hosts spend zero pump budget; the slot bounds concurrent WASM-decode
+// sessions independently of the host errgroup's --threads limit. The slot is
+// held across retries: a retrying host is exactly the one that needs CPU, and
+// re-queueing it risks unbounded latency.
+//
+// Retries are keyed on the INDETERMINATE outcome only. A found backdoor
+// (hasSuccess) and a stabilized clean render are both final verdicts and are
+// returned immediately; retrying a positive would risk masking a real backdoor.
+func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool, maxRetries int) ([]brutus.Result, bool) {
+	if err := decodeSlots.Acquire(ctx, 1); err != nil {
+		// Context cancelled while queued: the host never ran, so it must read
+		// as indeterminate, never silently clean.
+		return CancelledResults(target), false
+	}
+	defer decodeSlots.Release(1)
 
-	// Sticky keys and utilman detection use independent RDP connections and WASM
-	// instances (each instance has isolated linear memory; see
-	// internal/plugins/rdp/wasm.go), so the two checks run concurrently to halve
-	// per-host wall-clock time. Output order (sticky first, utilman second) is
-	// preserved regardless of which goroutine finishes first.
-	var stickyResult, utilmanResult *brutus.Result
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		stickyResult = rdp.DetectStickyKeys(ctx, target, timeout, "(sticky-keys)", noVision)
-	}()
-	go func() {
-		defer wg.Done()
-		utilmanResult = rdp.DetectUtilman(ctx, target, timeout, "(utilman)", noVision)
-	}()
-	wg.Wait()
+	attempts := maxRetries + 1
+	for attempt := 0; attempt < attempts; attempt++ {
+		if attempt > 0 {
+			retryBackoff(ctx, attempt)
+		}
+		results, hasSuccess := runDetection(ctx, target, timeout, aiMode)
+		if hasSuccess || !anyIndeterminate(results) || attempt == attempts-1 {
+			return results, hasSuccess
+		}
+	}
+	// attempts is always >= 1, so the loop's final iteration always returns;
+	// this is unreachable and exists only to satisfy the compiler.
+	panic("unreachable: DetectBackdoors loop must return")
+}
 
-	results := []brutus.Result{*stickyResult, *utilmanResult}
-	hasSuccess := stickyResult.Success || utilmanResult.Success
-	return results, hasSuccess
+// anyIndeterminate reports whether any result could not produce a clean/dirty
+// verdict (e.g. a CPU-starved render). Such hosts are eligible for retry.
+func anyIndeterminate(results []brutus.Result) bool {
+	for i := range results {
+		if results[i].Indeterminate {
+			return true
+		}
+	}
+	return false
+}
+
+// retryBackoff sleeps a capped exponential delay before a retry attempt,
+// returning early if the context is cancelled. attempt is 1-based.
+func retryBackoff(ctx context.Context, attempt int) {
+	const base = 100 * time.Millisecond
+	const cap = 2 * time.Second
+	delay := base << (attempt - 1)
+	if delay > cap || delay <= 0 {
+		delay = cap
+	}
+	select {
+	case <-time.After(delay):
+	case <-ctx.Done():
+	}
 }
 
 // ExecConfig holds parameters for sticky-keys command execution.

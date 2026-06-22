@@ -37,17 +37,28 @@ import (
 func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
 	plugin := &Plugin{}
 	stickyResult := plugin.RunStickyKeysCheck(ctx, target, timeout, noVision)
+	result := mapStickyResult(stickyResult, username)
+	result.Target = target
+	return result
+}
 
-	result := brutus.NewResult("rdp", target, username, "")
-
+// mapStickyResult interprets a StickyKeysResult into a standardized brutus.Result
+// suitable for CLI output. It is the single source of verdict→banner mapping,
+// reused by both the per-check entry point and the shared-connection path.
+func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Result {
+	result := brutus.NewResult("rdp", "", username, "")
 	result.ScanType = "sticky_keys"
+
 	if stickyResult == nil {
 		result.Error = fmt.Errorf("sticky keys check returned nil")
 		return result
 	}
 
 	if !stickyResult.Performed {
-		result.Banner = fmt.Sprintf("[INFO] Sticky keys check skipped: %s", stickyResult.SkipReason)
+		// A failed connect/instance is NOT a benign skip — it produced no
+		// verdict, so surface it loudly as indeterminate (rerun), not clean.
+		result.Banner = fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", stickyResult.SkipReason)
+		result.Indeterminate = true
 		return result
 	}
 
@@ -62,6 +73,10 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 	case "vulnerable":
 		result.Banner = "[INFO] Non-NLA target, sticky keys triggers normally (no backdoor)"
 		result.Success = true
+	case verdictIndeterminate:
+		result.Banner = "[WARN] Sticky keys check INDETERMINATE (render did not stabilize — rerun)"
+		result.Indeterminate = true
+		// Success stays false
 	case "clean":
 		result.Banner = "[INFO] Sticky keys check: clean (no response to 5x Shift)"
 		// Success stays false
@@ -81,17 +96,28 @@ func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration,
 func DetectUtilman(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
 	plugin := &Plugin{}
 	utilmanResult := plugin.RunUtilmanCheck(ctx, target, timeout, noVision)
+	result := mapUtilmanResult(utilmanResult, username)
+	result.Target = target
+	return result
+}
 
-	result := brutus.NewResult("rdp", target, username, "")
-
+// mapUtilmanResult interprets a UtilmanResult into a standardized brutus.Result
+// suitable for CLI output. It is the single source of verdict→banner mapping,
+// reused by both the per-check entry point and the shared-connection path.
+func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Result {
+	result := brutus.NewResult("rdp", "", username, "")
 	result.ScanType = "utilman"
+
 	if utilmanResult == nil {
 		result.Error = fmt.Errorf("utilman check returned nil")
 		return result
 	}
 
 	if !utilmanResult.Performed {
-		result.Banner = fmt.Sprintf("[INFO] Utilman check skipped: %s", utilmanResult.SkipReason)
+		// A failed connect/instance is NOT a benign skip — it produced no
+		// verdict, so surface it loudly as indeterminate (rerun), not clean.
+		result.Banner = fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", utilmanResult.SkipReason)
+		result.Indeterminate = true
 		return result
 	}
 
@@ -106,6 +132,10 @@ func DetectUtilman(ctx context.Context, target string, timeout time.Duration, us
 	case "vulnerable":
 		result.Banner = "[INFO] Non-NLA target, utilman triggers normally (no backdoor)"
 		result.Success = true
+	case verdictIndeterminate:
+		result.Banner = "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"
+		result.Indeterminate = true
+		// Success stays false
 	case "clean":
 		result.Banner = "[INFO] Utilman check: clean (no response to Win+U)"
 		// Success stays false
@@ -145,7 +175,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision)
+	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision, timeout)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -176,7 +206,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout tim
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision)
+	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision, timeout)
 	if err != nil {
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -189,7 +219,8 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout tim
 // ---------------------------------------------------------------------------
 
 // runStickyKeysDetection performs the full detection sequence on a non-NLA connection.
-func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool) (*StickyKeysResult, error) {
+// timeout is the per-host budget passed to each session pump phase.
+func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration) (*StickyKeysResult, error) {
 	result := &StickyKeysResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -218,7 +249,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 		}
 	}()
 
-	baseline, response, width, height, err := p.runSession(ctx, inst, connHandle, 1024, 768)
+	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
@@ -233,12 +264,19 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	}
 	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	result.Performed = true
+	result.Stabilized = stabilized
+
+	// Cardinal false-negative guard: only a "clean" verdict on a render that
+	// never stabilized is suspect. Positive verdicts (confirmed/likely/
+	// vulnerable) already saw the window and are never downgraded.
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized)
 
 	return result, nil
 }
 
 // runUtilmanDetection performs the full utilman detection sequence on a non-NLA connection.
-func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool) (*UtilmanResult, error) {
+// timeout is the per-host budget passed to each session pump phase.
+func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration) (*UtilmanResult, error) {
 	result := &UtilmanResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -267,7 +305,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 		}
 	}()
 
-	baseline, response, width, height, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768)
+	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
@@ -282,8 +320,23 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	}
 	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	result.Performed = true
+	result.Stabilized = stabilized
+
+	// Cardinal false-negative guard: only a "clean" verdict on a render that
+	// never stabilized is suspect. Positive verdicts (confirmed/likely/
+	// vulnerable) already saw the window and are never downgraded.
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized)
 
 	return result, nil
+}
+
+// stabilizedVerdict downgrades a clean verdict to indeterminate when the
+// render never stabilized; all other verdicts (including positives) pass through.
+func stabilizedVerdict(verdict string, stabilized bool) string {
+	if verdict == "clean" && !stabilized {
+		return verdictIndeterminate
+	}
+	return verdict
 }
 
 // ---------------------------------------------------------------------------
@@ -300,9 +353,9 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 		if banner != "" {
 			banner += "\n"
 		}
-		if result.SkipReason != "" {
-			banner += "[INFO] Sticky keys check skipped: " + result.SkipReason
-		}
+		// A failed connect/instance is NOT a benign skip — it produced no
+		// verdict, so surface it loudly as indeterminate (rerun), not clean.
+		banner += fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
 		return banner
 	}
 
@@ -328,6 +381,8 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 	case "vulnerable":
 		banner += "[INFO] Non-NLA RDP target. Sticky Keys triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if sethc.exe is later replaced."
+	case verdictIndeterminate:
+		banner += "[WARN] Sticky keys check INDETERMINATE (render did not stabilize — rerun)"
 	case "clean":
 		banner += "[INFO] Sticky keys check: clean (no response to 5x Shift)."
 	}
@@ -345,9 +400,9 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 		if banner != "" {
 			banner += "\n"
 		}
-		if result.SkipReason != "" {
-			banner += "[INFO] Utilman check skipped: " + result.SkipReason
-		}
+		// A failed connect/instance is NOT a benign skip — it produced no
+		// verdict, so surface it loudly as indeterminate (rerun), not clean.
+		banner += fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
 		return banner
 	}
 
@@ -373,6 +428,8 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 	case "vulnerable":
 		banner += "[INFO] Non-NLA RDP target. Utilman triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if utilman.exe is later replaced."
+	case verdictIndeterminate:
+		banner += "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"
 	case "clean":
 		banner += "[INFO] Utilman check: clean (no response to Win+U)."
 	}

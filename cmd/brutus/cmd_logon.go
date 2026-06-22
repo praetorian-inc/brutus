@@ -163,10 +163,7 @@ func runLogon(cmd *cobra.Command, args []string) error {
 			outputScanHuman(scanResults, base.useColor)
 		}
 
-		if !hasSuccess {
-			return errNoSuccess
-		}
-		return nil
+		return scanExitError(scanResults, hasSuccess)
 	}
 
 	// Interactive modes (exec or web) require a single target
@@ -181,10 +178,23 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		outputScanHuman(results, base.useColor)
 	}
 
-	if !hasSuccess {
-		return errNoSuccess
+	return scanExitError(results, hasSuccess)
+}
+
+// scanExitError maps aggregated scan outcomes to the process exit error,
+// following this precedence: a success (found backdoor) → nil (exit 0);
+// otherwise any indeterminate result → errIndeterminate (exit 2);
+// otherwise → errNoSuccess (exit 1).
+func scanExitError(results []brutus.Result, hasSuccess bool) error {
+	if hasSuccess {
+		return nil
 	}
-	return nil
+	for i := range results {
+		if results[i].Indeterminate {
+			return errIndeterminate
+		}
+	}
+	return errNoSuccess
 }
 
 // runLogonFingerprint fingerprints targets with Nerva and runs logon-screen

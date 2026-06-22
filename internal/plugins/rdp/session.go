@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"net"
 	"time"
@@ -33,11 +34,16 @@ const (
 	stateSessionNeedRecv = 27
 )
 
+// verdictIndeterminate marks a check whose render never stabilized, so a
+// "clean" reading cannot be trusted (distinct from a benign clean verdict).
+const verdictIndeterminate = "indeterminate"
+
 // StickyKeysResult holds the outcome of sticky keys detection.
 type StickyKeysResult struct {
 	Performed       bool
+	Stabilized      bool // response pump observed N consecutive no-change frames
 	SkipReason      string
-	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean"
+	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean", "indeterminate"
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
 	VisionResult    string
@@ -46,8 +52,9 @@ type StickyKeysResult struct {
 // UtilmanResult holds the outcome of utilman backdoor detection.
 type UtilmanResult struct {
 	Performed       bool
+	Stabilized      bool // response pump observed N consecutive no-change frames
 	SkipReason      string
-	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean"
+	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean", "indeterminate"
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
 	VisionResult    string
@@ -56,26 +63,32 @@ type UtilmanResult struct {
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).
 const leftShiftScancode = 0x2A
 
+// stableFrames is the number of consecutive identical frame hashes that signal
+// the framebuffer has stopped changing (render complete).
+const stableFrames = 3
+
 // runSession creates a session from the connector, pumps it to receive the login screen bitmap,
 // sends 5x Shift key presses, then captures the post-keystroke bitmap.
-// Returns (baseline_rgba, response_rgba, width, height, error).
+// Returns (baseline_rgba, response_rgba, width, height, stabilized, error).
+// stabilized reflects whether the response pump observed a settled framebuffer.
+// timeout is the per-host budget applied to each pump phase (baseline and response).
 func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, err error) {
+	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
 	// Create session from connector
 	sessionNewFn := inst.mod.ExportedFunction("session_new")
 	if sessionNewFn == nil {
-		return nil, nil, 0, 0, fmt.Errorf("session_new not exported")
+		return nil, nil, 0, 0, false, fmt.Errorf("session_new not exported")
 	}
 	results, err := sessionNewFn.Call(callCtx, uint64(connHandle), uint64(width), uint64(height))
 	if err != nil {
-		return nil, nil, 0, 0, fmt.Errorf("session_new: %w", err)
+		return nil, nil, 0, 0, false, fmt.Errorf("session_new: %w", err)
 	}
 	sessHandle := uint32(results[0])
 	if sessHandle == 0 {
-		return nil, nil, 0, 0, fmt.Errorf("session_new returned null handle")
+		return nil, nil, 0, 0, false, fmt.Errorf("session_new returned null handle")
 	}
 
 	// Ensure cleanup
@@ -86,25 +99,25 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 		}
 	}()
 
-	// Pump session to get initial login screen
-	if pumpErr := p.pumpSession(ctx, inst, sessHandle, 5*time.Second); pumpErr != nil {
-		return nil, nil, 0, 0, fmt.Errorf("pump baseline: %w", pumpErr)
+	// Pump session to get initial login screen (baseline stabilization is ignored).
+	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
+		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
 	// Capture baseline frame
 	baseline, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, fmt.Errorf("capture baseline: %w", err)
+		return nil, nil, 0, 0, false, fmt.Errorf("capture baseline: %w", err)
 	}
 
 	// Send 5x Shift key to trigger sticky keys
 	for i := 0; i < 5; i++ {
 		if keyErr := p.sendKey(ctx, inst, sessHandle, leftShiftScancode, true); keyErr != nil {
-			return nil, nil, 0, 0, fmt.Errorf("send shift press %d: %w", i+1, keyErr)
+			return nil, nil, 0, 0, false, fmt.Errorf("send shift press %d: %w", i+1, keyErr)
 		}
 		time.Sleep(50 * time.Millisecond)
 		if keyErr := p.sendKey(ctx, inst, sessHandle, leftShiftScancode, false); keyErr != nil {
-			return nil, nil, 0, 0, fmt.Errorf("send shift release %d: %w", i+1, keyErr)
+			return nil, nil, 0, 0, false, fmt.Errorf("send shift release %d: %w", i+1, keyErr)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -112,7 +125,8 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	// The exec.go path uses 1s sleep + 2s WaitForFrame; we mirror that here.
 	time.Sleep(1500 * time.Millisecond)
-	if pumpErr := p.pumpSession(ctx, inst, sessHandle, 3*time.Second); pumpErr != nil {
+	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout)
+	if pumpErr != nil {
 		// Non-fatal -- target might not respond
 		_ = pumpErr
 	}
@@ -120,32 +134,34 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// Capture response frame
 	response, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, fmt.Errorf("capture response: %w", err)
+		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
 	}
 
-	return baseline, response, width, height, nil
+	return baseline, response, width, height, stabilized, nil
 }
 
 // runUtilmanSession creates a session from the connector, pumps it to receive the login screen bitmap,
 // sends Win+U to trigger the Utility Manager (utilman.exe), then captures the post-keystroke bitmap.
-// Returns (baseline_rgba, response_rgba, width, height, error).
+// Returns (baseline_rgba, response_rgba, width, height, stabilized, error).
+// stabilized reflects whether the response pump observed a settled framebuffer.
+// timeout is the per-host budget applied to each pump phase (baseline and response).
 func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, err error) {
+	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
 	// Create session from connector
 	sessionNewFn := inst.mod.ExportedFunction("session_new")
 	if sessionNewFn == nil {
-		return nil, nil, 0, 0, fmt.Errorf("session_new not exported")
+		return nil, nil, 0, 0, false, fmt.Errorf("session_new not exported")
 	}
 	results, err := sessionNewFn.Call(callCtx, uint64(connHandle), uint64(width), uint64(height))
 	if err != nil {
-		return nil, nil, 0, 0, fmt.Errorf("session_new: %w", err)
+		return nil, nil, 0, 0, false, fmt.Errorf("session_new: %w", err)
 	}
 	sessHandle := uint32(results[0])
 	if sessHandle == 0 {
-		return nil, nil, 0, 0, fmt.Errorf("session_new returned null handle")
+		return nil, nil, 0, 0, false, fmt.Errorf("session_new returned null handle")
 	}
 
 	// Ensure cleanup
@@ -156,38 +172,39 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 		}
 	}()
 
-	// Pump session to get initial login screen
-	if pumpErr := p.pumpSession(ctx, inst, sessHandle, 5*time.Second); pumpErr != nil {
-		return nil, nil, 0, 0, fmt.Errorf("pump baseline: %w", pumpErr)
+	// Pump session to get initial login screen (baseline stabilization is ignored).
+	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
+		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
 	// Capture baseline frame
 	baseline, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, fmt.Errorf("capture baseline: %w", err)
+		return nil, nil, 0, 0, false, fmt.Errorf("capture baseline: %w", err)
 	}
 
 	// Send Win+U to trigger Utility Manager (utilman.exe)
 	// Key sequence: press Win, press U, release U, release Win
 	if keyErr := p.sendKey(ctx, inst, sessHandle, leftWinScancode, true); keyErr != nil {
-		return nil, nil, 0, 0, fmt.Errorf("send win press: %w", keyErr)
+		return nil, nil, 0, 0, false, fmt.Errorf("send win press: %w", keyErr)
 	}
 	time.Sleep(50 * time.Millisecond)
 	if keyErr := p.sendKey(ctx, inst, sessHandle, uKeyScancode, true); keyErr != nil {
-		return nil, nil, 0, 0, fmt.Errorf("send u press: %w", keyErr)
+		return nil, nil, 0, 0, false, fmt.Errorf("send u press: %w", keyErr)
 	}
 	time.Sleep(50 * time.Millisecond)
 	if keyErr := p.sendKey(ctx, inst, sessHandle, uKeyScancode, false); keyErr != nil {
-		return nil, nil, 0, 0, fmt.Errorf("send u release: %w", keyErr)
+		return nil, nil, 0, 0, false, fmt.Errorf("send u release: %w", keyErr)
 	}
 	time.Sleep(50 * time.Millisecond)
 	if keyErr := p.sendKey(ctx, inst, sessHandle, leftWinScancode, false); keyErr != nil {
-		return nil, nil, 0, 0, fmt.Errorf("send win release: %w", keyErr)
+		return nil, nil, 0, 0, false, fmt.Errorf("send win release: %w", keyErr)
 	}
 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	time.Sleep(1500 * time.Millisecond)
-	if pumpErr := p.pumpSession(ctx, inst, sessHandle, 3*time.Second); pumpErr != nil {
+	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout)
+	if pumpErr != nil {
 		// Non-fatal -- target might not respond
 		_ = pumpErr
 	}
@@ -195,10 +212,10 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 	// Capture response frame
 	response, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, fmt.Errorf("capture response: %w", err)
+		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
 	}
 
-	return baseline, response, width, height, nil
+	return baseline, response, width, height, stabilized, nil
 }
 
 // readRDPFrame reads a single complete RDP PDU from the connection.
@@ -274,18 +291,26 @@ func readRDPFrame(r io.Reader) ([]byte, error) {
 	return frame, nil
 }
 
-// pumpSession drives the session state machine until a frame is available or timeout.
-func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle uint32, timeout time.Duration) error {
+// pumpSession drives the session state machine until the framebuffer stabilizes
+// or the deadline expires. It returns stabilized=true if it observed
+// `stableFrames` consecutive frame-available steps with no pixel change before
+// the deadline; false if the deadline cut it off while frames were still
+// changing.
+func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle uint32, timeout time.Duration) (stabilized bool, err error) {
 	callCtx := inst.callCtx(ctx)
 	sessionStepFn := inst.mod.ExportedFunction("session_step")
 	if sessionStepFn == nil {
-		return fmt.Errorf("session_step not exported")
+		return false, fmt.Errorf("session_step not exported")
 	}
 
 	deadline := time.Now().Add(timeout)
 	conn := inst.activeConn()
 	// Reset read deadline when we exit so subsequent operations are not affected.
 	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
+
+	var lastHash uint32
+	var haveHash bool
+	consecutiveStable := 0
 
 	for time.Now().Before(deadline) {
 		// Set per-frame read deadline
@@ -297,25 +322,25 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 			if netErr, ok := readErr.(net.Error); ok && netErr.Timeout() {
 				continue // Timeout is OK, just loop
 			}
-			return fmt.Errorf("read frame: %w", readErr)
+			return false, fmt.Errorf("read frame: %w", readErr)
 		}
 
 		// Write complete frame to WASM
 		inputPtr, inputLen, err := inst.writeToWasm(callCtx, frame)
 		if err != nil {
-			return fmt.Errorf("write to wasm: %w", err)
+			return false, fmt.Errorf("write to wasm: %w", err)
 		}
 
 		outPtrSlot, _, err := inst.writeToWasm(callCtx, make([]byte, 4))
 		if err != nil {
 			inst.freeInWasm(callCtx, inputPtr, inputLen)
-			return fmt.Errorf("alloc out ptr: %w", err)
+			return false, fmt.Errorf("alloc out ptr: %w", err)
 		}
 		outLenSlot, _, err := inst.writeToWasm(callCtx, make([]byte, 4))
 		if err != nil {
 			inst.freeInWasm(callCtx, inputPtr, inputLen)
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
-			return fmt.Errorf("alloc out len: %w", err)
+			return false, fmt.Errorf("alloc out len: %w", err)
 		}
 
 		results, err := sessionStepFn.Call(callCtx,
@@ -329,7 +354,7 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 		if err != nil {
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
 			inst.freeInWasm(callCtx, outLenSlot, 4)
-			return fmt.Errorf("session_step: %w", err)
+			return false, fmt.Errorf("session_step: %w", err)
 		}
 
 		state := uint32(results[0])
@@ -338,9 +363,24 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 		case stateFrameAvailable:
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
 			inst.freeInWasm(callCtx, outLenSlot, 4)
-			// Don't return — RDP sends the screen incrementally across many
-			// frames.  Keep pumping until timeout to accumulate all bitmap
-			// updates into the DecodedImage framebuffer.
+			// Don't return on the first frame — RDP sends the screen
+			// incrementally across many frames. Hash the framebuffer and track
+			// consecutive no-change frames; once it stops changing for
+			// `stableFrames` steps the render is complete and we can return the
+			// slot sooner.
+			if frameData, capErr := p.captureFrame(ctx, inst, sessHandle); capErr == nil {
+				h := crc32.ChecksumIEEE(frameData)
+				if haveHash && h == lastHash {
+					consecutiveStable++
+				} else {
+					consecutiveStable = 0
+				}
+				lastHash = h
+				haveHash = true
+				if consecutiveStable >= stableFrames {
+					return true, nil
+				}
+			}
 
 		case stateSessionNeedSend:
 			sendData := readOutputFromSlots(callCtx, inst, outPtrSlot, outLenSlot)
@@ -348,7 +388,7 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 			inst.freeInWasm(callCtx, outLenSlot, 4)
 			if len(sendData) > 0 {
 				if _, writeErr := conn.Write(sendData); writeErr != nil {
-					return fmt.Errorf("tcp write: %w", writeErr)
+					return false, fmt.Errorf("tcp write: %w", writeErr)
 				}
 			}
 
@@ -361,7 +401,7 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 			errBytes := readOutputFromSlots(callCtx, inst, outPtrSlot, outLenSlot)
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
 			inst.freeInWasm(callCtx, outLenSlot, 4)
-			return fmt.Errorf("session error: %s", string(errBytes))
+			return false, fmt.Errorf("session error: %s", string(errBytes))
 
 		default:
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
@@ -369,7 +409,7 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 		}
 	}
 
-	return nil // Timeout is not fatal
+	return stabilized, nil // Timeout is not fatal; stabilized stays false if frames were still changing
 }
 
 // captureFrame reads the current RGBA frame buffer from the WASM session.

@@ -93,7 +93,10 @@ func (m Mode) Presets() ModePresets {
 		}
 	default: // ModeDefault
 		return ModePresets{
-			Threads:     10,
+			Threads: 10,
+			// With admission control bounding concurrent WASM decode, the pump
+			// budget is spent on real CPU rather than starvation, so 10s is
+			// sufficient for the logon render; no value change needed.
 			Timeout:     10 * time.Second,
 			RateLimit:   0, // unlimited
 			Jitter:      0,

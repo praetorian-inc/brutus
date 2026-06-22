@@ -46,7 +46,7 @@ const (
 // Retries are keyed on the INDETERMINATE outcome only. A found backdoor
 // (hasSuccess) and a stabilized clean render are both final verdicts and are
 // returned immediately; retrying a positive would risk masking a real backdoor.
-func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool, maxRetries int) ([]brutus.Result, bool) {
+func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool, maxRetries int, checks Check) ([]brutus.Result, bool) {
 	if err := decodeSlots.Acquire(ctx, 1); err != nil {
 		// Context cancelled while queued: the host never ran, so it must read
 		// as indeterminate, never silently clean.
@@ -59,7 +59,7 @@ func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, 
 		if attempt > 0 {
 			retryBackoff(ctx, attempt)
 		}
-		results, hasSuccess := runDetection(ctx, target, timeout, aiMode)
+		results, hasSuccess := runDetection(ctx, target, timeout, aiMode, checks)
 		if hasSuccess || !anyIndeterminate(results) || attempt == attempts-1 {
 			return results, hasSuccess
 		}

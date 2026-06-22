@@ -21,16 +21,23 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
+	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
 var logonCmd = &cobra.Command{
 	Use:     "logon",
-	Aliases: []string{"stickykeys", "sticky-keys", "utilman", "sethc", "winlogon", "accessibility"},
-	Short:   "Detect Windows logon-screen backdoors (sticky keys, utilman)",
+	Aliases: []string{"winlogon"},
+	Short:   "Detect Windows logon-screen backdoors (runs both sticky keys and utilman)",
 	Long: `Detect and interact with Windows logon-screen accessibility backdoors over RDP.
 
-This subcommand automatically enables sticky keys and utilman backdoor
-detection. The protocol defaults to RDP.
+This subcommand runs BOTH the sticky keys and utilman backdoor checks to answer
+"does this host have a logon backdoor?". To run a single check on a clean screen
+(reliable per-binary attribution), use the dedicated subcommands instead:
+
+  brutus stickykeys --target host:3389   # sticky-keys only
+  brutus utilman    --target host:3389   # utilman only
+
+The protocol defaults to RDP.
 
 Modes:
   Detection:    brutus logon --target host:3389
@@ -65,16 +72,74 @@ confirmation via screenshot analysis.`,
 	RunE: runLogon,
 }
 
-func init() {
-	registerLogonFlags(logonCmd)
+// stickykeysCmd runs only the sticky-keys check on a clean logon screen, giving
+// reliable per-binary attribution (no preceding check, so no contamination).
+var stickykeysCmd = &cobra.Command{
+	Use:     "stickykeys",
+	Aliases: []string{"sticky-keys", "sethc"},
+	Short:   "Detect the Windows sticky-keys (sethc.exe) logon backdoor only",
+	Long: `Detect the Windows sticky-keys logon-screen backdoor (sethc.exe) over RDP.
+
+Unlike "brutus logon" (which runs both checks), this runs ONLY the sticky-keys
+check on a clean screen, so a positive result is reliably attributable to the
+sethc.exe backdoor. The protocol defaults to RDP.`,
+	Example: `  # Detect the sticky-keys backdoor only
+  brutus stickykeys --target 10.0.0.50:3389
+
+  # Vision API confirmation (more accurate)
+  brutus stickykeys --target 10.0.0.50:3389 --experimental-ai`,
+	RunE: runStickykeys,
 }
 
+// utilmanCmd runs only the utilman check on a clean logon screen.
+var utilmanCmd = &cobra.Command{
+	Use:     "utilman",
+	Aliases: []string{"accessibility", "ease-of-access"},
+	Short:   "Detect the Windows utilman (Ease of Access) logon backdoor only",
+	Long: `Detect the Windows utilman logon-screen backdoor (utilman.exe / Ease of Access)
+over RDP.
+
+Unlike "brutus logon" (which runs both checks), this runs ONLY the utilman check
+on a clean screen, so a positive result is reliably attributable to the utilman
+backdoor. The protocol defaults to RDP.`,
+	Example: `  # Detect the utilman backdoor only
+  brutus utilman --target 10.0.0.50:3389
+
+  # Vision API confirmation (more accurate)
+  brutus utilman --target 10.0.0.50:3389 --experimental-ai`,
+	RunE: runUtilman,
+}
+
+func init() {
+	registerLogonFlags(logonCmd)
+	registerLogonFlags(stickykeysCmd)
+	registerLogonFlags(utilmanCmd)
+}
+
+// runLogon runs the combined sticky-keys + utilman detection (CheckBoth).
 func runLogon(cmd *cobra.Command, args []string) error {
+	return runLogonChecks(cmd, logon.CheckBoth)
+}
+
+// runStickykeys runs only the sticky-keys check.
+func runStickykeys(cmd *cobra.Command, args []string) error {
+	return runLogonChecks(cmd, logon.CheckStickyKeys)
+}
+
+// runUtilman runs only the utilman check.
+func runUtilman(cmd *cobra.Command, args []string) error {
+	return runLogonChecks(cmd, logon.CheckUtilman)
+}
+
+// runLogonChecks is the shared body for the logon family of commands. checks
+// selects which logon-screen backdoor check(s) the scan path runs.
+func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 	if flagOpen && !flagWeb {
 		return fmt.Errorf("--open requires --web (starts a web terminal and opens the browser)")
 	}
 
 	base := buildBaseConfig(cmd)
+	base.checks = checks
 
 	// AI config (logon-specific)
 	if base.aiMode {
@@ -164,6 +229,13 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		}
 
 		return scanExitError(scanResults, hasSuccess)
+	}
+
+	// Interactive modes (exec/web) drive the sticky-keys backdoor, so they are
+	// not valid for the utilman-only check: silently executing via the wrong
+	// vector would be a footgun. Detection mode for utilman is unaffected.
+	if checks == logon.CheckUtilman && (flagExec != "" || flagWeb) {
+		return fmt.Errorf("--exec/--web are not supported for 'utilman' (interactive modes use the sticky-keys backdoor); use 'brutus stickykeys' or 'brutus logon'")
 	}
 
 	// Interactive modes (exec or web) require a single target

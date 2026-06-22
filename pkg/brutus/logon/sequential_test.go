@@ -97,7 +97,7 @@ func TestSequential(t *testing.T) {
 	}
 
 	const target = "127.0.0.1:3389"
-	results, _ := DetectBackdoors(context.Background(), target, 5*time.Second, false, 0 /*maxRetries*/)
+	results, _ := DetectBackdoors(context.Background(), target, 5*time.Second, false, 0 /*maxRetries*/, CheckBoth)
 
 	// --- Assertion 1: both checks ran (no early-exit) ---
 	require.Len(t, results, 2,

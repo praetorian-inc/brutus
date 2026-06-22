@@ -59,7 +59,7 @@ func TestDecodeSlotBound(t *testing.T) {
 	//   - returns a benign 2-result slice (sticky + utilman)
 	var current, peak atomic.Int64
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		n := current.Add(1)
 		for {
 			p := peak.Load()
@@ -82,7 +82,7 @@ func TestDecodeSlotBound(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			DetectBackdoors(context.Background(), "host:3389", 5*time.Second, false, 0)
+			DetectBackdoors(context.Background(), "host:3389", 5*time.Second, false, 0, CheckBoth)
 		}()
 	}
 	wg.Wait()

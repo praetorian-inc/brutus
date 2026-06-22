@@ -50,7 +50,7 @@ func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, 
 	if err := decodeSlots.Acquire(ctx, 1); err != nil {
 		// Context cancelled while queued: the host never ran, so it must read
 		// as indeterminate, never silently clean.
-		return cancelledResults(target), false
+		return CancelledResults(target), false
 	}
 	defer decodeSlots.Release(1)
 
@@ -64,8 +64,9 @@ func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, 
 			return results, hasSuccess
 		}
 	}
-	// attempts is always >= 1, so the loop always returns; unreachable.
-	return runDetection(ctx, target, timeout, aiMode)
+	// attempts is always >= 1, so the loop's final iteration always returns;
+	// this is unreachable and exists only to satisfy the compiler.
+	panic("unreachable: DetectBackdoors loop must return")
 }
 
 // anyIndeterminate reports whether any result could not produce a clean/dirty

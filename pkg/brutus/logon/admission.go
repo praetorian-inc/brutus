@@ -81,10 +81,10 @@ var runDetection = func(ctx context.Context, target string, timeout time.Duratio
 	return results, hasSuccess
 }
 
-// cancelledResults returns the sticky + utilman result pair for a host whose
+// CancelledResults returns the sticky + utilman result pair for a host whose
 // decode slot was never acquired (context cancelled while queued). The host did
 // not run, so it must read as INDETERMINATE — never silently clean.
-func cancelledResults(target string) []brutus.Result {
+func CancelledResults(target string) []brutus.Result {
 	const banner = "[WARN] %s check INDETERMINATE (scan cancelled before start — rerun)"
 	return []brutus.Result{
 		{

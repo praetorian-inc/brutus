@@ -242,13 +242,14 @@ func TestFormatUtilmanBanner_Clean(t *testing.T) {
 	assert.Contains(t, banner, "Utilman check: clean")
 }
 
-func TestFormatUtilmanBanner_Skipped(t *testing.T) {
+func TestFormatUtilmanBanner_Indeterminate(t *testing.T) {
 	result := &UtilmanResult{
 		Performed:  false,
 		SkipReason: "connection failed",
 	}
 	banner := formatUtilmanBanner("", result)
-	assert.Contains(t, banner, "Utilman check skipped")
+	assert.Contains(t, banner, "INDETERMINATE")
+	assert.Contains(t, banner, "rerun")
 	assert.Contains(t, banner, "connection failed")
 }
 

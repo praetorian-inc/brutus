@@ -570,10 +570,16 @@ func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Resul
 		g.Go(func() error {
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
-					return nil // context canceled; stop quietly
+					// Context cancelled while queued: the host never ran, so it
+					// must read as INDETERMINATE, never silently disappear.
+					perTarget[idx] = logon.CancelledResults(target)
+					success[idx] = false
+					return nil
 				}
 			}
 			if ctx.Err() != nil {
+				perTarget[idx] = logon.CancelledResults(target)
+				success[idx] = false
 				return nil
 			}
 			results, ok := scanTargetFn(ctx, target, base)

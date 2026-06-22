@@ -348,9 +348,9 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 		if banner != "" {
 			banner += "\n"
 		}
-		if result.SkipReason != "" {
-			banner += "[INFO] Sticky keys check skipped: " + result.SkipReason
-		}
+		// A failed connect/instance is NOT a benign skip — it produced no
+		// verdict, so surface it loudly as indeterminate (rerun), not clean.
+		banner += fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
 		return banner
 	}
 
@@ -376,6 +376,8 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 	case "vulnerable":
 		banner += "[INFO] Non-NLA RDP target. Sticky Keys triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if sethc.exe is later replaced."
+	case verdictIndeterminate:
+		banner += "[WARN] Sticky keys check INDETERMINATE (render did not stabilize — rerun)"
 	case "clean":
 		banner += "[INFO] Sticky keys check: clean (no response to 5x Shift)."
 	}
@@ -393,9 +395,9 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 		if banner != "" {
 			banner += "\n"
 		}
-		if result.SkipReason != "" {
-			banner += "[INFO] Utilman check skipped: " + result.SkipReason
-		}
+		// A failed connect/instance is NOT a benign skip — it produced no
+		// verdict, so surface it loudly as indeterminate (rerun), not clean.
+		banner += fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
 		return banner
 	}
 
@@ -421,6 +423,8 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 	case "vulnerable":
 		banner += "[INFO] Non-NLA RDP target. Utilman triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if utilman.exe is later replaced."
+	case verdictIndeterminate:
+		banner += "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"
 	case "clean":
 		banner += "[INFO] Utilman check: clean (no response to Win+U)."
 	}

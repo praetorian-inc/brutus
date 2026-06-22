@@ -395,33 +395,155 @@ func outputTeamsTokenHuman(w io.Writer, tok *teams.TokenSet, useColor bool) {
 	_, _ = fmt.Fprintln(w)
 }
 
-// outputTeamsTokenJSONL writes the full TokenSet as a single JSON line.
-// encoding/json escapes control characters, so no sanitization is needed.
+// outputTeamsTokenJSONL writes the full TokenSet as a single JSON line. The
+// JSON shape (teamsTokenJSON) is shared with saveTeamsTokenFile so the -o sink
+// and the default credential store stay byte-compatible. encoding/json escapes
+// control characters, so no sanitization is needed.
 func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
-	type teamsTokenJSON struct {
-		Type         string    `json:"type"`
-		AccessToken  string    `json:"access_token"`
-		RefreshToken string    `json:"refresh_token,omitempty"`
-		IDToken      string    `json:"id_token,omitempty"`
-		TokenType    string    `json:"token_type"`
-		ExpiresIn    int       `json:"expires_in"`
-		Scope        string    `json:"scope,omitempty"`
-		ExpiresAt    time.Time `json:"expires_at"`
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(newTeamsTokenJSON(tok)); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams token JSON: %v\n", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Teams user enumeration output functions
+// ---------------------------------------------------------------------------
+
+// outputTeamsEnumHuman renders Teams user enumeration results as an aligned
+// table. All server-provided strings are sanitized via sanitizeTerminal (P0-4).
+// The presence columns (Availability, Device) are shown only when at least one
+// result carries presence data.
+func outputTeamsEnumHuman(w io.Writer, results []teams.EnumResult, useColor bool) {
+	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo), heading(useColor, "Teams User Enumeration"))
+
+	showPresence := false
+	for i := range results {
+		if results[i].Availability != "" || results[i].DeviceType != "" {
+			showPresence = true
+			break
+		}
 	}
 
-	jr := teamsTokenJSON{
-		Type:         "teams_token",
-		AccessToken:  tok.AccessToken,
-		RefreshToken: tok.RefreshToken,
-		IDToken:      tok.IDToken,
-		TokenType:    tok.TokenType,
-		ExpiresIn:    tok.ExpiresIn,
-		Scope:        tok.Scope,
-		ExpiresAt:    tok.ExpiresAt,
+	// Header row.
+	if showPresence {
+		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-12s %-28s %-40s %-14s %-12s%s\n",
+			colorIf(useColor, ColorBold),
+			"Email", "Status", "Display Name", "MRI", "Availability", "Device",
+			colorIf(useColor, ColorReset))
+	} else {
+		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-12s %-28s %-40s%s\n",
+			colorIf(useColor, ColorBold),
+			"Email", "Status", "Display Name", "MRI",
+			colorIf(useColor, ColorReset))
 	}
+
+	var existsCount, blockedCount, notFoundCount, errorCount int
+
+	for i := range results {
+		r := &results[i]
+		switch r.Exists {
+		case teams.ExistenceYes:
+			existsCount++
+		case teams.ExistenceBlocked:
+			blockedCount++
+		case teams.ExistenceNo:
+			notFoundCount++
+			if flagQuiet {
+				continue
+			}
+		default:
+			errorCount++
+			if !flagVerbose {
+				continue
+			}
+		}
+
+		statusCol, statusColor := teamsEnumStatusLabel(r.Exists)
+		email := truncate(sanitizeTerminal(r.Email), 32)
+		name := truncate(sanitizeTerminal(r.DisplayName), 28)
+		mri := truncate(sanitizeTerminal(r.MRI), 40)
+
+		if showPresence {
+			_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s %-14s %-12s\n",
+				email,
+				colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
+				name, mri,
+				truncate(sanitizeTerminal(r.Availability), 14),
+				truncate(sanitizeTerminal(r.DeviceType), 12))
+		} else {
+			_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s\n",
+				email,
+				colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
+				name, mri)
+		}
+	}
+
+	// Summary.
+	_, _ = fmt.Fprintf(w, "\n  %s\n", heading(useColor, "Summary"))
+	if existsCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d\n", colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset), existsCount)
+	}
+	if blockedCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sBlocked:%s    %d\n", colorIf(useColor, ColorYellow), colorIf(useColor, ColorReset), blockedCount)
+	}
+	if notFoundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sNot found:%s  %d\n", colorIf(useColor, ColorDim), colorIf(useColor, ColorReset), notFoundCount)
+	}
+	if errorCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
+	}
+	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	_, _ = fmt.Fprintln(w)
+}
+
+// teamsEnumStatusLabel maps a tri-state existence to a display label and color.
+func teamsEnumStatusLabel(e teams.Existence) (label, color string) {
+	switch e {
+	case teams.ExistenceYes:
+		return "[+] EXISTS", ColorGreen
+	case teams.ExistenceBlocked:
+		return "[!] BLOCKED", ColorYellow
+	case teams.ExistenceNo:
+		return "[ ] NOT FOUND", ColorDim
+	default:
+		return "[x] ERROR", ColorRed
+	}
+}
+
+// outputTeamsEnumJSONL writes one JSON object per result. Token fields are
+// never included. encoding/json escapes control characters, so no sanitization
+// is needed.
+func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
+	type teamsEnumJSON struct {
+		Type         string `json:"type"`
+		Email        string `json:"email"`
+		Exists       string `json:"exists"`
+		DisplayName  string `json:"display_name,omitempty"`
+		MRI          string `json:"mri,omitempty"`
+		Availability string `json:"availability,omitempty"`
+		DeviceType   string `json:"device_type,omitempty"`
+		Error        string `json:"error,omitempty"`
+	}
+
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(jr); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams token JSON: %v\n", err)
+	for i := range results {
+		r := &results[i]
+		jr := teamsEnumJSON{
+			Type:         "teams_enum",
+			Email:        r.Email,
+			Exists:       string(r.Exists),
+			DisplayName:  r.DisplayName,
+			MRI:          r.MRI,
+			Availability: r.Availability,
+			DeviceType:   r.DeviceType,
+		}
+		if r.Error != nil {
+			jr.Error = r.Error.Error()
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams enum JSON: %v\n", err)
+		}
 	}
 }
 

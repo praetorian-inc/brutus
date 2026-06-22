@@ -1,0 +1,633 @@
+// Copyright 2026 Praetorian Security, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package teams
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// newTestEnumerator creates an Enumerator with overridden base URLs pointing at
+// the provided test servers. It mirrors auth_test.go's newTestClient helper.
+func newTestEnumerator(t *testing.T, searchSrv, presenceSrv *httptest.Server, presence bool) *Enumerator {
+	t.Helper()
+	const accessToken = "test-access-token-sentinel"
+	const refreshToken = "test-refresh-token-sentinel"
+	e, err := NewEnumerator(accessToken, refreshToken, "", 5*time.Second, presence)
+	require.NoError(t, err)
+	if searchSrv != nil {
+		// searchBaseURL is a fmt format string with %s for the escaped email.
+		e.searchBaseURL = searchSrv.URL + "/%s"
+	}
+	if presenceSrv != nil {
+		e.presenceBaseURL = presenceSrv.URL + "/presence"
+	}
+	return e
+}
+
+// searchServerReturning builds an httptest.Server that always responds with the
+// given status code and JSON body.
+func searchServerReturning(statusCode int, body string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_, _ = w.Write([]byte(body))
+	}))
+}
+
+// ---------------------------------------------------------------------------
+// Test 1: Existence YES
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_ExistenceYes(t *testing.T) {
+	srv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Alice","mri":"8:orgid:abc"}]`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	res := e.EnumerateOne(context.Background(), "alice@contoso.com")
+
+	assert.Equal(t, ExistenceYes, res.Exists)
+	assert.Equal(t, "Alice", res.DisplayName)
+	assert.Equal(t, "8:orgid:abc", res.MRI)
+	assert.Equal(t, "alice@contoso.com", res.Email)
+	assert.NoError(t, res.Error)
+}
+
+// ---------------------------------------------------------------------------
+// Test 2: Existence NO — empty array and non-array body
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_ExistenceNo_EmptyArray(t *testing.T) {
+	srv := searchServerReturning(http.StatusOK, `[]`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	res := e.EnumerateOne(context.Background(), "nobody@contoso.com")
+
+	assert.Equal(t, ExistenceNo, res.Exists)
+	assert.NoError(t, res.Error)
+}
+
+func TestEnumerateOne_ExistenceNo_NonArrayBody(t *testing.T) {
+	// A JSON object (non-array) body — must NOT be ExistenceYes and must NOT panic.
+	srv := searchServerReturning(http.StatusOK, `{"message":"not found"}`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	res := e.EnumerateOne(context.Background(), "object@contoso.com")
+
+	assert.NotEqual(t, ExistenceYes, res.Exists,
+		"a non-array 200 body must not produce ExistenceYes")
+}
+
+// ---------------------------------------------------------------------------
+// Test 3: Blocked (403) — error must not contain the access token
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_Blocked(t *testing.T) {
+	srv := searchServerReturning(http.StatusForbidden, `{"error":"forbidden"}`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	// Access token set by newTestEnumerator
+	const token = "test-access-token-sentinel"
+	res := e.EnumerateOne(context.Background(), "blocked@contoso.com")
+
+	assert.Equal(t, ExistenceBlocked, res.Exists)
+	// If there is an error message, it must not contain the access token.
+	if res.Error != nil {
+		assert.NotContains(t, res.Error.Error(), token,
+			"Error must not contain the access token")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 4: 401 + refresh success — refresh invoked exactly once
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_UnauthorizedThenRefresh(t *testing.T) {
+	var callCount atomic.Int32
+	var refreshCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := callCount.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		if n == 1 {
+			// First call: 401.
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		// Second call (after refresh): user found.
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"displayName":"Bob","mri":"8:orgid:bob"}]`))
+	}))
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		refreshCount.Add(1)
+		return "new-access-token", nil
+	})
+
+	res := e.EnumerateOne(context.Background(), "bob@contoso.com")
+
+	assert.Equal(t, ExistenceYes, res.Exists)
+	assert.Equal(t, "Bob", res.DisplayName)
+	assert.Equal(t, int32(1), refreshCount.Load(), "refresh func must be invoked exactly once")
+}
+
+// ---------------------------------------------------------------------------
+// Test 5: 401 + no refresh -> ExistenceUnknown, error mentions "unauthorized",
+//
+//	error does NOT contain the token
+//
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_UnauthorizedNoRefresh(t *testing.T) {
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	const token = "test-access-token-sentinel"
+
+	res := e.EnumerateOne(context.Background(), "unauth@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error, "should have an error for 401 with no refresh func")
+	assert.Contains(t, strings.ToLower(res.Error.Error()), "unauthorized",
+		"error should mention unauthorized")
+	assert.NotContains(t, res.Error.Error(), token,
+		"error must not contain the access token")
+}
+
+// ---------------------------------------------------------------------------
+// Test 6: 401 loop guard — server always returns 401, refresh always succeeds,
+//
+//	result must be ExistenceUnknown and test must complete quickly
+//
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_UnauthorizedLoopGuard(t *testing.T) {
+	var refreshCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		refreshCount.Add(1)
+		return "ever-refreshed-token", nil
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	res := e.EnumerateOne(ctx, "loop@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists,
+		"persistent 401s must yield ExistenceUnknown, not loop forever")
+	assert.LessOrEqual(t, refreshCount.Load(), int32(1),
+		"refresh must be invoked at most once regardless of repeated 401s")
+}
+
+// ---------------------------------------------------------------------------
+// Test 7: Other status (500) -> ExistenceUnknown, error mentions 500
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_ServerError500(t *testing.T) {
+	srv := searchServerReturning(http.StatusInternalServerError, `{"error":"internal"}`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	res := e.EnumerateOne(context.Background(), "error@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error)
+	assert.Contains(t, res.Error.Error(), "500",
+		"error should mention the unexpected status code")
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: Malformed JSON on 200 -> ExistenceUnknown — actually per production
+//
+//	code: json.Unmarshal errors return nil (silent decode failure means ExistenceNo).
+//	The comment in search() says "A non-array (or otherwise non-matching) body
+//	decodes to a zero-length slice, which the caller treats as 'not found'."
+//	So malformed JSON produces ExistenceNo (not ExistenceUnknown) and no Error.
+//	This test pins that actual behavior and verifies no token leaks.
+//
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_MalformedJSON(t *testing.T) {
+	srv := searchServerReturning(http.StatusOK, `not-valid-json{{`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	const token = "test-access-token-sentinel"
+
+	res := e.EnumerateOne(context.Background(), "malformed@contoso.com")
+
+	// Per production code: malformed JSON returns zero-slice which → ExistenceNo.
+	// Verified: search() calls json.Unmarshal and on error returns nil (no error),
+	// 200 status. EnumerateOne sees len(users)==0 → ExistenceNo.
+	assert.Equal(t, ExistenceNo, res.Exists,
+		"malformed JSON on 200 should produce ExistenceNo (production decode path)")
+	if res.Error != nil {
+		assert.NotContains(t, res.Error.Error(), token,
+			"error must not contain the access token")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: Presence success
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_PresenceSuccess(t *testing.T) {
+	searchSrv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Carol","mri":"8:orgid:carol"}]`)
+	defer searchSrv.Close()
+
+	presenceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"presence":{"availability":"Available","deviceType":"Desktop"}}]`))
+	}))
+	defer presenceSrv.Close()
+
+	e := newTestEnumerator(t, searchSrv, presenceSrv, true /* presence enabled */)
+	res := e.EnumerateOne(context.Background(), "carol@contoso.com")
+
+	assert.Equal(t, ExistenceYes, res.Exists)
+	assert.Equal(t, "Carol", res.DisplayName)
+	assert.Equal(t, "8:orgid:carol", res.MRI)
+	assert.Equal(t, "Available", res.Availability)
+	assert.Equal(t, "Desktop", res.DeviceType)
+	assert.NoError(t, res.Error)
+}
+
+// ---------------------------------------------------------------------------
+// Test 10: Presence failure is non-fatal
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_PresenceFailureNonFatal(t *testing.T) {
+	searchSrv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Dave","mri":"8:orgid:dave"}]`)
+	defer searchSrv.Close()
+
+	// Presence server returns 500.
+	presenceSrv := searchServerReturning(http.StatusInternalServerError, `{"error":"down"}`)
+	defer presenceSrv.Close()
+
+	e := newTestEnumerator(t, searchSrv, presenceSrv, true)
+	res := e.EnumerateOne(context.Background(), "dave@contoso.com")
+
+	// Existence result preserved.
+	assert.Equal(t, ExistenceYes, res.Exists)
+	assert.Equal(t, "Dave", res.DisplayName)
+	// Presence fields empty (failure is non-fatal).
+	assert.Empty(t, res.Availability)
+	assert.Empty(t, res.DeviceType)
+	// No error from presence failure.
+	assert.NoError(t, res.Error)
+}
+
+func TestEnumerateOne_PresenceEmptyArrayNonFatal(t *testing.T) {
+	searchSrv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Eve","mri":"8:orgid:eve"}]`)
+	defer searchSrv.Close()
+
+	// Presence server returns empty array.
+	presenceSrv := searchServerReturning(http.StatusOK, `[]`)
+	defer presenceSrv.Close()
+
+	e := newTestEnumerator(t, searchSrv, presenceSrv, true)
+	res := e.EnumerateOne(context.Background(), "eve@contoso.com")
+
+	assert.Equal(t, ExistenceYes, res.Exists)
+	assert.Empty(t, res.Availability)
+	assert.Empty(t, res.DeviceType)
+	assert.NoError(t, res.Error)
+}
+
+// ---------------------------------------------------------------------------
+// Test 11: Request assertions — headers, authorization, URL encoding
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_RequestHeaders(t *testing.T) {
+	var captured *http.Request
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		captured = r
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"displayName":"Frank","mri":"8:orgid:frank"}]`))
+	}))
+	defer srv.Close()
+
+	e, err := NewEnumerator("my-access-token", "", "", 5*time.Second, false)
+	require.NoError(t, err)
+	e.searchBaseURL = srv.URL + "/%s"
+
+	_ = e.EnumerateOne(context.Background(), "frank@contoso.com")
+
+	require.NotNil(t, captured, "server must have received a request")
+	assert.Equal(t, clientVersion, captured.Header.Get("X-Ms-Client-Version"),
+		"X-Ms-Client-Version must equal clientVersion constant")
+	assert.NotEmpty(t, captured.Header.Get("User-Agent"),
+		"User-Agent must be non-empty")
+	assert.Equal(t, "Bearer my-access-token", captured.Header.Get("Authorization"),
+		"Authorization must be Bearer <token>")
+	// The email must appear in the request URL (percent-encoded or raw).
+	assert.Contains(t, captured.URL.String(), "frank",
+		"email must be reflected in the search URL path")
+}
+
+func TestEnumerateOne_EmailURLEncoding(t *testing.T) {
+	// url.PathEscape leaves '+' as a literal '+' because '+' is a valid
+	// sub-delimiter in a URI path segment (RFC 3986 §3.3).  The production
+	// code uses url.PathEscape (enum.go search()), which is correct: TeamsEnum
+	// sends the raw email and the Teams API accepts '+' unencoded in the path.
+	t.Run("plus preserved as literal", func(t *testing.T) {
+		var capturedPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			capturedPath = r.URL.Path
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[]`))
+		}))
+		defer srv.Close()
+
+		e := newTestEnumerator(t, srv, nil, false)
+		_ = e.EnumerateOne(context.Background(), "user+tag@example.com")
+
+		// url.PathEscape does NOT escape '+'; it stays as a literal '+' in the path.
+		assert.Contains(t, capturedPath, "+tag@",
+			"url.PathEscape preserves '+' in path segments; literal '+' must appear in path")
+		assert.NotContains(t, capturedPath, "%2B",
+			"url.PathEscape does not encode '+', so '%2B' must NOT appear")
+	})
+
+	// url.PathEscape DOES escape '/' (to '%2F'), so a malicious email containing a
+	// slash cannot escape the intended path segment (path-injection safety).
+	t.Run("slash percent-encoded for path-injection safety", func(t *testing.T) {
+		var capturedRawPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// r.URL.RawPath preserves percent-encoding as sent on the wire.
+			// r.URL.Path would decode %2F back to '/', masking the escaping.
+			capturedRawPath = r.URL.RawPath
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[]`))
+		}))
+		defer srv.Close()
+
+		e := newTestEnumerator(t, srv, nil, false)
+		_ = e.EnumerateOne(context.Background(), "evil/../x@example.com")
+
+		// url.PathEscape encodes '/' → '%2F', preventing the injected '../' from
+		// traversing out of the intended path segment.  The wire encoding is
+		// visible in r.URL.RawPath (not r.URL.Path, which decodes %2F back to '/').
+		assert.Contains(t, capturedRawPath, "%2F",
+			"url.PathEscape must encode '/' to '%2F' to prevent path-segment injection")
+	})
+}
+
+func TestEnumerateOne_PresenceRequestAssertions(t *testing.T) {
+	searchSrv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Gail","mri":"8:orgid:gail"}]`)
+	defer searchSrv.Close()
+
+	var capturedPresenceReq *http.Request
+	var capturedPresenceBody []byte
+	presenceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedPresenceReq = r
+		body := make([]byte, r.ContentLength)
+		_, _ = r.Body.Read(body)
+		capturedPresenceBody = body
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"presence":{"availability":"Busy","deviceType":"Mobile"}}]`))
+	}))
+	defer presenceSrv.Close()
+
+	e := newTestEnumerator(t, searchSrv, presenceSrv, true)
+	_ = e.EnumerateOne(context.Background(), "gail@contoso.com")
+
+	require.NotNil(t, capturedPresenceReq, "presence server must have been called")
+	assert.Equal(t, http.MethodPost, capturedPresenceReq.Method,
+		"presence request must use POST")
+	assert.Equal(t, "application/json", capturedPresenceReq.Header.Get("Content-Type"),
+		"presence Content-Type must be application/json")
+
+	// Body must be [{"mri":"8:orgid:gail"}].
+	var body []presenceRequest
+	require.NoError(t, json.Unmarshal(capturedPresenceBody, &body),
+		"presence request body must be valid JSON")
+	require.Len(t, body, 1)
+	assert.Equal(t, "8:orgid:gail", body[0].MRI,
+		"presence request body MRI must match the search result MRI")
+}
+
+// ---------------------------------------------------------------------------
+// Test 12: Concurrency — Enumerate over 6 emails with threads=2
+// ---------------------------------------------------------------------------
+
+func TestEnumerate_Concurrency(t *testing.T) {
+	var inFlight atomic.Int32
+	var maxInFlight atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cur := inFlight.Add(1)
+		defer inFlight.Add(-1)
+
+		// Track maximum observed concurrency.
+		for {
+			prev := maxInFlight.Load()
+			if cur <= prev {
+				break
+			}
+			if maxInFlight.CompareAndSwap(prev, cur) {
+				break
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	defer srv.Close()
+
+	e, err := NewEnumerator("tok-A", "", "", 5*time.Second, false)
+	require.NoError(t, err)
+	e.searchBaseURL = srv.URL + "/%s"
+
+	emails := []string{
+		"a@x.com", "b@x.com", "c@x.com", "d@x.com", "e@x.com", "f@x.com",
+	}
+	results := e.Enumerate(context.Background(), emails, 2, 0, 0)
+
+	// All 6 results returned.
+	require.Len(t, results, 6, "must return one result per email")
+	for i, r := range results {
+		assert.Equal(t, emails[i], r.Email,
+			"results must preserve input order")
+	}
+
+	// Concurrency must not exceed 2 (threads parameter).
+	assert.LessOrEqual(t, maxInFlight.Load(), int32(2),
+		"in-flight requests must never exceed threads=2")
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: Concurrent 401→refresh→retry — regression for the data race on
+// e.accessToken.
+//
+// Background: worker goroutines in Enumerate call e.token() (which reads
+// e.accessToken) while a 401-triggered refreshOnce() writes e.accessToken.
+// The fix guards both paths under e.mu. Running under -race, this test would
+// detect a DATA RACE if the lock were ever removed from token() or
+// refreshOnce(), even if all results happen to be correct.
+//
+// Design: the httptest server uses an atomic counter so only the very first
+// request receives HTTP 401; all subsequent requests succeed. This guarantees
+// exactly one refreshOnce() call while many goroutines are concurrently
+// reading e.token() — maximizing the read/write overlap the race detector
+// needs to observe.
+// ---------------------------------------------------------------------------
+
+func TestEnumerate_ConcurrentRefreshNoRace(t *testing.T) {
+	var reqCount atomic.Int32
+	var refreshCount atomic.Int32
+
+	// Server: first call → 401, all subsequent → 200 with a valid user.
+	// Using an atomic counter makes the behaviour deterministic across
+	// goroutines without any mutex in the handler.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := reqCount.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		if n == 1 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"displayName":"U","mri":"8:orgid:u"}]`))
+	}))
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		refreshCount.Add(1)
+		return "refreshed-access-token", nil
+	})
+
+	// 50 emails × 8 concurrent workers creates enough goroutines that the
+	// first worker's 401 fires while many others are concurrently in
+	// e.token(), giving the race detector its best chance to observe the
+	// unsynchronised read/write.
+	const numEmails = 50
+	const numThreads = 8
+	emails := make([]string, numEmails)
+	for i := range emails {
+		emails[i] = fmt.Sprintf("user%d@contoso.com", i)
+	}
+
+	results := e.Enumerate(context.Background(), emails, numThreads, 0, 0)
+
+	// Every email must produce exactly one result.
+	require.Len(t, results, numEmails, "must return one result per email")
+
+	// All results must correspond to the correct email (order preserved).
+	for i, r := range results {
+		assert.Equal(t, emails[i], r.Email, "result[%d] email must match input order", i)
+	}
+
+	// The refresh func must be invoked exactly once (refreshOnce semantics).
+	assert.Equal(t, int32(1), refreshCount.Load(),
+		"refresh func must be invoked exactly once across all concurrent goroutines")
+
+	// Post-refresh requests succeed (status 200 with a user); the one request
+	// that got 401 and triggered the refresh also retries with the new token
+	// and succeeds. Every result must be ExistenceYes (no transport errors).
+	for _, r := range results {
+		assert.Equal(t, ExistenceYes, r.Exists,
+			"all results must be ExistenceYes after successful refresh")
+		assert.NoError(t, r.Error)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test 13: P0-1 token-safety table — error paths must not leak tokens
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
+	const accessToken = "SUPER-SECRET-ACCESS-TOKEN"
+	const refreshToken = "SUPER-SECRET-REFRESH-TOKEN"
+
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+	}{
+		{
+			name:       "401 no refresh",
+			statusCode: http.StatusUnauthorized,
+			body:       "",
+		},
+		{
+			name:       "500 server error",
+			statusCode: http.StatusInternalServerError,
+			body:       `{"error":"internal"}`,
+		},
+		{
+			name:       "200 malformed JSON",
+			statusCode: http.StatusOK,
+			body:       `not-valid-json`,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			srv := searchServerReturning(tc.statusCode, tc.body)
+			defer srv.Close()
+
+			e, err := NewEnumerator(accessToken, refreshToken, "", 5*time.Second, false)
+			require.NoError(t, err)
+			e.searchBaseURL = srv.URL + "/%s"
+			// No refresh function to keep test deterministic.
+
+			res := e.EnumerateOne(context.Background(), fmt.Sprintf("user@contoso.com"))
+
+			if res.Error != nil {
+				assert.NotContains(t, res.Error.Error(), accessToken,
+					"Error must not contain the access token")
+				assert.NotContains(t, res.Error.Error(), refreshToken,
+					"Error must not contain the refresh token")
+			}
+		})
+	}
+}

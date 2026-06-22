@@ -25,9 +25,8 @@ import (
 )
 
 var logonCmd = &cobra.Command{
-	Use:     "logon",
-	Aliases: []string{"winlogon"},
-	Short:   "Detect Windows logon-screen backdoors (runs both sticky keys and utilman)",
+	Use:   "logon",
+	Short: "Detect Windows logon-screen backdoors (runs both sticky keys and utilman)",
 	Long: `Detect and interact with Windows logon-screen accessibility backdoors over RDP.
 
 This subcommand runs BOTH the sticky keys and utilman backdoor checks to answer

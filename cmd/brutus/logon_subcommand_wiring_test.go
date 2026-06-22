@@ -39,8 +39,7 @@ import (
 //     rootCmd.
 //   - Adds utilmanCmd (Use "utilman", aliases "accessibility","ease-of-access") to
 //     rootCmd.
-//   - Removes "stickykeys","sticky-keys","utilman","sethc","accessibility" from
-//     logonCmd.Aliases (keeping only "winlogon").
+//   - Removes all aliases from logonCmd (including "winlogon"; logonCmd is now alias-free).
 func TestLogonSubcommandWiring(t *testing.T) {
 	// rootCmd is built by init() in root.go. We probe it with Find, which is
 	// cobra's own traversal: it walks the command tree looking for the first
@@ -148,12 +147,10 @@ func TestLogonSubcommandWiring(t *testing.T) {
 			"'accessibility' must no longer resolve to logonCmd after the alias remap")
 	})
 
-	// winlogon must still resolve to logonCmd (kept as its alias per plan).
-	t.Run("winlogon_alias_still_resolves_to_logonCmd", func(t *testing.T) {
-		cmd, _, err := rootCmd.Find([]string{"winlogon"})
-		require.NoError(t, err)
-		require.NotNil(t, cmd)
-		assert.Equal(t, "logon", cmd.Use,
-			"'winlogon' alias must still resolve to logonCmd")
+	// winlogon is no longer an alias for any command; cobra returns an error for it.
+	t.Run("winlogon_no_longer_an_alias", func(t *testing.T) {
+		_, _, err := rootCmd.Find([]string{"winlogon"})
+		assert.Error(t, err,
+			"'winlogon' must not resolve to any command after the alias was removed")
 	})
 }

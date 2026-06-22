@@ -74,9 +74,8 @@ confirmation via screenshot analysis.`,
 // stickykeysCmd runs only the sticky-keys check on a clean logon screen, giving
 // reliable per-binary attribution (no preceding check, so no contamination).
 var stickykeysCmd = &cobra.Command{
-	Use:     "stickykeys",
-	Aliases: []string{"sticky-keys", "sethc"},
-	Short:   "Detect the Windows sticky-keys (sethc.exe) logon backdoor only",
+	Use:   "stickykeys",
+	Short: "Detect the Windows sticky-keys (sethc.exe) logon backdoor only",
 	Long: `Detect the Windows sticky-keys logon-screen backdoor (sethc.exe) over RDP.
 
 Unlike "brutus logon" (which runs both checks), this runs ONLY the sticky-keys
@@ -92,9 +91,8 @@ sethc.exe backdoor. The protocol defaults to RDP.`,
 
 // utilmanCmd runs only the utilman check on a clean logon screen.
 var utilmanCmd = &cobra.Command{
-	Use:     "utilman",
-	Aliases: []string{"accessibility", "ease-of-access"},
-	Short:   "Detect the Windows utilman (Ease of Access) logon backdoor only",
+	Use:   "utilman",
+	Short: "Detect the Windows utilman (Ease of Access) logon backdoor only",
 	Long: `Detect the Windows utilman logon-screen backdoor (utilman.exe / Ease of Access)
 over RDP.
 

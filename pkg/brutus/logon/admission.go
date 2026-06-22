@@ -34,6 +34,20 @@ var (
 	detectUtilman = rdp.DetectUtilman
 )
 
+// Check selects which logon-screen backdoor check(s) runDetection performs.
+type Check int
+
+const (
+	// CheckBoth runs sticky-keys then utilman; it is the zero value/default
+	// and answers "does this host have a logon backdoor?".
+	CheckBoth Check = iota
+	// CheckStickyKeys runs only the sticky-keys check (no preceding check, so
+	// per-binary attribution is reliable and no downgrade applies).
+	CheckStickyKeys
+	// CheckUtilman runs only the utilman check.
+	CheckUtilman
+)
+
 // decodeSlotsPerCPU sizes the process-wide decode-slot budget relative to
 // GOMAXPROCS. The RDP detection body is a mix of CPU-bound WASM decode and
 // blocking I/O, so we allow modestly more in-flight sessions than cores.
@@ -63,7 +77,7 @@ func DecodeSlotCount() int64 {
 // (paralleling scanTargetFn in cmd/brutus) so tests can swap it for a fake that
 // records peak concurrency without a live RDP server. DetectBackdoors acquires a
 // decode slot before invoking it.
-var runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
+var runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 	noVision := !aiMode
 
 	// Sticky keys and utilman detection run sequentially under the single held
@@ -71,13 +85,39 @@ var runDetection = func(ctx context.Context, target string, timeout time.Duratio
 	// infeasible (the Rust FFI moves the ConnectionResult out on the first
 	// session_new), so each check still opens its own RDP connection and WASM
 	// instance. Running them one at a time keeps the decode-slot bound accurate
-	// (one decoder per slot, not two concurrent). Both checks always run — a
-	// positive sticky result never suppresses the utilman check.
-	stickyResult := detectSticky(ctx, target, timeout, "(sticky-keys)", noVision)
-	utilmanResult := detectUtilman(ctx, target, timeout, "(utilman)", noVision)
+	// (one decoder per slot, not two concurrent). In CheckBoth mode a positive
+	// sticky result never suppresses the utilman check.
+	var results []brutus.Result
+	var sticky, utilman *brutus.Result
 
-	results := []brutus.Result{*stickyResult, *utilmanResult}
-	hasSuccess := stickyResult.Success || utilmanResult.Success
+	if checks != CheckUtilman {
+		sticky = detectSticky(ctx, target, timeout, "(sticky-keys)", noVision)
+		results = append(results, *sticky)
+	}
+	if checks != CheckStickyKeys {
+		utilman = detectUtilman(ctx, target, timeout, "(utilman)", noVision)
+		results = append(results, *utilman)
+	}
+
+	// Contamination-aware downgrade (CheckBoth only): contamination can only
+	// occur after a sticky pop, so when sticky is a positive verdict and utilman
+	// comes back clean (non-indeterminate), we refuse to claim utilman is clean
+	// and mark it indeterminate instead. Presence is already established by the
+	// sticky positive; this never downgrades a utilman positive and never
+	// upgrades an indeterminate. results[len-1] is the utilman entry here.
+	if checks == CheckBoth && sticky.Success && !utilman.Success && !utilman.Indeterminate {
+		downgraded := &results[len(results)-1]
+		downgraded.Success = false
+		downgraded.Indeterminate = true
+		downgraded.Banner = "[WARN] Utilman check INDETERMINATE (sticky-keys backdoor present; could not independently confirm utilman — rerun: brutus utilman)"
+	}
+
+	hasSuccess := false
+	for i := range results {
+		if results[i].Success {
+			hasSuccess = true
+		}
+	}
 	return results, hasSuccess
 }
 

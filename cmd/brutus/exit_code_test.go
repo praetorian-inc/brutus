@@ -25,71 +25,56 @@ import (
 )
 
 // TestScanExitError tests the precedence rules for the scan exit error helper:
-//   - hasSuccess=true (even with an indeterminate result present) → nil
-//   - hasSuccess=false + at least one Indeterminate==true → errIndeterminate
-//   - hasSuccess=false + none indeterminate → errNoSuccess
+//   - any Indeterminate==true result → errIndeterminate (exit 2, takes precedence)
+//   - all results clean (no Indeterminate) → nil (exit 0, clean scan is success)
+//   - empty results → nil (exit 0)
 func TestScanExitError(t *testing.T) {
 	tests := []struct {
-		name       string
-		results    []brutus.Result
-		hasSuccess bool
-		wantErr    error // nil means no error expected
+		name    string
+		results []brutus.Result
+		wantErr error // nil means no error expected
 	}{
 		{
-			name: "success true with no indeterminate results",
+			name: "all clean no indeterminate none successful",
+			results: []brutus.Result{
+				{Success: false, Indeterminate: false},
+				{Success: false, Indeterminate: false},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "at least one success no indeterminate",
 			results: []brutus.Result{
 				{Success: true, Indeterminate: false},
+				{Success: false, Indeterminate: false},
 			},
-			hasSuccess: true,
-			wantErr:    nil,
+			wantErr: nil,
 		},
 		{
-			name: "success true even when an indeterminate result is present",
+			name: "one indeterminate none successful",
+			results: []brutus.Result{
+				{Success: false, Indeterminate: true},
+			},
+			wantErr: errIndeterminate,
+		},
+		{
+			name: "success present but indeterminate takes precedence",
 			results: []brutus.Result{
 				{Success: true, Indeterminate: false},
 				{Success: false, Indeterminate: true},
 			},
-			hasSuccess: true,
-			wantErr:    nil,
+			wantErr: errIndeterminate,
 		},
 		{
-			name: "success false with one indeterminate result",
-			results: []brutus.Result{
-				{Success: false, Indeterminate: true},
-			},
-			hasSuccess: false,
-			wantErr:    errIndeterminate,
-		},
-		{
-			name: "success false with multiple results one of which is indeterminate",
-			results: []brutus.Result{
-				{Success: false, Indeterminate: false},
-				{Success: false, Indeterminate: true},
-				{Success: false, Indeterminate: false},
-			},
-			hasSuccess: false,
-			wantErr:    errIndeterminate,
-		},
-		{
-			name: "success false with no indeterminate results",
-			results: []brutus.Result{
-				{Success: false, Indeterminate: false},
-				{Success: false, Indeterminate: false},
-			},
-			hasSuccess: false,
-			wantErr:    errNoSuccess,
-		},
-		{
-			name:       "success false with empty results slice",
-			results:    []brutus.Result{},
-			hasSuccess: false,
-			wantErr:    errNoSuccess,
+			name:    "empty results",
+			results: []brutus.Result{},
+			wantErr: nil,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := scanExitError(tc.results, tc.hasSuccess)
+			err := scanExitError(tc.results)
 			if tc.wantErr == nil {
 				assert.NoError(t, err)
 			} else {

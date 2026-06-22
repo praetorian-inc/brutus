@@ -545,6 +545,13 @@ func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Resul
 		threads = 1
 	}
 
+	// RDP decode is CPU-bound and process-wide bounded to ~decodeSlotCount cores
+	// (pkg/brutus/logon admission control), so cranking --threads far above that
+	// budget adds queueing, not throughput. Warn once on the scan path only.
+	if slots := logon.DecodeSlotCount(); int64(threads) > 4*slots {
+		warnMsg(base.useColor, "high --threads won't speed up CPU-bound RDP decode; decode is bounded to ~%d cores.", slots)
+	}
+
 	// Optional rate limiting across host scans, mirroring the brute-force path.
 	// --rate-limit caps how many host scans may start per second (0 = unlimited).
 	var limiter *rate.Limiter

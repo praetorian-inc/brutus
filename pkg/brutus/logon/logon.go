@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
@@ -37,30 +36,19 @@ const (
 
 // DetectBackdoors runs sticky keys and utilman detection against a single RDP
 // target. Returns results and whether any backdoor was found.
+//
+// A process-wide decode slot (admission.go) is acquired before any dial so that
+// queued hosts spend zero pump budget; the slot bounds concurrent WASM-decode
+// sessions independently of the host errgroup's --threads limit.
 func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
-	noVision := !aiMode
+	if err := decodeSlots.Acquire(ctx, 1); err != nil {
+		// Context cancelled while queued: the host never ran, so it must read
+		// as indeterminate, never silently clean.
+		return cancelledResults(target), false
+	}
+	defer decodeSlots.Release(1)
 
-	// Sticky keys and utilman detection use independent RDP connections and WASM
-	// instances (each instance has isolated linear memory; see
-	// internal/plugins/rdp/wasm.go), so the two checks run concurrently to halve
-	// per-host wall-clock time. Output order (sticky first, utilman second) is
-	// preserved regardless of which goroutine finishes first.
-	var stickyResult, utilmanResult *brutus.Result
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		stickyResult = rdp.DetectStickyKeys(ctx, target, timeout, "(sticky-keys)", noVision)
-	}()
-	go func() {
-		defer wg.Done()
-		utilmanResult = rdp.DetectUtilman(ctx, target, timeout, "(utilman)", noVision)
-	}()
-	wg.Wait()
-
-	results := []brutus.Result{*stickyResult, *utilmanResult}
-	hasSuccess := stickyResult.Success || utilmanResult.Success
-	return results, hasSuccess
+	return runDetection(ctx, target, timeout, aiMode)
 }
 
 // ExecConfig holds parameters for sticky-keys command execution.

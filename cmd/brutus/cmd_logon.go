@@ -189,7 +189,6 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 	if isDetectMode {
 		// Scan/detection mode
 		var scanResults []brutus.Result
-		var hasSuccess bool
 
 		// Validate mutual exclusivity of target sources.
 		if err := validateTargetSources(useStdin); err != nil {
@@ -198,11 +197,11 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 
 		switch {
 		case useStdin:
-			scanResults, hasSuccess = runScanFromStdin(rc)
+			scanResults, _ = runScanFromStdin(rc)
 		case flagNmapFile != "":
-			scanResults, hasSuccess = runScanFromNmapFile(rc)
+			scanResults, _ = runScanFromNmapFile(rc)
 		case flagMasscanFile != "":
-			scanResults, hasSuccess = runScanFromMasscanFile(rc)
+			scanResults, _ = runScanFromMasscanFile(rc)
 		case flagTargetsFile != "":
 			targetsList, loadErr := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 			if loadErr != nil {
@@ -211,12 +210,12 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 			if len(targetsList) == 0 {
 				return fmt.Errorf("targets file %q has no targets", flagTargetsFile)
 			}
-			scanResults, hasSuccess = runLogonFingerprint(targetsList, rc)
+			scanResults, _ = runLogonFingerprint(targetsList, rc)
 		default:
 			if flagTarget == "" {
 				return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 			}
-			scanResults, hasSuccess = runScanSingleTarget(flagTarget, rc)
+			scanResults, _ = runScanSingleTarget(flagTarget, rc)
 		}
 
 		if flagJSON {
@@ -225,7 +224,7 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 			outputScanHuman(scanResults, base.useColor)
 		}
 
-		return scanExitError(scanResults, hasSuccess)
+		return scanExitError(scanResults)
 	}
 
 	// Interactive modes (exec/web) drive the sticky-keys backdoor, so they are
@@ -240,30 +239,28 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 		return fmt.Errorf("--target is required for interactive sticky keys modes")
 	}
 
-	results, hasSuccess := runStickyKeysInteractive(flagTarget, rc)
+	results, _ := runStickyKeysInteractive(flagTarget, rc)
 	if flagJSON {
 		outputScanJSONL(jsonWriter, results)
 	} else {
 		outputScanHuman(results, base.useColor)
 	}
 
-	return scanExitError(results, hasSuccess)
+	return scanExitError(results)
 }
 
-// scanExitError maps aggregated scan outcomes to the process exit error,
-// following this precedence: a success (found backdoor) → nil (exit 0);
-// otherwise any indeterminate result → errIndeterminate (exit 2);
-// otherwise → errNoSuccess (exit 1).
-func scanExitError(results []brutus.Result, hasSuccess bool) error {
-	if hasSuccess {
-		return nil
-	}
+// scanExitError maps aggregated scan outcomes to the process exit error for the
+// logon family of scans. A completed scan is a success whether or not a backdoor
+// was found, so a clean/nothing-found result is NOT an error (exit 0). Any
+// indeterminate result takes precedence and yields errIndeterminate (exit 2) so
+// the operator knows to rerun the affected hosts.
+func scanExitError(results []brutus.Result) error {
 	for i := range results {
 		if results[i].Indeterminate {
 			return errIndeterminate
 		}
 	}
-	return errNoSuccess
+	return nil
 }
 
 // runLogonFingerprint fingerprints targets with Nerva and runs logon-screen

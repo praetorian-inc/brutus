@@ -82,7 +82,7 @@ func TestDecodeSlotBound(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			DetectBackdoors(context.Background(), "host:3389", 5*time.Second, false)
+			DetectBackdoors(context.Background(), "host:3389", 5*time.Second, false, 0)
 		}()
 	}
 	wg.Wait()

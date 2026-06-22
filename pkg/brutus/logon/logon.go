@@ -39,8 +39,14 @@ const (
 //
 // A process-wide decode slot (admission.go) is acquired before any dial so that
 // queued hosts spend zero pump budget; the slot bounds concurrent WASM-decode
-// sessions independently of the host errgroup's --threads limit.
-func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
+// sessions independently of the host errgroup's --threads limit. The slot is
+// held across retries: a retrying host is exactly the one that needs CPU, and
+// re-queueing it risks unbounded latency.
+//
+// Retries are keyed on the INDETERMINATE outcome only. A found backdoor
+// (hasSuccess) and a stabilized clean render are both final verdicts and are
+// returned immediately; retrying a positive would risk masking a real backdoor.
+func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool, maxRetries int) ([]brutus.Result, bool) {
 	if err := decodeSlots.Acquire(ctx, 1); err != nil {
 		// Context cancelled while queued: the host never ran, so it must read
 		// as indeterminate, never silently clean.
@@ -48,7 +54,44 @@ func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, 
 	}
 	defer decodeSlots.Release(1)
 
+	attempts := maxRetries + 1
+	for attempt := 0; attempt < attempts; attempt++ {
+		if attempt > 0 {
+			retryBackoff(ctx, attempt)
+		}
+		results, hasSuccess := runDetection(ctx, target, timeout, aiMode)
+		if hasSuccess || !anyIndeterminate(results) || attempt == attempts-1 {
+			return results, hasSuccess
+		}
+	}
+	// attempts is always >= 1, so the loop always returns; unreachable.
 	return runDetection(ctx, target, timeout, aiMode)
+}
+
+// anyIndeterminate reports whether any result could not produce a clean/dirty
+// verdict (e.g. a CPU-starved render). Such hosts are eligible for retry.
+func anyIndeterminate(results []brutus.Result) bool {
+	for i := range results {
+		if results[i].Indeterminate {
+			return true
+		}
+	}
+	return false
+}
+
+// retryBackoff sleeps a capped exponential delay before a retry attempt,
+// returning early if the context is cancelled. attempt is 1-based.
+func retryBackoff(ctx context.Context, attempt int) {
+	const base = 100 * time.Millisecond
+	const cap = 2 * time.Second
+	delay := base << (attempt - 1)
+	if delay > cap || delay <= 0 {
+		delay = cap
+	}
+	select {
+	case <-time.After(delay):
+	case <-ctx.Done():
+	}
 }
 
 // ExecConfig holds parameters for sticky-keys command execution.

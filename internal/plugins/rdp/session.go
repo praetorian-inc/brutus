@@ -71,8 +71,9 @@ const stableFrames = 3
 // sends 5x Shift key presses, then captures the post-keystroke bitmap.
 // Returns (baseline_rgba, response_rgba, width, height, stabilized, error).
 // stabilized reflects whether the response pump observed a settled framebuffer.
+// timeout is the per-host budget applied to each pump phase (baseline and response).
 func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
+	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
@@ -99,7 +100,7 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	}()
 
 	// Pump session to get initial login screen (baseline stabilization is ignored).
-	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, 5*time.Second); pumpErr != nil {
+	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
@@ -124,7 +125,7 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	// The exec.go path uses 1s sleep + 2s WaitForFrame; we mirror that here.
 	time.Sleep(1500 * time.Millisecond)
-	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, 3*time.Second)
+	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout)
 	if pumpErr != nil {
 		// Non-fatal -- target might not respond
 		_ = pumpErr
@@ -143,8 +144,9 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 // sends Win+U to trigger the Utility Manager (utilman.exe), then captures the post-keystroke bitmap.
 // Returns (baseline_rgba, response_rgba, width, height, stabilized, error).
 // stabilized reflects whether the response pump observed a settled framebuffer.
+// timeout is the per-host budget applied to each pump phase (baseline and response).
 func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
+	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
@@ -171,7 +173,7 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 	}()
 
 	// Pump session to get initial login screen (baseline stabilization is ignored).
-	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, 5*time.Second); pumpErr != nil {
+	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
@@ -201,7 +203,7 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	time.Sleep(1500 * time.Millisecond)
-	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, 3*time.Second)
+	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout)
 	if pumpErr != nil {
 		// Non-fatal -- target might not respond
 		_ = pumpErr

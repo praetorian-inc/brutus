@@ -175,7 +175,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision)
+	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision, timeout)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -206,7 +206,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout tim
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision)
+	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision, timeout)
 	if err != nil {
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -219,7 +219,8 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout tim
 // ---------------------------------------------------------------------------
 
 // runStickyKeysDetection performs the full detection sequence on a non-NLA connection.
-func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool) (*StickyKeysResult, error) {
+// timeout is the per-host budget passed to each session pump phase.
+func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration) (*StickyKeysResult, error) {
 	result := &StickyKeysResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -248,7 +249,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768)
+	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
@@ -276,7 +277,8 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 }
 
 // runUtilmanDetection performs the full utilman detection sequence on a non-NLA connection.
-func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool) (*UtilmanResult, error) {
+// timeout is the per-host budget passed to each session pump phase.
+func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration) (*UtilmanResult, error) {
 	result := &UtilmanResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -305,7 +307,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768)
+	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)

@@ -215,6 +215,69 @@ func TestMapUtilmanResult(t *testing.T) {
 	}
 }
 
+// TestStabilizedVerdict verifies the cardinal false-negative guard (I2): only a
+// "clean" verdict on an unstabilized render is downgraded to "indeterminate".
+// Positive verdicts (backdoor_confirmed, backdoor_likely, vulnerable) must never
+// be downgraded regardless of stabilization, and "indeterminate" input is left
+// unchanged.
+//
+// This test is RED until the developer extracts the inline guard at
+// detect.go:272-274 / 330-332 into:
+//
+//	func stabilizedVerdict(verdict string, stabilized bool) string
+func TestStabilizedVerdict(t *testing.T) {
+	tests := []struct {
+		name       string
+		verdict    string
+		stabilized bool
+		want       string
+	}{
+		{
+			name:       "clean unstabilized -> indeterminate (cardinal flip)",
+			verdict:    "clean",
+			stabilized: false,
+			want:       verdictIndeterminate,
+		},
+		{
+			name:       "clean stabilized -> clean (no flip)",
+			verdict:    "clean",
+			stabilized: true,
+			want:       "clean",
+		},
+		{
+			name:       "backdoor_confirmed unstabilized -> unchanged (positive never downgraded)",
+			verdict:    "backdoor_confirmed",
+			stabilized: false,
+			want:       "backdoor_confirmed",
+		},
+		{
+			name:       "backdoor_likely unstabilized -> unchanged (positive never downgraded)",
+			verdict:    "backdoor_likely",
+			stabilized: false,
+			want:       "backdoor_likely",
+		},
+		{
+			name:       "vulnerable unstabilized -> unchanged (positive never downgraded)",
+			verdict:    "vulnerable",
+			stabilized: false,
+			want:       "vulnerable",
+		},
+		{
+			name:       "indeterminate unstabilized -> unchanged (already indeterminate)",
+			verdict:    verdictIndeterminate,
+			stabilized: false,
+			want:       verdictIndeterminate,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stabilizedVerdict(tc.verdict, tc.stabilized)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 // TestScanTypeLabeling verifies that StickyKeys and Utilman scans
 // are labeled with distinct scan_type values for JSONL output.
 func TestScanTypeLabeling(t *testing.T) {

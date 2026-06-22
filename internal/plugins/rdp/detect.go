@@ -269,9 +269,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	// Cardinal false-negative guard: only a "clean" verdict on a render that
 	// never stabilized is suspect. Positive verdicts (confirmed/likely/
 	// vulnerable) already saw the window and are never downgraded.
-	if result.OverallVerdict == "clean" && !stabilized {
-		result.OverallVerdict = verdictIndeterminate
-	}
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized)
 
 	return result, nil
 }
@@ -327,11 +325,18 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	// Cardinal false-negative guard: only a "clean" verdict on a render that
 	// never stabilized is suspect. Positive verdicts (confirmed/likely/
 	// vulnerable) already saw the window and are never downgraded.
-	if result.OverallVerdict == "clean" && !stabilized {
-		result.OverallVerdict = verdictIndeterminate
-	}
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized)
 
 	return result, nil
+}
+
+// stabilizedVerdict downgrades a clean verdict to indeterminate when the
+// render never stabilized; all other verdicts (including positives) pass through.
+func stabilizedVerdict(verdict string, stabilized bool) string {
+	if verdict == "clean" && !stabilized {
+		return verdictIndeterminate
+	}
+	return verdict
 }
 
 // ---------------------------------------------------------------------------

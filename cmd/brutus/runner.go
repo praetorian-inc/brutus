@@ -533,12 +533,17 @@ var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]
 // host (credential-level threading does not apply). Results are returned in input
 // order so output stays deterministic regardless of completion order.
 func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Result, bool) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return runScanTargetsConcurrentCtx(ctx, targets, base)
+}
+
+// runScanTargetsConcurrentCtx is runScanTargetsConcurrent with an injectable
+// context, so tests can drive cancellation without sending real signals.
+func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *runConfig) ([]brutus.Result, bool) {
 	if len(targets) == 0 {
 		return nil, false
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	threads := base.threads
 	if threads < 1 {

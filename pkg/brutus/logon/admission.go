@@ -18,13 +18,20 @@ import (
 	"context"
 	"fmt"
 	"runtime"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/semaphore"
 
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+)
+
+// detectSticky and detectUtilman are swappable seam vars over the RDP check
+// entry points so tests can substitute fakes (see sequential_test.go) that
+// record invocation order without a live RDP server.
+var (
+	detectSticky  = rdp.DetectStickyKeys
+	detectUtilman = rdp.DetectUtilman
 )
 
 // decodeSlotsPerCPU sizes the process-wide decode-slot budget relative to
@@ -59,23 +66,15 @@ func DecodeSlotCount() int64 {
 var runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
 	noVision := !aiMode
 
-	// Sticky keys and utilman detection use independent RDP connections and WASM
-	// instances (each instance has isolated linear memory; see
-	// internal/plugins/rdp/wasm.go), so the two checks run concurrently to halve
-	// per-host wall-clock time. Output order (sticky first, utilman second) is
-	// preserved regardless of which goroutine finishes first.
-	var stickyResult, utilmanResult *brutus.Result
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		stickyResult = rdp.DetectStickyKeys(ctx, target, timeout, "(sticky-keys)", noVision)
-	}()
-	go func() {
-		defer wg.Done()
-		utilmanResult = rdp.DetectUtilman(ctx, target, timeout, "(utilman)", noVision)
-	}()
-	wg.Wait()
+	// Sticky keys and utilman detection run sequentially under the single held
+	// decode slot: sticky first, then utilman. The shared-connection design was
+	// infeasible (the Rust FFI moves the ConnectionResult out on the first
+	// session_new), so each check still opens its own RDP connection and WASM
+	// instance. Running them one at a time keeps the decode-slot bound accurate
+	// (one decoder per slot, not two concurrent). Both checks always run — a
+	// positive sticky result never suppresses the utilman check.
+	stickyResult := detectSticky(ctx, target, timeout, "(sticky-keys)", noVision)
+	utilmanResult := detectUtilman(ctx, target, timeout, "(utilman)", noVision)
 
 	results := []brutus.Result{*stickyResult, *utilmanResult}
 	hasSuccess := stickyResult.Success || utilmanResult.Success

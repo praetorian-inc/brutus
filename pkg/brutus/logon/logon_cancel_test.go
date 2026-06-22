@@ -42,7 +42,7 @@ func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 	// before the Acquire — the host never ran, so no detection work happens.
 	var detectionInvoked atomic.Bool
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		detectionInvoked.Store(true)
 		return []brutus.Result{}, false
 	}
@@ -51,7 +51,7 @@ func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before the call — Acquire must fail immediately
 
-	results, hasSuccess := DetectBackdoors(ctx, "1.2.3.4:3389", 5*time.Second, false, 0)
+	results, hasSuccess := DetectBackdoors(ctx, "1.2.3.4:3389", 5*time.Second, false, 0, CheckBoth)
 
 	// The host never ran; both results must be INDETERMINATE.
 	require.Len(t, results, 2, "cancelled context must produce exactly 2 results (sticky + utilman)")

@@ -126,6 +126,7 @@ type Result struct {
 	Password string        // password tested
 	Key      []byte        // SSH key (Phase 1B, nil in 1A)
 	Success  bool          // authentication succeeded?
+	Indeterminate bool     // check could not produce a clean/dirty verdict; rerun
 	Error    error         // connection/network error (nil for auth failure)
 	Duration time.Duration // test duration
 

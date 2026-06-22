@@ -31,7 +31,8 @@ func TestDetectStickyKeys_ConnectionError(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.Equal(t, "(sticky-keys)", result.Username)
 	assert.False(t, result.Success)
-	assert.Contains(t, result.Banner, "skipped")
+	assert.Contains(t, result.Banner, "INDETERMINATE")
+	assert.True(t, result.Indeterminate)
 }
 
 func TestDetectStickyKeys_ResultFields(t *testing.T) {
@@ -53,7 +54,8 @@ func TestDetectUtilman_ConnectionError(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.Equal(t, "(utilman)", result.Username)
 	assert.False(t, result.Success)
-	assert.Contains(t, result.Banner, "skipped")
+	assert.Contains(t, result.Banner, "INDETERMINATE")
+	assert.True(t, result.Indeterminate)
 }
 
 func TestDetectUtilman_ResultFields(t *testing.T) {
@@ -64,6 +66,153 @@ func TestDetectUtilman_ResultFields(t *testing.T) {
 	assert.Equal(t, "(utilman)", result.Username)
 	assert.Equal(t, "rdp", result.Protocol)
 	assert.Equal(t, "198.51.100.1:3389", result.Target)
+}
+
+// TestMapStickyResult tests the mapping from StickyKeysResult to brutus.Result,
+// covering the indeterminate, not-performed, clean, and confirmed cases.
+func TestMapStickyResult(t *testing.T) {
+	tests := []struct {
+		name              string
+		input             *StickyKeysResult
+		username          string
+		wantIndeterminate bool
+		wantSuccess       bool
+		wantBannerContain string
+		wantBannerExclude string
+	}{
+		{
+			name: "performed indeterminate verdict",
+			input: &StickyKeysResult{
+				Performed:      true,
+				OverallVerdict: "indeterminate",
+			},
+			username:          "testuser",
+			wantIndeterminate: true,
+			wantSuccess:       false,
+			wantBannerContain: "INDETERMINATE",
+		},
+		{
+			name: "not performed (dial fail with skip reason)",
+			input: &StickyKeysResult{
+				Performed:  false,
+				SkipReason: "connection refused",
+			},
+			username:          "testuser",
+			wantIndeterminate: true,
+			wantSuccess:       false,
+			wantBannerContain: "INDETERMINATE",
+			wantBannerExclude: "skipped",
+		},
+		{
+			name: "clean verdict",
+			input: &StickyKeysResult{
+				Performed:      true,
+				OverallVerdict: "clean",
+			},
+			username:          "testuser",
+			wantIndeterminate: false,
+			wantSuccess:       false,
+		},
+		{
+			name: "backdoor_confirmed verdict",
+			input: &StickyKeysResult{
+				Performed:      true,
+				OverallVerdict: "backdoor_confirmed",
+				Confidence:     0.99,
+			},
+			username:          "testuser",
+			wantIndeterminate: false,
+			wantSuccess:       true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := mapStickyResult(tc.input, tc.username)
+			assert.NotNil(t, result)
+			assert.Equal(t, tc.wantIndeterminate, result.Indeterminate, "Indeterminate mismatch")
+			assert.Equal(t, tc.wantSuccess, result.Success, "Success mismatch")
+			if tc.wantBannerContain != "" {
+				assert.Contains(t, result.Banner, tc.wantBannerContain)
+			}
+			if tc.wantBannerExclude != "" {
+				assert.NotContains(t, result.Banner, tc.wantBannerExclude)
+			}
+		})
+	}
+}
+
+// TestMapUtilmanResult mirrors TestMapStickyResult for the utilman mapper.
+func TestMapUtilmanResult(t *testing.T) {
+	tests := []struct {
+		name              string
+		input             *UtilmanResult
+		username          string
+		wantIndeterminate bool
+		wantSuccess       bool
+		wantBannerContain string
+		wantBannerExclude string
+	}{
+		{
+			name: "performed indeterminate verdict",
+			input: &UtilmanResult{
+				Performed:      true,
+				OverallVerdict: "indeterminate",
+			},
+			username:          "testuser",
+			wantIndeterminate: true,
+			wantSuccess:       false,
+			wantBannerContain: "INDETERMINATE",
+		},
+		{
+			name: "not performed (dial fail with skip reason)",
+			input: &UtilmanResult{
+				Performed:  false,
+				SkipReason: "connection refused",
+			},
+			username:          "testuser",
+			wantIndeterminate: true,
+			wantSuccess:       false,
+			wantBannerContain: "INDETERMINATE",
+			wantBannerExclude: "skipped",
+		},
+		{
+			name: "clean verdict",
+			input: &UtilmanResult{
+				Performed:      true,
+				OverallVerdict: "clean",
+			},
+			username:          "testuser",
+			wantIndeterminate: false,
+			wantSuccess:       false,
+		},
+		{
+			name: "backdoor_confirmed verdict",
+			input: &UtilmanResult{
+				Performed:      true,
+				OverallVerdict: "backdoor_confirmed",
+				Confidence:     0.99,
+			},
+			username:          "testuser",
+			wantIndeterminate: false,
+			wantSuccess:       true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := mapUtilmanResult(tc.input, tc.username)
+			assert.NotNil(t, result)
+			assert.Equal(t, tc.wantIndeterminate, result.Indeterminate, "Indeterminate mismatch")
+			assert.Equal(t, tc.wantSuccess, result.Success, "Success mismatch")
+			if tc.wantBannerContain != "" {
+				assert.Contains(t, result.Banner, tc.wantBannerContain)
+			}
+			if tc.wantBannerExclude != "" {
+				assert.NotContains(t, result.Banner, tc.wantBannerExclude)
+			}
+		})
+	}
 }
 
 // TestScanTypeLabeling verifies that StickyKeys and Utilman scans

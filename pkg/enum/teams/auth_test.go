@@ -527,10 +527,10 @@ func TestNewClient_TimeoutFloor(t *testing.T) {
 
 func TestNewClient_Proxy(t *testing.T) {
 	tests := []struct {
-		name      string
-		proxyURL  string
-		wantErr   bool
-		wantNil   bool
+		name     string
+		proxyURL string
+		wantErr  bool
+		wantNil  bool
 	}{
 		{
 			name:     "empty proxy uses direct connection",
@@ -545,16 +545,16 @@ func TestNewClient_Proxy(t *testing.T) {
 			wantNil:  false,
 		},
 		{
-			name:    "malformed URL errors at construction",
+			name:     "malformed URL errors at construction",
 			proxyURL: "://bad",
-			wantErr: true,
-			wantNil: true,
+			wantErr:  true,
+			wantNil:  true,
 		},
 		{
-			name:    "unsupported scheme errors at construction",
+			name:     "unsupported scheme errors at construction",
 			proxyURL: "ftp://nope",
-			wantErr: true,
-			wantNil: true,
+			wantErr:  true,
+			wantNil:  true,
 		},
 	}
 

@@ -855,6 +855,117 @@ func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Consumer-account filtering tests
+// ---------------------------------------------------------------------------
+
+// TestEnumerateOne_ConsumerOnly_IgnoredByDefault verifies that a search result
+// containing a single consumer (8:live:) user is treated as ExistenceNo when
+// includeConsumer is false (the default).
+func TestEnumerateOne_ConsumerOnly_IgnoredByDefault(t *testing.T) {
+	srv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Adam Harris","mri":"8:live:.cid.f9b1126819712f24"}]`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	// includeConsumer defaults to false — do NOT call SetIncludeConsumer.
+
+	res := e.EnumerateOne(context.Background(), "adamharris@example.com")
+
+	assert.Equal(t, ExistenceNo, res.Exists,
+		"consumer-only result with includeConsumer=false must be ExistenceNo")
+	assert.Empty(t, res.DisplayName,
+		"DisplayName must be empty when consumer user is ignored")
+	assert.Empty(t, res.MRI,
+		"MRI must be empty when consumer user is ignored")
+	assert.NoError(t, res.Error)
+}
+
+// TestEnumerateOne_ConsumerOnly_IncludedWhenFlagSet verifies that the same
+// consumer-only search result becomes ExistenceYes when includeConsumer is true,
+// and that all metadata comes from the consumer user entry.
+func TestEnumerateOne_ConsumerOnly_IncludedWhenFlagSet(t *testing.T) {
+	srv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Adam Harris","mri":"8:live:.cid.f9b1126819712f24"}]`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetIncludeConsumer(true)
+
+	res := e.EnumerateOne(context.Background(), "adamharris@example.com")
+
+	assert.Equal(t, ExistenceYes, res.Exists,
+		"consumer-only result with includeConsumer=true must be ExistenceYes")
+	assert.Equal(t, "Adam Harris", res.DisplayName,
+		"DisplayName must come from the consumer user entry")
+	assert.Equal(t, "8:live:.cid.f9b1126819712f24", res.MRI,
+		"MRI must be the 8:live: MRI from the consumer user entry")
+	assert.Equal(t, "consumer", AccountType(res.MRI),
+		"AccountType of chosen MRI must be consumer")
+	assert.NoError(t, res.Error)
+}
+
+// TestEnumerateOne_PrefersCorporateOverConsumer verifies that when the search
+// result contains both a consumer user (first) and a corporate user, the
+// corporate user is always chosen — regardless of the includeConsumer flag value.
+// Metadata (DisplayName, MRI, UserPrincipalName) must come from the corporate
+// entry, not from arr[0].
+func TestEnumerateOne_PrefersCorporateOverConsumer(t *testing.T) {
+	const mixedBody = `[{"displayName":"Personal","mri":"8:live:.cid.aaa"},{"displayName":"Corp User","mri":"8:orgid:bbb","userPrincipalName":"corp@x.com"}]`
+
+	for _, includeConsumer := range []bool{false, true} {
+		includeConsumer := includeConsumer
+		t.Run(fmt.Sprintf("includeConsumer=%v", includeConsumer), func(t *testing.T) {
+			srv := searchServerReturning(http.StatusOK, mixedBody)
+			defer srv.Close()
+
+			e := newTestEnumerator(t, srv, nil, false)
+			e.SetIncludeConsumer(includeConsumer)
+
+			res := e.EnumerateOne(context.Background(), "corp@x.com")
+
+			// Corporate user must always be preferred regardless of includeConsumer.
+			assert.Equal(t, ExistenceYes, res.Exists,
+				"includeConsumer=%v: corporate user present must yield ExistenceYes", includeConsumer)
+			assert.Equal(t, "Corp User", res.DisplayName,
+				"includeConsumer=%v: DisplayName must come from the corporate entry", includeConsumer)
+			assert.Equal(t, "8:orgid:bbb", res.MRI,
+				"includeConsumer=%v: MRI must be the corporate 8:orgid: MRI", includeConsumer)
+			assert.Equal(t, "corp@x.com", res.UserPrincipalName,
+				"includeConsumer=%v: UserPrincipalName must come from the corporate entry", includeConsumer)
+			assert.Equal(t, "corporate", AccountType(res.MRI),
+				"includeConsumer=%v: AccountType of chosen MRI must be corporate", includeConsumer)
+			assert.NoError(t, res.Error)
+		})
+	}
+}
+
+// TestEnumerateOne_CorporateOnly_AlwaysFound verifies that a result containing
+// only a corporate (8:orgid:) user is ExistenceYes regardless of the
+// includeConsumer flag value.
+func TestEnumerateOne_CorporateOnly_AlwaysFound(t *testing.T) {
+	const corpBody = `[{"displayName":"Jane","mri":"8:orgid:xyz"}]`
+
+	for _, includeConsumer := range []bool{false, true} {
+		includeConsumer := includeConsumer
+		t.Run(fmt.Sprintf("includeConsumer=%v", includeConsumer), func(t *testing.T) {
+			srv := searchServerReturning(http.StatusOK, corpBody)
+			defer srv.Close()
+
+			e := newTestEnumerator(t, srv, nil, false)
+			e.SetIncludeConsumer(includeConsumer)
+
+			res := e.EnumerateOne(context.Background(), "jane@contoso.com")
+
+			assert.Equal(t, ExistenceYes, res.Exists,
+				"includeConsumer=%v: single corporate user must always yield ExistenceYes", includeConsumer)
+			assert.Equal(t, "Jane", res.DisplayName)
+			assert.Equal(t, "8:orgid:xyz", res.MRI)
+			assert.NoError(t, res.Error)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Test: AccountType — table-driven classification of MRI prefixes
 // ---------------------------------------------------------------------------
 
@@ -870,9 +981,9 @@ func TestAccountType(t *testing.T) {
 		{mri: "weird:mri", want: ""},
 		{mri: "8:orgid:some-long-guid-here", want: "corporate"},
 		{mri: "8:live:user@contoso.com", want: "consumer"},
-		{mri: "8:ORGID:abc", want: ""},    // case-sensitive: uppercase prefix must not match
-		{mri: "8:live", want: ""},         // missing trailing colon — not a valid 8:live: prefix
-		{mri: "28:orgid:abc", want: ""},   // different prefix digit
+		{mri: "8:ORGID:abc", want: ""},  // case-sensitive: uppercase prefix must not match
+		{mri: "8:live", want: ""},       // missing trailing colon — not a valid 8:live: prefix
+		{mri: "28:orgid:abc", want: ""}, // different prefix digit
 	}
 
 	for _, tc := range tests {
@@ -917,7 +1028,7 @@ func TestEnumerateWith_CallbackPerResult(t *testing.T) {
 		"eve@contoso.com",
 	}
 	existSet := map[string]struct{}{
-		"alice@contoso.com": {},
+		"alice@contoso.com":   {},
 		"charlie@contoso.com": {},
 	}
 

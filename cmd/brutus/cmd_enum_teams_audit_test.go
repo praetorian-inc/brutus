@@ -307,6 +307,19 @@ func TestEnumTeamsAuditCmd_Registered(t *testing.T) {
 		f := enumTeamsAuditCmd.Flags().Lookup("token-file")
 		require.NotNil(t, f, "--token-file flag must exist on audit subcommand")
 	})
+
+	t.Run("--include-consumer flag exists with default false and no shorthand", func(t *testing.T) {
+		f := enumTeamsAuditCmd.Flags().Lookup("include-consumer")
+		require.NotNil(t, f, "--include-consumer flag must exist on audit subcommand")
+		assert.Equal(t, "false", f.DefValue,
+			"--include-consumer must default to false (corporate-only is the safe default)")
+		// No shorthand must be registered.
+		af := enumTeamsAuditCmd.Flags()
+		for _, short := range []string{"i", "c"} {
+			assert.Nil(t, af.ShorthandLookup(short),
+				"audit subcommand must not register -%s shorthand for --include-consumer", short)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

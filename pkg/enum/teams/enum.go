@@ -99,11 +99,12 @@ type TenantPosture struct {
 // Enumerator performs corporate Microsoft Teams user enumeration against the
 // Teams externalsearch and presence endpoints. It is safe for concurrent use.
 type Enumerator struct {
-	httpClient   *http.Client
-	accessToken  string
-	refreshToken string
-	presence     bool
-	refreshFn    func(ctx context.Context) (string, error)
+	httpClient      *http.Client
+	accessToken     string
+	refreshToken    string
+	presence        bool
+	includeConsumer bool
+	refreshFn       func(ctx context.Context) (string, error)
 
 	// Endpoint templates; defaults point at the real Teams hosts and are
 	// overridable by tests (same package) by assigning these fields directly,
@@ -121,8 +122,8 @@ const (
 	clientVersion = "1415/1.0.0.2023031528"
 	// enumUserAgent mimics the Teams web client so requests are not rejected as
 	// non-browser traffic.
-	enumUserAgent     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-	maxEnumBody int64 = 64 << 10
+	enumUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	maxEnumBody   int64 = 64 << 10
 )
 
 // ---------------------------------------------------------------------------
@@ -158,6 +159,11 @@ func NewEnumerator(accessToken, refreshToken, proxyURL string, timeout time.Dura
 func (e *Enumerator) SetRefreshFunc(fn func(ctx context.Context) (string, error)) {
 	e.refreshFn = fn
 }
+
+// SetIncludeConsumer controls whether consumer/personal (8:live:) Teams
+// accounts count as hits. Default false: only corporate (8:orgid:) matches
+// are treated as existing; a consumer-only match is reported as not found.
+func (e *Enumerator) SetIncludeConsumer(v bool) { e.includeConsumer = v }
 
 // ---------------------------------------------------------------------------
 // Enumeration
@@ -293,15 +299,32 @@ func (e *Enumerator) EnumerateOne(ctx context.Context, email string) EnumResult 
 			res.Exists = ExistenceNo
 			return res
 		}
+		// Prefer the first corporate (8:orgid:) user. Corporate users are
+		// returned regardless of includeTFLUsers, so a corporate match is always
+		// a real hit. A consumer-only result (8:live:, "Teams For Life") is noise
+		// by default: only treated as a hit when includeConsumer is set.
+		chosen := &users[0]
+		corporate := false
+		for i := range users {
+			if AccountType(users[i].MRI) == "corporate" {
+				chosen = &users[i]
+				corporate = true
+				break
+			}
+		}
+		if !corporate && !e.includeConsumer {
+			res.Exists = ExistenceNo
+			return res
+		}
 		res.Exists = ExistenceYes
-		res.DisplayName = users[0].DisplayName
-		res.MRI = users[0].MRI
-		res.Type = users[0].Type
-		res.TenantID = users[0].TenantID
-		res.UserPrincipalName = users[0].UserPrincipalName
-		res.ObjectID = users[0].ObjectID
-		res.AccountEnabled = users[0].AccountEnabled
-		res.CoExistenceMode = users[0].FeatureSettings.CoExistenceMode
+		res.DisplayName = chosen.DisplayName
+		res.MRI = chosen.MRI
+		res.Type = chosen.Type
+		res.TenantID = chosen.TenantID
+		res.UserPrincipalName = chosen.UserPrincipalName
+		res.ObjectID = chosen.ObjectID
+		res.AccountEnabled = chosen.AccountEnabled
+		res.CoExistenceMode = chosen.FeatureSettings.CoExistenceMode
 	case status == http.StatusForbidden:
 		res.Exists = ExistenceBlocked
 		return res
@@ -511,7 +534,7 @@ func (e *Enumerator) token() string {
 type searchUser struct {
 	DisplayName       string `json:"displayName"`
 	MRI               string `json:"mri"`
-	Type              string `json:"type"`     // e.g. "Federated" = external org w/ federation
+	Type              string `json:"type"` // e.g. "Federated" = external org w/ federation
 	TenantID          string `json:"tenantId"`
 	UserPrincipalName string `json:"userPrincipalName"`
 	ObjectID          string `json:"objectId"`

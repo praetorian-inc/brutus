@@ -96,6 +96,18 @@ func TestEnumTeamsUsersCmd_Flags(t *testing.T) {
 		require.Nil(t, localS,
 			"users subcommand must not define a local -s shorthand (reserved for auth path consistency)")
 	})
+
+	t.Run("include-consumer flag exists with default false and no shorthand", func(t *testing.T) {
+		f := flags.Lookup("include-consumer")
+		require.NotNil(t, f, "--include-consumer flag must exist on users subcommand")
+		assert.Equal(t, "false", f.DefValue,
+			"--include-consumer must default to false (corporate-only is the safe default)")
+		// No shorthand must be registered (none was registered in init()).
+		for _, short := range []string{"i", "c"} {
+			assert.Nil(t, flags.ShorthandLookup(short),
+				"users subcommand must not register -%s shorthand for --include-consumer", short)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------

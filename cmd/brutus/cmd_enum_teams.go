@@ -41,31 +41,33 @@ var (
 // File-local flag variables for the "teams users" enumeration subcommand.
 // A separate block avoids cross-command flag-state bleed with the auth path.
 var (
-	flagTeamsEnumEmails       string
-	flagTeamsEnumEmailFile    string
-	flagTeamsEnumAccessToken  string
-	flagTeamsEnumRefreshToken string
-	flagTeamsEnumTokenFile    string
-	flagTeamsEnumPresence     bool
-	flagTeamsEnumTenant       string
-	flagTeamsEnumClientID     string
-	flagTeamsEnumScope        string
-	flagTeamsEnumNoBrowser    bool
+	flagTeamsEnumEmails          string
+	flagTeamsEnumEmailFile       string
+	flagTeamsEnumAccessToken     string
+	flagTeamsEnumRefreshToken    string
+	flagTeamsEnumTokenFile       string
+	flagTeamsEnumPresence        bool
+	flagTeamsEnumTenant          string
+	flagTeamsEnumClientID        string
+	flagTeamsEnumScope           string
+	flagTeamsEnumNoBrowser       bool
+	flagTeamsEnumIncludeConsumer bool
 )
 
 // File-local flag variables for the "teams audit" subcommand. A separate block
 // avoids cross-command flag-state bleed; audit takes a single --email seed
 // rather than the -e/-E pair that "users" accepts.
 var (
-	flagTeamsAuditEmail        string
-	flagTeamsAuditAccessToken  string
-	flagTeamsAuditRefreshToken string
-	flagTeamsAuditTokenFile    string
-	flagTeamsAuditPresence     bool
-	flagTeamsAuditTenant       string
-	flagTeamsAuditClientID     string
-	flagTeamsAuditScope        string
-	flagTeamsAuditNoBrowser    bool
+	flagTeamsAuditEmail           string
+	flagTeamsAuditAccessToken     string
+	flagTeamsAuditRefreshToken    string
+	flagTeamsAuditTokenFile       string
+	flagTeamsAuditPresence        bool
+	flagTeamsAuditTenant          string
+	flagTeamsAuditClientID        string
+	flagTeamsAuditScope           string
+	flagTeamsAuditNoBrowser       bool
+	flagTeamsAuditIncludeConsumer bool
 )
 
 var enumTeamsCmd = &cobra.Command{
@@ -204,6 +206,7 @@ func init() {
 	uf.StringVar(&flagTeamsEnumClientID, "client-id", teams.DefaultClientID, "Azure app (client) ID (device-code path)")
 	uf.StringVar(&flagTeamsEnumScope, "scope", teams.DefaultScope, "Space-separated OAuth2 scopes (device-code path)")
 	uf.BoolVar(&flagTeamsEnumNoBrowser, "no-browser", false, "Don't automatically open the verification URL in a browser")
+	uf.BoolVar(&flagTeamsEnumIncludeConsumer, "include-consumer", false, "Count consumer/personal (8:live:) Teams accounts as hits (default: only corporate 8:orgid: accounts)")
 	enumTeamsCmd.AddCommand(enumTeamsUsersCmd)
 
 	af := enumTeamsAuditCmd.Flags()
@@ -218,6 +221,7 @@ func init() {
 	af.StringVar(&flagTeamsAuditClientID, "client-id", teams.DefaultClientID, "Azure app (client) ID (device-code path)")
 	af.StringVar(&flagTeamsAuditScope, "scope", teams.DefaultScope, "Space-separated OAuth2 scopes (device-code path)")
 	af.BoolVar(&flagTeamsAuditNoBrowser, "no-browser", false, "Don't automatically open the verification URL in a browser")
+	af.BoolVar(&flagTeamsAuditIncludeConsumer, "include-consumer", false, "Count consumer/personal (8:live:) Teams accounts as hits (default: only corporate 8:orgid: accounts)")
 	enumTeamsCmd.AddCommand(enumTeamsAuditCmd)
 }
 
@@ -353,6 +357,7 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("teams users: %w", err)
 	}
+	enumerator.SetIncludeConsumer(flagTeamsEnumIncludeConsumer)
 
 	// Only wire a refresh callback when a refresh token is available.
 	if refreshToken != "" {
@@ -463,6 +468,7 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("teams audit: %w", err)
 	}
+	enumerator.SetIncludeConsumer(flagTeamsAuditIncludeConsumer)
 
 	// Only wire a refresh callback when a refresh token is available.
 	if refreshToken != "" {

@@ -147,22 +147,6 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	// Confirm the Sticky Keys prompt. On modern Windows (Server 2016/2019/2022),
-	// Shift x5 at the credential screen pops a legit "Do you want to turn on Sticky
-	// Keys?" dialog; a hijacked sethc.exe (-> cmd) only runs once that prompt is
-	// confirmed. Let the prompt render, then press Enter. Enter is benign: on a
-	// clean host with the prompt present it just enables real Sticky Keys, and if no
-	// prompt is present (warning disabled) it is a harmless keystroke — it never
-	// changes verdict logic and only makes sethc MORE likely to fire (no false-clean).
-	time.Sleep(1 * time.Second)
-	if keyErr := p.sendKey(ctx, inst, sessHandle, enterScancode, true); keyErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("send enter press: %w", keyErr)
-	}
-	time.Sleep(50 * time.Millisecond)
-	if keyErr := p.sendKey(ctx, inst, sessHandle, enterScancode, false); keyErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("send enter release: %w", keyErr)
-	}
-
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	// The exec.go path uses 1s sleep + 2s WaitForFrame; we mirror that here.
 	time.Sleep(1500 * time.Millisecond)

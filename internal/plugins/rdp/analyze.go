@@ -48,17 +48,30 @@ const (
 	consoleMaxTopFrac   = 0.25 // minY/height <= this -> top-anchored
 	dialogMinCenterFrac = 0.30 // box center within [0.30,0.70] of both axes -> centered
 
-	// nonceMinChangedPixels: minimum pixels that must change inside the box after
-	// typing the nonce to count as a shell echo. Set well above single-cursor-cell
-	// blink noise (a text cell is ~8x16 px) so a blinking caret alone never confirms;
-	// an echoed command line + new prompt changes thousands of pixels.
-	nonceMinChangedPixels = 500
-
-	// confirmedConsoleConfidence: when a backdoor is behaviorally confirmed AND the
-	// changed region is console-shaped (geometry corroborates the echo), report
-	// near-certain confidence. Geometry only RAISES confidence on an already-confirmed
-	// positive; it never lowers a verdict (cardinal rule — echo beats geometry).
+	// confirmedConsoleConfidence: when a backdoor is confirmed AND the changed region
+	// is console-shaped (geometry corroborates the detection), report near-certain
+	// confidence. Geometry only RAISES confidence on an already-confirmed positive; it
+	// never lowers a verdict (cardinal rule).
 	confirmedConsoleConfidence = 0.95
+)
+
+const (
+	// darkBrightnessMax: a pixel counts as "dark" when its brightness is below this.
+	// Generalizes beyond pure black (#000000) so themed/blue consoles (e.g. the
+	// #012456 PowerShell background, brightness ~31) still register as dark — avoiding
+	// the false negatives a pure-black threshold (Sticky-Keys-Slayer) would miss.
+	darkBrightnessMax = 60
+
+	// darkDeltaCleanMaxFrac: a new-dark-pixel delta below this fraction of the screen
+	// reads as clean (no console appeared — light dialog or nothing). CARDINAL RULE:
+	// only a delta below this may yield "clean".
+	darkDeltaCleanMaxFrac = 0.01
+
+	// darkDeltaConsoleMinFrac / darkDeltaConsoleMaxFrac: a new-dark-pixel delta inside
+	// this band reads as a console-sized dark window appearing -> backdoor_likely.
+	// Below the band (small) or above it (full-screen) is ambiguous -> indeterminate.
+	darkDeltaConsoleMinFrac = 0.04
+	darkDeltaConsoleMaxFrac = 0.65
 )
 
 // changedBox is the bounding box of significantly-changed pixels plus its fill ratio.
@@ -75,16 +88,6 @@ const (
 	regionUnknown     regionSignal = iota // box present but signals don't agree
 	regionConsoleLike                     // large + dark + top-left-ish  -> corroborates backdoor
 	regionDialogLike                      // small + light + centered     -> corroborates dialog
-)
-
-// nonceResult is the tri-state outcome of behavioral confirmation. Only "confirmed"
-// is decisive-positive; the other two are NEVER clean.
-type nonceResult int
-
-const (
-	nonceSkipped     nonceResult = iota // heuristic didn't see a backdoor-like box; not attempted
-	nonceConfirmed                      // new shell-like text rendered after typing -> real shell
-	nonceUnconfirmed                    // no new render OR type/capture failed -> ambiguous
 )
 
 // bitmapDiff computes the absolute difference between two RGBA buffers.
@@ -145,6 +148,48 @@ func meanBoxBrightness(buf []byte, w int, box changedBox) int {
 		return 0
 	}
 	return sum / count
+}
+
+// darkPixelCount counts pixels whose brightness is below darkBrightnessMax (i.e. "dark").
+func darkPixelCount(buf []byte, width, height uint32) int {
+	total := int(width) * int(height)
+	count := 0
+	for i := 0; i < total*4; i += 4 {
+		if i+2 >= len(buf) {
+			break
+		}
+		if pixelBrightness(buf, i) < darkBrightnessMax {
+			count++
+		}
+	}
+	return count
+}
+
+// darkDeltaVerdict is the PRIMARY discriminator (Sticky-Keys-Slayer-style): it measures
+// how many NEW dark pixels appeared between baseline and response. A dark console window
+// appearing produces a console-sized band of new dark pixels; the legit (light)
+// accessibility dialog produces almost none. CARDINAL RULE: only a near-zero delta
+// (< darkDeltaCleanMaxFrac) yields "clean"; any ambiguous darkening (below the band or
+// full-screen above it) is "indeterminate", never clean. Pure -> unit-testable.
+func darkDeltaVerdict(baseline, response []byte, width, height uint32) string {
+	total := int(width) * int(height)
+	if total == 0 {
+		return verdictIndeterminate
+	}
+
+	delta := darkPixelCount(response, width, height) - darkPixelCount(baseline, width, height)
+	if delta < 0 {
+		delta = 0
+	}
+	frac := float64(delta) / float64(total)
+
+	if frac < darkDeltaCleanMaxFrac {
+		return "clean"
+	}
+	if frac >= darkDeltaConsoleMinFrac && frac <= darkDeltaConsoleMaxFrac {
+		return "backdoor_likely"
+	}
+	return verdictIndeterminate
 }
 
 // analyzeBackdoorResponse analyzes the difference between baseline and response frames.
@@ -300,24 +345,14 @@ func classifyRegion(response []byte, width, height uint32, box changedBox) regio
 	return regionUnknown
 }
 
-// decideVerdict combines the heuristic verdict and the behavioral nonce result into a
-// final verdict. It is the single source of truth for the cardinal rule: no
-// "backdoor_likely" input ever yields "clean". The region signal is intentionally NOT
-// consulted here — geometry must never change the verdict; it only enriches confidence
-// and the diagnostic banner (see regionConfidenceAndNote). region is retained in the
-// signature for call-site symmetry but is deliberately ignored. Pure -> unit-testable.
-func decideVerdict(heuristic string, region regionSignal, nonce nonceResult) string {
-	if heuristic != "backdoor_likely" {
-		return heuristic
-	}
-
-	if nonce == nonceConfirmed {
-		return "backdoor_confirmed"
-	}
-
-	// Any uncertain backdoor_likely case (unconfirmed or skipped) is honest indeterminate,
-	// never clean.
-	return verdictIndeterminate
+// decideVerdict is the single source of truth for the cardinal rule: it passes the
+// dark-delta verdict straight through and NEVER maps a positive (backdoor_likely) to
+// "clean". The region signal is intentionally NOT consulted here — geometry must never
+// change the verdict; it only enriches confidence and the diagnostic banner (see
+// regionConfidenceAndNote). region is retained in the signature for call-site symmetry
+// but is deliberately ignored. Pure -> unit-testable.
+func decideVerdict(verdict string, region regionSignal) string {
+	return verdict
 }
 
 // regionConfidenceAndNote enriches an already-decided verdict with the geometry signal.
@@ -333,11 +368,11 @@ func regionConfidenceAndNote(verdict string, region regionSignal, baseConfidence
 	case "backdoor_confirmed":
 		switch region {
 		case regionConsoleLike:
-			return confirmedConsoleConfidence, "console-shaped + behaviorally confirmed"
+			return confirmedConsoleConfidence, "console-shaped + dark-region confirmed"
 		case regionDialogLike:
-			return baseConfidence, "dialog-shaped but behaviorally confirmed (echo beats geometry)"
+			return baseConfidence, "dialog-shaped but dark-region confirmed (dark-delta beats geometry)"
 		default:
-			return baseConfidence, "geometry inconclusive but behaviorally confirmed (echo beats geometry)"
+			return baseConfidence, "geometry inconclusive but dark-region confirmed (dark-delta beats geometry)"
 		}
 	case verdictIndeterminate:
 		switch region {
@@ -351,41 +386,6 @@ func regionConfidenceAndNote(verdict string, region regionSignal, baseConfidence
 	default:
 		return baseConfidence, ""
 	}
-}
-
-// verifyEcho reports whether typing the nonce produced a shell-like text render inside
-// the candidate box. It is a pure function over the pre-type and post-type framebuffers
-// plus the box: it counts pixels whose brightness changed (same brightness-diff logic as
-// analyzeBackdoorResponse) scoped to the box region, and returns nonceConfirmed when the
-// changed count clears nonceMinChangedPixels (a real shell echoes the line + new prompt),
-// else nonceUnconfirmed (a static dialog renders nothing new).
-func verifyEcho(beforeType, afterType []byte, width, height uint32, box changedBox) nonceResult {
-	w, h := int(width), int(height)
-	if w == 0 || h == 0 || box.maxX <= box.minX || box.maxY <= box.minY {
-		return nonceUnconfirmed
-	}
-
-	changed := 0
-	for y := box.minY; y <= box.maxY; y++ {
-		for x := box.minX; x <= box.maxX; x++ {
-			idx := (y*w + x) * 4
-			if idx+2 >= len(beforeType) || idx+2 >= len(afterType) {
-				continue
-			}
-			diff := pixelBrightness(beforeType, idx) - pixelBrightness(afterType, idx)
-			if diff < 0 {
-				diff = -diff
-			}
-			if diff > changeThreshold {
-				changed++
-			}
-		}
-	}
-
-	if changed >= nonceMinChangedPixels {
-		return nonceConfirmed
-	}
-	return nonceUnconfirmed
 }
 
 // rgbaToPNG converts RGBA pixel data to a PNG byte buffer.
@@ -416,14 +416,19 @@ func rgbaToPNG(rgba []byte, width, height uint32) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// runStickyKeysAnalysis performs the dual-check: heuristic first, then Vision API if available.
+// runStickyKeysAnalysis performs the dual-check: dark-delta heuristic first, then Vision
+// API if available. The dark-pixel-delta discriminator is the primary heuristic (it
+// distinguishes the dark cmd console from the light legit dialog); Vision still wins when
+// present (confirmed/vulnerable branches sit above the heuristic verdict).
 func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
-	width, height uint32, visionAPIKey string, nonce nonceResult) StickyKeysResult {
+	width, height uint32, visionAPIKey string) StickyKeysResult {
 
 	result := StickyKeysResult{Performed: true}
 
-	// Step 1: Heuristic analysis
-	verdict, confidence, description := analyzeBackdoorResponse(baseline, response, width, height)
+	// Step 1: Primary heuristic — dark-pixel-delta discriminator. The changed-pixels
+	// description is kept for the diagnostic banner; the VERDICT comes from darkDeltaVerdict.
+	verdict := darkDeltaVerdict(baseline, response, width, height)
+	_, confidence, description := analyzeBackdoorResponse(baseline, response, width, height)
 	result.HeuristicResult = description
 
 	if verdict == "clean" {
@@ -432,7 +437,7 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 		return result
 	}
 
-	// Step 2: Try Vision API for confirmation if key available
+	// Step 2: Try Vision API for confirmation if key available (Vision wins when present).
 	if visionAPIKey != "" {
 		pngData, err := rgbaToPNG(response, width, height)
 		if err == nil {
@@ -461,25 +466,28 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 		}
 	}
 
-	// No-Vision (or inconclusive Vision) baseline: combine heuristic + pre-filter signal
-	// + behavioral nonce result via the cardinal-rule decision table. The region signal
-	// never changes the verdict (decideVerdict ignores it); it only enriches confidence
-	// and the diagnostic banner via regionConfidenceAndNote.
+	// No-Vision (or inconclusive Vision) baseline: pass the dark-delta verdict through
+	// decideVerdict (cardinal rule — a positive never becomes clean). The region signal
+	// never changes the verdict; it only enriches confidence and the diagnostic banner
+	// via regionConfidenceAndNote.
 	_, _, box := detectChangedRectangle(baseline, response, width, height)
 	region := classifyRegion(response, width, height, box)
-	result.OverallVerdict = decideVerdict(verdict, region, nonce)
+	result.OverallVerdict = decideVerdict(verdict, region)
 	result.Confidence, result.RegionNote = regionConfidenceAndNote(result.OverallVerdict, region, confidence)
 	return result
 }
 
-// runUtilmanAnalysis performs the dual-check for utilman backdoor: heuristic first, then Vision API.
+// runUtilmanAnalysis performs the dual-check for utilman backdoor: dark-delta heuristic
+// first, then Vision API. Same wiring as runStickyKeysAnalysis.
 func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
-	width, height uint32, visionAPIKey string, nonce nonceResult) UtilmanResult {
+	width, height uint32, visionAPIKey string) UtilmanResult {
 
 	result := UtilmanResult{Performed: true}
 
-	// Step 1: Heuristic analysis (same pixel diff logic as sticky keys)
-	verdict, confidence, description := analyzeBackdoorResponse(baseline, response, width, height)
+	// Step 1: Primary heuristic — dark-pixel-delta discriminator. The changed-pixels
+	// description is kept for the diagnostic banner; the VERDICT comes from darkDeltaVerdict.
+	verdict := darkDeltaVerdict(baseline, response, width, height)
+	_, confidence, description := analyzeBackdoorResponse(baseline, response, width, height)
 	result.HeuristicResult = description
 
 	if verdict == "clean" {
@@ -488,7 +496,7 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 		return result
 	}
 
-	// Step 2: Try Vision API for confirmation if key available
+	// Step 2: Try Vision API for confirmation if key available (Vision wins when present).
 	if visionAPIKey != "" {
 		pngData, err := rgbaToPNG(response, width, height)
 		if err == nil {
@@ -516,13 +524,13 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 		}
 	}
 
-	// No-Vision (or inconclusive Vision) baseline: combine heuristic + pre-filter signal
-	// + behavioral nonce result via the cardinal-rule decision table. The region signal
-	// never changes the verdict (decideVerdict ignores it); it only enriches confidence
-	// and the diagnostic banner via regionConfidenceAndNote.
+	// No-Vision (or inconclusive Vision) baseline: pass the dark-delta verdict through
+	// decideVerdict (cardinal rule — a positive never becomes clean). The region signal
+	// never changes the verdict; it only enriches confidence and the diagnostic banner
+	// via regionConfidenceAndNote.
 	_, _, box := detectChangedRectangle(baseline, response, width, height)
 	region := classifyRegion(response, width, height, box)
-	result.OverallVerdict = decideVerdict(verdict, region, nonce)
+	result.OverallVerdict = decideVerdict(verdict, region)
 	result.Confidence, result.RegionNote = regionConfidenceAndNote(result.OverallVerdict, region, confidence)
 	return result
 }

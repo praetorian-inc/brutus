@@ -147,7 +147,7 @@ func TestRunUtilmanAnalysis_Clean(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result := runUtilmanAnalysis(ctx, baseline, response, w, h, "", nonceSkipped)
+	result := runUtilmanAnalysis(ctx, baseline, response, w, h, "")
 	assert.True(t, result.Performed)
 	assert.Equal(t, "clean", result.OverallVerdict)
 }
@@ -209,6 +209,17 @@ func paintBox(buf []byte, w int, x0, y0, x1, y1 int, gray byte) {
 	}
 }
 
+// paintBoxRGB fills a rectangular region with explicit RGB values.
+// Used for themed-console tests (e.g. PowerShell blue, brightness ~31).
+func paintBoxRGB(buf []byte, w int, x0, y0, x1, y1 int, r, g, b byte) {
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			idx := (y*w + x) * 4
+			buf[idx], buf[idx+1], buf[idx+2], buf[idx+3] = r, g, b, 255
+		}
+	}
+}
+
 func TestClassifyRegion_ConsoleLike(t *testing.T) {
 	w, h := uint32(1000), uint32(1000)
 	resp := make([]byte, int(w)*int(h)*4)
@@ -237,7 +248,10 @@ func TestClassifyRegion_Unknown(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// A3: decideVerdict — full 7-row table + cardinal rule
+// A3: decideVerdict — pass-through + cardinal rule
+// decideVerdict(verdict, region) is now a pure pass-through: whatever verdict
+// comes in (from darkDeltaVerdict) goes out unchanged. The cardinal rule is
+// that a "backdoor_likely" verdict must never become "clean".
 // ---------------------------------------------------------------------------
 
 func TestDecideVerdict(t *testing.T) {
@@ -245,33 +259,40 @@ func TestDecideVerdict(t *testing.T) {
 		name      string
 		heuristic string
 		region    regionSignal
-		nonce     nonceResult
 		want      string
 	}{
-		{"clean heuristic stays clean", "clean", regionUnknown, nonceSkipped, "clean"},
-		{"confirmed echo + console", "backdoor_likely", regionConsoleLike, nonceConfirmed, "backdoor_confirmed"},
-		{"confirmed echo beats dialog geometry", "backdoor_likely", regionDialogLike, nonceConfirmed, "backdoor_confirmed"},
-		{"console but no echo -> rerun", "backdoor_likely", regionConsoleLike, nonceUnconfirmed, verdictIndeterminate},
-		{"dialog + no echo -> rerun (the FP fix)", "backdoor_likely", regionDialogLike, nonceUnconfirmed, verdictIndeterminate},
-		{"unknown + no echo -> rerun", "backdoor_likely", regionUnknown, nonceUnconfirmed, verdictIndeterminate},
-		{"backdoor box but nonce skipped -> rerun", "backdoor_likely", regionConsoleLike, nonceSkipped, verdictIndeterminate},
+		// Pass-through: clean stays clean regardless of region.
+		{"clean stays clean (unknown region)", "clean", regionUnknown, "clean"},
+		{"clean stays clean (console region)", "clean", regionConsoleLike, "clean"},
+		{"clean stays clean (dialog region)", "clean", regionDialogLike, "clean"},
+		// Pass-through: backdoor_likely stays backdoor_likely.
+		{"backdoor_likely stays (unknown region)", "backdoor_likely", regionUnknown, "backdoor_likely"},
+		{"backdoor_likely stays (console region)", "backdoor_likely", regionConsoleLike, "backdoor_likely"},
+		{"backdoor_likely stays (dialog region)", "backdoor_likely", regionDialogLike, "backdoor_likely"},
+		// Pass-through: indeterminate stays indeterminate.
+		{"indeterminate stays (unknown region)", verdictIndeterminate, regionUnknown, verdictIndeterminate},
+		{"indeterminate stays (console region)", verdictIndeterminate, regionConsoleLike, verdictIndeterminate},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := decideVerdict(tc.heuristic, tc.region, tc.nonce)
+			got := decideVerdict(tc.heuristic, tc.region)
 			assert.Equal(t, tc.want, got)
+			// CARDINAL RULE: a backdoor_likely in must never yield clean out.
 			if tc.heuristic == "backdoor_likely" {
-				assert.NotEqual(t, "clean", got, "CARDINAL RULE: backdoor box must never become clean")
+				assert.NotEqual(t, "clean", got, "CARDINAL RULE: backdoor_likely must never become clean")
 			}
 		})
 	}
 }
 
 // ---------------------------------------------------------------------------
-// A4: runStickyKeysAnalysis — dialog-shaped frame → indeterminate (not backdoor_likely)
+// A4: runStickyKeysAnalysis — light/small/centered dialog → clean
+// A light legit dialog (gray 200) adds almost no dark pixels, so the
+// dark-delta discriminator correctly returns "clean", not indeterminate.
+// This is the better outcome vs. the old behavioral approach.
 // ---------------------------------------------------------------------------
 
-func TestRunStickyKeysAnalysis_DialogShape_NoVision_Indeterminate(t *testing.T) {
+func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	w, h := uint32(1000), uint32(1000)
 	size := int(w) * int(h) * 4
 	baseline := make([]byte, size)
@@ -280,43 +301,178 @@ func TestRunStickyKeysAnalysis_DialogShape_NoVision_Indeterminate(t *testing.T) 
 	}
 	response := make([]byte, size)
 	copy(response, baseline)
-	paintBox(response, int(w), 390, 390, 610, 610, 200) // light small centered (220×220 = 4.84% area, trips heuristic but classifies as dialog)
-	res := runStickyKeysAnalysis(context.Background(), baseline, response, w, h, "", nonceSkipped)
-	assert.Equal(t, verdictIndeterminate, res.OverallVerdict)
-	assert.NotEqual(t, "clean", res.OverallVerdict)
+	// Light small centered dialog (220×220 = 4.84% area, gray 200).
+	// Gray 200 >> darkBrightnessMax(60), so adds zero dark pixels → clean.
+	paintBox(response, int(w), 390, 390, 610, 610, 200)
+	res := runStickyKeysAnalysis(context.Background(), baseline, response, w, h, "")
+	assert.Equal(t, "clean", res.OverallVerdict)
+	assert.NotEqual(t, "backdoor_likely", res.OverallVerdict,
+		"a light legit dialog must not be flagged as backdoor_likely")
 }
 
 // ---------------------------------------------------------------------------
-// B1: verifyEcho — pure pixel-diff confirms or denies a shell echo
+// B: dark-pixel-delta core logic — new tests for the primary discriminator
 // ---------------------------------------------------------------------------
 
-func TestVerifyEcho_Confirmed(t *testing.T) {
-	w, h := uint32(1000), uint32(1000)
+// TestDarkPixelCount verifies the count of pixels below darkBrightnessMax.
+func TestDarkPixelCount(t *testing.T) {
+	w, h := uint32(10), uint32(10) // 100 pixels
 	size := int(w) * int(h) * 4
-	before := make([]byte, size)
-	paintBox(before, int(w), 0, 0, 600, 600, 0) // dark console
-	after := make([]byte, size)
-	copy(after, before)
-	// new text rendered inside box (rows of light pixels = echoed line + prompt)
-	paintBox(after, int(w), 10, 500, 590, 560, 230)
-	box := changedBox{minX: 0, minY: 0, maxX: 599, maxY: 599}
-	assert.Equal(t, nonceConfirmed, verifyEcho(before, after, w, h, box))
+	buf := make([]byte, size)
+
+	// Fill all pixels with mid-gray (brightness 128, well above threshold 60).
+	for i := 0; i < size; i += 4 {
+		buf[i], buf[i+1], buf[i+2], buf[i+3] = 128, 128, 128, 255
+	}
+	assert.Equal(t, 0, darkPixelCount(buf, w, h), "mid-gray pixels should not count as dark")
+
+	// Paint a 5×5 block with pure black (brightness 0 < 60).
+	for y := 0; y < 5; y++ {
+		for x := 0; x < 5; x++ {
+			idx := (y*int(w) + x) * 4
+			buf[idx], buf[idx+1], buf[idx+2], buf[idx+3] = 0, 0, 0, 255
+		}
+	}
+	assert.Equal(t, 25, darkPixelCount(buf, w, h), "5×5 black block must count as 25 dark pixels")
+
+	// Paint 3 more pixels with brightness exactly at the threshold (60 is NOT dark; must be < 60).
+	// brightness = (59+59+59)/3 = 59 < 60 → dark.
+	buf[100], buf[101], buf[102] = 59, 59, 59 // pixel at offset 100 (pixel 25)
+	assert.Equal(t, 26, darkPixelCount(buf, w, h), "pixel with brightness 59 must count as dark")
+
+	// A pixel with brightness exactly 60 is NOT dark (threshold is strict <).
+	buf[104], buf[105], buf[106] = 60, 60, 60 // pixel 26
+	assert.Equal(t, 26, darkPixelCount(buf, w, h), "pixel with brightness exactly 60 must NOT count as dark")
 }
 
-func TestVerifyEcho_Unconfirmed(t *testing.T) {
+// TestDarkDeltaVerdict exercises the primary discriminator end-to-end with 1000×1000 frames.
+// Baseline is mid-gray (128) everywhere; the response adds various shapes.
+func TestDarkDeltaVerdict(t *testing.T) {
 	w, h := uint32(1000), uint32(1000)
 	size := int(w) * int(h) * 4
-	before := make([]byte, size)
-	paintBox(before, int(w), 430, 430, 570, 570, 200) // static dialog
-	after := make([]byte, size)
-	copy(after, before) // nothing changed
-	box := changedBox{minX: 430, minY: 430, maxX: 569, maxY: 569}
-	assert.Equal(t, nonceUnconfirmed, verifyEcho(before, after, w, h, box))
+
+	// Construct a reusable mid-gray baseline.
+	baseline := make([]byte, size)
+	for i := 0; i < size; i += 4 {
+		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
+	}
+
+	newResponse := func() []byte {
+		r := make([]byte, size)
+		copy(r, baseline)
+		return r
+	}
+
+	tests := []struct {
+		name    string
+		setup   func(response []byte)
+		want    string
+		notWant string // optional cardinal-rule guard
+	}{
+		{
+			// Large dark box (gray 0) covering ~30% of the screen → backdoor_likely.
+			// 548×548 pixels = ~30% of 1000×1000.  Fraction is in [0.04, 0.65].
+			name: "large dark box (~30%) → backdoor_likely",
+			setup: func(r []byte) {
+				paintBox(r, int(w), 0, 0, 548, 548, 0)
+			},
+			want:    "backdoor_likely",
+			notWant: "clean",
+		},
+		{
+			// Light dialog box (gray 200, small) → no new dark pixels → clean.
+			// Gray 200 >> darkBrightnessMax(60); delta ≈ 0 < 1%.
+			name: "light dialog box (gray 200, small) → clean",
+			setup: func(r []byte) {
+				paintBox(r, int(w), 430, 430, 570, 570, 200)
+			},
+			want: "clean",
+		},
+		{
+			// Tiny dark box (~2% area, gray 0) → below console band → indeterminate.
+			// 140×140 = 19600 pixels / 1000000 = 1.96% → in (1%, 4%) → indeterminate.
+			name: "tiny dark box (~2%) → indeterminate",
+			setup: func(r []byte) {
+				paintBox(r, int(w), 0, 0, 140, 140, 0)
+			},
+			want:    verdictIndeterminate,
+			notWant: "clean",
+		},
+		{
+			// Near-full-screen dark (>65%, gray 0) → above console band → indeterminate.
+			// 820×820 = 672400 / 1000000 = 67.24% > 65%.
+			name: "near-full-screen dark (>65%) → indeterminate",
+			setup: func(r []byte) {
+				paintBox(r, int(w), 0, 0, 820, 820, 0)
+			},
+			want:    verdictIndeterminate,
+			notWant: "clean",
+		},
+		{
+			// Themed/blue-ish dark console (RGB ≈ (1,36,86), brightness ≈ 41 < 60).
+			// Still registers as dark → ~30% area → backdoor_likely.
+			// brightness = (1 + 36 + 86) / 3 = 123/3 = 41 < darkBrightnessMax(60).
+			name: "blue-ish dark console (~30%) → backdoor_likely",
+			setup: func(r []byte) {
+				paintBoxRGB(r, int(w), 0, 0, 548, 548, 1, 36, 86)
+			},
+			want:    "backdoor_likely",
+			notWant: "clean",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			response := newResponse()
+			tc.setup(response)
+			got := darkDeltaVerdict(baseline, response, w, h)
+			assert.Equal(t, tc.want, got)
+			if tc.notWant != "" {
+				assert.NotEqual(t, tc.notWant, got,
+					"CARDINAL RULE: dark/ambiguous box must never yield %q", tc.notWant)
+			}
+		})
+	}
+
+	// CARDINAL SUB-ASSERT: for any dark box of console-band size, result is never "clean".
+	t.Run("cardinal_rule_dark_box_never_clean", func(t *testing.T) {
+		// Try several in-band sizes and confirm none yield "clean".
+		inBandSizes := []int{210, 300, 400, 500, 600, 700} // pixel edge lengths
+		for _, edge := range inBandSizes {
+			frac := float64(edge*edge) / float64(int(w)*int(h))
+			if frac < darkDeltaConsoleMinFrac || frac > darkDeltaConsoleMaxFrac {
+				continue // skip if this particular size fell outside the band
+			}
+			response := newResponse()
+			paintBox(response, int(w), 0, 0, edge, edge, 0)
+			got := darkDeltaVerdict(baseline, response, w, h)
+			assert.NotEqual(t, "clean", got,
+				"dark box of edge %d (frac %.3f) must not yield clean", edge, frac)
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
 // C1: structural guard — runStickyKeysAnalysis must have the vulnerable branch
 // ---------------------------------------------------------------------------
+
+// TestRunStickyKeysAnalysis_HasVulnerableBranch guards that runStickyKeysAnalysis
+// contains a symmetric `visionVerdict == "vulnerable"` branch matching the one
+// already present in runUtilmanAnalysis (analyze.go ~line 456).
+// The test reads analyze.go as source text and asserts the string
+// `visionVerdict == "vulnerable"` appears at least twice — once per analysis
+// function. Currently it appears only once (utilman only), so this test is RED
+// until the developer adds the symmetric branch to runStickyKeysAnalysis.
+func TestRunStickyKeysAnalysis_HasVulnerableBranch(t *testing.T) {
+	src, err := os.ReadFile("analyze.go")
+	require.NoError(t, err, "analyze.go must be readable")
+
+	const needle = `visionVerdict == "vulnerable"`
+	count := strings.Count(string(src), needle)
+	assert.GreaterOrEqual(t, count, 2,
+		"runStickyKeysAnalysis is missing the visionVerdict == \"vulnerable\" branch; "+
+			"found %d occurrence(s), need >= 2 (one per analysis function)", count)
+}
 
 // ---------------------------------------------------------------------------
 // A5: regionConfidenceAndNote — pure verdict×region → (confidence, note)
@@ -340,25 +496,25 @@ func TestRegionConfidenceAndNote(t *testing.T) {
 			region:         regionConsoleLike,
 			base:           base,
 			wantConfidence: confirmedConsoleConfidence,
-			wantNote:       "console-shaped + behaviorally confirmed",
+			wantNote:       "console-shaped + dark-region confirmed",
 		},
-		// backdoor_confirmed + dialog-shaped: echo beats geometry → base confidence unchanged
+		// backdoor_confirmed + dialog-shaped: dark-delta beats geometry → base confidence unchanged
 		{
-			name:           "confirmed + dialog → base confidence + echo-beats-geometry note",
+			name:           "confirmed + dialog → base confidence + dark-delta-beats-geometry note",
 			verdict:        "backdoor_confirmed",
 			region:         regionDialogLike,
 			base:           base,
 			wantConfidence: base,
-			wantNote:       "dialog-shaped but behaviorally confirmed (echo beats geometry)",
+			wantNote:       "dialog-shaped but dark-region confirmed (dark-delta beats geometry)",
 		},
-		// backdoor_confirmed + unknown region: echo beats geometry → base confidence unchanged
+		// backdoor_confirmed + unknown region: dark-delta beats geometry → base confidence unchanged
 		{
-			name:           "confirmed + unknown → base confidence + echo-beats-geometry note",
+			name:           "confirmed + unknown → base confidence + dark-delta-beats-geometry note",
 			verdict:        "backdoor_confirmed",
 			region:         regionUnknown,
 			base:           base,
 			wantConfidence: base,
-			wantNote:       "geometry inconclusive but behaviorally confirmed (echo beats geometry)",
+			wantNote:       "geometry inconclusive but dark-region confirmed (dark-delta beats geometry)",
 		},
 		// indeterminate + console: unconfirmed but console-shaped → rerun note
 		{
@@ -414,22 +570,4 @@ func TestRegionConfidenceAndNote(t *testing.T) {
 			assert.Equal(t, tc.wantNote, gotNote)
 		})
 	}
-}
-
-// TestRunStickyKeysAnalysis_HasVulnerableBranch guards that runStickyKeysAnalysis
-// contains a symmetric `visionVerdict == "vulnerable"` branch matching the one
-// already present in runUtilmanAnalysis (analyze.go ~line 456).
-// The test reads analyze.go as source text and asserts the string
-// `visionVerdict == "vulnerable"` appears at least twice — once per analysis
-// function. Currently it appears only once (utilman only), so this test is RED
-// until the developer adds the symmetric branch to runStickyKeysAnalysis.
-func TestRunStickyKeysAnalysis_HasVulnerableBranch(t *testing.T) {
-	src, err := os.ReadFile("analyze.go")
-	require.NoError(t, err, "analyze.go must be readable")
-
-	const needle = `visionVerdict == "vulnerable"`
-	count := strings.Count(string(src), needle)
-	assert.GreaterOrEqual(t, count, 2,
-		"runStickyKeysAnalysis is missing the visionVerdict == \"vulnerable\" branch; "+
-			"found %d occurrence(s), need >= 2 (one per analysis function)", count)
 }

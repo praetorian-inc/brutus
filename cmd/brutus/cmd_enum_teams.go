@@ -372,17 +372,54 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s Enumerating %d email(s) against Microsoft Teams...\n",
 			dim(useColor, SymbolInfo), len(emails))
+		fmt.Fprintf(os.Stdout, "\n%s %s\n\n", dim(useColor, SymbolInfo), heading(useColor, "Teams User Enumeration"))
 	}
 
-	results := enumerator.Enumerate(ctx, emails, flagThreads, flagRateLimit, flagJitter)
+	// Stream each completed result live (the callback is invoked serialized under
+	// the enumerator's results mutex, so output never interleaves and never races
+	// the results slice). Human mode prints only the positive signals (EXISTS /
+	// BLOCKED) unless --verbose; JSON mode streams a JSONL line per result. A
+	// periodic progress counter goes to stderr (suppressed under --quiet/--json).
+	total := len(emails)
+	var processed, found, blocked int
+	onResult := func(res teams.EnumResult) {
+		processed++
+		switch res.Exists {
+		case teams.ExistenceYes:
+			found++
+		case teams.ExistenceBlocked:
+			blocked++
+		}
+
+		if flagJSON {
+			outputTeamsEnumJSONL(jsonWriter, []teams.EnumResult{res})
+		} else {
+			switch res.Exists {
+			case teams.ExistenceYes, teams.ExistenceBlocked:
+				// Positive signals always print.
+				outputTeamsEnumResultLine(os.Stdout, res, useColor)
+			default:
+				// ExistenceNo / ExistenceUnknown are suppressed unless --verbose.
+				if flagVerbose {
+					outputTeamsEnumResultLine(os.Stdout, res, useColor)
+				}
+			}
+		}
+
+		if !flagQuiet && !flagJSON && processed%500 == 0 {
+			fmt.Fprintf(os.Stderr, "%s processed %d/%d — %d found, %d blocked\n",
+				dim(useColor, SymbolInfo), processed, total, found, blocked)
+		}
+	}
+
+	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
 
 	posture := teams.DerivePosture(teamsEnumDomain(emails), results)
 
 	if flagJSON {
-		outputTeamsEnumJSONL(jsonWriter, results)
 		outputTeamsPostureJSONL(jsonWriter, posture)
 	} else {
-		outputTeamsEnumHuman(os.Stdout, results, useColor)
+		outputTeamsEnumSummary(os.Stdout, results, useColor)
 		outputTeamsPostureHuman(os.Stdout, posture, useColor)
 	}
 	return nil

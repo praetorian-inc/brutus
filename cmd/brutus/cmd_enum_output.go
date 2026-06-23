@@ -438,22 +438,14 @@ func outputTeamsEnumHuman(w io.Writer, results []teams.EnumResult, useColor bool
 			colorIf(useColor, ColorReset))
 	}
 
-	var existsCount, blockedCount, notFoundCount, errorCount int
-
 	for i := range results {
 		r := &results[i]
 		switch r.Exists {
-		case teams.ExistenceYes:
-			existsCount++
-		case teams.ExistenceBlocked:
-			blockedCount++
 		case teams.ExistenceNo:
-			notFoundCount++
 			if flagQuiet {
 				continue
 			}
-		default:
-			errorCount++
+		case teams.ExistenceUnknown:
 			if !flagVerbose {
 				continue
 			}
@@ -479,7 +471,52 @@ func outputTeamsEnumHuman(w io.Writer, results []teams.EnumResult, useColor bool
 		}
 	}
 
-	// Summary.
+	outputTeamsEnumSummary(w, results, useColor)
+}
+
+// outputTeamsEnumResultLine prints ONE Teams enumeration result row in the same
+// visual style as outputTeamsEnumHuman's per-row rendering: Email, status label,
+// Display Name, and MRI, with the account type appended for EXISTS rows (e.g.
+// "(corporate)" or "(consumer)") via teams.AccountType. All server-provided
+// strings are sanitized via sanitizeTerminal (P0-4). Token values are never
+// printed. Callers decide which results to print (e.g. positive signals only,
+// unless verbose); this helper renders whatever it is given.
+func outputTeamsEnumResultLine(w io.Writer, r teams.EnumResult, useColor bool) {
+	statusCol, statusColor := teamsEnumStatusLabel(r.Exists)
+	email := truncate(sanitizeTerminal(r.Email), 32)
+	name := truncate(sanitizeTerminal(r.DisplayName), 28)
+	mri := truncate(sanitizeTerminal(r.MRI), 40)
+
+	acct := ""
+	if r.Exists == teams.ExistenceYes {
+		if t := teams.AccountType(r.MRI); t != "" {
+			acct = " (" + t + ")"
+		}
+	}
+
+	_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s%s\n",
+		email,
+		colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
+		name, mri, dim(useColor, acct))
+}
+
+// outputTeamsEnumSummary prints the counts-by-status summary block for a set of
+// Teams enumeration results (exists / blocked / not-found / errors / total).
+func outputTeamsEnumSummary(w io.Writer, results []teams.EnumResult, useColor bool) {
+	var existsCount, blockedCount, notFoundCount, errorCount int
+	for i := range results {
+		switch results[i].Exists {
+		case teams.ExistenceYes:
+			existsCount++
+		case teams.ExistenceBlocked:
+			blockedCount++
+		case teams.ExistenceNo:
+			notFoundCount++
+		default:
+			errorCount++
+		}
+	}
+
 	_, _ = fmt.Fprintf(w, "\n  %s\n", heading(useColor, "Summary"))
 	if existsCount > 0 {
 		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d\n", colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset), existsCount)
@@ -521,6 +558,7 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 		Exists            string `json:"exists"`
 		DisplayName       string `json:"display_name,omitempty"`
 		MRI               string `json:"mri,omitempty"`
+		AccountType       string `json:"account_type,omitempty"`
 		Availability      string `json:"availability,omitempty"`
 		DeviceType        string `json:"device_type,omitempty"`
 		Error             string `json:"error,omitempty"`
@@ -543,6 +581,7 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 			Exists:            string(r.Exists),
 			DisplayName:       r.DisplayName,
 			MRI:               r.MRI,
+			AccountType:       teams.AccountType(r.MRI),
 			Availability:      r.Availability,
 			DeviceType:        r.DeviceType,
 			UserType:          r.Type,

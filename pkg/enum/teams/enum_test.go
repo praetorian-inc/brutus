@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -850,5 +851,232 @@ func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
 					"Error must not contain the refresh token")
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: AccountType — table-driven classification of MRI prefixes
+// ---------------------------------------------------------------------------
+
+func TestAccountType(t *testing.T) {
+	tests := []struct {
+		mri  string
+		want string
+	}{
+		{mri: "8:orgid:abc", want: "corporate"},
+		{mri: "8:live:.cid.123", want: "consumer"},
+		{mri: "8:orgid:", want: "corporate"}, // prefix-only (no suffix after colon) is still corporate
+		{mri: "", want: ""},
+		{mri: "weird:mri", want: ""},
+		{mri: "8:orgid:some-long-guid-here", want: "corporate"},
+		{mri: "8:live:user@contoso.com", want: "consumer"},
+		{mri: "8:ORGID:abc", want: ""},    // case-sensitive: uppercase prefix must not match
+		{mri: "8:live", want: ""},         // missing trailing colon — not a valid 8:live: prefix
+		{mri: "28:orgid:abc", want: ""},   // different prefix digit
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.mri, func(t *testing.T) {
+			got := AccountType(tc.mri)
+			assert.Equal(t, tc.want, got, "AccountType(%q) should be %q", tc.mri, tc.want)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: EnumerateWith — callback invoked exactly once per email
+// ---------------------------------------------------------------------------
+
+// searchServerPerEmail returns an httptest.Server that returns a user for
+// emails in the existSet (200 + user JSON) and an empty array for all others.
+func searchServerPerEmail(existEmails map[string]struct{}) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The email appears as the last path segment (URL-encoded).
+		path := r.URL.Path
+		parts := strings.Split(path, "/")
+		email := parts[len(parts)-1]
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if _, exists := existEmails[email]; exists {
+			_, _ = w.Write([]byte(`[{"displayName":"User","mri":"8:orgid:abc"}]`))
+		} else {
+			_, _ = w.Write([]byte(`[]`))
+		}
+	}))
+}
+
+func TestEnumerateWith_CallbackPerResult(t *testing.T) {
+	// Five emails; two exist, three do not.
+	emails := []string{
+		"alice@contoso.com",
+		"bob@contoso.com",
+		"charlie@contoso.com",
+		"dave@contoso.com",
+		"eve@contoso.com",
+	}
+	existSet := map[string]struct{}{
+		"alice@contoso.com": {},
+		"charlie@contoso.com": {},
+	}
+
+	srv := searchServerPerEmail(existSet)
+	defer srv.Close()
+
+	e, err := NewEnumerator("tok", "", "", 5*time.Second, false)
+	require.NoError(t, err)
+	e.searchBaseURL = srv.URL + "/%s"
+
+	var mu sync.Mutex
+	var callbackResults []EnumResult
+
+	results := e.EnumerateWith(
+		context.Background(),
+		emails,
+		4, // threads
+		0, 0,
+		func(r EnumResult) {
+			mu.Lock()
+			callbackResults = append(callbackResults, r)
+			mu.Unlock()
+		},
+	)
+
+	// Returned slice must have one entry per email.
+	require.Len(t, results, len(emails), "EnumerateWith must return one result per email")
+
+	// Callback must be invoked exactly once per email.
+	assert.Len(t, callbackResults, len(emails),
+		"onResult callback must be invoked exactly once per email")
+
+	// The set of emails seen by the callback must equal the input set.
+	cbEmails := make(map[string]struct{}, len(callbackResults))
+	for _, r := range callbackResults {
+		cbEmails[r.Email] = struct{}{}
+	}
+	for _, e := range emails {
+		assert.Contains(t, cbEmails, e,
+			"callback must have been called for email %q", e)
+	}
+
+	// Returned results must preserve input order.
+	for i, r := range results {
+		assert.Equal(t, emails[i], r.Email,
+			"results[%d] must correspond to emails[%d]", i, i)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: EnumerateWith — nil callback behaves like Enumerate
+// ---------------------------------------------------------------------------
+
+func TestEnumerateWith_NilCallback(t *testing.T) {
+	const n = 10
+	srv := searchServerReturning(http.StatusOK, `[]`)
+	defer srv.Close()
+
+	e, err := NewEnumerator("tok", "", "", 5*time.Second, false)
+	require.NoError(t, err)
+	e.searchBaseURL = srv.URL + "/%s"
+
+	emails := make([]string, n)
+	for i := range emails {
+		emails[i] = fmt.Sprintf("user%d@contoso.com", i)
+	}
+
+	// EnumerateWith with nil callback must not panic and must return N results.
+	withResults := e.EnumerateWith(context.Background(), emails, 4, 0, 0, nil)
+	require.Len(t, withResults, n,
+		"EnumerateWith(nil) must return one result per email (no panic)")
+
+	// Enumerate is a thin wrapper over EnumerateWith(nil); results must match in length.
+	enumResults := e.Enumerate(context.Background(), emails, 4, 0, 0)
+	assert.Len(t, enumResults, n,
+		"Enumerate must return the same count as EnumerateWith(nil)")
+
+	// Both should return the same emails in the same order.
+	for i := range withResults {
+		assert.Equal(t, withResults[i].Email, enumResults[i].Email,
+			"Enumerate and EnumerateWith(nil) must agree on result[%d].Email", i)
+		assert.Equal(t, withResults[i].Exists, enumResults[i].Exists,
+			"Enumerate and EnumerateWith(nil) must agree on result[%d].Exists", i)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: EnumerateWith streaming race — non-nil callback under -race
+// ---------------------------------------------------------------------------
+//
+// This test extends TestEnumerate_ConcurrentRefreshNoRace to verify that the
+// streaming (onResult callback) surface is also race-clean when a concurrent
+// 401→refresh→retry is in flight.
+//
+// Design mirrors TestEnumerate_ConcurrentRefreshNoRace: the first HTTP request
+// returns 401 (triggering refreshOnce), subsequent requests succeed. The
+// callback appends under its own mutex, and after the run we assert that:
+//   1. No data race was detected by the -race detector.
+//   2. The callback was invoked exactly N times (once per email).
+
+func TestEnumerateWith_CallbackRace(t *testing.T) {
+	var reqCount atomic.Int32
+	var refreshCount atomic.Int32
+
+	// Server: first call → 401, subsequent → 200 with a user.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := reqCount.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		if n == 1 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"displayName":"U","mri":"8:orgid:u"}]`))
+	}))
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		refreshCount.Add(1)
+		return "refreshed-token", nil
+	})
+
+	const numEmails = 50
+	const numThreads = 8
+	emails := make([]string, numEmails)
+	for i := range emails {
+		emails[i] = fmt.Sprintf("user%d@contoso.com", i)
+	}
+
+	var cbMu sync.Mutex
+	var cbCount int
+
+	results := e.EnumerateWith(
+		context.Background(),
+		emails,
+		numThreads,
+		0, 0,
+		func(r EnumResult) {
+			cbMu.Lock()
+			cbCount++
+			cbMu.Unlock()
+		},
+	)
+
+	// Every email must produce exactly one result.
+	require.Len(t, results, numEmails, "must return one result per email")
+
+	// Callback must be invoked exactly once per email.
+	assert.Equal(t, numEmails, cbCount,
+		"onResult callback must be invoked exactly once per email (race-clean streaming)")
+
+	// Refresh func must be invoked exactly once.
+	assert.Equal(t, int32(1), refreshCount.Load(),
+		"refresh func must be invoked exactly once across concurrent goroutines")
+
+	// All results must be ExistenceYes.
+	for i, r := range results {
+		assert.Equal(t, ExistenceYes, r.Exists,
+			"result[%d] must be ExistenceYes after successful refresh", i)
 	}
 }

@@ -164,8 +164,22 @@ func (e *Enumerator) SetRefreshFunc(fn func(ctx context.Context) (string, error)
 // ---------------------------------------------------------------------------
 
 // Enumerate looks up each email using a bounded worker pool, applying rate
-// limiting and jitter when rateLimit > 0. Results preserve input order.
+// limiting and jitter when rateLimit > 0. Results preserve input order. It is a
+// thin wrapper around EnumerateWith with no per-result callback.
 func (e *Enumerator) Enumerate(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration) []EnumResult {
+	return e.EnumerateWith(ctx, emails, threads, rateLimit, jitter, nil)
+}
+
+// EnumerateWith runs enumeration with bounded concurrency and invokes onResult
+// (if non-nil) for each completed result, serialized so callers can print/stream
+// safely. It still returns all results in input order.
+//
+// onResult is called under the same mutex that guards the results slice, so
+// callback invocations never interleave and never race the slice. The callback
+// must therefore be cheap and self-contained: it may write to an io.Writer or
+// update counters, but it must NOT call back into the Enumerator (doing so risks
+// deadlock and defeats the serialization guarantee).
+func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration, onResult func(EnumResult)) []EnumResult {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -180,19 +194,28 @@ func (e *Enumerator) Enumerate(ctx context.Context, emails []string, threads int
 	results := make([]EnumResult, len(emails))
 	var mu sync.Mutex
 
+	// record stores a completed result and, under the same lock, invokes the
+	// caller's callback so streamed output is serialized and slice-safe.
+	record := func(i int, res EnumResult) {
+		mu.Lock()
+		defer mu.Unlock()
+		results[i] = res
+		if onResult != nil {
+			onResult(res)
+		}
+	}
+
 	for i, email := range emails {
 		i, email := i, email
 		g.Go(func() error {
 			defer func() {
 				if r := recover(); r != nil {
 					fmt.Fprintf(os.Stderr, "teams enum: panic checking %s: %v\n%s\n", email, r, debug.Stack())
-					mu.Lock()
-					results[i] = EnumResult{
+					record(i, EnumResult{
 						Email:  email,
 						Exists: ExistenceUnknown,
 						Error:  fmt.Errorf("teams enum: panicked: %v", r),
-					}
-					mu.Unlock()
+					})
 				}
 			}()
 
@@ -216,10 +239,7 @@ func (e *Enumerator) Enumerate(ctx context.Context, emails []string, threads int
 				}
 			}
 
-			res := e.EnumerateOne(ctx, email)
-			mu.Lock()
-			results[i] = res
-			mu.Unlock()
+			record(i, e.EnumerateOne(ctx, email))
 			return nil
 		})
 	}
@@ -229,6 +249,19 @@ func (e *Enumerator) Enumerate(ctx context.Context, emails []string, threads int
 	// returned error is always nil.
 	_ = g.Wait()
 	return results
+}
+
+// AccountType classifies a Teams MRI: "corporate" (8:orgid:), "consumer"
+// (8:live: / Teams For Life), or "" if unknown/empty.
+func AccountType(mri string) string {
+	switch {
+	case strings.HasPrefix(mri, "8:orgid:"):
+		return "corporate"
+	case strings.HasPrefix(mri, "8:live:"):
+		return "consumer"
+	default:
+		return ""
+	}
 }
 
 // EnumerateOne performs the existence lookup (and optional presence lookup) for

@@ -249,7 +249,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout)
+	baseline, response, width, height, stabilized, nonce, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
@@ -262,7 +262,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey, nonceSkipped)
+	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey, nonce)
 	result.Performed = true
 	result.Stabilized = stabilized
 
@@ -305,7 +305,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout)
+	baseline, response, width, height, stabilized, nonce, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
@@ -318,7 +318,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey, nonceSkipped)
+	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey, nonce)
 	result.Performed = true
 	result.Stabilized = stabilized
 

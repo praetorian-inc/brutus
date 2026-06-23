@@ -16,7 +16,9 @@ package rdp
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -73,22 +75,22 @@ const stableFrames = 3
 // stabilized reflects whether the response pump observed a settled framebuffer.
 // timeout is the per-host budget applied to each pump phase (baseline and response).
 func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
+	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, nonce nonceResult, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
 	// Create session from connector
 	sessionNewFn := inst.mod.ExportedFunction("session_new")
 	if sessionNewFn == nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("session_new not exported")
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("session_new not exported")
 	}
 	results, err := sessionNewFn.Call(callCtx, uint64(connHandle), uint64(width), uint64(height))
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("session_new: %w", err)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("session_new: %w", err)
 	}
 	sessHandle := uint32(results[0])
 	if sessHandle == 0 {
-		return nil, nil, 0, 0, false, fmt.Errorf("session_new returned null handle")
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("session_new returned null handle")
 	}
 
 	// Ensure cleanup
@@ -101,23 +103,23 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 
 	// Pump session to get initial login screen (baseline stabilization is ignored).
 	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
 	// Capture baseline frame
 	baseline, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("capture baseline: %w", err)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("capture baseline: %w", err)
 	}
 
 	// Send 5x Shift key to trigger sticky keys
 	for i := 0; i < 5; i++ {
 		if keyErr := p.sendKey(ctx, inst, sessHandle, leftShiftScancode, true); keyErr != nil {
-			return nil, nil, 0, 0, false, fmt.Errorf("send shift press %d: %w", i+1, keyErr)
+			return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("send shift press %d: %w", i+1, keyErr)
 		}
 		time.Sleep(50 * time.Millisecond)
 		if keyErr := p.sendKey(ctx, inst, sessHandle, leftShiftScancode, false); keyErr != nil {
-			return nil, nil, 0, 0, false, fmt.Errorf("send shift release %d: %w", i+1, keyErr)
+			return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("send shift release %d: %w", i+1, keyErr)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -134,10 +136,18 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// Capture response frame
 	response, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("capture response: %w", err)
 	}
 
-	return baseline, response, width, height, stabilized, nil
+	// Behavioral confirmation (Lever 1): only type the read-only nonce when the
+	// heuristic already sees a backdoor-shaped box; a plainly-clean login screen is
+	// left untouched.
+	nonce = nonceSkipped
+	if v, _, box := detectChangedRectangle(baseline, response, width, height); v {
+		nonce = p.typeAndConfirm(ctx, inst, sessHandle, response, width, height, box, timeout)
+	}
+
+	return baseline, response, width, height, stabilized, nonce, nil
 }
 
 // runUtilmanSession creates a session from the connector, pumps it to receive the login screen bitmap,
@@ -146,22 +156,22 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 // stabilized reflects whether the response pump observed a settled framebuffer.
 // timeout is the per-host budget applied to each pump phase (baseline and response).
 func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
+	width, height uint32, timeout time.Duration) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, nonce nonceResult, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
 	// Create session from connector
 	sessionNewFn := inst.mod.ExportedFunction("session_new")
 	if sessionNewFn == nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("session_new not exported")
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("session_new not exported")
 	}
 	results, err := sessionNewFn.Call(callCtx, uint64(connHandle), uint64(width), uint64(height))
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("session_new: %w", err)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("session_new: %w", err)
 	}
 	sessHandle := uint32(results[0])
 	if sessHandle == 0 {
-		return nil, nil, 0, 0, false, fmt.Errorf("session_new returned null handle")
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("session_new returned null handle")
 	}
 
 	// Ensure cleanup
@@ -174,31 +184,31 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 
 	// Pump session to get initial login screen (baseline stabilization is ignored).
 	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
 	// Capture baseline frame
 	baseline, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("capture baseline: %w", err)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("capture baseline: %w", err)
 	}
 
 	// Send Win+U to trigger Utility Manager (utilman.exe)
 	// Key sequence: press Win, press U, release U, release Win
 	if keyErr := p.sendKey(ctx, inst, sessHandle, leftWinScancode, true); keyErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("send win press: %w", keyErr)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("send win press: %w", keyErr)
 	}
 	time.Sleep(50 * time.Millisecond)
 	if keyErr := p.sendKey(ctx, inst, sessHandle, uKeyScancode, true); keyErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("send u press: %w", keyErr)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("send u press: %w", keyErr)
 	}
 	time.Sleep(50 * time.Millisecond)
 	if keyErr := p.sendKey(ctx, inst, sessHandle, uKeyScancode, false); keyErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("send u release: %w", keyErr)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("send u release: %w", keyErr)
 	}
 	time.Sleep(50 * time.Millisecond)
 	if keyErr := p.sendKey(ctx, inst, sessHandle, leftWinScancode, false); keyErr != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("send win release: %w", keyErr)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("send win release: %w", keyErr)
 	}
 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
@@ -212,10 +222,18 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 	// Capture response frame
 	response, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
+		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("capture response: %w", err)
 	}
 
-	return baseline, response, width, height, stabilized, nil
+	// Behavioral confirmation (Lever 1): only type the read-only nonce when the
+	// heuristic already sees a backdoor-shaped box; a plainly-clean login screen is
+	// left untouched.
+	nonce = nonceSkipped
+	if v, _, box := detectChangedRectangle(baseline, response, width, height); v {
+		nonce = p.typeAndConfirm(ctx, inst, sessHandle, response, width, height, box, timeout)
+	}
+
+	return baseline, response, width, height, stabilized, nonce, nil
 }
 
 // readRDPFrame reads a single complete RDP PDU from the connection.
@@ -510,4 +528,81 @@ func (p *Plugin) sendKey(ctx context.Context, inst *wasmInstance, sessHandle uin
 	}
 
 	return nil
+}
+
+// typeAndConfirm types a benign read-only nonce into the candidate shell, re-captures
+// the framebuffer, and reports whether a shell-like text render appeared. The nonce is
+// `echo BRUTUS-<rand>`: echo only prints a literal string, so it mutates no target state.
+// CARDINAL RULE: any typing/capture error returns nonceUnconfirmed (NEVER clean/confirmed)
+// so an I/O failure on a real backdoor degrades to indeterminate (rerun), never a miss.
+func (p *Plugin) typeAndConfirm(ctx context.Context, inst *wasmInstance, sessHandle uint32,
+	beforeType []byte, width, height uint32, box changedBox, timeout time.Duration) nonceResult {
+
+	command := fmt.Sprintf("echo BRUTUS-%s", randHex(8))
+	if err := p.typeStringPlugin(ctx, inst, sessHandle, command); err != nil {
+		return nonceUnconfirmed
+	}
+	if err := p.sendKey(ctx, inst, sessHandle, enterScancode, true); err != nil {
+		return nonceUnconfirmed
+	}
+	_ = p.sendKey(ctx, inst, sessHandle, enterScancode, false)
+
+	time.Sleep(1500 * time.Millisecond)
+	_, _ = p.pumpSession(ctx, inst, sessHandle, timeout)
+
+	afterType, err := p.captureFrame(ctx, inst, sessHandle)
+	if err != nil {
+		return nonceUnconfirmed
+	}
+
+	return verifyEcho(beforeType, afterType, width, height, box)
+}
+
+// typeStringPlugin types an ASCII string on the *Plugin/sessHandle path by converting each
+// character to scancode press/release events via asciiToScancode, with brief inter-key
+// delays for reliable delivery. It mirrors InteractiveSession.TypeString (interactive.go)
+// but on the *Plugin receiver, which the detection path uses.
+func (p *Plugin) typeStringPlugin(ctx context.Context, inst *wasmInstance, sessHandle uint32, text string) error {
+	for _, ch := range []byte(text) {
+		mapping, ok := asciiToScancode[ch]
+		if !ok {
+			continue // skip unmappable characters
+		}
+
+		if mapping.shift {
+			if err := p.sendKey(ctx, inst, sessHandle, leftShiftScancodeSC, true); err != nil {
+				return fmt.Errorf("shift press: %w", err)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+
+		if err := p.sendKey(ctx, inst, sessHandle, mapping.scancode, true); err != nil {
+			return fmt.Errorf("key press 0x%02X: %w", mapping.scancode, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+		if err := p.sendKey(ctx, inst, sessHandle, mapping.scancode, false); err != nil {
+			return fmt.Errorf("key release 0x%02X: %w", mapping.scancode, err)
+		}
+
+		if mapping.shift {
+			time.Sleep(20 * time.Millisecond)
+			if err := p.sendKey(ctx, inst, sessHandle, leftShiftScancodeSC, false); err != nil {
+				return fmt.Errorf("shift release: %w", err)
+			}
+		}
+
+		time.Sleep(30 * time.Millisecond)
+	}
+	return nil
+}
+
+// randHex returns n random hex characters from crypto/rand (stdlib). On the unlikely
+// event the entropy source fails, it falls back to a fixed marker so the nonce is still
+// well-formed; uniqueness is a convenience, not a security property here.
+func randHex(n int) string {
+	b := make([]byte, (n+1)/2)
+	if _, err := rand.Read(b); err != nil {
+		return "00000000"[:n]
+	}
+	return hex.EncodeToString(b)[:n]
 }

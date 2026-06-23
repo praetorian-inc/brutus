@@ -47,6 +47,12 @@ const (
 	consoleMaxLeftFrac  = 0.25 // minX/width  <= this -> left-anchored
 	consoleMaxTopFrac   = 0.25 // minY/height <= this -> top-anchored
 	dialogMinCenterFrac = 0.30 // box center within [0.30,0.70] of both axes -> centered
+
+	// nonceMinChangedPixels: minimum pixels that must change inside the box after
+	// typing the nonce to count as a shell echo. Set well above single-cursor-cell
+	// blink noise (a text cell is ~8x16 px) so a blinking caret alone never confirms;
+	// an echoed command line + new prompt changes thousands of pixels.
+	nonceMinChangedPixels = 500
 )
 
 // changedBox is the bounding box of significantly-changed pixels plus its fill ratio.
@@ -305,6 +311,41 @@ func decideVerdict(heuristic string, region regionSignal, nonce nonceResult) str
 	// Any uncertain backdoor_likely case (unconfirmed or skipped) is honest indeterminate,
 	// never clean.
 	return verdictIndeterminate
+}
+
+// verifyEcho reports whether typing the nonce produced a shell-like text render inside
+// the candidate box. It is a pure function over the pre-type and post-type framebuffers
+// plus the box: it counts pixels whose brightness changed (same brightness-diff logic as
+// analyzeBackdoorResponse) scoped to the box region, and returns nonceConfirmed when the
+// changed count clears nonceMinChangedPixels (a real shell echoes the line + new prompt),
+// else nonceUnconfirmed (a static dialog renders nothing new).
+func verifyEcho(beforeType, afterType []byte, width, height uint32, box changedBox) nonceResult {
+	w, h := int(width), int(height)
+	if w == 0 || h == 0 || box.maxX <= box.minX || box.maxY <= box.minY {
+		return nonceUnconfirmed
+	}
+
+	changed := 0
+	for y := box.minY; y <= box.maxY; y++ {
+		for x := box.minX; x <= box.maxX; x++ {
+			idx := (y*w + x) * 4
+			if idx+2 >= len(beforeType) || idx+2 >= len(afterType) {
+				continue
+			}
+			diff := pixelBrightness(beforeType, idx) - pixelBrightness(afterType, idx)
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > changeThreshold {
+				changed++
+			}
+		}
+	}
+
+	if changed >= nonceMinChangedPixels {
+		return nonceConfirmed
+	}
+	return nonceUnconfirmed
 }
 
 // rgbaToPNG converts RGBA pixel data to a PNG byte buffer.

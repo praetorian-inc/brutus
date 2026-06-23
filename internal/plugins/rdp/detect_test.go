@@ -327,6 +327,89 @@ func TestSettled(t *testing.T) {
 	}
 }
 
+// makeFrame builds a width*height RGBA buffer filled with a uniform gray value.
+func makeFrame(width, height uint32, gray byte) []byte {
+	buf := make([]byte, int(width)*int(height)*4)
+	for i := 0; i < len(buf); i += 4 {
+		buf[i] = gray
+		buf[i+1] = gray
+		buf[i+2] = gray
+		buf[i+3] = 255
+	}
+	return buf
+}
+
+// flipPixels brightens the first n pixels of buf by delta (clamped at 255) so
+// their inter-frame brightness diff exceeds changeThreshold.
+func flipPixels(buf []byte, n int, delta byte) {
+	for p := 0; p < n; p++ {
+		i := p * 4
+		if i+2 >= len(buf) {
+			break
+		}
+		v := int(buf[i]) + int(delta)
+		if v > 255 {
+			v = 255
+		}
+		buf[i] = byte(v)
+		buf[i+1] = byte(v)
+		buf[i+2] = byte(v)
+	}
+}
+
+// TestFramesQuiet verifies the noise-tolerant inter-frame settle decision used by
+// pumpSession: a frame counts as "quiet" only when the number of pixels whose
+// brightness changed by more than changeThreshold is at most settleNoisePixels.
+// A blinking console cursor (a handful of changed pixels) must read as quiet so
+// a cmd window can settle, while a window repaint (tens of thousands of changed
+// pixels) must NOT be treated as quiet.
+func TestFramesQuiet(t *testing.T) {
+	const w, h = uint32(200), uint32(200) // 40,000 pixels
+
+	tests := []struct {
+		name      string
+		changedPx int
+		wantQuiet bool
+	}{
+		{
+			name:      "identical frames are quiet",
+			changedPx: 0,
+			wantQuiet: true,
+		},
+		{
+			name:      "blinking cursor (few hundred px) is quiet",
+			changedPx: 300,
+			wantQuiet: true,
+		},
+		{
+			name:      "exactly at settleNoisePixels is quiet",
+			changedPx: settleNoisePixels,
+			wantQuiet: true,
+		},
+		{
+			name:      "one above settleNoisePixels is not quiet",
+			changedPx: settleNoisePixels + 1,
+			wantQuiet: false,
+		},
+		{
+			name:      "window repaint (tens of thousands px) is not quiet",
+			changedPx: 30000,
+			wantQuiet: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			prev := makeFrame(w, h, 100)
+			cur := makeFrame(w, h, 100)
+			flipPixels(cur, tc.changedPx, changeThreshold+20) // diff well above threshold
+
+			got := framesQuiet(prev, cur, w, h)
+			assert.Equal(t, tc.wantQuiet, got)
+		})
+	}
+}
+
 // TestScanTypeLabeling verifies that StickyKeys and Utilman scans
 // are labeled with distinct scan_type values for JSONL output.
 func TestScanTypeLabeling(t *testing.T) {

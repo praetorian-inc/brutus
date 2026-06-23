@@ -38,20 +38,22 @@ var wordlistFS embed.FS
 
 // Username format constants.
 const (
-	FormatFirstDotLast = "first.last" // john.smith
-	FormatFLast        = "flast"      // jsmith
-	FormatFirstL       = "firstl"     // johns
-	FormatFDotLast     = "f.last"     // j.smith
-	FormatLastF        = "lastf"      // smithj
-	FormatLastDotFirst = "last.first" // smith.john
-	FormatLastFirst    = "lastfirst"  // smithjohn
-	FormatFirst        = "first"      // john
+	FormatFirstDotLast   = "first.last" // john.smith
+	FormatFirstUnderLast = "first_last" // john_smith
+	FormatFLast          = "flast"      // jsmith
+	FormatFirstL         = "firstl"     // johns
+	FormatFDotLast       = "f.last"     // j.smith
+	FormatLastF          = "lastf"      // smithj
+	FormatLastDotFirst   = "last.first" // smith.john
+	FormatLastFirst      = "lastfirst"  // smithjohn
+	FormatFirst          = "first"      // john
 )
 
 // ListFormats returns all available username format names.
 func ListFormats() []string {
 	return []string{
 		FormatFirstDotLast,
+		FormatFirstUnderLast,
 		FormatFLast,
 		FormatFirstL,
 		FormatFDotLast,
@@ -163,6 +165,11 @@ func formatUsername(first, lastRaw, format string) string {
 	switch format {
 	case FormatFirstDotLast:
 		return first + "." + lastRaw
+	case FormatFirstUnderLast:
+		if lastConcat == "" {
+			return ""
+		}
+		return first + "_" + lastConcat
 	case FormatFLast:
 		if lastConcat == "" {
 			return ""

@@ -80,6 +80,7 @@ func TestGenerateUsernames_DerivedFormats(t *testing.T) {
 		{FormatLastDotFirst, "smith.john"},
 		{FormatLastFirst, "smithjohn"},
 		{FormatFirst, "john"},
+		{FormatFirstUnderLast, "john_smith"},
 	}
 
 	for _, tc := range tests {
@@ -187,6 +188,7 @@ func TestGenerateUsernames_MultiPartSurnames(t *testing.T) {
 		FormatLastF,
 		FormatLastFirst,
 		FormatFirst,
+		FormatFirstUnderLast,
 	}
 
 	for _, format := range noDotFormats {
@@ -217,7 +219,7 @@ func TestGenerateUsernames_AllFormatsBoundedAndNonEmpty(t *testing.T) {
 	t.Parallel()
 
 	formats := ListFormats()
-	require.Len(t, formats, 8, "ListFormats must return exactly 8 formats")
+	require.Len(t, formats, 9, "ListFormats must return exactly 9 formats")
 
 	for _, format := range formats {
 		format := format
@@ -293,6 +295,116 @@ func TestGenerateEmails(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, len(usernames), len(emails),
 		"GenerateEmails must produce the same count as GenerateUsernames for the same format")
+}
+
+// ---------------------------------------------------------------------------
+// TestListFormats_IncludesFirstUnderLast
+// ---------------------------------------------------------------------------
+
+// TestListFormats_IncludesFirstUnderLast verifies that ListFormats includes the
+// "first_last" format constant.
+func TestListFormats_IncludesFirstUnderLast(t *testing.T) {
+	t.Parallel()
+
+	formats := ListFormats()
+	assert.Contains(t, formats, FormatFirstUnderLast,
+		"ListFormats must include FormatFirstUnderLast (%q)", FormatFirstUnderLast)
+}
+
+// ---------------------------------------------------------------------------
+// TestGenerateUsernames_FirstUnderLast
+// ---------------------------------------------------------------------------
+
+// TestGenerateUsernames_FirstUnderLast verifies all structural properties of
+// the first_last format: ranked head entry, underscore separator, no dots,
+// all-lowercase, deduplication, and bounds.
+func TestGenerateUsernames_FirstUnderLast(t *testing.T) {
+	t.Parallel()
+
+	result, err := GenerateUsernames(FormatFirstUnderLast)
+	require.NoError(t, err)
+
+	// Non-empty and bounded.
+	require.NotEmpty(t, result, "first_last must produce at least one username")
+	assert.LessOrEqual(t, len(result), maxWordlistSize,
+		"first_last result length must not exceed the wordlist size")
+
+	// Ranked head: john.smith → john_smith.
+	// Report actual value rather than force-failing if the wordlist ever changes.
+	if result[0] != "john_smith" {
+		t.Logf("first_last: expected first entry %q, got %q — reporting actual value",
+			"john_smith", result[0])
+	}
+	assert.Equal(t, "john_smith", result[0],
+		"first_last: first entry must be derived from the #1 ranked pair (john.smith)")
+
+	// Every entry must contain exactly one underscore and no dots.
+	for _, u := range result {
+		assert.Equal(t, 1, strings.Count(u, "_"),
+			"first_last entry %q must contain exactly one underscore", u)
+		assert.False(t, strings.Contains(u, "."),
+			"first_last entry %q must not contain dots (lastConcat strips them)", u)
+	}
+
+	// All entries must be non-empty and all-lowercase.
+	for i, u := range result {
+		assert.NotEmpty(t, u, "first_last: entry at index %d must not be empty", i)
+		assert.Equal(t, strings.ToLower(u), u,
+			"first_last: entry %q must be all lowercase", u)
+	}
+
+	// Deduplication: no duplicate entries.
+	seen := make(map[string]bool, len(result))
+	for _, u := range result {
+		assert.False(t, seen[u],
+			"first_last: duplicate entry found: %q", u)
+		seen[u] = true
+	}
+
+	// Multi-part surname check: juan.dela.cruz → juan_delacruz (dots stripped).
+	// The multi-part surname juan.dela.cruz should appear somewhere in the results
+	// (if present in wordlist) as "juan_delacruz", not "juan_dela.cruz".
+	for _, u := range result {
+		assert.False(t, strings.Contains(u, "."),
+			"first_last entry %q must not contain dots from multi-part surnames", u)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestGenerateEmails_FirstUnderLast
+// ---------------------------------------------------------------------------
+
+// TestGenerateEmails_FirstUnderLast verifies that GenerateEmails with
+// first_last format produces properly formatted email addresses.
+func TestGenerateEmails_FirstUnderLast(t *testing.T) {
+	t.Parallel()
+
+	const domain = "kindermorgan.com"
+
+	emails, err := GenerateEmails(FormatFirstUnderLast, domain)
+	require.NoError(t, err)
+	require.NotEmpty(t, emails)
+
+	// Ranked head: john_smith@kindermorgan.com.
+	if emails[0] != "john_smith@kindermorgan.com" {
+		t.Logf("first_last email: expected first entry %q, got %q — reporting actual value",
+			"john_smith@kindermorgan.com", emails[0])
+	}
+	assert.Equal(t, "john_smith@kindermorgan.com", emails[0],
+		"first_last email: first entry must be john_smith@kindermorgan.com")
+
+	// Every entry must end with @kindermorgan.com.
+	suffix := "@" + domain
+	for i, e := range emails {
+		assert.True(t, strings.HasSuffix(e, suffix),
+			"email at index %d (%q) must end with %q", i, e, suffix)
+	}
+
+	// Count must match the corresponding username generation.
+	usernames, err := GenerateUsernames(FormatFirstUnderLast)
+	require.NoError(t, err)
+	assert.Equal(t, len(usernames), len(emails),
+		"GenerateEmails must produce the same count as GenerateUsernames for first_last")
 }
 
 // ---------------------------------------------------------------------------

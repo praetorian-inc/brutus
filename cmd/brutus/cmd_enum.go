@@ -78,6 +78,7 @@ username. Use --limit to emit only the first N (most likely) entries.
 
 Available formats:
   first.last  john.smith (default)
+  first_last  john_smith
   flast       jsmith
   firstl      johns
   f.last      j.smith
@@ -106,7 +107,7 @@ func init() {
 	// Register generate flags
 	f := enumGenerateCmd.Flags()
 	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to append to generated usernames (omit to generate usernames only)")
-	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format (first.last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
+	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
 	f.IntVar(&flagEnumGenerateLimit, "limit", 0, "Emit only the first N (most-likely) results (0 = no limit, emit all)")
 
 	// Wire commands

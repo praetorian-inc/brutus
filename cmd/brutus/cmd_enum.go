@@ -27,8 +27,9 @@ import (
 
 // Shared enum flag variables
 var (
-	flagEnumDomain string
-	flagEnumFormat string
+	flagEnumDomain        string
+	flagEnumFormat        string
+	flagEnumGenerateLimit int
 )
 
 var enumCmd = &cobra.Command{
@@ -69,9 +70,11 @@ See subcommand help for details:
 var enumGenerateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate email addresses or usernames from embedded name lists",
-	Long: `Generate email addresses by combining embedded first/last name wordlists
-with a domain using a specified format pattern. Without --domain, generates
-usernames only (for piping to other tools).
+	Long: `Generate email addresses or usernames from a bundled list of ~248,000
+statistically-likely names, ranked by frequency (most likely first). Every
+format is derived from the same ranked "first.last" pairs, so output is bounded
+and ordered by likelihood. With --domain, the domain is appended to each
+username. Use --limit to emit only the first N (most likely) entries.
 
 Available formats:
   first.last  john.smith (default)
@@ -91,8 +94,11 @@ Available formats:
   # Generate john.smith@example.com (default format)
   brutus enum generate --domain example.com
 
-  # Pipe to Kerberos enum
-  brutus enum generate --format flast | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -`,
+  # Emit only the 1000 most-likely emails
+  brutus enum generate --domain example.com --limit 1000
+
+  # Pipe the 500 most-likely usernames to Kerberos enum
+  brutus enum generate --format flast --limit 500 | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -`,
 	RunE: runEnumGenerate,
 }
 
@@ -101,6 +107,7 @@ func init() {
 	f := enumGenerateCmd.Flags()
 	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to append to generated usernames (omit to generate usernames only)")
 	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format (first.last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
+	f.IntVar(&flagEnumGenerateLimit, "limit", 0, "Emit only the first N (most-likely) results (0 = no limit, emit all)")
 
 	// Wire commands
 	enumCmd.AddCommand(enumGenerateCmd)
@@ -119,7 +126,7 @@ func runEnumGenerate(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("generating usernames: %w", err)
 		}
-		for _, u := range usernames {
+		for _, u := range capResults(usernames, flagEnumGenerateLimit) {
 			fmt.Println(u)
 		}
 		return nil
@@ -130,10 +137,19 @@ func runEnumGenerate(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("generating emails: %w", err)
 	}
-	for _, e := range emails {
+	for _, e := range capResults(emails, flagEnumGenerateLimit) {
 		fmt.Println(e)
 	}
 	return nil
+}
+
+// capResults returns the first limit elements of results (the most likely,
+// since results are frequency-ranked). A limit <= 0 means no cap.
+func capResults(results []string, limit int) []string {
+	if limit <= 0 || limit >= len(results) {
+		return results
+	}
+	return results[:limit]
 }
 
 // loadLinesFromFile reads lines from a file (one per line).

@@ -278,6 +278,55 @@ func TestStabilizedVerdict(t *testing.T) {
 	}
 }
 
+// TestSettled verifies the wall-clock settle decision used by pumpSession:
+// a framebuffer counts as settled only once BOTH a minimum pump time
+// (minPumpTime) has elapsed since the pump started AND the framebuffer has
+// been unchanged for at least the quiet window (settleQuietWindow). A brief
+// mid-paint pause that is shorter than the quiet window must NOT be treated as
+// settled, which is the root cause of the half-painted-frame capture bug.
+func TestSettled(t *testing.T) {
+	start := time.Time{}
+
+	tests := []struct {
+		name       string
+		now        time.Duration // since start
+		lastChange time.Duration // since start
+		want       bool
+	}{
+		{
+			name:       "before minPumpTime never settles even if quiet",
+			now:        minPumpTime - 100*time.Millisecond,
+			lastChange: 0, // quiet the whole time
+			want:       false,
+		},
+		{
+			name:       "after minPumpTime but quiet window not yet elapsed (mid-paint pause)",
+			now:        minPumpTime + 500*time.Millisecond,
+			lastChange: minPumpTime + 500*time.Millisecond - (settleQuietWindow - 100*time.Millisecond),
+			want:       false,
+		},
+		{
+			name:       "after minPumpTime and quiet window elapsed -> settled",
+			now:        minPumpTime + settleQuietWindow + 100*time.Millisecond,
+			lastChange: 0,
+			want:       true,
+		},
+		{
+			name:       "quiet window satisfied but minPumpTime not -> not settled",
+			now:        settleQuietWindow + 100*time.Millisecond,
+			lastChange: 0,
+			want:       settleQuietWindow+100*time.Millisecond >= minPumpTime,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := settled(start, start.Add(tc.lastChange), start.Add(tc.now))
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 // TestScanTypeLabeling verifies that StickyKeys and Utilman scans
 // are labeled with distinct scan_type values for JSONL output.
 func TestScanTypeLabeling(t *testing.T) {

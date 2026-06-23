@@ -53,7 +53,7 @@ func TestOutputTeamsAuditJSONL(t *testing.T) {
 		{
 			ID:          "teams-user-enumeration",
 			Title:       "Teams user enumeration possible",
-			Severity:    teams.SeverityLow,
+			Severity:    teams.SeverityInfo,
 			Description: "The Teams externalsearchv3 endpoint acts as an oracle.",
 			Evidence:    "externalsearchv3 distinguishes valid vs invalid users",
 			Affected:    "contoso.com (alice@contoso.com)",
@@ -183,7 +183,7 @@ func TestOutputTeamsAuditHuman_Sanitizes(t *testing.T) {
 			{
 				ID:          "teams-user-enumeration",
 				Title:       "Teams user enumeration possible",
-				Severity:    teams.SeverityLow,
+				Severity:    teams.SeverityInfo,
 				Description: "Some description.",
 				Evidence:    maliciousEvidence,
 				Affected:    "contoso.com (alice@contoso.com)",

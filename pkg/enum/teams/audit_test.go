@@ -81,24 +81,24 @@ func TestAudit_ExternalAccessOpen(t *testing.T) {
 func TestAudit_UserEnumeration(t *testing.T) {
 	posture := TenantPosture{ExternalChatAllowed: "open"}
 
-	t.Run("ExistenceYes emits teams-user-enumeration Low", func(t *testing.T) {
+	t.Run("ExistenceYes emits teams-user-enumeration Info", func(t *testing.T) {
 		result := EnumResult{Exists: ExistenceYes}
 		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
 
 		f, ok := findFinding(findings, "teams-user-enumeration")
 		require.True(t, ok, "teams-user-enumeration must be present when Exists==ExistenceYes")
-		assert.Equal(t, SeverityLow, f.Severity,
-			"teams-user-enumeration severity must be SeverityLow")
+		assert.Equal(t, SeverityInfo, f.Severity,
+			"teams-user-enumeration severity must be SeverityInfo")
 	})
 
-	t.Run("ExistenceBlocked emits teams-user-enumeration Low", func(t *testing.T) {
+	t.Run("ExistenceBlocked emits teams-user-enumeration Info", func(t *testing.T) {
 		result := EnumResult{Exists: ExistenceBlocked}
 		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
 
 		f, ok := findFinding(findings, "teams-user-enumeration")
 		require.True(t, ok, "teams-user-enumeration must be present when Exists==ExistenceBlocked")
-		assert.Equal(t, SeverityLow, f.Severity,
-			"teams-user-enumeration severity must be SeverityLow for Blocked")
+		assert.Equal(t, SeverityInfo, f.Severity,
+			"teams-user-enumeration severity must be SeverityInfo for Blocked")
 	})
 
 	t.Run("ExistenceNo omits teams-user-enumeration", func(t *testing.T) {
@@ -260,15 +260,15 @@ func TestAudit_MetadataDisclosure(t *testing.T) {
 func TestAudit_Ordering(t *testing.T) {
 	// Craft a result+posture that triggers Medium + Low + Info findings.
 	// ExternalChatAllowed=="open" → teams-external-access (Medium)
-	// Exists==ExistenceYes → teams-user-enumeration (Low)
-	// UserPrincipalName set → teams-metadata-disclosure (Info)
+	// presenceChecked==true + Availability set → teams-presence-disclosure (Low)
+	// Exists==ExistenceYes → teams-user-enumeration (Info)
 	result := EnumResult{
-		Exists:            ExistenceYes,
-		UserPrincipalName: "alice@contoso.com",
+		Exists:       ExistenceYes,
+		Availability: "Busy",
 	}
 	posture := TenantPosture{ExternalChatAllowed: "open"}
 
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+	findings := Audit("contoso.com", "alice@contoso.com", result, posture, true /* presenceChecked */)
 
 	require.GreaterOrEqual(t, len(findings), 3,
 		"expected at least 3 findings for ordering test: Medium + Low + Info")
@@ -318,11 +318,13 @@ func TestAudit_Ordering(t *testing.T) {
 // TestAudit_Ordering_WithinSeverityByID verifies that when two findings share
 // the same severity they are sorted by ID (ascending).
 func TestAudit_Ordering_WithinSeverityByID(t *testing.T) {
-	// Trigger all three Low findings to verify alphabetic ordering within Low:
+	// Trigger the two Low findings and verify alphabetic ordering within Low:
 	// - teams-oof-disclosure       (Low)
 	// - teams-presence-disclosure  (Low)
-	// - teams-user-enumeration     (Low)
-	// Alphabetically: oof < presence < user
+	// Alphabetically: oof < presence
+	//
+	// teams-user-enumeration is now Info (not Low), so it must appear in the Info
+	// group and must not appear among Low findings.
 	result := EnumResult{
 		Exists:          ExistenceYes,
 		Availability:    "Busy",
@@ -333,21 +335,34 @@ func TestAudit_Ordering_WithinSeverityByID(t *testing.T) {
 	findings := Audit("contoso.com", "alice@contoso.com", result, posture, true /* presenceChecked */)
 
 	var lowFindings []Finding
+	var infoFindings []Finding
 	for _, f := range findings {
-		if f.Severity == SeverityLow {
+		switch f.Severity {
+		case SeverityLow:
 			lowFindings = append(lowFindings, f)
+		case SeverityInfo:
+			infoFindings = append(infoFindings, f)
 		}
 	}
 
-	require.Len(t, lowFindings, 3, "expected 3 Low findings in this scenario")
+	require.Len(t, lowFindings, 2, "expected 2 Low findings in this scenario (oof + presence)")
 
 	// Verify alphabetic ID ordering within the Low tier.
 	assert.Equal(t, "teams-oof-disclosure", lowFindings[0].ID,
 		"first Low finding must be teams-oof-disclosure (alphabetically first)")
 	assert.Equal(t, "teams-presence-disclosure", lowFindings[1].ID,
 		"second Low finding must be teams-presence-disclosure")
-	assert.Equal(t, "teams-user-enumeration", lowFindings[2].ID,
-		"third Low finding must be teams-user-enumeration")
+
+	// teams-user-enumeration must appear among the Info findings.
+	var userEnumFound bool
+	for _, f := range infoFindings {
+		if f.ID == "teams-user-enumeration" {
+			userEnumFound = true
+			break
+		}
+	}
+	assert.True(t, userEnumFound,
+		"teams-user-enumeration must appear among Info-severity findings (severity changed from Low to Info)")
 }
 
 // ---------------------------------------------------------------------------

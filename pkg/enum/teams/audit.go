@@ -113,11 +113,11 @@ func userEnumerationFinding(domain, seedEmail string) Finding {
 	return Finding{
 		ID:          "teams-user-enumeration",
 		Title:       "Teams user enumeration possible",
-		Severity:    SeverityLow,
-		Description: "The Teams externalsearchv3 endpoint behaves as a user-existence oracle: it distinguishes valid from invalid addresses, allowing an external party to enumerate which accounts exist in the tenant.",
+		Severity:    SeverityInfo,
+		Description: "Microsoft Teams distinguishes valid from invalid users via the externalsearchv3 endpoint (a 200 with data vs an empty 200 vs a 403), enabling email/user enumeration.",
 		Evidence:    "externalsearchv3 distinguishes valid vs invalid users (200 with data vs empty 200 vs 403)",
 		Affected:    affected(domain, seedEmail),
-		Remediation: "This largely cannot be prevented for organizational accounts. Reduce external exposure (restrict federation/external access) and monitor for bulk enumeration patterns.",
+		Remediation: "Informational: this is inherent to Microsoft Teams and cannot be disabled by the tenant. It is noted for awareness; monitor for bulk-enumeration patterns and minimize external exposure overall.",
 	}
 }
 

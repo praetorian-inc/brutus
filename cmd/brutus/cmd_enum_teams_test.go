@@ -296,6 +296,220 @@ func TestOutputTeamsTokenHuman(t *testing.T) {
 // outputTeamsDeviceCodeHuman
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Test: teamsEnumDomain
+// ---------------------------------------------------------------------------
+
+func TestTeamsEnumDomain(t *testing.T) {
+	tests := []struct {
+		name   string
+		emails []string
+		want   string
+	}{
+		{
+			name:   "single domain returns that domain",
+			emails: []string{"a@x.com", "b@x.com"},
+			want:   "x.com",
+		},
+		{
+			name:   "mixed domains returns (multiple)",
+			emails: []string{"a@x.com", "b@y.com"},
+			want:   "(multiple)",
+		},
+		{
+			name:   "no @ in any email returns empty string",
+			emails: []string{"noemail", "alsononeat"},
+			want:   "",
+		},
+		{
+			name:   "empty list returns empty string",
+			emails: []string{},
+			want:   "",
+		},
+		{
+			name:   "@ at end of string (no domain part) is skipped",
+			emails: []string{"trailing@"},
+			want:   "",
+		},
+		{
+			name:   "single email with domain",
+			emails: []string{"alice@contoso.com"},
+			want:   "contoso.com",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			got := teamsEnumDomain(tc.emails)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: outputTeamsPostureJSONL — type discriminator, field values
+// ---------------------------------------------------------------------------
+
+func TestOutputTeamsPostureJSONL(t *testing.T) {
+	posture := teams.TenantPosture{
+		Domain:              "contoso.com",
+		Total:               10,
+		UsersFound:          6,
+		Blocked403:          2,
+		ExternalChatAllowed: "open",
+		FederatedObserved:   true,
+		PresenceVisible:     true,
+		OOOExposed:          3,
+		CoExistenceMode:     "TeamsOnly",
+	}
+
+	var buf bytes.Buffer
+	outputTeamsPostureJSONL(&buf, posture)
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	require.Len(t, lines, 1, "outputTeamsPostureJSONL must emit exactly 1 JSONL line")
+
+	var obj map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj), "posture line must be valid JSON")
+
+	// Type discriminator must be teams_posture.
+	assert.Equal(t, "teams_posture", obj["type"],
+		"type field must be \"teams_posture\"")
+
+	// All posture fields must round-trip.
+	assert.Equal(t, "contoso.com", obj["domain"])
+	assert.Equal(t, float64(10), obj["total"])
+	assert.Equal(t, float64(6), obj["users_found"])
+	assert.Equal(t, float64(2), obj["blocked_403"])
+	assert.Equal(t, "open", obj["external_chat_allowed"])
+	assert.Equal(t, true, obj["federated_observed"])
+	assert.Equal(t, true, obj["presence_visible"])
+	assert.Equal(t, float64(3), obj["ooo_exposed"])
+	assert.Equal(t, "TeamsOnly", obj["coexistence_mode"])
+}
+
+// ---------------------------------------------------------------------------
+// Test: outputTeamsEnumJSONL — config fields (user_type not "type", no tokens,
+// ANSI escape sanitization)
+// ---------------------------------------------------------------------------
+
+func TestOutputTeamsEnumJSONL_ConfigFields(t *testing.T) {
+	acctEnabled := true
+	results := []teams.EnumResult{
+		{
+			Email:             "paul.davis@kindermorgan.com",
+			Exists:            teams.ExistenceYes,
+			DisplayName:       "Paul Davis",
+			MRI:               "8:orgid:abc",
+			Type:              "Federated",
+			TenantID:          "t-123",
+			UserPrincipalName: "paul.davis@kindermorgan.com",
+			ObjectID:          "o-456",
+			AccountEnabled:    &acctEnabled,
+			CoExistenceMode:   "TeamsOnly",
+			SourceNetwork:     "Federated",
+			OutOfOfficeNote:   "Back Monday",
+		},
+	}
+
+	var buf bytes.Buffer
+	outputTeamsEnumJSONL(&buf, results)
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	require.Len(t, lines, 1)
+
+	var obj map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj))
+
+	// Object-level type discriminator must be teams_enum.
+	assert.Equal(t, "teams_enum", obj["type"],
+		"type must be the object discriminator \"teams_enum\", not the user Type value")
+
+	// User type must live in user_type (not in "type").
+	assert.Equal(t, "Federated", obj["user_type"],
+		"user Type field must be serialized as user_type")
+
+	// Verify all config fields are present.
+	assert.Equal(t, "t-123", obj["tenant_id"])
+	assert.Equal(t, "paul.davis@kindermorgan.com", obj["user_principal_name"])
+	assert.Equal(t, "o-456", obj["object_id"])
+	assert.Equal(t, true, obj["account_enabled"])
+	assert.Equal(t, "TeamsOnly", obj["coexistence_mode"])
+	assert.Equal(t, "Federated", obj["source_network"])
+	assert.Equal(t, "Back Monday", obj["out_of_office_note"])
+
+	// No token fields must appear anywhere in the JSONL line (P0-1).
+	tokenFields := []string{"access_token", "refresh_token", "id_token"}
+	for _, field := range tokenFields {
+		assert.NotContains(t, lines[0], field,
+			"JSONL output must never contain token field %q", field)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: ANSI escape in OutOfOfficeNote is sanitized in human output and escaped
+// in JSONL output
+// ---------------------------------------------------------------------------
+
+func TestOutputTeamsEnumJSONL_ANSIEscapeInOOO(t *testing.T) {
+	// A malicious OutOfOfficeNote containing a raw ESC byte.
+	results := []teams.EnumResult{
+		{
+			Email:           "evil@contoso.com",
+			Exists:          teams.ExistenceYes,
+			OutOfOfficeNote: "\x1b[31mRED",
+		},
+	}
+
+	var buf bytes.Buffer
+	outputTeamsEnumJSONL(&buf, results)
+
+	line := strings.TrimSpace(buf.String())
+
+	// encoding/json must have JSON-escaped the 0x1B byte; the raw ESC byte
+	// must NOT appear in the output.
+	assert.NotContains(t, line, "\x1b",
+		"raw ESC byte 0x1B must be JSON-escaped in JSONL output")
+
+	// Verify the JSON is still valid after encoding.
+	var escObj map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(line), &escObj),
+		"JSONL line with JSON-escaped ESC must still be valid JSON")
+	assert.NotEmpty(t, escObj["out_of_office_note"],
+		"out_of_office_note must be non-empty after JSON encoding")
+}
+
+// ---------------------------------------------------------------------------
+// Test: sanitizeTerminal strips ESC in CoExistenceMode (posture human output)
+// ---------------------------------------------------------------------------
+
+func TestOutputTeamsPostureHuman_SanitizesCoExistenceMode(t *testing.T) {
+	// Inject a CoExistenceMode containing an ANSI CSI sequence.
+	posture := teams.TenantPosture{
+		Domain:              "contoso.com",
+		Total:               1,
+		UsersFound:          1,
+		Blocked403:          0,
+		ExternalChatAllowed: "open",
+		CoExistenceMode:     "\x1b[2JTeamsOnly",
+	}
+
+	var buf bytes.Buffer
+	outputTeamsPostureHuman(&buf, posture, false /* useColor */)
+	out := buf.String()
+
+	// Raw ESC must be absent — sanitizeTerminal strips it.
+	assert.NotContains(t, out, "\x1b",
+		"raw ESC byte must be stripped by sanitizeTerminal in posture human output")
+	// The ANSI sequence payload must also be absent.
+	assert.NotContains(t, out, "[2J",
+		"ANSI CSI sequence payload must be stripped from human posture output")
+	// The printable text must survive.
+	assert.Contains(t, out, "TeamsOnly",
+		"printable CoExistenceMode text must survive sanitizeTerminal")
+}
+
 func TestOutputTeamsDeviceCodeHuman(t *testing.T) {
 	t.Run("outputs VerificationURI and UserCode", func(t *testing.T) {
 		dc := &teams.DeviceCode{

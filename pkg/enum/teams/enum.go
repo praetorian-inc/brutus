@@ -63,6 +63,37 @@ type EnumResult struct {
 	Availability string
 	DeviceType   string
 	Error        error
+
+	// Tenant-configuration posture signals, parsed defensively from the
+	// externalsearchv3 result (Type/TenantID/UserPrincipalName/ObjectID/
+	// AccountEnabled/CoExistenceMode) and the presence response (SourceNetwork/
+	// OutOfOfficeNote). Absent fields stay empty (AccountEnabled stays nil), so
+	// existence behavior is never affected. These strings are server-provided
+	// and are NOT sanitized here; sanitization happens at the output layer.
+	Type              string
+	TenantID          string
+	UserPrincipalName string
+	ObjectID          string
+	AccountEnabled    *bool
+	CoExistenceMode   string
+	SourceNetwork     string
+	OutOfOfficeNote   string
+}
+
+// TenantPosture is a tenant-level configuration verdict aggregated from the
+// per-user EnumResults for a single target domain. It surfaces cross-tenant /
+// external-access posture, presence visibility, out-of-office leakage, and
+// observed coexistence/federation metadata.
+type TenantPosture struct {
+	Domain              string
+	Total               int
+	UsersFound          int    // Exists == ExistenceYes
+	Blocked403          int    // Exists == ExistenceBlocked (HTTP 403)
+	ExternalChatAllowed string // "open" | "blocked" | "unknown"
+	FederatedObserved   bool   // any result with Type=="Federated" or SourceNetwork=="Federated"
+	PresenceVisible     bool   // any result with non-empty Availability
+	OOOExposed          int    // count with non-empty OutOfOfficeNote
+	CoExistenceMode     string // first non-empty observed
 }
 
 // Enumerator performs corporate Microsoft Teams user enumeration against the
@@ -232,6 +263,12 @@ func (e *Enumerator) EnumerateOne(ctx context.Context, email string) EnumResult 
 		res.Exists = ExistenceYes
 		res.DisplayName = users[0].DisplayName
 		res.MRI = users[0].MRI
+		res.Type = users[0].Type
+		res.TenantID = users[0].TenantID
+		res.UserPrincipalName = users[0].UserPrincipalName
+		res.ObjectID = users[0].ObjectID
+		res.AccountEnabled = users[0].AccountEnabled
+		res.CoExistenceMode = users[0].FeatureSettings.CoExistenceMode
 	case status == http.StatusForbidden:
 		res.Exists = ExistenceBlocked
 		return res
@@ -249,13 +286,65 @@ func (e *Enumerator) EnumerateOne(ctx context.Context, email string) EnumResult 
 
 	// Presence is best-effort: failures are non-fatal and leave the fields empty.
 	if e.presence && res.Exists == ExistenceYes && res.MRI != "" {
-		if avail, device, ok := e.getPresence(ctx, res.MRI); ok {
-			res.Availability = avail
-			res.DeviceType = device
+		if p, ok := e.getPresence(ctx, res.MRI); ok {
+			res.Availability = p.Availability
+			res.DeviceType = p.DeviceType
+			res.SourceNetwork = p.SourceNetwork
+			res.OutOfOfficeNote = p.OutOfOfficeNote
 		}
 	}
 
 	return res
+}
+
+// DerivePosture aggregates per-user results into a tenant-level verdict for the
+// given domain. The caller derives domain from the target emails. Aggregation
+// is defensive: absent signals leave fields at their zero value.
+//
+// ExternalChatAllowed reflects whether the externalsearchv3 endpoint answered:
+// any resolvable user means external/cross-tenant communication is permitted
+// ("open"); a 403 with no resolvable users means external search is blocked
+// ("blocked"); otherwise the posture is "unknown".
+func DerivePosture(domain string, results []EnumResult) TenantPosture {
+	p := TenantPosture{
+		Domain: domain,
+		Total:  len(results),
+	}
+
+	for i := range results {
+		r := &results[i]
+
+		switch r.Exists {
+		case ExistenceYes:
+			p.UsersFound++
+		case ExistenceBlocked:
+			p.Blocked403++
+		}
+
+		if strings.EqualFold(r.Type, "Federated") || r.SourceNetwork == "Federated" {
+			p.FederatedObserved = true
+		}
+		if r.Availability != "" {
+			p.PresenceVisible = true
+		}
+		if r.OutOfOfficeNote != "" {
+			p.OOOExposed++
+		}
+		if p.CoExistenceMode == "" && r.CoExistenceMode != "" {
+			p.CoExistenceMode = r.CoExistenceMode
+		}
+	}
+
+	switch {
+	case p.UsersFound > 0:
+		p.ExternalChatAllowed = "open"
+	case p.Blocked403 > 0:
+		p.ExternalChatAllowed = "blocked"
+	default:
+		p.ExternalChatAllowed = "unknown"
+	}
+
+	return p
 }
 
 // ---------------------------------------------------------------------------
@@ -299,37 +388,59 @@ func (e *Enumerator) search(ctx context.Context, email, token string) ([]searchU
 	return users, resp.StatusCode, nil
 }
 
+// presenceInfo holds the presence-derived signals extracted from a getpresence
+// response. All fields are best-effort and stay empty when absent.
+type presenceInfo struct {
+	Availability    string
+	DeviceType      string
+	SourceNetwork   string
+	OutOfOfficeNote string
+}
+
 // getPresence fetches Teams presence for the given MRI. It returns ok=false on
 // any failure (best-effort).
-func (e *Enumerator) getPresence(ctx context.Context, mri string) (availability, deviceType string, ok bool) {
+func (e *Enumerator) getPresence(ctx context.Context, mri string) (presenceInfo, bool) {
 	reqBody, err := json.Marshal([]presenceRequest{{MRI: mri}})
 	if err != nil {
-		return "", "", false
+		return presenceInfo{}, false
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.presenceBaseURL, strings.NewReader(string(reqBody)))
 	if err != nil {
-		return "", "", false
+		return presenceInfo{}, false
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+e.token())
 
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		return "", "", false
+		return presenceInfo{}, false
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxEnumBody))
 	if err != nil || resp.StatusCode != http.StatusOK {
-		return "", "", false
+		return presenceInfo{}, false
 	}
 
 	var presences []presenceResponse
 	if err := json.Unmarshal(body, &presences); err != nil || len(presences) == 0 {
-		return "", "", false
+		return presenceInfo{}, false
 	}
-	return presences[0].Presence.Availability, presences[0].Presence.DeviceType, true
+
+	p := presences[0].Presence
+	// The OOO note location varies: prefer presence.outOfOfficeNote, fall back to
+	// presence.calendarData.outOfOfficeNote.
+	ooo := p.OutOfOfficeNote.Message
+	if ooo == "" {
+		ooo = p.CalendarData.OutOfOfficeNote.Message
+	}
+	return presenceInfo{
+		Availability:    p.Availability,
+		DeviceType:      p.DeviceType,
+		SourceNetwork:   p.SourceNetwork,
+		OutOfOfficeNote: ooo,
+	}, true
 }
 
 // refreshOnce returns the current access token, refreshing it at most once per
@@ -365,8 +476,17 @@ func (e *Enumerator) token() string {
 // ---------------------------------------------------------------------------
 
 type searchUser struct {
-	DisplayName string `json:"displayName"`
-	MRI         string `json:"mri"`
+	DisplayName       string `json:"displayName"`
+	MRI               string `json:"mri"`
+	Type              string `json:"type"`     // e.g. "Federated" = external org w/ federation
+	TenantID          string `json:"tenantId"`
+	UserPrincipalName string `json:"userPrincipalName"`
+	ObjectID          string `json:"objectId"`
+	AccountEnabled    *bool  `json:"accountEnabled"` // pointer: distinguish absent from false
+	IsShortProfile    *bool  `json:"isShortProfile"`
+	FeatureSettings   struct {
+		CoExistenceMode string `json:"coExistenceMode"`
+	} `json:"featureSettings"`
 }
 
 type presenceRequest struct {
@@ -375,7 +495,18 @@ type presenceRequest struct {
 
 type presenceResponse struct {
 	Presence struct {
-		Availability string `json:"availability"`
-		DeviceType   string `json:"deviceType"`
+		SourceNetwork string `json:"sourceNetwork"` // "Federated" (open) vs "Unknown" (blocked)
+		Availability  string `json:"availability"`
+		DeviceType    string `json:"deviceType"`
+		// The out-of-office note location varies across responses; parse both
+		// shapes and read from whichever is non-empty.
+		OutOfOfficeNote struct {
+			Message string `json:"message"`
+		} `json:"outOfOfficeNote"`
+		CalendarData struct {
+			OutOfOfficeNote struct {
+				Message string `json:"message"`
+			} `json:"outOfOfficeNote"`
+		} `json:"calendarData"`
 	} `json:"presence"`
 }

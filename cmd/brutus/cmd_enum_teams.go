@@ -305,12 +305,39 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 
 	results := enumerator.Enumerate(ctx, emails, flagThreads, flagRateLimit, flagJitter)
 
+	posture := teams.DerivePosture(teamsEnumDomain(emails), results)
+
 	if flagJSON {
 		outputTeamsEnumJSONL(jsonWriter, results)
+		outputTeamsPostureJSONL(jsonWriter, posture)
 	} else {
 		outputTeamsEnumHuman(os.Stdout, results, useColor)
+		outputTeamsPostureHuman(os.Stdout, posture, useColor)
 	}
 	return nil
+}
+
+// teamsEnumDomain derives the target domain from the email targets: the
+// substring after the last "@" of the first email that has one. If the emails
+// span multiple distinct domains, it returns "(multiple)"; if none contain an
+// "@", it returns "".
+func teamsEnumDomain(emails []string) string {
+	domain := ""
+	for _, e := range emails {
+		at := strings.LastIndex(e, "@")
+		if at < 0 || at == len(e)-1 {
+			continue
+		}
+		d := e[at+1:]
+		if domain == "" {
+			domain = d
+			continue
+		}
+		if d != domain {
+			return "(multiple)"
+		}
+	}
+	return domain
 }
 
 // teamsEnumTargets parses, trims, and dedups the email targets from --emails

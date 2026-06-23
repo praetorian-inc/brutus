@@ -583,6 +583,227 @@ func TestEnumerate_ConcurrentRefreshNoRace(t *testing.T) {
 // Test 13: P0-1 token-safety table — error paths must not leak tokens
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Test: ParsesConfigFields — externalsearchv3 rich body: type, tenantId,
+// userPrincipalName, objectId, accountEnabled, featureSettings.coExistenceMode
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_ParsesConfigFields(t *testing.T) {
+	srv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Paul Davis","mri":"8:orgid:abc","type":"Federated","tenantId":"t-123","userPrincipalName":"paul.davis@kindermorgan.com","objectId":"o-456","accountEnabled":true,"featureSettings":{"coExistenceMode":"TeamsOnly"}}]`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	res := e.EnumerateOne(context.Background(), "paul.davis@kindermorgan.com")
+
+	require.Equal(t, ExistenceYes, res.Exists)
+	assert.Equal(t, "Federated", res.Type)
+	assert.Equal(t, "t-123", res.TenantID)
+	assert.Equal(t, "paul.davis@kindermorgan.com", res.UserPrincipalName)
+	assert.Equal(t, "o-456", res.ObjectID)
+	require.NotNil(t, res.AccountEnabled, "AccountEnabled must be parsed (not nil)")
+	assert.True(t, *res.AccountEnabled, "AccountEnabled must be true")
+	assert.Equal(t, "TeamsOnly", res.CoExistenceMode)
+	assert.NoError(t, res.Error)
+}
+
+// ---------------------------------------------------------------------------
+// Test: Presence parses sourceNetwork and both OOO note locations
+// ---------------------------------------------------------------------------
+
+func TestEnumerateOne_PresenceParsesSourceNetworkAndOOO(t *testing.T) {
+	// Sub-test 1: OOO note under presence.outOfOfficeNote (direct path).
+	t.Run("direct outOfOfficeNote", func(t *testing.T) {
+		searchSrv := searchServerReturning(http.StatusOK,
+			`[{"displayName":"Paul Davis","mri":"8:orgid:abc"}]`)
+		defer searchSrv.Close()
+
+		presenceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[{"mri":"8:orgid:abc","presence":{"sourceNetwork":"Federated","availability":"Busy","deviceType":"Mobile","outOfOfficeNote":{"message":"Back Monday - call Jane 555-1234"}}}]`))
+		}))
+		defer presenceSrv.Close()
+
+		e := newTestEnumerator(t, searchSrv, presenceSrv, true)
+		res := e.EnumerateOne(context.Background(), "paul.davis@kindermorgan.com")
+
+		assert.Equal(t, ExistenceYes, res.Exists)
+		assert.Equal(t, "Federated", res.SourceNetwork)
+		assert.Equal(t, "Busy", res.Availability)
+		assert.Equal(t, "Mobile", res.DeviceType)
+		assert.Contains(t, res.OutOfOfficeNote, "Back Monday",
+			"OOO note from presence.outOfOfficeNote.message must be parsed")
+		assert.NoError(t, res.Error)
+	})
+
+	// Sub-test 2: OOO note under presence.calendarData.outOfOfficeNote (fallback path).
+	t.Run("calendarData outOfOfficeNote fallback", func(t *testing.T) {
+		searchSrv := searchServerReturning(http.StatusOK,
+			`[{"displayName":"Jane","mri":"8:orgid:xyz"}]`)
+		defer searchSrv.Close()
+
+		presenceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`[{"mri":"8:orgid:xyz","presence":{"sourceNetwork":"Unknown","calendarData":{"outOfOfficeNote":{"message":"OOO via calendar"}}}}]`))
+		}))
+		defer presenceSrv.Close()
+
+		e := newTestEnumerator(t, searchSrv, presenceSrv, true)
+		res := e.EnumerateOne(context.Background(), "jane@contoso.com")
+
+		assert.Equal(t, ExistenceYes, res.Exists)
+		assert.Equal(t, "Unknown", res.SourceNetwork)
+		assert.Equal(t, "OOO via calendar", res.OutOfOfficeNote,
+			"OOO note from calendarData fallback path must be parsed")
+		assert.NoError(t, res.Error)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// Test: DerivePosture — table-driven coverage of all aggregation logic
+// ---------------------------------------------------------------------------
+
+func TestDerivePosture(t *testing.T) {
+	boolPtr := func(b bool) *bool { return &b }
+
+	tests := []struct {
+		name    string
+		results []EnumResult
+		check   func(t *testing.T, p TenantPosture)
+	}{
+		{
+			name: "all yes with one Federated type",
+			results: []EnumResult{
+				{Exists: ExistenceYes, Type: "Federated"},
+				{Exists: ExistenceYes, Type: "Member"},
+				{Exists: ExistenceYes},
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				assert.Equal(t, "open", p.ExternalChatAllowed)
+				assert.True(t, p.FederatedObserved, "FederatedObserved must be true when Type==\"Federated\"")
+				assert.Equal(t, 3, p.UsersFound)
+			},
+		},
+		{
+			name: "all blocked 403",
+			results: []EnumResult{
+				{Exists: ExistenceBlocked},
+				{Exists: ExistenceBlocked},
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				assert.Equal(t, "blocked", p.ExternalChatAllowed)
+				assert.Equal(t, 2, p.Blocked403)
+				assert.Equal(t, 0, p.UsersFound)
+			},
+		},
+		{
+			name: "all no or unknown",
+			results: []EnumResult{
+				{Exists: ExistenceNo},
+				{Exists: ExistenceUnknown},
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				assert.Equal(t, "unknown", p.ExternalChatAllowed)
+				assert.Equal(t, 0, p.UsersFound)
+				assert.Equal(t, 0, p.Blocked403)
+			},
+		},
+		{
+			name: "presence fields visible and OOO count",
+			results: []EnumResult{
+				{Exists: ExistenceYes, Availability: "Busy", OutOfOfficeNote: "Back Monday"},
+				{Exists: ExistenceYes, Availability: "Available", OutOfOfficeNote: ""},
+				{Exists: ExistenceYes, OutOfOfficeNote: "Out until Friday"},
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				assert.True(t, p.PresenceVisible, "PresenceVisible must be true when any Availability is non-empty")
+				assert.Equal(t, 2, p.OOOExposed, "OOOExposed must count results with non-empty OutOfOfficeNote")
+			},
+		},
+		{
+			name: "CoExistenceMode set to first non-empty",
+			results: []EnumResult{
+				{Exists: ExistenceYes, CoExistenceMode: ""},
+				{Exists: ExistenceYes, CoExistenceMode: "TeamsOnly"},
+				{Exists: ExistenceYes, CoExistenceMode: "SfBOnly"},
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				assert.Equal(t, "TeamsOnly", p.CoExistenceMode,
+					"CoExistenceMode must be the first non-empty observed value")
+			},
+		},
+		{
+			name: "FederatedObserved via SourceNetwork Federated (case-insensitive Type)",
+			results: []EnumResult{
+				{Exists: ExistenceYes, Type: "federated"}, // lowercase — case-insensitive check
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				assert.True(t, p.FederatedObserved,
+					"FederatedObserved must be true for lowercase \"federated\" Type (case-insensitive)")
+			},
+		},
+		{
+			name: "FederatedObserved via SourceNetwork even when Type is empty",
+			results: []EnumResult{
+				{Exists: ExistenceYes, Type: "", SourceNetwork: "Federated"},
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				assert.True(t, p.FederatedObserved,
+					"FederatedObserved must be true when SourceNetwork==\"Federated\" even with empty Type")
+			},
+		},
+		{
+			name: "AccountEnabled pointer does not affect aggregation",
+			results: []EnumResult{
+				{Exists: ExistenceYes, AccountEnabled: boolPtr(true)},
+				{Exists: ExistenceYes, AccountEnabled: boolPtr(false)},
+				{Exists: ExistenceYes, AccountEnabled: nil},
+			},
+			check: func(t *testing.T, p TenantPosture) {
+				// All three are ExistenceYes; posture should aggregate them normally.
+				assert.Equal(t, 3, p.UsersFound)
+				assert.Equal(t, "open", p.ExternalChatAllowed)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			p := DerivePosture("contoso.com", tc.results)
+			tc.check(t, p)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: DerivePosture_DomainAndCounts — Total, UsersFound, Blocked403, Domain
+// ---------------------------------------------------------------------------
+
+func TestDerivePosture_DomainAndCounts(t *testing.T) {
+	results := []EnumResult{
+		{Exists: ExistenceYes},
+		{Exists: ExistenceYes},
+		{Exists: ExistenceBlocked},
+		{Exists: ExistenceNo},
+		{Exists: ExistenceUnknown},
+	}
+
+	p := DerivePosture("example.com", results)
+
+	assert.Equal(t, "example.com", p.Domain, "Domain must pass through unchanged")
+	assert.Equal(t, 5, p.Total, "Total must equal len(results)")
+	assert.Equal(t, 2, p.UsersFound, "UsersFound must count ExistenceYes results only")
+	assert.Equal(t, 1, p.Blocked403, "Blocked403 must count ExistenceBlocked results only")
+	assert.Equal(t, "open", p.ExternalChatAllowed, "open because UsersFound > 0")
+}
+
+// ---------------------------------------------------------------------------
+// Test: TokenSafetyTable
+// ---------------------------------------------------------------------------
+
 func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
 	const accessToken = "SUPER-SECRET-ACCESS-TOKEN"
 	const refreshToken = "SUPER-SECRET-REFRESH-TOKEN"

@@ -516,27 +516,43 @@ func teamsEnumStatusLabel(e teams.Existence) (label, color string) {
 // is needed.
 func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 	type teamsEnumJSON struct {
-		Type         string `json:"type"`
-		Email        string `json:"email"`
-		Exists       string `json:"exists"`
-		DisplayName  string `json:"display_name,omitempty"`
-		MRI          string `json:"mri,omitempty"`
-		Availability string `json:"availability,omitempty"`
-		DeviceType   string `json:"device_type,omitempty"`
-		Error        string `json:"error,omitempty"`
+		Type              string `json:"type"`
+		Email             string `json:"email"`
+		Exists            string `json:"exists"`
+		DisplayName       string `json:"display_name,omitempty"`
+		MRI               string `json:"mri,omitempty"`
+		Availability      string `json:"availability,omitempty"`
+		DeviceType        string `json:"device_type,omitempty"`
+		Error             string `json:"error,omitempty"`
+		UserType          string `json:"user_type,omitempty"`
+		TenantID          string `json:"tenant_id,omitempty"`
+		UserPrincipalName string `json:"user_principal_name,omitempty"`
+		ObjectID          string `json:"object_id,omitempty"`
+		AccountEnabled    *bool  `json:"account_enabled,omitempty"`
+		CoExistenceMode   string `json:"coexistence_mode,omitempty"`
+		SourceNetwork     string `json:"source_network,omitempty"`
+		OutOfOfficeNote   string `json:"out_of_office_note,omitempty"`
 	}
 
 	enc := json.NewEncoder(w)
 	for i := range results {
 		r := &results[i]
 		jr := teamsEnumJSON{
-			Type:         "teams_enum",
-			Email:        r.Email,
-			Exists:       string(r.Exists),
-			DisplayName:  r.DisplayName,
-			MRI:          r.MRI,
-			Availability: r.Availability,
-			DeviceType:   r.DeviceType,
+			Type:              "teams_enum",
+			Email:             r.Email,
+			Exists:            string(r.Exists),
+			DisplayName:       r.DisplayName,
+			MRI:               r.MRI,
+			Availability:      r.Availability,
+			DeviceType:        r.DeviceType,
+			UserType:          r.Type,
+			TenantID:          r.TenantID,
+			UserPrincipalName: r.UserPrincipalName,
+			ObjectID:          r.ObjectID,
+			AccountEnabled:    r.AccountEnabled,
+			CoExistenceMode:   r.CoExistenceMode,
+			SourceNetwork:     r.SourceNetwork,
+			OutOfOfficeNote:   r.OutOfOfficeNote,
 		}
 		if r.Error != nil {
 			jr.Error = r.Error.Error()
@@ -545,6 +561,84 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams enum JSON: %v\n", err)
 		}
 	}
+}
+
+// outputTeamsPostureHuman prints a tenant-configuration posture summary block.
+// The "External / cross-tenant chat: ALLOWED" line is a finding and is colored
+// red when open, green when blocked, and dim when unknown. The server-derived
+// coexistence mode is sanitized via sanitizeTerminal (P0-4).
+func outputTeamsPostureHuman(w io.Writer, p teams.TenantPosture, useColor bool) {
+	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
+		heading(useColor, "Teams posture: "+sanitizeTerminal(p.Domain)))
+
+	var chatLabel, chatColor string
+	switch p.ExternalChatAllowed {
+	case "open":
+		chatLabel, chatColor = "ALLOWED", ColorRed
+	case "blocked":
+		chatLabel, chatColor = "BLOCKED", ColorGreen
+	default:
+		chatLabel, chatColor = "UNKNOWN", ColorDim
+	}
+
+	_, _ = fmt.Fprintf(w, "  External / cross-tenant chat: %s%s%s   (%d users resolvable, %d blocked)\n",
+		colorIf(useColor, chatColor), chatLabel, colorIf(useColor, ColorReset),
+		p.UsersFound, p.Blocked403)
+	_, _ = fmt.Fprintf(w, "  Federation observed:          %s\n", yesNo(p.FederatedObserved))
+	_, _ = fmt.Fprintf(w, "  Presence visible externally:  %s\n", yesNo(p.PresenceVisible))
+	_, _ = fmt.Fprintf(w, "  Out-of-office notes exposed:  %d\n", p.OOOExposed)
+
+	coex := p.CoExistenceMode
+	if coex == "" {
+		coex = "unknown"
+	} else {
+		coex = sanitizeTerminal(coex)
+	}
+	_, _ = fmt.Fprintf(w, "  Coexistence mode:             %s\n", coex)
+	_, _ = fmt.Fprintln(w)
+}
+
+// outputTeamsPostureJSONL writes the tenant posture as a single JSON object.
+// encoding/json escapes control characters, so no sanitization is needed.
+func outputTeamsPostureJSONL(w io.Writer, p teams.TenantPosture) {
+	type teamsPostureJSON struct {
+		Type                string `json:"type"`
+		Domain              string `json:"domain"`
+		Total               int    `json:"total"`
+		UsersFound          int    `json:"users_found"`
+		Blocked403          int    `json:"blocked_403"`
+		ExternalChatAllowed string `json:"external_chat_allowed"`
+		FederatedObserved   bool   `json:"federated_observed"`
+		PresenceVisible     bool   `json:"presence_visible"`
+		OOOExposed          int    `json:"ooo_exposed"`
+		CoExistenceMode     string `json:"coexistence_mode,omitempty"`
+	}
+
+	jr := teamsPostureJSON{
+		Type:                "teams_posture",
+		Domain:              p.Domain,
+		Total:               p.Total,
+		UsersFound:          p.UsersFound,
+		Blocked403:          p.Blocked403,
+		ExternalChatAllowed: p.ExternalChatAllowed,
+		FederatedObserved:   p.FederatedObserved,
+		PresenceVisible:     p.PresenceVisible,
+		OOOExposed:          p.OOOExposed,
+		CoExistenceMode:     p.CoExistenceMode,
+	}
+
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(jr); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams posture JSON: %v\n", err)
+	}
+}
+
+// yesNo renders a bool as "yes"/"no" for posture summary rows.
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }
 
 // tokenPreview renders a token for human output without leaking it (P0-1):

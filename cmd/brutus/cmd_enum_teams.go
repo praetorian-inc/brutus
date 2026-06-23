@@ -21,11 +21,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
+	"github.com/praetorian-inc/brutus/pkg/enum"
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
@@ -43,6 +45,9 @@ var (
 var (
 	flagTeamsEnumEmails          string
 	flagTeamsEnumEmailFile       string
+	flagTeamsEnumDomain          string
+	flagTeamsEnumFormat          string
+	flagTeamsEnumLimit           int
 	flagTeamsEnumAccessToken     string
 	flagTeamsEnumRefreshToken    string
 	flagTeamsEnumTokenFile       string
@@ -121,6 +126,13 @@ Teams tenant, using the Teams external-search endpoint. For each email the
 result is one of: exists, blocked (the tenant forbids external search but the
 user may exist), not found, or unknown (auth or transport failure).
 
+Provide targets directly with --emails/-e or --email-file/-E, or pass --domain
+to generate the candidate wordlist internally from a bundled, frequency-ranked
+list of statistically-likely first/last name combinations (the same generator
+as "enum generate") — no piping required. --format selects the username layout
+and --limit caps generation to the first N (most-likely) candidates. --domain
+may be combined with -e/-E.
+
 A valid access token is required. Provide it directly with --access-token,
 reuse a token captured by "enum teams auth -o" with --token-file, or omit both
 to run the interactive device-code flow inline. When a refresh token is
@@ -133,6 +145,12 @@ With --presence, Teams presence (availability and device type) is fetched for
 users that exist; presence failures are non-fatal.`,
 	Example: `  # Device-code auth inline, then enumerate a few emails
   brutus enum teams users -e alice@contoso.com,bob@contoso.com
+
+  # Generate candidate emails for a domain and enumerate the 5000 most likely
+  brutus enum teams users --domain target.com --format first.last --limit 5000
+
+  # Generate first_last candidates and fetch presence for users that exist
+  brutus enum teams users --domain target.com --format first_last --presence
 
   # Enumerate emails from a file, with presence lookups
   brutus enum teams users -E emails.txt --presence
@@ -196,6 +214,9 @@ func init() {
 	uf := enumTeamsUsersCmd.Flags()
 	uf.StringVarP(&flagTeamsEnumEmails, "emails", "e", "", "Comma-separated email addresses to check")
 	uf.StringVarP(&flagTeamsEnumEmailFile, "email-file", "E", "", "File of email addresses, one per line (\"-\" for stdin)")
+	uf.StringVarP(&flagTeamsEnumDomain, "domain", "d", "", "Generate candidate emails for this domain (statistically-likely first/last combos)")
+	uf.StringVar(&flagTeamsEnumFormat, "format", "first.last", "Username format for --domain generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
+	uf.IntVar(&flagTeamsEnumLimit, "limit", 0, "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)")
 	uf.StringVar(&flagTeamsEnumAccessToken, "access-token", "", "Access token to use (instead of device-code or --token-file)")
 	uf.StringVar(&flagTeamsEnumRefreshToken, "refresh-token", "", "Refresh token used to renew an expired access token")
 	uf.StringVar(&flagTeamsEnumTokenFile, "token-file", "", "JSONL token file from \"enum teams auth -o\" to reuse")
@@ -546,6 +567,18 @@ func teamsEnumTargets() ([]string, error) {
 		raw = append(raw, lines...)
 	}
 
+	// --domain generates the candidate wordlist internally (reusing the same
+	// ranked first/last generator as "enum generate"), so no piping is needed.
+	// Generated candidates are appended to any -e/-E targets and flow through
+	// the same dedup + enumeration path.
+	if flagTeamsEnumDomain != "" {
+		generated, err := teamsEnumGenerate()
+		if err != nil {
+			return nil, err
+		}
+		raw = append(raw, generated...)
+	}
+
 	seen := make(map[string]struct{})
 	var emails []string
 	for _, e := range raw {
@@ -561,9 +594,40 @@ func teamsEnumTargets() ([]string, error) {
 	}
 
 	if len(emails) == 0 {
-		return nil, fmt.Errorf("--emails/-e or --email-file/-E is required")
+		return nil, fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain")
 	}
 	return emails, nil
+}
+
+// teamsEnumGenerate produces the candidate email wordlist for --domain by
+// reusing the shared, frequency-ranked generator (enum.GenerateEmails) and the
+// shared capResults helper — no duplicated generation logic. The requested
+// format is validated against enum.ListFormats() first, because GenerateEmails
+// silently yields an empty list for an unknown format. A status line goes to
+// stderr (never stdout, so --json/-o output stays clean) unless quiet or JSON.
+func teamsEnumGenerate() ([]string, error) {
+	if !slices.Contains(enum.ListFormats(), flagTeamsEnumFormat) {
+		return nil, fmt.Errorf("invalid --format %q; valid formats: %s",
+			flagTeamsEnumFormat, strings.Join(enum.ListFormats(), ", "))
+	}
+
+	generated, err := enum.GenerateEmails(flagTeamsEnumFormat, flagTeamsEnumDomain)
+	if err != nil {
+		return nil, fmt.Errorf("generating candidate emails: %w", err)
+	}
+	generated = capResults(generated, flagTeamsEnumLimit)
+
+	if !flagQuiet && !flagJSON {
+		useColor := isColorEnabled(flagNoColor)
+		fmt.Fprintf(os.Stderr, "%s Generating %s candidates for %s (%d emails)...\n",
+			dim(useColor, SymbolInfo), flagTeamsEnumFormat, flagTeamsEnumDomain, len(generated))
+		if flagTeamsEnumLimit == 0 {
+			fmt.Fprintf(os.Stderr, "%s (no --limit; generating the full ~%d-candidate list — pass --limit to cap)\n",
+				dim(useColor, SymbolInfo), len(generated))
+		}
+	}
+
+	return generated, nil
 }
 
 // teamsTokenSource holds the per-subcommand token-resolution inputs. Both the

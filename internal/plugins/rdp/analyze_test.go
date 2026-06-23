@@ -16,9 +16,12 @@ package rdp
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAnalyzeStickyKeysResponse_Clean(t *testing.T) {
@@ -281,4 +284,54 @@ func TestRunStickyKeysAnalysis_DialogShape_NoVision_Indeterminate(t *testing.T) 
 	res := runStickyKeysAnalysis(context.Background(), baseline, response, w, h, "", nonceSkipped)
 	assert.Equal(t, verdictIndeterminate, res.OverallVerdict)
 	assert.NotEqual(t, "clean", res.OverallVerdict)
+}
+
+// ---------------------------------------------------------------------------
+// B1: verifyEcho — pure pixel-diff confirms or denies a shell echo
+// ---------------------------------------------------------------------------
+
+func TestVerifyEcho_Confirmed(t *testing.T) {
+	w, h := uint32(1000), uint32(1000)
+	size := int(w) * int(h) * 4
+	before := make([]byte, size)
+	paintBox(before, int(w), 0, 0, 600, 600, 0) // dark console
+	after := make([]byte, size)
+	copy(after, before)
+	// new text rendered inside box (rows of light pixels = echoed line + prompt)
+	paintBox(after, int(w), 10, 500, 590, 560, 230)
+	box := changedBox{minX: 0, minY: 0, maxX: 599, maxY: 599}
+	assert.Equal(t, nonceConfirmed, verifyEcho(before, after, w, h, box))
+}
+
+func TestVerifyEcho_Unconfirmed(t *testing.T) {
+	w, h := uint32(1000), uint32(1000)
+	size := int(w) * int(h) * 4
+	before := make([]byte, size)
+	paintBox(before, int(w), 430, 430, 570, 570, 200) // static dialog
+	after := make([]byte, size)
+	copy(after, before) // nothing changed
+	box := changedBox{minX: 430, minY: 430, maxX: 569, maxY: 569}
+	assert.Equal(t, nonceUnconfirmed, verifyEcho(before, after, w, h, box))
+}
+
+// ---------------------------------------------------------------------------
+// C1: structural guard — runStickyKeysAnalysis must have the vulnerable branch
+// ---------------------------------------------------------------------------
+
+// TestRunStickyKeysAnalysis_HasVulnerableBranch guards that runStickyKeysAnalysis
+// contains a symmetric `visionVerdict == "vulnerable"` branch matching the one
+// already present in runUtilmanAnalysis (analyze.go ~line 456).
+// The test reads analyze.go as source text and asserts the string
+// `visionVerdict == "vulnerable"` appears at least twice — once per analysis
+// function. Currently it appears only once (utilman only), so this test is RED
+// until the developer adds the symmetric branch to runStickyKeysAnalysis.
+func TestRunStickyKeysAnalysis_HasVulnerableBranch(t *testing.T) {
+	src, err := os.ReadFile("analyze.go")
+	require.NoError(t, err, "analyze.go must be readable")
+
+	const needle = `visionVerdict == "vulnerable"`
+	count := strings.Count(string(src), needle)
+	assert.GreaterOrEqual(t, count, 2,
+		"runStickyKeysAnalysis is missing the visionVerdict == \"vulnerable\" branch; "+
+			"found %d occurrence(s), need >= 2 (one per analysis function)", count)
 }

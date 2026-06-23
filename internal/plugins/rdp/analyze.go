@@ -405,6 +405,13 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 				return result
 			}
 
+			// If Vision says "vulnerable" (normal Ease of Access on non-NLA), respect that
+			if visionVerdict == "vulnerable" {
+				result.OverallVerdict = "vulnerable"
+				result.Confidence = 0.8 // High confidence when Vision confirms normal behavior
+				return result
+			}
+
 			if visionVerdict == "clean" && verdict == "backdoor_likely" {
 				// Heuristic says backdoor, Vision says clean -- downgrade
 				result.OverallVerdict = "vulnerable"

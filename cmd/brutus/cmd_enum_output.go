@@ -477,21 +477,34 @@ func outputTeamsEnumHuman(w io.Writer, results []teams.EnumResult, useColor bool
 // outputTeamsEnumResultLine prints ONE Teams enumeration result row in the same
 // visual style as outputTeamsEnumHuman's per-row rendering: Email, status label,
 // Display Name, and MRI, with the account type appended for EXISTS rows (e.g.
-// "(corporate)" or "(consumer)") via teams.AccountType. All server-provided
-// strings are sanitized via sanitizeTerminal (P0-4). Token values are never
-// printed. Callers decide which results to print (e.g. positive signals only,
-// unless verbose); this helper renders whatever it is given.
+// "(corporate)" or "(consumer)") via teams.AccountType. A 403/blocked result is
+// a confirmed hit whose details the tenant withholds, so it renders as an
+// "[+] EXISTS" row with a "(details restricted)" qualifier and no
+// DisplayName/MRI/account-type (a 403 carries none). All server-provided strings
+// are sanitized via sanitizeTerminal (P0-4). Token values are never printed.
+// Callers decide which results to print (e.g. positive signals only, unless
+// verbose); this helper renders whatever it is given.
 func outputTeamsEnumResultLine(w io.Writer, r teams.EnumResult, useColor bool) {
 	statusCol, statusColor := teamsEnumStatusLabel(r.Exists)
 	email := truncate(sanitizeTerminal(r.Email), 32)
 	name := truncate(sanitizeTerminal(r.DisplayName), 28)
 	mri := truncate(sanitizeTerminal(r.MRI), 40)
 
+	// A 403/blocked result is presented as a confirmed EXISTS hit with no
+	// metadata, since a 403 carries no DisplayName/MRI/account type.
+	if r.Exists == teams.ExistenceBlocked {
+		statusCol, statusColor = "[+] EXISTS", ColorGreen
+		name, mri = "", ""
+	}
+
 	acct := ""
-	if r.Exists == teams.ExistenceYes {
+	switch r.Exists {
+	case teams.ExistenceYes:
 		if t := teams.AccountType(r.MRI); t != "" {
 			acct = " (" + t + ")"
 		}
+	case teams.ExistenceBlocked:
+		acct = " (details restricted)"
 	}
 
 	_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s%s\n",
@@ -501,28 +514,32 @@ func outputTeamsEnumResultLine(w io.Writer, r teams.EnumResult, useColor bool) {
 }
 
 // outputTeamsEnumSummary prints the counts-by-status summary block for a set of
-// Teams enumeration results (exists / blocked / not-found / errors / total).
+// Teams enumeration results. A 403/blocked result is a confirmed hit whose
+// details the tenant withholds, so the headline "Exists" count is the sum of
+// ExistenceYes (200 + data) and ExistenceBlocked (403), with the split shown
+// as "(N with details, M details-restricted)". Not-found / errors / total are
+// reported as before.
 func outputTeamsEnumSummary(w io.Writer, results []teams.EnumResult, useColor bool) {
-	var existsCount, blockedCount, notFoundCount, errorCount int
+	var withDetailsCount, restrictedCount, notFoundCount, errorCount int
 	for i := range results {
 		switch results[i].Exists {
 		case teams.ExistenceYes:
-			existsCount++
+			withDetailsCount++
 		case teams.ExistenceBlocked:
-			blockedCount++
+			restrictedCount++
 		case teams.ExistenceNo:
 			notFoundCount++
 		default:
 			errorCount++
 		}
 	}
+	existsCount := withDetailsCount + restrictedCount
 
 	_, _ = fmt.Fprintf(w, "\n  %s\n", heading(useColor, "Summary"))
 	if existsCount > 0 {
-		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d\n", colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset), existsCount)
-	}
-	if blockedCount > 0 {
-		_, _ = fmt.Fprintf(w, "    %sBlocked:%s    %d\n", colorIf(useColor, ColorYellow), colorIf(useColor, ColorReset), blockedCount)
+		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d (%d with details, %d details-restricted)\n",
+			colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset),
+			existsCount, withDetailsCount, restrictedCount)
 	}
 	if notFoundCount > 0 {
 		_, _ = fmt.Fprintf(w, "    %sNot found:%s  %d\n", colorIf(useColor, ColorDim), colorIf(useColor, ColorReset), notFoundCount)
@@ -556,6 +573,7 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 		Type              string `json:"type"`
 		Email             string `json:"email"`
 		Exists            string `json:"exists"`
+		DetailsRestricted bool   `json:"details_restricted,omitempty"`
 		DisplayName       string `json:"display_name,omitempty"`
 		MRI               string `json:"mri,omitempty"`
 		AccountType       string `json:"account_type,omitempty"`
@@ -576,22 +594,32 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 	for i := range results {
 		r := &results[i]
 		jr := teamsEnumJSON{
-			Type:              "teams_enum",
-			Email:             r.Email,
-			Exists:            string(r.Exists),
-			DisplayName:       r.DisplayName,
-			MRI:               r.MRI,
-			AccountType:       teams.AccountType(r.MRI),
-			Availability:      r.Availability,
-			DeviceType:        r.DeviceType,
-			UserType:          r.Type,
-			TenantID:          r.TenantID,
-			UserPrincipalName: r.UserPrincipalName,
-			ObjectID:          r.ObjectID,
-			AccountEnabled:    r.AccountEnabled,
-			CoExistenceMode:   r.CoExistenceMode,
-			SourceNetwork:     r.SourceNetwork,
-			OutOfOfficeNote:   r.OutOfOfficeNote,
+			Type:  "teams_enum",
+			Email: r.Email,
+		}
+		// Map internal existence to the output shape. A 403/blocked result is a
+		// confirmed hit whose details the tenant withholds, so it is presented as
+		// "exists":"yes" with "details_restricted":true and no metadata fields (a
+		// 403 carries none).
+		switch r.Exists {
+		case teams.ExistenceBlocked:
+			jr.Exists = string(teams.ExistenceYes)
+			jr.DetailsRestricted = true
+		default:
+			jr.Exists = string(r.Exists)
+			jr.DisplayName = r.DisplayName
+			jr.MRI = r.MRI
+			jr.AccountType = teams.AccountType(r.MRI)
+			jr.Availability = r.Availability
+			jr.DeviceType = r.DeviceType
+			jr.UserType = r.Type
+			jr.TenantID = r.TenantID
+			jr.UserPrincipalName = r.UserPrincipalName
+			jr.ObjectID = r.ObjectID
+			jr.AccountEnabled = r.AccountEnabled
+			jr.CoExistenceMode = r.CoExistenceMode
+			jr.SourceNetwork = r.SourceNetwork
+			jr.OutOfOfficeNote = r.OutOfOfficeNote
 		}
 		if r.Error != nil {
 			jr.Error = r.Error.Error()

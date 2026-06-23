@@ -33,10 +33,11 @@ import (
 
 func TestOutputTeamsEnumResultLine_AccountType(t *testing.T) {
 	tests := []struct {
-		name        string
-		result      teams.EnumResult
-		wantContain string
-		wantAbsent  []string
+		name             string
+		result           teams.EnumResult
+		wantContain      string
+		wantAlsoContains []string // additional substrings that must be present
+		wantAbsent       []string
 	}{
 		{
 			name: "corporate MRI appends (corporate)",
@@ -61,13 +62,14 @@ func TestOutputTeamsEnumResultLine_AccountType(t *testing.T) {
 			wantAbsent:  []string{"(corporate)"},
 		},
 		{
-			name: "BLOCKED result renders blocked label and no account-type suffix",
+			name: "BLOCKED result renders as EXISTS details-restricted",
 			result: teams.EnumResult{
 				Email:  "blocked@contoso.com",
 				Exists: teams.ExistenceBlocked,
 			},
-			wantContain: "BLOCKED",
-			wantAbsent:  []string{"(corporate)", "(consumer)"},
+			wantContain:      "EXISTS",
+			wantAlsoContains: []string{"details restricted"},
+			wantAbsent:       []string{"(corporate)", "(consumer)"},
 		},
 		{
 			name: "EXISTS with unknown MRI prefix has no account-type suffix",
@@ -98,6 +100,10 @@ func TestOutputTeamsEnumResultLine_AccountType(t *testing.T) {
 			if tc.wantContain != "" {
 				assert.Contains(t, out, tc.wantContain,
 					"output line must contain %q", tc.wantContain)
+			}
+			for _, also := range tc.wantAlsoContains {
+				assert.Contains(t, out, also,
+					"output line must also contain %q", also)
 			}
 			for _, absent := range tc.wantAbsent {
 				assert.NotContains(t, out, absent,
@@ -246,6 +252,132 @@ func TestOutputTeamsEnumJSONL_AccountType(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Test: outputTeamsEnumJSONL — ExistenceBlocked shape and existence value coverage
+// ---------------------------------------------------------------------------
+
+func TestOutputTeamsEnumJSONL_BlockedAndExistenceValues(t *testing.T) {
+	tokenFields := []string{"access_token", "refresh_token", "id_token"}
+
+	t.Run("ExistenceBlocked -> exists=yes, details_restricted=true, no metadata", func(t *testing.T) {
+		results := []teams.EnumResult{
+			{
+				Email:  "blocked@contoso.com",
+				Exists: teams.ExistenceBlocked,
+			},
+		}
+		var buf bytes.Buffer
+		outputTeamsEnumJSONL(&buf, results)
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 1, "must emit exactly one JSONL line")
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj))
+
+		// A 403/blocked result must be serialized as exists:"yes".
+		assert.Equal(t, string(teams.ExistenceYes), obj["exists"],
+			"ExistenceBlocked must serialize as exists=yes")
+
+		// details_restricted must be true.
+		assert.Equal(t, true, obj["details_restricted"],
+			"ExistenceBlocked must set details_restricted=true")
+
+		// A 403 carries no metadata — these keys must be absent (omitempty).
+		for _, key := range []string{"display_name", "mri", "account_type"} {
+			_, ok := obj[key]
+			assert.False(t, ok, "key %q must be absent for ExistenceBlocked (no metadata in 403)", key)
+		}
+
+		// Token fields must never appear.
+		for _, field := range tokenFields {
+			assert.NotContains(t, lines[0], field,
+				"JSONL output must never contain token field %q", field)
+		}
+	})
+
+	t.Run("ExistenceYes -> exists=yes, no details_restricted key", func(t *testing.T) {
+		results := []teams.EnumResult{
+			{
+				Email:       "alice@contoso.com",
+				Exists:      teams.ExistenceYes,
+				DisplayName: "Alice",
+				MRI:         "8:orgid:some-guid",
+			},
+		}
+		var buf bytes.Buffer
+		outputTeamsEnumJSONL(&buf, results)
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 1)
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj))
+
+		assert.Equal(t, string(teams.ExistenceYes), obj["exists"])
+
+		// details_restricted must be absent (omitempty, false is the zero value).
+		_, ok := obj["details_restricted"]
+		assert.False(t, ok, "details_restricted must be absent (omitempty) for ExistenceYes")
+
+		for _, field := range tokenFields {
+			assert.NotContains(t, lines[0], field)
+		}
+	})
+
+	t.Run("ExistenceNo -> exists=no", func(t *testing.T) {
+		results := []teams.EnumResult{
+			{
+				Email:  "nobody@contoso.com",
+				Exists: teams.ExistenceNo,
+			},
+		}
+		var buf bytes.Buffer
+		outputTeamsEnumJSONL(&buf, results)
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 1)
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj))
+
+		assert.Equal(t, string(teams.ExistenceNo), obj["exists"])
+
+		_, ok := obj["details_restricted"]
+		assert.False(t, ok, "details_restricted must be absent for ExistenceNo")
+
+		for _, field := range tokenFields {
+			assert.NotContains(t, lines[0], field)
+		}
+	})
+
+	t.Run("ExistenceUnknown -> exists=unknown, no details_restricted", func(t *testing.T) {
+		results := []teams.EnumResult{
+			{
+				Email:  "unknown@contoso.com",
+				Exists: teams.ExistenceUnknown,
+			},
+		}
+		var buf bytes.Buffer
+		outputTeamsEnumJSONL(&buf, results)
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 1)
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj))
+
+		assert.Equal(t, string(teams.ExistenceUnknown), obj["exists"])
+
+		_, ok := obj["details_restricted"]
+		assert.False(t, ok, "details_restricted must be absent for ExistenceUnknown")
+
+		for _, field := range tokenFields {
+			assert.NotContains(t, lines[0], field)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Test: outputTeamsEnumJSONL — error result encodes correctly, no token fields
 // ---------------------------------------------------------------------------
 
@@ -281,4 +413,40 @@ func TestOutputTeamsEnumJSONL_ErrorResult(t *testing.T) {
 		assert.NotContains(t, lines[0], field,
 			"JSONL output must never contain token field %q", field)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Test: outputTeamsEnumSummary — counts ExistenceBlocked in the Exists headline
+// ---------------------------------------------------------------------------
+
+func TestOutputTeamsEnumSummary(t *testing.T) {
+	// 2 ExistenceYes, 3 ExistenceBlocked, 1 ExistenceNo, 1 ExistenceUnknown.
+	// Exists headline = 2+3 = 5, with split "(2 with details, 3 details-restricted)".
+	results := []teams.EnumResult{
+		{Email: "a@contoso.com", Exists: teams.ExistenceYes},
+		{Email: "b@contoso.com", Exists: teams.ExistenceYes},
+		{Email: "c@contoso.com", Exists: teams.ExistenceBlocked},
+		{Email: "d@contoso.com", Exists: teams.ExistenceBlocked},
+		{Email: "e@contoso.com", Exists: teams.ExistenceBlocked},
+		{Email: "f@contoso.com", Exists: teams.ExistenceNo},
+		{Email: "g@contoso.com", Exists: teams.ExistenceUnknown},
+	}
+
+	var buf bytes.Buffer
+	outputTeamsEnumSummary(&buf, results, false /* useColor */)
+	out := buf.String()
+
+	// Total headline.
+	assert.Contains(t, out, "7", "Total must be 7")
+
+	// Exists headline: 5 total (2+3).
+	assert.Contains(t, out, "5 (2 with details, 3 details-restricted)",
+		"Exists summary must show 5 total with split breakdown")
+
+	// Not-found count.
+	assert.Contains(t, out, "Not found")
+	assert.Contains(t, out, "1", "not-found count must appear")
+
+	// Errors (ExistenceUnknown maps to errorCount in summary).
+	assert.Contains(t, out, "Errors")
 }

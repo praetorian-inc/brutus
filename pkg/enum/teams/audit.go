@@ -46,13 +46,14 @@ type Finding struct {
 	Description string   //
 	Evidence    string   // observed signal (may contain server data -> caller sanitizes for terminal)
 	Affected    string   // domain (and seed email where relevant)
-	Remediation string   //
+	Remediation string   // how to fix or mitigate the finding
 }
 
 // Audit derives findings for a tenant from one seed user's enumeration result
 // plus the derived posture. presenceChecked indicates whether the presence
-// lookup ran (--presence), so presence/out-of-office findings are only emitted
-// when that evidence was actually gathered. Findings are returned ordered by
+// lookup ran (presence is gathered by default; --no-presence disables it), so
+// presence/out-of-office findings are only emitted when that evidence was
+// actually gathered. Findings are returned ordered by
 // severity (high -> info) then by ID, for stable output. Token values never
 // appear in any field.
 func Audit(domain, seedEmail string, result EnumResult, posture TenantPosture, presenceChecked bool) []Finding {

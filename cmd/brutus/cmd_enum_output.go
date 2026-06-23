@@ -633,6 +633,128 @@ func outputTeamsPostureJSONL(w io.Writer, p teams.TenantPosture) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Teams audit (graded findings) output functions
+// ---------------------------------------------------------------------------
+
+// auditEvidenceMaxRunes bounds how much server-derived evidence (e.g. an
+// out-of-office note) is rendered in the human report.
+const auditEvidenceMaxRunes = 200
+
+// outputTeamsAuditHuman renders graded Teams audit findings as a human report.
+// Every server-derived string (Evidence and Affected may contain the OOO note
+// or display data) is sanitized via sanitizeTerminal and long evidence is
+// truncated (P0-4). Each finding is shown as "[SEVERITY] Title" with a
+// severity-appropriate color, followed by indented Evidence and Remediation
+// lines, and the run ends with a counts-by-severity summary. The posture block
+// is always printed first for context.
+func outputTeamsAuditHuman(w io.Writer, domain string, posture teams.TenantPosture, findings []teams.Finding, useColor bool) {
+	_, _ = fmt.Fprintf(w, "\n%s\n", heading(useColor, "=== Teams Audit: "+sanitizeTerminal(domain)+" ==="))
+
+	outputTeamsPostureHuman(w, posture, useColor)
+
+	if len(findings) == 0 {
+		_, _ = fmt.Fprintf(w, "  %s%s No findings — external Teams exposure looks restricted.%s\n\n",
+			colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
+		return
+	}
+
+	for i := range findings {
+		f := &findings[i]
+		color := teamsAuditSeverityColor(f.Severity)
+		label := strings.ToUpper(string(f.Severity))
+
+		_, _ = fmt.Fprintf(w, "  %s[%s]%s %s\n",
+			colorIf(useColor, color), label, colorIf(useColor, ColorReset),
+			sanitizeTerminal(f.Title))
+		if f.Affected != "" {
+			_, _ = fmt.Fprintf(w, "    Affected:    %s\n", sanitizeTerminal(f.Affected))
+		}
+		if f.Evidence != "" {
+			_, _ = fmt.Fprintf(w, "    Evidence:    %s\n",
+				truncate(sanitizeTerminal(f.Evidence), auditEvidenceMaxRunes))
+		}
+		if f.Remediation != "" {
+			_, _ = fmt.Fprintf(w, "    Remediation: %s\n", sanitizeTerminal(f.Remediation))
+		}
+		_, _ = fmt.Fprintln(w)
+	}
+
+	outputTeamsAuditSummary(w, findings, useColor)
+}
+
+// outputTeamsAuditSummary prints a counts-by-severity line for the findings.
+func outputTeamsAuditSummary(w io.Writer, findings []teams.Finding, useColor bool) {
+	var high, medium, low, info int
+	for i := range findings {
+		switch findings[i].Severity {
+		case teams.SeverityHigh:
+			high++
+		case teams.SeverityMedium:
+			medium++
+		case teams.SeverityLow:
+			low++
+		default:
+			info++
+		}
+	}
+
+	_, _ = fmt.Fprintf(w, "  %s %d finding(s): %s%d high%s, %s%d medium%s, %s%d low%s, %s%d info%s\n\n",
+		heading(useColor, "Summary:"), len(findings),
+		colorIf(useColor, ColorRed), high, colorIf(useColor, ColorReset),
+		colorIf(useColor, ColorRed), medium, colorIf(useColor, ColorReset),
+		colorIf(useColor, ColorYellow), low, colorIf(useColor, ColorReset),
+		colorIf(useColor, ColorDim), info, colorIf(useColor, ColorReset))
+}
+
+// teamsAuditSeverityColor maps a finding severity to its display color.
+func teamsAuditSeverityColor(s teams.Severity) string {
+	switch s {
+	case teams.SeverityHigh:
+		return ColorRed
+	case teams.SeverityMedium:
+		return ColorRed
+	case teams.SeverityLow:
+		return ColorYellow
+	default:
+		return ColorDim
+	}
+}
+
+// outputTeamsAuditJSONL writes one JSON object per finding. Token values are
+// never included. encoding/json escapes control characters, so no sanitization
+// is needed.
+func outputTeamsAuditJSONL(w io.Writer, findings []teams.Finding) {
+	type teamsFindingJSON struct {
+		Type        string `json:"type"`
+		ID          string `json:"id"`
+		Title       string `json:"title"`
+		Severity    string `json:"severity"`
+		Description string `json:"description"`
+		Evidence    string `json:"evidence,omitempty"`
+		Affected    string `json:"affected,omitempty"`
+		Remediation string `json:"remediation,omitempty"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range findings {
+		f := &findings[i]
+		jr := teamsFindingJSON{
+			Type:        "teams_finding",
+			ID:          f.ID,
+			Title:       f.Title,
+			Severity:    string(f.Severity),
+			Description: f.Description,
+			Evidence:    f.Evidence,
+			Affected:    f.Affected,
+			Remediation: f.Remediation,
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams finding JSON: %v\n", err)
+		}
+	}
+}
+
 // yesNo renders a bool as "yes"/"no" for posture summary rows.
 func yesNo(b bool) string {
 	if b {

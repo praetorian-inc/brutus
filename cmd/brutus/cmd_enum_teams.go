@@ -53,6 +53,21 @@ var (
 	flagTeamsEnumNoBrowser    bool
 )
 
+// File-local flag variables for the "teams audit" subcommand. A separate block
+// avoids cross-command flag-state bleed; audit takes a single --email seed
+// rather than the -e/-E pair that "users" accepts.
+var (
+	flagTeamsAuditEmail        string
+	flagTeamsAuditAccessToken  string
+	flagTeamsAuditRefreshToken string
+	flagTeamsAuditTokenFile    string
+	flagTeamsAuditPresence     bool
+	flagTeamsAuditTenant       string
+	flagTeamsAuditClientID     string
+	flagTeamsAuditScope        string
+	flagTeamsAuditNoBrowser    bool
+)
+
 var enumTeamsCmd = &cobra.Command{
 	Use:   "teams",
 	Short: "Authenticate with Microsoft Entra ID via device code flow",
@@ -132,6 +147,40 @@ users that exist; presence failures are non-fatal.`,
 	RunE: runEnumTeamsUsers,
 }
 
+var enumTeamsAuditCmd = &cobra.Command{
+	Use:   "audit",
+	Short: "Audit a Microsoft Teams tenant's external posture into graded findings",
+	Long: `Turn a single seed user's Teams enumeration result into graded security
+findings about the tenant's external-exposure posture. The audit reuses the
+"enum teams users" machinery for one known-valid seed address, derives the
+tenant posture, and grades it into findings (external/cross-tenant chat,
+user-enumeration oracle, presence and out-of-office disclosure, and account
+metadata disclosure).
+
+A valid access token is required. Provide it directly with --access-token,
+reuse a token captured by "enum teams auth -o" with --token-file, or omit both
+to run the interactive device-code flow inline. When a refresh token is
+available, an expired access token is refreshed once automatically.
+
+Scope is corporate accounts only — personal/Live accounts are not supported.
+
+With --presence, Teams presence (availability and device type) and any
+out-of-office note are fetched, enabling the presence/out-of-office findings.`,
+	Example: `  # Audit a tenant via a single known-valid seed address (device-code auth inline)
+  brutus enum teams audit --email alice@contoso.com
+
+  # Include presence/out-of-office findings
+  brutus enum teams audit --email alice@contoso.com --presence
+
+  # Reuse a token captured earlier with "enum teams auth -o"
+  brutus enum teams auth -o token.jsonl
+  brutus enum teams audit --email alice@contoso.com --token-file token.jsonl
+
+  # Emit findings as JSONL
+  brutus enum teams audit --email alice@contoso.com --json`,
+	RunE: runEnumTeamsAudit,
+}
+
 func init() {
 	f := enumTeamsAuthCmd.Flags()
 	// NOTE: no -t shorthand: it collides with the global persistent --threads/-t
@@ -156,6 +205,20 @@ func init() {
 	uf.StringVar(&flagTeamsEnumScope, "scope", teams.DefaultScope, "Space-separated OAuth2 scopes (device-code path)")
 	uf.BoolVar(&flagTeamsEnumNoBrowser, "no-browser", false, "Don't automatically open the verification URL in a browser")
 	enumTeamsCmd.AddCommand(enumTeamsUsersCmd)
+
+	af := enumTeamsAuditCmd.Flags()
+	af.StringVar(&flagTeamsAuditEmail, "email", "", "Single known-valid seed email address to audit (required)")
+	af.StringVar(&flagTeamsAuditAccessToken, "access-token", "", "Access token to use (instead of device-code or --token-file)")
+	af.StringVar(&flagTeamsAuditRefreshToken, "refresh-token", "", "Refresh token used to renew an expired access token")
+	af.StringVar(&flagTeamsAuditTokenFile, "token-file", "", "JSONL token file from \"enum teams auth -o\" to reuse")
+	af.BoolVar(&flagTeamsAuditPresence, "presence", false, "Also fetch Teams presence/out-of-office to enable presence findings")
+	// NOTE: no -t/-s shorthands here: -t collides with the global --threads/-t
+	// persistent flag, and -s is reserved for consistency with the auth path.
+	af.StringVar(&flagTeamsAuditTenant, "tenant", "organizations", "Tenant ID, domain, or \"organizations\"/\"common\" (device-code path)")
+	af.StringVar(&flagTeamsAuditClientID, "client-id", teams.DefaultClientID, "Azure app (client) ID (device-code path)")
+	af.StringVar(&flagTeamsAuditScope, "scope", teams.DefaultScope, "Space-separated OAuth2 scopes (device-code path)")
+	af.BoolVar(&flagTeamsAuditNoBrowser, "no-browser", false, "Don't automatically open the verification URL in a browser")
+	enumTeamsCmd.AddCommand(enumTeamsAuditCmd)
 }
 
 // runEnumTeamsAuth implements the "enum teams auth" subcommand.
@@ -273,7 +336,15 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	accessToken, refreshToken, err := teamsEnumResolveTokens(ctx, useColor)
+	accessToken, refreshToken, err := teamsEnumResolveTokens(ctx, teamsTokenSource{
+		accessToken:  flagTeamsEnumAccessToken,
+		refreshToken: flagTeamsEnumRefreshToken,
+		tokenFile:    flagTeamsEnumTokenFile,
+		tenant:       flagTeamsEnumTenant,
+		clientID:     flagTeamsEnumClientID,
+		scope:        flagTeamsEnumScope,
+		noBrowser:    flagTeamsEnumNoBrowser,
+	}, useColor)
 	if err != nil {
 		return err
 	}
@@ -313,6 +384,83 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	} else {
 		outputTeamsEnumHuman(os.Stdout, results, useColor)
 		outputTeamsPostureHuman(os.Stdout, posture, useColor)
+	}
+	return nil
+}
+
+// runEnumTeamsAudit implements the "enum teams audit" subcommand.
+func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
+	if strings.TrimSpace(flagTeamsAuditEmail) == "" {
+		return fmt.Errorf("--email <known-valid address> is required")
+	}
+	seedEmail := strings.TrimSpace(flagTeamsAuditEmail)
+
+	useColor := isColorEnabled(flagNoColor)
+
+	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
+	if err != nil {
+		return err
+	}
+	defer closeOutput()
+	if forceJSON {
+		flagJSON = true
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	accessToken, refreshToken, err := teamsEnumResolveTokens(ctx, teamsTokenSource{
+		accessToken:  flagTeamsAuditAccessToken,
+		refreshToken: flagTeamsAuditRefreshToken,
+		tokenFile:    flagTeamsAuditTokenFile,
+		tenant:       flagTeamsAuditTenant,
+		clientID:     flagTeamsAuditClientID,
+		scope:        flagTeamsAuditScope,
+		noBrowser:    flagTeamsAuditNoBrowser,
+	}, useColor)
+	if err != nil {
+		return err
+	}
+
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, flagTeamsAuditPresence)
+	if err != nil {
+		return fmt.Errorf("teams audit: %w", err)
+	}
+
+	// Only wire a refresh callback when a refresh token is available.
+	if refreshToken != "" {
+		client, cerr := teams.NewClient(flagTeamsAuditTenant, flagTeamsAuditClientID, flagTeamsAuditScope, flagProxy, flagTimeout)
+		if cerr != nil {
+			return fmt.Errorf("teams audit: %w", cerr)
+		}
+		enumerator.SetRefreshFunc(func(ctx context.Context) (string, error) {
+			tok, rerr := client.RefreshAccessToken(ctx, refreshToken)
+			if rerr != nil {
+				return "", rerr
+			}
+			return tok.AccessToken, nil
+		})
+	}
+
+	if !flagQuiet && !flagJSON {
+		fmt.Fprintf(os.Stderr, "%s Auditing Microsoft Teams tenant via seed user...\n", dim(useColor, SymbolInfo))
+	}
+
+	result := enumerator.EnumerateOne(ctx, seedEmail)
+	domain := teamsEnumDomain([]string{seedEmail})
+	posture := teams.DerivePosture(domain, []teams.EnumResult{result})
+	findings := teams.Audit(domain, seedEmail, result, posture, flagTeamsAuditPresence)
+
+	// Warn (to stderr, never stdout) when the seed didn't resolve, so the user
+	// knows findings are limited — but still emit whatever we gathered.
+	if (result.Exists == teams.ExistenceNo || result.Exists == teams.ExistenceUnknown) && !flagQuiet {
+		warnMsg(useColor, "seed email did not resolve (status: %s); findings are limited", result.Exists)
+	}
+
+	if flagJSON {
+		outputTeamsAuditJSONL(jsonWriter, findings)
+	} else {
+		outputTeamsAuditHuman(os.Stdout, domain, posture, findings, useColor)
 	}
 	return nil
 }
@@ -375,23 +523,37 @@ func teamsEnumTargets() ([]string, error) {
 	return emails, nil
 }
 
+// teamsTokenSource holds the per-subcommand token-resolution inputs. Both the
+// "users" and "audit" subcommands populate it from their own flag blocks so the
+// shared resolution/refresh/device-code logic is reused (no duplicated HTTP
+// logic). Token values are never logged.
+type teamsTokenSource struct {
+	accessToken  string
+	refreshToken string
+	tokenFile    string
+	tenant       string
+	clientID     string
+	scope        string
+	noBrowser    bool
+}
+
 // teamsEnumResolveTokens determines the access (and optional refresh) token from
-// the three mutually exclusive sources: --token-file, --access-token, or an
-// inline device-code flow. Token values are never logged.
-func teamsEnumResolveTokens(ctx context.Context, useColor bool) (accessToken, refreshToken string, err error) {
-	if flagTeamsEnumTokenFile != "" && flagTeamsEnumAccessToken != "" {
+// the three mutually exclusive sources in src: --token-file, --access-token, or
+// an inline device-code flow. Token values are never logged.
+func teamsEnumResolveTokens(ctx context.Context, src teamsTokenSource, useColor bool) (accessToken, refreshToken string, err error) {
+	if src.tokenFile != "" && src.accessToken != "" {
 		return "", "", fmt.Errorf("--token-file and --access-token are mutually exclusive")
 	}
 
 	switch {
-	case flagTeamsEnumTokenFile != "":
-		return teamsEnumReadTokenFile(flagTeamsEnumTokenFile)
-	case flagTeamsEnumAccessToken != "":
-		return flagTeamsEnumAccessToken, flagTeamsEnumRefreshToken, nil
+	case src.tokenFile != "":
+		return teamsEnumReadTokenFile(src.tokenFile)
+	case src.accessToken != "":
+		return src.accessToken, src.refreshToken, nil
 	}
 
 	// No static token source: a stray --refresh-token has nothing to refresh.
-	if flagTeamsEnumRefreshToken != "" {
+	if src.refreshToken != "" {
 		return "", "", fmt.Errorf("--refresh-token requires --access-token or --token-file")
 	}
 
@@ -402,7 +564,7 @@ func teamsEnumResolveTokens(ctx context.Context, useColor bool) (accessToken, re
 		return at, rt, nil
 	}
 
-	return teamsEnumDeviceCodeTokens(ctx, useColor)
+	return teamsEnumDeviceCodeTokens(ctx, src, useColor)
 }
 
 // teamsEnumLoadDefaultTokens attempts to load tokens from the default
@@ -456,10 +618,10 @@ func teamsEnumReadTokenFile(path string) (accessToken, refreshToken string, err 
 
 // teamsEnumDeviceCodeTokens runs the interactive device-code flow inline and
 // returns the resulting access and refresh tokens.
-func teamsEnumDeviceCodeTokens(ctx context.Context, useColor bool) (accessToken, refreshToken string, err error) {
-	client, err := teams.NewClient(flagTeamsEnumTenant, flagTeamsEnumClientID, flagTeamsEnumScope, flagProxy, flagTimeout)
+func teamsEnumDeviceCodeTokens(ctx context.Context, src teamsTokenSource, useColor bool) (accessToken, refreshToken string, err error) {
+	client, err := teams.NewClient(src.tenant, src.clientID, src.scope, flagProxy, flagTimeout)
 	if err != nil {
-		return "", "", fmt.Errorf("teams users: %w", err)
+		return "", "", fmt.Errorf("teams enum: %w", err)
 	}
 
 	if !flagQuiet && !flagJSON {
@@ -473,7 +635,7 @@ func teamsEnumDeviceCodeTokens(ctx context.Context, useColor bool) (accessToken,
 
 	outputTeamsDeviceCodeHuman(os.Stderr, dc, useColor)
 
-	if !flagTeamsEnumNoBrowser {
+	if !src.noBrowser {
 		if berr := openBrowser(dc.VerificationURI); berr != nil {
 			if !flagQuiet && !flagJSON {
 				fmt.Fprintf(os.Stderr, "%s Couldn't open a browser automatically — open the URL above manually.\n", dim(useColor, SymbolInfo))

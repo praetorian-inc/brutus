@@ -318,6 +318,104 @@ func TestVerifyEcho_Unconfirmed(t *testing.T) {
 // C1: structural guard — runStickyKeysAnalysis must have the vulnerable branch
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// A5: regionConfidenceAndNote — pure verdict×region → (confidence, note)
+// ---------------------------------------------------------------------------
+
+func TestRegionConfidenceAndNote(t *testing.T) {
+	const base = 0.75
+
+	tests := []struct {
+		name           string
+		verdict        string
+		region         regionSignal
+		base           float64
+		wantConfidence float64
+		wantNote       string
+	}{
+		// backdoor_confirmed + console-shaped: geometry corroborates → high confidence boost
+		{
+			name:           "confirmed + console → high confidence + console note",
+			verdict:        "backdoor_confirmed",
+			region:         regionConsoleLike,
+			base:           base,
+			wantConfidence: confirmedConsoleConfidence,
+			wantNote:       "console-shaped + behaviorally confirmed",
+		},
+		// backdoor_confirmed + dialog-shaped: echo beats geometry → base confidence unchanged
+		{
+			name:           "confirmed + dialog → base confidence + echo-beats-geometry note",
+			verdict:        "backdoor_confirmed",
+			region:         regionDialogLike,
+			base:           base,
+			wantConfidence: base,
+			wantNote:       "dialog-shaped but behaviorally confirmed (echo beats geometry)",
+		},
+		// backdoor_confirmed + unknown region: echo beats geometry → base confidence unchanged
+		{
+			name:           "confirmed + unknown → base confidence + echo-beats-geometry note",
+			verdict:        "backdoor_confirmed",
+			region:         regionUnknown,
+			base:           base,
+			wantConfidence: base,
+			wantNote:       "geometry inconclusive but behaviorally confirmed (echo beats geometry)",
+		},
+		// indeterminate + console: unconfirmed but console-shaped → rerun note
+		{
+			name:           "indeterminate + console → base confidence + rerun note",
+			verdict:        verdictIndeterminate,
+			region:         regionConsoleLike,
+			base:           base,
+			wantConfidence: base,
+			wantNote:       "console-shaped, unconfirmed — rerun",
+		},
+		// indeterminate + dialog: unconfirmed dialog-shaped → rerun note
+		{
+			name:           "indeterminate + dialog → base confidence + rerun note",
+			verdict:        verdictIndeterminate,
+			region:         regionDialogLike,
+			base:           base,
+			wantConfidence: base,
+			wantNote:       "dialog-shaped, unconfirmed — rerun",
+		},
+		// indeterminate + unknown: geometry inconclusive → rerun note
+		{
+			name:           "indeterminate + unknown → base confidence + rerun note",
+			verdict:        verdictIndeterminate,
+			region:         regionUnknown,
+			base:           base,
+			wantConfidence: base,
+			wantNote:       "geometry inconclusive, unconfirmed — rerun",
+		},
+		// clean verdict: no geometry enrichment, no note
+		{
+			name:           "clean → base confidence + empty note",
+			verdict:        "clean",
+			region:         regionConsoleLike,
+			base:           base,
+			wantConfidence: base,
+			wantNote:       "",
+		},
+		// other / arbitrary verdict: no spurious high confidence, no note
+		{
+			name:           "other verdict → base confidence + empty note",
+			verdict:        "some_other_verdict",
+			region:         regionConsoleLike,
+			base:           base,
+			wantConfidence: base,
+			wantNote:       "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotConf, gotNote := regionConfidenceAndNote(tc.verdict, tc.region, tc.base)
+			assert.Equal(t, tc.wantConfidence, gotConf)
+			assert.Equal(t, tc.wantNote, gotNote)
+		})
+	}
+}
+
 // TestRunStickyKeysAnalysis_HasVulnerableBranch guards that runStickyKeysAnalysis
 // contains a symmetric `visionVerdict == "vulnerable"` branch matching the one
 // already present in runUtilmanAnalysis (analyze.go ~line 456).

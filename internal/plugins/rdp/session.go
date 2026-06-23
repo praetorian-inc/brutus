@@ -49,6 +49,7 @@ type StickyKeysResult struct {
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
 	VisionResult    string
+	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
 }
 
 // UtilmanResult holds the outcome of utilman backdoor detection.
@@ -60,6 +61,7 @@ type UtilmanResult struct {
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
 	VisionResult    string
+	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
 }
 
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).
@@ -139,11 +141,16 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("capture response: %w", err)
 	}
 
-	// Behavioral confirmation (Lever 1): only type the read-only nonce when the
-	// heuristic already sees a backdoor-shaped box; a plainly-clean login screen is
-	// left untouched.
+	// Behavioral confirmation (Lever 1): type the read-only nonce whenever the
+	// heuristic verdict is a positive (backdoor_likely) — covering BOTH the
+	// rectangular and the non-rectangular changedPercent path — so a real backdoor
+	// is never skipped by a too-narrow rectangularity gate (reviewer SF-2). A
+	// plainly-clean login screen still gets left untouched. The box from
+	// detectChangedRectangle is threaded into typeAndConfirm for the scoped echo
+	// check (zero-valued box when no change, harmless since verifyEcho rejects it).
 	nonce = nonceSkipped
-	if v, _, box := detectChangedRectangle(baseline, response, width, height); v {
+	if verdict, _, _ := analyzeBackdoorResponse(baseline, response, width, height); verdict == "backdoor_likely" {
+		_, _, box := detectChangedRectangle(baseline, response, width, height)
 		nonce = p.typeAndConfirm(ctx, inst, sessHandle, response, width, height, box, timeout)
 	}
 
@@ -225,11 +232,16 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 		return nil, nil, 0, 0, false, nonceSkipped, fmt.Errorf("capture response: %w", err)
 	}
 
-	// Behavioral confirmation (Lever 1): only type the read-only nonce when the
-	// heuristic already sees a backdoor-shaped box; a plainly-clean login screen is
-	// left untouched.
+	// Behavioral confirmation (Lever 1): type the read-only nonce whenever the
+	// heuristic verdict is a positive (backdoor_likely) — covering BOTH the
+	// rectangular and the non-rectangular changedPercent path — so a real backdoor
+	// is never skipped by a too-narrow rectangularity gate (reviewer SF-2). A
+	// plainly-clean login screen still gets left untouched. The box from
+	// detectChangedRectangle is threaded into typeAndConfirm for the scoped echo
+	// check (zero-valued box when no change, harmless since verifyEcho rejects it).
 	nonce = nonceSkipped
-	if v, _, box := detectChangedRectangle(baseline, response, width, height); v {
+	if verdict, _, _ := analyzeBackdoorResponse(baseline, response, width, height); verdict == "backdoor_likely" {
+		_, _, box := detectChangedRectangle(baseline, response, width, height)
 		nonce = p.typeAndConfirm(ctx, inst, sessHandle, response, width, height, box, timeout)
 	}
 

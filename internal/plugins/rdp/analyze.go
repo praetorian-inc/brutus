@@ -53,6 +53,12 @@ const (
 	// blink noise (a text cell is ~8x16 px) so a blinking caret alone never confirms;
 	// an echoed command line + new prompt changes thousands of pixels.
 	nonceMinChangedPixels = 500
+
+	// confirmedConsoleConfidence: when a backdoor is behaviorally confirmed AND the
+	// changed region is console-shaped (geometry corroborates the echo), report
+	// near-certain confidence. Geometry only RAISES confidence on an already-confirmed
+	// positive; it never lowers a verdict (cardinal rule — echo beats geometry).
+	confirmedConsoleConfidence = 0.95
 )
 
 // changedBox is the bounding box of significantly-changed pixels plus its fill ratio.
@@ -294,12 +300,13 @@ func classifyRegion(response []byte, width, height uint32, box changedBox) regio
 	return regionUnknown
 }
 
-// decideVerdict combines the heuristic verdict, the region signal, and the behavioral
-// nonce result into a final verdict. It is the single source of truth for the cardinal
-// rule: no "backdoor_likely" input ever yields "clean". Pure -> unit-testable.
+// decideVerdict combines the heuristic verdict and the behavioral nonce result into a
+// final verdict. It is the single source of truth for the cardinal rule: no
+// "backdoor_likely" input ever yields "clean". The region signal is intentionally NOT
+// consulted here — geometry must never change the verdict; it only enriches confidence
+// and the diagnostic banner (see regionConfidenceAndNote). region is retained in the
+// signature for call-site symmetry but is deliberately ignored. Pure -> unit-testable.
 func decideVerdict(heuristic string, region regionSignal, nonce nonceResult) string {
-	_ = region // region is informational; the cardinal rule does not depend on it.
-
 	if heuristic != "backdoor_likely" {
 		return heuristic
 	}
@@ -311,6 +318,39 @@ func decideVerdict(heuristic string, region regionSignal, nonce nonceResult) str
 	// Any uncertain backdoor_likely case (unconfirmed or skipped) is honest indeterminate,
 	// never clean.
 	return verdictIndeterminate
+}
+
+// regionConfidenceAndNote enriches an already-decided verdict with the geometry signal.
+// It NEVER changes the verdict (cardinal rule) — it only (a) raises confidence when a
+// confirmed backdoor is also console-shaped, and (b) returns an operator-facing note so
+// the banner explains what the geometry showed. Echo always beats geometry: a
+// dialog-shaped or unknown-shaped region that is still behaviorally confirmed stays
+// confirmed; the note just records the (non-corroborating) geometry. For an unconfirmed
+// (indeterminate) verdict the note tells the operator what to expect on a rerun.
+// Pure -> unit-testable; baseConfidence is returned unchanged unless a boost applies.
+func regionConfidenceAndNote(verdict string, region regionSignal, baseConfidence float64) (confidence float64, note string) {
+	switch verdict {
+	case "backdoor_confirmed":
+		switch region {
+		case regionConsoleLike:
+			return confirmedConsoleConfidence, "console-shaped + behaviorally confirmed"
+		case regionDialogLike:
+			return baseConfidence, "dialog-shaped but behaviorally confirmed (echo beats geometry)"
+		default:
+			return baseConfidence, "geometry inconclusive but behaviorally confirmed (echo beats geometry)"
+		}
+	case verdictIndeterminate:
+		switch region {
+		case regionConsoleLike:
+			return baseConfidence, "console-shaped, unconfirmed — rerun"
+		case regionDialogLike:
+			return baseConfidence, "dialog-shaped, unconfirmed — rerun"
+		default:
+			return baseConfidence, "geometry inconclusive, unconfirmed — rerun"
+		}
+	default:
+		return baseConfidence, ""
+	}
 }
 
 // verifyEcho reports whether typing the nonce produced a shell-like text render inside
@@ -422,11 +462,13 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 	}
 
 	// No-Vision (or inconclusive Vision) baseline: combine heuristic + pre-filter signal
-	// + behavioral nonce result via the cardinal-rule decision table.
+	// + behavioral nonce result via the cardinal-rule decision table. The region signal
+	// never changes the verdict (decideVerdict ignores it); it only enriches confidence
+	// and the diagnostic banner via regionConfidenceAndNote.
 	_, _, box := detectChangedRectangle(baseline, response, width, height)
 	region := classifyRegion(response, width, height, box)
 	result.OverallVerdict = decideVerdict(verdict, region, nonce)
-	result.Confidence = confidence
+	result.Confidence, result.RegionNote = regionConfidenceAndNote(result.OverallVerdict, region, confidence)
 	return result
 }
 
@@ -475,10 +517,12 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 	}
 
 	// No-Vision (or inconclusive Vision) baseline: combine heuristic + pre-filter signal
-	// + behavioral nonce result via the cardinal-rule decision table.
+	// + behavioral nonce result via the cardinal-rule decision table. The region signal
+	// never changes the verdict (decideVerdict ignores it); it only enriches confidence
+	// and the diagnostic banner via regionConfidenceAndNote.
 	_, _, box := detectChangedRectangle(baseline, response, width, height)
 	region := classifyRegion(response, width, height, box)
 	result.OverallVerdict = decideVerdict(verdict, region, nonce)
-	result.Confidence = confidence
+	result.Confidence, result.RegionNote = regionConfidenceAndNote(result.OverallVerdict, region, confidence)
 	return result
 }

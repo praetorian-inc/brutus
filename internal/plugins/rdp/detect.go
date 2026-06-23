@@ -85,6 +85,11 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 		// Success stays false (fail-closed)
 	}
 
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if stickyResult.RegionNote != "" {
+		result.Banner += fmt.Sprintf(" (%s)", stickyResult.RegionNote)
+	}
+
 	return result
 }
 
@@ -142,6 +147,11 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 	default:
 		result.Banner = fmt.Sprintf("[INFO] Utilman check returned unknown verdict: %q", utilmanResult.OverallVerdict)
 		// Success stays false (fail-closed)
+	}
+
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if utilmanResult.RegionNote != "" {
+		result.Banner += fmt.Sprintf(" (%s)", utilmanResult.RegionNote)
 	}
 
 	return result
@@ -387,6 +397,11 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 		banner += "[INFO] Sticky keys check: clean (no response to 5x Shift)."
 	}
 
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if result.RegionNote != "" {
+		banner += fmt.Sprintf(" (%s)", result.RegionNote)
+	}
+
 	return banner
 }
 
@@ -432,6 +447,11 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 		banner += "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"
 	case "clean":
 		banner += "[INFO] Utilman check: clean (no response to Win+U)."
+	}
+
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if result.RegionNote != "" {
+		banner += fmt.Sprintf(" (%s)", result.RegionNote)
 	}
 
 	return banner

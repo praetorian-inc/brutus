@@ -293,9 +293,11 @@ func TestEnumTeamsAuditCmd_Registered(t *testing.T) {
 			"audit subcommand must not define a local -s shorthand (reserved for auth-path consistency)")
 	})
 
-	t.Run("--presence flag exists on audit subcommand", func(t *testing.T) {
-		f := enumTeamsAuditCmd.Flags().Lookup("presence")
-		require.NotNil(t, f, "--presence flag must exist on audit subcommand")
+	t.Run("--no-presence flag exists on audit subcommand", func(t *testing.T) {
+		f := enumTeamsAuditCmd.Flags().Lookup("no-presence")
+		require.NotNil(t, f, "--no-presence flag must exist on audit subcommand")
+		assert.Equal(t, "false", f.DefValue,
+			"--no-presence must default to false (presence is on by default)")
 	})
 
 	t.Run("--access-token flag exists on audit subcommand", func(t *testing.T) {

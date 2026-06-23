@@ -957,8 +957,12 @@ accounts are not supported — corporate tenants only.
 # Device-code auth inline, then enumerate a couple of emails
 brutus enum teams users -e alice@contoso.com,bob@contoso.com
 
-# Enumerate emails from a file, with Teams presence lookups
-brutus enum teams users -E emails.txt --presence
+# Generate candidate emails for a domain and enumerate the most-likely 5000
+# (presence and out-of-office are gathered by default; use --no-presence to skip)
+brutus enum teams users --domain target.com --format first.last --limit 5000
+
+# Enumerate emails from a file
+brutus enum teams users -E emails.txt
 
 # Reuse a token captured earlier and route through a SOCKS5 proxy
 brutus enum teams auth -o token.jsonl

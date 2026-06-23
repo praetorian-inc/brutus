@@ -78,9 +78,11 @@ func TestEnumTeamsUsersCmd_Flags(t *testing.T) {
 		require.NotNil(t, f, "--token-file flag must exist on users subcommand")
 	})
 
-	t.Run("presence flag exists", func(t *testing.T) {
-		f := flags.Lookup("presence")
-		require.NotNil(t, f, "--presence flag must exist on users subcommand")
+	t.Run("no-presence flag exists", func(t *testing.T) {
+		f := flags.Lookup("no-presence")
+		require.NotNil(t, f, "--no-presence flag must exist on users subcommand")
+		assert.Equal(t, "false", f.DefValue,
+			"--no-presence must default to false (presence is on by default)")
 	})
 
 	t.Run("no local -t shorthand on users subcommand", func(t *testing.T) {

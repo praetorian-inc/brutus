@@ -51,7 +51,7 @@ var (
 	flagTeamsEnumAccessToken     string
 	flagTeamsEnumRefreshToken    string
 	flagTeamsEnumTokenFile       string
-	flagTeamsEnumPresence        bool
+	flagTeamsEnumNoPresence      bool
 	flagTeamsEnumTenant          string
 	flagTeamsEnumClientID        string
 	flagTeamsEnumScope           string
@@ -67,7 +67,7 @@ var (
 	flagTeamsAuditAccessToken     string
 	flagTeamsAuditRefreshToken    string
 	flagTeamsAuditTokenFile       string
-	flagTeamsAuditPresence        bool
+	flagTeamsAuditNoPresence      bool
 	flagTeamsAuditTenant          string
 	flagTeamsAuditClientID        string
 	flagTeamsAuditScope           string
@@ -141,19 +141,20 @@ available, an expired access token is refreshed once automatically; otherwise a
 
 Scope is corporate accounts only — personal/Live accounts are not supported.
 
-With --presence, Teams presence (availability and device type) is fetched for
-users that exist; presence failures are non-fatal.`,
+Teams presence (availability and device type) is fetched by default for users
+that exist; presence failures are non-fatal. Pass --no-presence to skip the
+presence lookups (fewer requests).`,
 	Example: `  # Device-code auth inline, then enumerate a few emails
   brutus enum teams users -e alice@contoso.com,bob@contoso.com
 
   # Generate candidate emails for a domain and enumerate the 5000 most likely
   brutus enum teams users --domain target.com --format first.last --limit 5000
 
-  # Generate first_last candidates and fetch presence for users that exist
-  brutus enum teams users --domain target.com --format first_last --presence
+  # Generate first_last candidates (presence is fetched by default for hits)
+  brutus enum teams users --domain target.com --format first_last
 
-  # Enumerate emails from a file, with presence lookups
-  brutus enum teams users -E emails.txt --presence
+  # Enumerate emails from a file, skipping presence lookups
+  brutus enum teams users -E emails.txt --no-presence
 
   # Reuse a token captured earlier with "enum teams auth -o"
   brutus enum teams auth -o token.jsonl
@@ -184,13 +185,14 @@ available, an expired access token is refreshed once automatically.
 
 Scope is corporate accounts only — personal/Live accounts are not supported.
 
-With --presence, Teams presence (availability and device type) and any
-out-of-office note are fetched, enabling the presence/out-of-office findings.`,
+Teams presence (availability and device type) and any out-of-office note are
+fetched by default, enabling the presence/out-of-office findings. Pass
+--no-presence to skip the presence lookups (those findings are not evaluated).`,
 	Example: `  # Audit a tenant via a single known-valid seed address (device-code auth inline)
   brutus enum teams audit --email alice@contoso.com
 
-  # Include presence/out-of-office findings
-  brutus enum teams audit --email alice@contoso.com --presence
+  # Skip presence/out-of-office lookups (presence/OOO findings not evaluated)
+  brutus enum teams audit --email alice@contoso.com --no-presence
 
   # Reuse a token captured earlier with "enum teams auth -o"
   brutus enum teams auth -o token.jsonl
@@ -220,7 +222,7 @@ func init() {
 	uf.StringVar(&flagTeamsEnumAccessToken, "access-token", "", "Access token to use (instead of device-code or --token-file)")
 	uf.StringVar(&flagTeamsEnumRefreshToken, "refresh-token", "", "Refresh token used to renew an expired access token")
 	uf.StringVar(&flagTeamsEnumTokenFile, "token-file", "", "JSONL token file from \"enum teams auth -o\" to reuse")
-	uf.BoolVar(&flagTeamsEnumPresence, "presence", false, "Also fetch Teams presence for users that exist")
+	uf.BoolVar(&flagTeamsEnumNoPresence, "no-presence", false, "Skip Teams presence / out-of-office lookups (fewer requests; presence is gathered by default)")
 	// NOTE: no -t/-s shorthands here: -t collides with the global --threads/-t
 	// persistent flag, and -s is reserved for consistency with the auth path.
 	uf.StringVar(&flagTeamsEnumTenant, "tenant", "organizations", "Tenant ID, domain, or \"organizations\"/\"common\" (device-code path)")
@@ -235,7 +237,7 @@ func init() {
 	af.StringVar(&flagTeamsAuditAccessToken, "access-token", "", "Access token to use (instead of device-code or --token-file)")
 	af.StringVar(&flagTeamsAuditRefreshToken, "refresh-token", "", "Refresh token used to renew an expired access token")
 	af.StringVar(&flagTeamsAuditTokenFile, "token-file", "", "JSONL token file from \"enum teams auth -o\" to reuse")
-	af.BoolVar(&flagTeamsAuditPresence, "presence", false, "Also fetch Teams presence/out-of-office to enable presence findings")
+	af.BoolVar(&flagTeamsAuditNoPresence, "no-presence", false, "Skip Teams presence / out-of-office lookups (fewer requests; presence is gathered by default)")
 	// NOTE: no -t/-s shorthands here: -t collides with the global --threads/-t
 	// persistent flag, and -s is reserved for consistency with the auth path.
 	af.StringVar(&flagTeamsAuditTenant, "tenant", "organizations", "Tenant ID, domain, or \"organizations\"/\"common\" (device-code path)")
@@ -374,7 +376,7 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, flagTeamsEnumPresence)
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, !flagTeamsEnumNoPresence)
 	if err != nil {
 		return fmt.Errorf("teams users: %w", err)
 	}
@@ -485,7 +487,9 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, flagTeamsAuditPresence)
+	presenceChecked := !flagTeamsAuditNoPresence
+
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, presenceChecked)
 	if err != nil {
 		return fmt.Errorf("teams audit: %w", err)
 	}
@@ -513,7 +517,7 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 	result := enumerator.EnumerateOne(ctx, seedEmail)
 	domain := teamsEnumDomain([]string{seedEmail})
 	posture := teams.DerivePosture(domain, []teams.EnumResult{result})
-	findings := teams.Audit(domain, seedEmail, result, posture, flagTeamsAuditPresence)
+	findings := teams.Audit(domain, seedEmail, result, posture, presenceChecked)
 
 	// Warn (to stderr, never stdout) when the seed didn't resolve, so the user
 	// knows findings are limited — but still emit whatever we gathered.

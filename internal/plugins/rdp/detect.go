@@ -262,7 +262,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
+	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey, nonceSkipped)
 	result.Performed = true
 	result.Stabilized = stabilized
 
@@ -318,7 +318,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
+	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey, nonceSkipped)
 	result.Performed = true
 	result.Stabilized = stabilized
 

@@ -144,7 +144,7 @@ func TestRunUtilmanAnalysis_Clean(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	result := runUtilmanAnalysis(ctx, baseline, response, w, h, "")
+	result := runUtilmanAnalysis(ctx, baseline, response, w, h, "", nonceSkipped)
 	assert.True(t, result.Performed)
 	assert.Equal(t, "clean", result.OverallVerdict)
 }
@@ -162,4 +162,123 @@ func TestRgbaToPNG(t *testing.T) {
 	// PNG magic bytes
 	assert.Equal(t, byte(0x89), pngData[0])
 	assert.Equal(t, byte(0x50), pngData[1])
+}
+
+// ---------------------------------------------------------------------------
+// A1: detectChangedRectangle returns bounding box
+// ---------------------------------------------------------------------------
+
+func TestDetectChangedRectangle_ReturnsBox(t *testing.T) {
+	w, h := uint32(100), uint32(100)
+	size := int(w) * int(h) * 4
+	baseline := make([]byte, size)
+	for i := 0; i < size; i += 4 {
+		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
+	}
+	response := make([]byte, size)
+	copy(response, baseline)
+	// dark rect [20,80)x[20,80)
+	for y := 20; y < 80; y++ {
+		for x := 20; x < 80; x++ {
+			idx := (y*int(w) + x) * 4
+			response[idx], response[idx+1], response[idx+2], response[idx+3] = 0, 0, 0, 255
+		}
+	}
+	_, _, box := detectChangedRectangle(baseline, response, w, h)
+	assert.Equal(t, 20, box.minX)
+	assert.Equal(t, 20, box.minY)
+	assert.Equal(t, 79, box.maxX)
+	assert.Equal(t, 79, box.maxY)
+	assert.Greater(t, box.changedCount, 0)
+}
+
+// ---------------------------------------------------------------------------
+// A2: classifyRegion — console vs dialog vs unknown discrimination
+// ---------------------------------------------------------------------------
+
+// paintBox fills a rectangular region of an RGBA buffer with the given gray value.
+func paintBox(buf []byte, w int, x0, y0, x1, y1 int, gray byte) {
+	for y := y0; y < y1; y++ {
+		for x := x0; x < x1; x++ {
+			idx := (y*w + x) * 4
+			buf[idx], buf[idx+1], buf[idx+2], buf[idx+3] = gray, gray, gray, 255
+		}
+	}
+}
+
+func TestClassifyRegion_ConsoleLike(t *testing.T) {
+	w, h := uint32(1000), uint32(1000)
+	resp := make([]byte, int(w)*int(h)*4)
+	// large dark box anchored top-left: [0,0)x[600,600), gray 0
+	paintBox(resp, int(w), 0, 0, 600, 600, 0)
+	box := changedBox{minX: 0, minY: 0, maxX: 599, maxY: 599, changedCount: 600 * 600}
+	assert.Equal(t, regionConsoleLike, classifyRegion(resp, w, h, box))
+}
+
+func TestClassifyRegion_DialogLike(t *testing.T) {
+	w, h := uint32(1000), uint32(1000)
+	resp := make([]byte, int(w)*int(h)*4)
+	// small light box centered: [430,430)x[570,570), gray 200
+	paintBox(resp, int(w), 430, 430, 570, 570, 200)
+	box := changedBox{minX: 430, minY: 430, maxX: 569, maxY: 569, changedCount: 140 * 140}
+	assert.Equal(t, regionDialogLike, classifyRegion(resp, w, h, box))
+}
+
+func TestClassifyRegion_Unknown(t *testing.T) {
+	w, h := uint32(1000), uint32(1000)
+	resp := make([]byte, int(w)*int(h)*4)
+	// medium mid-gray box, neither corner-anchored nor centered-small
+	paintBox(resp, int(w), 200, 100, 500, 400, 110)
+	box := changedBox{minX: 200, minY: 100, maxX: 499, maxY: 399, changedCount: 300 * 300}
+	assert.Equal(t, regionUnknown, classifyRegion(resp, w, h, box))
+}
+
+// ---------------------------------------------------------------------------
+// A3: decideVerdict — full 7-row table + cardinal rule
+// ---------------------------------------------------------------------------
+
+func TestDecideVerdict(t *testing.T) {
+	tests := []struct {
+		name      string
+		heuristic string
+		region    regionSignal
+		nonce     nonceResult
+		want      string
+	}{
+		{"clean heuristic stays clean", "clean", regionUnknown, nonceSkipped, "clean"},
+		{"confirmed echo + console", "backdoor_likely", regionConsoleLike, nonceConfirmed, "backdoor_confirmed"},
+		{"confirmed echo beats dialog geometry", "backdoor_likely", regionDialogLike, nonceConfirmed, "backdoor_confirmed"},
+		{"console but no echo -> rerun", "backdoor_likely", regionConsoleLike, nonceUnconfirmed, verdictIndeterminate},
+		{"dialog + no echo -> rerun (the FP fix)", "backdoor_likely", regionDialogLike, nonceUnconfirmed, verdictIndeterminate},
+		{"unknown + no echo -> rerun", "backdoor_likely", regionUnknown, nonceUnconfirmed, verdictIndeterminate},
+		{"backdoor box but nonce skipped -> rerun", "backdoor_likely", regionConsoleLike, nonceSkipped, verdictIndeterminate},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := decideVerdict(tc.heuristic, tc.region, tc.nonce)
+			assert.Equal(t, tc.want, got)
+			if tc.heuristic == "backdoor_likely" {
+				assert.NotEqual(t, "clean", got, "CARDINAL RULE: backdoor box must never become clean")
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// A4: runStickyKeysAnalysis — dialog-shaped frame → indeterminate (not backdoor_likely)
+// ---------------------------------------------------------------------------
+
+func TestRunStickyKeysAnalysis_DialogShape_NoVision_Indeterminate(t *testing.T) {
+	w, h := uint32(1000), uint32(1000)
+	size := int(w) * int(h) * 4
+	baseline := make([]byte, size)
+	for i := 0; i < size; i += 4 {
+		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
+	}
+	response := make([]byte, size)
+	copy(response, baseline)
+	paintBox(response, int(w), 390, 390, 610, 610, 200) // light small centered (220×220 = 4.84% area, trips heuristic but classifies as dialog)
+	res := runStickyKeysAnalysis(context.Background(), baseline, response, w, h, "", nonceSkipped)
+	assert.Equal(t, verdictIndeterminate, res.OverallVerdict)
+	assert.NotEqual(t, "clean", res.OverallVerdict)
 }

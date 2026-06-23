@@ -92,7 +92,7 @@ func RunStickyKeysExec(ctx context.Context, target, command string, timeout time
 	// Use dual-check analysis: heuristic first, then Vision API confirmation when available.
 	// This avoids false negatives from the heuristic alone (e.g. cmd.exe window not forming
 	// a dense enough rectangle for the fill-ratio check).
-	analysis := runStickyKeysAnalysis(ctx, baseline, response, sess.Width(), sess.Height(), apiKey)
+	analysis := runStickyKeysAnalysis(ctx, baseline, response, sess.Width(), sess.Height(), apiKey, nonceSkipped)
 	if analysis.OverallVerdict == "clean" {
 		fmt.Fprintf(os.Stderr, "[!] No backdoor detected (heuristic: %s). Aborting.\n", analysis.HeuristicResult)
 		result.BackdoorDetected = false

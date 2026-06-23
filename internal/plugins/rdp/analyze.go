@@ -33,6 +33,48 @@ const (
 	maxChangedPercent = 80.0
 )
 
+const (
+	// Brightness inside the box: a console is mostly dark, a dialog mostly light.
+	consoleMaxMeanBrightness = 90  // <= this (0-255) reads as a dark console body
+	dialogMinMeanBrightness  = 140 // >= this reads as a light dialog body
+
+	// Size: console fills a large fraction of the screen; dialog is small.
+	consoleMinAreaFrac = 0.18 // box area / screen area >= this  -> console-sized
+	dialogMaxAreaFrac  = 0.12 // box area / screen area <= this  -> dialog-sized
+
+	// Position: console anchors top-left; dialog is centered. Measured on the box's
+	// top-left corner as a fraction of screen dimensions.
+	consoleMaxLeftFrac  = 0.25 // minX/width  <= this -> left-anchored
+	consoleMaxTopFrac   = 0.25 // minY/height <= this -> top-anchored
+	dialogMinCenterFrac = 0.30 // box center within [0.30,0.70] of both axes -> centered
+)
+
+// changedBox is the bounding box of significantly-changed pixels plus its fill ratio.
+type changedBox struct {
+	minX, minY, maxX, maxY int
+	fillRatio              float64
+	changedCount           int
+}
+
+// regionSignal is the pre-filter's read of the changed region.
+type regionSignal int
+
+const (
+	regionUnknown     regionSignal = iota // box present but signals don't agree
+	regionConsoleLike                     // large + dark + top-left-ish  -> corroborates backdoor
+	regionDialogLike                      // small + light + centered     -> corroborates dialog
+)
+
+// nonceResult is the tri-state outcome of behavioral confirmation. Only "confirmed"
+// is decisive-positive; the other two are NEVER clean.
+type nonceResult int
+
+const (
+	nonceSkipped     nonceResult = iota // heuristic didn't see a backdoor-like box; not attempted
+	nonceConfirmed                      // new shell-like text rendered after typing -> real shell
+	nonceUnconfirmed                    // no new render OR type/capture failed -> ambiguous
+)
+
 // bitmapDiff computes the absolute difference between two RGBA buffers.
 // Returns a diff buffer of the same size where each pixel is the max channel diff.
 func bitmapDiff(baseline, response []byte, width, height uint32) []byte {
@@ -74,6 +116,25 @@ func pixelBrightness(buf []byte, i int) int {
 	return (int(buf[i]) + int(buf[i+1]) + int(buf[i+2])) / 3
 }
 
+// meanBoxBrightness returns the mean pixel brightness inside box (inclusive bounds).
+func meanBoxBrightness(buf []byte, w int, box changedBox) int {
+	sum, count := 0, 0
+	for y := box.minY; y <= box.maxY; y++ {
+		for x := box.minX; x <= box.maxX; x++ {
+			idx := (y*w + x) * 4
+			if idx+2 >= len(buf) {
+				continue
+			}
+			sum += pixelBrightness(buf, idx)
+			count++
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return sum / count
+}
+
 // analyzeBackdoorResponse analyzes the difference between baseline and response frames.
 // It detects any new rectangular region (dark for cmd.exe, blue for PowerShell, etc.)
 // that appeared after sending a trigger keystroke (5x Shift for sticky keys, Win+U for utilman).
@@ -112,7 +173,7 @@ func analyzeBackdoorResponse(baseline, response []byte, width, height uint32) (v
 	}
 
 	// Check if changed pixels form a rectangular region (characteristic of a terminal window)
-	isRect, rectScore := detectChangedRectangle(baseline, response, width, height)
+	isRect, rectScore, _ := detectChangedRectangle(baseline, response, width, height)
 
 	if isRect && changedPercent > 3.0 {
 		confidence := math.Min(0.85, changedPercent/20.0+rectScore*0.5)
@@ -129,8 +190,9 @@ func analyzeBackdoorResponse(baseline, response []byte, width, height uint32) (v
 }
 
 // detectChangedRectangle checks if significantly changed pixels form a rectangular region.
-// Returns (isRectangular, score) where score is 0-1 indicating rectangularity (fill ratio).
-func detectChangedRectangle(baseline, response []byte, width, height uint32) (isRectangular bool, score float64) {
+// Returns (isRectangular, score, box) where score is 0-1 indicating rectangularity (fill
+// ratio) and box is the bounding box of changed pixels (previously discarded).
+func detectChangedRectangle(baseline, response []byte, width, height uint32) (isRectangular bool, score float64, box changedBox) {
 	w := int(width)
 	h := int(height)
 
@@ -168,7 +230,7 @@ func detectChangedRectangle(baseline, response []byte, width, height uint32) (is
 	}
 
 	if changedCount == 0 || maxX <= minX || maxY <= minY {
-		return false, 0
+		return false, 0, changedBox{}
 	}
 
 	// Calculate what fraction of the bounding box is filled with changed pixels.
@@ -176,10 +238,73 @@ func detectChangedRectangle(baseline, response []byte, width, height uint32) (is
 	boundingArea := (maxX - minX + 1) * (maxY - minY + 1)
 	fillRatio := float64(changedCount) / float64(boundingArea)
 
+	box = changedBox{
+		minX:         minX,
+		minY:         minY,
+		maxX:         maxX,
+		maxY:         maxY,
+		fillRatio:    fillRatio,
+		changedCount: changedCount,
+	}
+
 	// Threshold: >40% fill and at least 1% of total screen area.
 	// Lowered from 60% to catch terminal windows with thin borders and sparse content.
 	isRectangular = fillRatio > 0.4 && boundingArea > (w*h/100)
-	return isRectangular, fillRatio
+	return isRectangular, fillRatio, box
+}
+
+// classifyRegion inspects the changed bounding box for console-vs-dialog signals.
+// It NEVER returns a verdict — only a signal that decideVerdict consults. A real console
+// is large, dark, and top-left anchored; the legit accessibility dialog is small, light,
+// and centered. Conjunctions (not any-of) keep it conservative.
+func classifyRegion(response []byte, width, height uint32, box changedBox) regionSignal {
+	w, h := int(width), int(height)
+	if w == 0 || h == 0 || box.maxX <= box.minX || box.maxY <= box.minY {
+		return regionUnknown
+	}
+
+	mean := meanBoxBrightness(response, w, box)
+	areaFrac := float64((box.maxX-box.minX+1)*(box.maxY-box.minY+1)) / float64(w*h)
+	leftFrac := float64(box.minX) / float64(w)
+	topFrac := float64(box.minY) / float64(h)
+	centerXFrac := float64(box.minX+box.maxX) / 2.0 / float64(w)
+	centerYFrac := float64(box.minY+box.maxY) / 2.0 / float64(h)
+
+	dark := mean <= consoleMaxMeanBrightness
+	large := areaFrac >= consoleMinAreaFrac
+	topLeft := leftFrac <= consoleMaxLeftFrac && topFrac <= consoleMaxTopFrac
+	if dark && large && topLeft {
+		return regionConsoleLike
+	}
+
+	light := mean >= dialogMinMeanBrightness
+	small := areaFrac <= dialogMaxAreaFrac
+	centered := centerXFrac >= dialogMinCenterFrac && centerXFrac <= 1-dialogMinCenterFrac &&
+		centerYFrac >= dialogMinCenterFrac && centerYFrac <= 1-dialogMinCenterFrac
+	if light && small && centered {
+		return regionDialogLike
+	}
+
+	return regionUnknown
+}
+
+// decideVerdict combines the heuristic verdict, the region signal, and the behavioral
+// nonce result into a final verdict. It is the single source of truth for the cardinal
+// rule: no "backdoor_likely" input ever yields "clean". Pure -> unit-testable.
+func decideVerdict(heuristic string, region regionSignal, nonce nonceResult) string {
+	_ = region // region is informational; the cardinal rule does not depend on it.
+
+	if heuristic != "backdoor_likely" {
+		return heuristic
+	}
+
+	if nonce == nonceConfirmed {
+		return "backdoor_confirmed"
+	}
+
+	// Any uncertain backdoor_likely case (unconfirmed or skipped) is honest indeterminate,
+	// never clean.
+	return verdictIndeterminate
 }
 
 // rgbaToPNG converts RGBA pixel data to a PNG byte buffer.
@@ -212,7 +337,7 @@ func rgbaToPNG(rgba []byte, width, height uint32) ([]byte, error) {
 
 // runStickyKeysAnalysis performs the dual-check: heuristic first, then Vision API if available.
 func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
-	width, height uint32, visionAPIKey string) StickyKeysResult {
+	width, height uint32, visionAPIKey string, nonce nonceResult) StickyKeysResult {
 
 	result := StickyKeysResult{Performed: true}
 
@@ -248,15 +373,18 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 		}
 	}
 
-	// Use heuristic result as final
-	result.OverallVerdict = verdict
+	// No-Vision (or inconclusive Vision) baseline: combine heuristic + pre-filter signal
+	// + behavioral nonce result via the cardinal-rule decision table.
+	_, _, box := detectChangedRectangle(baseline, response, width, height)
+	region := classifyRegion(response, width, height, box)
+	result.OverallVerdict = decideVerdict(verdict, region, nonce)
 	result.Confidence = confidence
 	return result
 }
 
 // runUtilmanAnalysis performs the dual-check for utilman backdoor: heuristic first, then Vision API.
 func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
-	width, height uint32, visionAPIKey string) UtilmanResult {
+	width, height uint32, visionAPIKey string, nonce nonceResult) UtilmanResult {
 
 	result := UtilmanResult{Performed: true}
 
@@ -298,8 +426,11 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 		}
 	}
 
-	// Use heuristic result as final
-	result.OverallVerdict = verdict
+	// No-Vision (or inconclusive Vision) baseline: combine heuristic + pre-filter signal
+	// + behavioral nonce result via the cardinal-rule decision table.
+	_, _, box := detectChangedRectangle(baseline, response, width, height)
+	region := classifyRegion(response, width, height, box)
+	result.OverallVerdict = decideVerdict(verdict, region, nonce)
 	result.Confidence = confidence
 	return result
 }

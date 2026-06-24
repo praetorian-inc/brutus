@@ -524,7 +524,7 @@ func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool)
 // variable so tests can substitute a fake without a live RDP server.
 var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]brutus.Result, bool) {
 	return logon.DetectBackdoors(ctx, target, base.connectTimeout, base.timeout, base.aiMode, base.maxRetries, base.checks,
-		base.proxyURL, base.noNLAProbe)
+		base.proxyURL, base.noNLAProbe, base.fast)
 }
 
 // runScanTargetsConcurrent runs sticky-keys/utilman detection across many targets

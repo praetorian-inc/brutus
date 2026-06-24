@@ -66,7 +66,7 @@ func TestDecodeSlotBound(t *testing.T) {
 
 	var current, peak atomic.Int64
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
 		n := current.Add(1)
 		for {
 			p := peak.Load()
@@ -92,7 +92,7 @@ func TestDecodeSlotBound(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			DetectBackdoors(context.Background(), "host:3389", 3*time.Second, 5*time.Second, false, 0, CheckBoth, "", false)
+			DetectBackdoors(context.Background(), "host:3389", 3*time.Second, 5*time.Second, false, 0, CheckBoth, "", false, false)
 		}()
 	}
 	wg.Wait()

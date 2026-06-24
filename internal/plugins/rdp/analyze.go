@@ -74,6 +74,24 @@ const (
 	darkDeltaConsoleMaxFrac = 0.65
 )
 
+const (
+	// gateConfidenceFloor: minimum analyzeBackdoorResponse confidence below which a
+	// backdoor_likely needs corroborating console geometry to stay HIGH. Real consoles
+	// score ~0.85; the wallpaper count-delta FP scores 0%. 0.30 sits well below real,
+	// well above the FP — a margin that clips neither a full-screen nor a windowed console.
+	gateConfidenceFloor = 0.30
+
+	// gateMinDarkBoxFrac: the geometry arm's bar on how much of the changed box is an actual
+	// dark console body (darkBoxFraction). Measured on ground-truth fixtures: real consoles
+	// are ~0.93-0.94 dark inside the box, the dispersed wallpaper FP only ~0.35. This bar sits
+	// in the gap (wide margin both ways) so a real console body passes the geometry arm while
+	// a dispersed dark change does not. Replaces the synthetic-tuned fillRatio>=0.70 solidity
+	// bar, which assumed real consoles fill their changed box ~1.0; they actually fill ~0.52
+	// (text/cursor/scrollback differ from the baseline unevenly), so the old bar regressed
+	// recall on every real console.
+	gateMinDarkBoxFrac = 0.70
+)
+
 // changedBox is the bounding box of significantly-changed pixels plus its fill ratio.
 type changedBox struct {
 	minX, minY, maxX, maxY int
@@ -345,13 +363,91 @@ func classifyRegion(response []byte, width, height uint32, box changedBox) regio
 	return regionUnknown
 }
 
-// decideVerdict is the single source of truth for the cardinal rule: it passes the
-// dark-delta verdict straight through and NEVER maps a positive (backdoor_likely) to
-// "clean". The region signal is intentionally NOT consulted here — geometry must never
-// change the verdict; it only enriches confidence and the diagnostic banner (see
-// regionConfidenceAndNote). region is retained in the signature for call-site symmetry
-// but is deliberately ignored. Pure -> unit-testable.
-func decideVerdict(verdict string, region regionSignal) string {
+// consoleGatePasses reports whether a backdoor_likely is backed by real console evidence
+// and may therefore stay HIGH. The discriminator is CONFIDENCE: on the REAL captured frames
+// the analyzeBackdoorResponse score cleanly separates a true console from the wallpaper false
+// positive. Measured on ground-truth fixtures (testdata/realframes, see TestRealFrames_*):
+//
+//	fixture            confidence  fillRatio  areaFrac  meanBox  darkInBox  rawVerdict
+//	fp_clean_utilman   0.000       0.063      0.255     81       0.349      backdoor_likely  (FP)
+//	tp_cmd_sticky      0.850       0.519      0.623     24       0.930      backdoor_likely  (real)
+//	tp_cmd2_sticky     0.850       0.519      0.623     24       0.930      backdoor_likely  (real)
+//	tp_ps_utilman      0.850       0.506      0.623     22       0.942      backdoor_likely  (real)
+//
+// Confidence separates with a wide margin: FP = 0.000, every real console = 0.850, and
+// gateConfidenceFloor (0.30) sits in the gap. The earlier SOLIDITY gate (fillRatio >= 0.70)
+// was tuned on SYNTHETIC perfect rectangles whose changed box fills ~1.0; REAL consoles only
+// fill ~0.52 of their changed box (text/scrollback/cursor differ from the gray-ish baseline
+// unevenly), so the old "dispersed dark" exclusion mis-flagged every real console as a non-
+// console and downgraded it. That solidity assumption is removed.
+//
+// Two arms keep HIGH:
+//   - Geometry arm: a dark, large, top-left-or-not rectangle whose box is mostly dark pixels
+//     (darkInBox) is a real console body regardless of confidence. This is a confidence-
+//     independent fast path; it uses the box's actual dark density (FP 0.349 vs real ~0.93),
+//     not fillRatio-vs-baseline. Position is deliberately dropped so a windowed/centered
+//     console still passes (recall).
+//   - Confidence arm: the analyzeBackdoorResponse score reaches the real-console range
+//     (>= gateConfidenceFloor). The wallpaper FP scores 0.000, far below the floor.
+//
+// Pure -> unit-testable.
+func consoleGatePasses(response []byte, width, height uint32, box changedBox, confidence float64) bool {
+	w, h := int(width), int(height)
+	if w == 0 || h == 0 || box.maxX <= box.minX || box.maxY <= box.minY {
+		return false
+	}
+
+	mean := meanBoxBrightness(response, w, box)
+	areaFrac := float64((box.maxX-box.minX+1)*(box.maxY-box.minY+1)) / float64(w*h)
+	dark := mean <= consoleMaxMeanBrightness
+	large := areaFrac >= consoleMinAreaFrac
+
+	// Geometry arm: a dark, large box that is itself mostly dark pixels is a real console
+	// body regardless of confidence or position. darkInBox is the fraction of the bounding
+	// box that is actually dark — on real consoles ~0.93, on the dispersed wallpaper FP
+	// ~0.35 — a far better "is this a console body" signal than fillRatio (changed-vs-baseline).
+	if dark && large && darkBoxFraction(response, w, box) >= gateMinDarkBoxFrac {
+		return true
+	}
+
+	// Confidence arm: the analyzeBackdoorResponse score reaches the real-console range.
+	return confidence >= gateConfidenceFloor
+}
+
+// darkBoxFraction returns the fraction of pixels inside box whose brightness is below
+// darkBrightnessMax. Unlike changedBox.fillRatio (which measures how much of the box DIFFERS
+// from the baseline), this measures how much of the box is an actual dark console body — the
+// signal that cleanly separates a real console (~0.93) from a dispersed wallpaper shift (~0.35).
+func darkBoxFraction(buf []byte, w int, box changedBox) float64 {
+	darkCount, count := 0, 0
+	for y := box.minY; y <= box.maxY; y++ {
+		for x := box.minX; x <= box.maxX; x++ {
+			idx := (y*w + x) * 4
+			if idx+2 >= len(buf) {
+				continue
+			}
+			if pixelBrightness(buf, idx) < darkBrightnessMax {
+				darkCount++
+			}
+			count++
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return float64(darkCount) / float64(count)
+}
+
+// decideVerdict gates the dark-delta verdict against console evidence. When keepHigh is
+// false it downgrades a backdoor_likely (a no-console count artifact) to indeterminate;
+// every other verdict — backdoor_confirmed, vulnerable, clean, indeterminate — passes
+// through untouched. CARDINAL RULE: it NEVER maps any verdict to "clean", and a confirmed
+// positive is never downgraded. keepHigh is computed by consoleGatePasses at the call site.
+// Pure -> unit-testable.
+func decideVerdict(verdict string, keepHigh bool) string {
+	if verdict == "backdoor_likely" && !keepHigh {
+		return verdictIndeterminate
+	}
 	return verdict
 }
 
@@ -472,7 +568,8 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 	// via regionConfidenceAndNote.
 	_, _, box := detectChangedRectangle(baseline, response, width, height)
 	region := classifyRegion(response, width, height, box)
-	result.OverallVerdict = decideVerdict(verdict, region)
+	keepHigh := consoleGatePasses(response, width, height, box, confidence)
+	result.OverallVerdict = decideVerdict(verdict, keepHigh)
 	result.Confidence, result.RegionNote = regionConfidenceAndNote(result.OverallVerdict, region, confidence)
 	return result
 }
@@ -530,7 +627,8 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 	// via regionConfidenceAndNote.
 	_, _, box := detectChangedRectangle(baseline, response, width, height)
 	region := classifyRegion(response, width, height, box)
-	result.OverallVerdict = decideVerdict(verdict, region)
+	keepHigh := consoleGatePasses(response, width, height, box, confidence)
+	result.OverallVerdict = decideVerdict(verdict, keepHigh)
 	result.Confidence, result.RegionNote = regionConfidenceAndNote(result.OverallVerdict, region, confidence)
 	return result
 }

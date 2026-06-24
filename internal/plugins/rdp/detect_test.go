@@ -24,7 +24,7 @@ import (
 
 func TestDetectStickyKeys_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(sticky-keys)", false)
+	result := DetectStickyKeys(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(sticky-keys)", false, false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -35,7 +35,7 @@ func TestDetectStickyKeys_ConnectionError(t *testing.T) {
 
 func TestDetectStickyKeys_ResultFields(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false)
+	result := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false, false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "(sticky-keys)", result.Username)
@@ -45,7 +45,7 @@ func TestDetectStickyKeys_ResultFields(t *testing.T) {
 
 func TestDetectUtilman_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(utilman)", false)
+	result := DetectUtilman(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(utilman)", false, false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
@@ -56,7 +56,7 @@ func TestDetectUtilman_ConnectionError(t *testing.T) {
 
 func TestDetectUtilman_ResultFields(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false)
+	result := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false, false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "(utilman)", result.Username)
@@ -217,58 +217,123 @@ func TestMapUtilmanResult(t *testing.T) {
 // be downgraded regardless of stabilization, and "indeterminate" input is left
 // unchanged.
 //
-// This test is RED until the developer extracts the inline guard at
-// detect.go:272-274 / 330-332 into:
+// The fast flag adds the never-clean invariant: in fast mode, even a stabilized
+// clean becomes indeterminate. This is the key never-clean assertion from Task 3
+// of the fast-mode plan (Phase 2).
 //
-//	func stabilizedVerdict(verdict string, stabilized bool) string
+// RED until the developer:
+//   1. Adds `fast bool` parameter to stabilizedVerdict (detect.go:381)
+//   2. Implements: if verdict == "clean" && (!stabilized || fast) { return verdictIndeterminate }
 func TestStabilizedVerdict(t *testing.T) {
 	tests := []struct {
 		name       string
 		verdict    string
 		stabilized bool
+		fast       bool
 		want       string
 	}{
+		// --- Original careful-mode rows (fast=false, preserving existing behavior) ---
 		{
 			name:       "clean unstabilized -> indeterminate (cardinal flip)",
 			verdict:    "clean",
 			stabilized: false,
+			fast:       false,
 			want:       verdictIndeterminate,
 		},
 		{
-			name:       "clean stabilized -> clean (no flip)",
+			name:       "clean stabilized -> clean (no flip when careful)",
 			verdict:    "clean",
 			stabilized: true,
+			fast:       false,
 			want:       "clean",
 		},
 		{
 			name:       "backdoor_confirmed unstabilized -> unchanged (positive never downgraded)",
 			verdict:    "backdoor_confirmed",
 			stabilized: false,
+			fast:       false,
 			want:       "backdoor_confirmed",
 		},
 		{
 			name:       "backdoor_likely unstabilized -> unchanged (positive never downgraded)",
 			verdict:    "backdoor_likely",
 			stabilized: false,
+			fast:       false,
 			want:       "backdoor_likely",
 		},
 		{
 			name:       "vulnerable unstabilized -> unchanged (positive never downgraded)",
 			verdict:    "vulnerable",
 			stabilized: false,
+			fast:       false,
 			want:       "vulnerable",
 		},
 		{
 			name:       "indeterminate unstabilized -> unchanged (already indeterminate)",
 			verdict:    verdictIndeterminate,
 			stabilized: false,
+			fast:       false,
 			want:       verdictIndeterminate,
+		},
+		// --- New fast-mode rows: the NEVER-CLEAN invariant ---
+		{
+			// THE KEY ASSERTION: fast + clean + stabilized → indeterminate.
+			// A fast triage pass may NEVER yield a confident clean verdict;
+			// stabilized clean must become indeterminate so operators rerun without --fast.
+			name:       "fast + clean + stabilized -> indeterminate (never-clean invariant)",
+			verdict:    "clean",
+			stabilized: true,
+			fast:       true,
+			want:       verdictIndeterminate,
+		},
+		{
+			name:       "fast + clean + !stabilized -> indeterminate (both conditions fire)",
+			verdict:    "clean",
+			stabilized: false,
+			fast:       true,
+			want:       verdictIndeterminate,
+		},
+		{
+			name:       "fast + backdoor_confirmed + stabilized -> unchanged (positive never downgraded)",
+			verdict:    "backdoor_confirmed",
+			stabilized: true,
+			fast:       true,
+			want:       "backdoor_confirmed",
+		},
+		{
+			name:       "fast + backdoor_likely + stabilized -> unchanged (positive never downgraded)",
+			verdict:    "backdoor_likely",
+			stabilized: true,
+			fast:       true,
+			want:       "backdoor_likely",
+		},
+		{
+			name:       "fast + vulnerable + stabilized -> unchanged (vulnerable is a positive observation)",
+			verdict:    "vulnerable",
+			stabilized: true,
+			fast:       true,
+			want:       "vulnerable",
+		},
+		{
+			name:       "fast + indeterminate -> unchanged (already indeterminate)",
+			verdict:    verdictIndeterminate,
+			stabilized: true,
+			fast:       true,
+			want:       verdictIndeterminate,
+		},
+		{
+			// Explicit careful+clean+stabilized row to lock the "careful preserves clean" behavior.
+			name:       "careful + clean + stabilized -> clean (fast off preserves clean)",
+			verdict:    "clean",
+			stabilized: true,
+			fast:       false,
+			want:       "clean",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := stabilizedVerdict(tc.verdict, tc.stabilized)
+			got := stabilizedVerdict(tc.verdict, tc.stabilized, tc.fast)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -276,10 +341,13 @@ func TestStabilizedVerdict(t *testing.T) {
 
 // TestSettled verifies the wall-clock settle decision used by pumpSession:
 // a framebuffer counts as settled only once BOTH a minimum pump time
-// (minPumpTime) has elapsed since the pump started AND the framebuffer has
-// been unchanged for at least the quiet window (settleQuietWindow). A brief
+// (minPump) has elapsed since the pump started AND the framebuffer has
+// been unchanged for at least the quiet window (quietWindow). A brief
 // mid-paint pause that is shorter than the quiet window must NOT be treated as
 // settled, which is the root cause of the half-painted-frame capture bug.
+//
+// After the SettleBudget refactor, settled() takes a budget parameter;
+// these tests use CarefulBudget to verify the legacy behavior is unchanged.
 func TestSettled(t *testing.T) {
 	start := time.Time{}
 
@@ -291,33 +359,33 @@ func TestSettled(t *testing.T) {
 	}{
 		{
 			name:       "before minPumpTime never settles even if quiet",
-			now:        minPumpTime - 100*time.Millisecond,
+			now:        CarefulBudget.minPump - 100*time.Millisecond,
 			lastChange: 0, // quiet the whole time
 			want:       false,
 		},
 		{
 			name:       "after minPumpTime but quiet window not yet elapsed (mid-paint pause)",
-			now:        minPumpTime + 500*time.Millisecond,
-			lastChange: minPumpTime + 500*time.Millisecond - (settleQuietWindow - 100*time.Millisecond),
+			now:        CarefulBudget.minPump + 500*time.Millisecond,
+			lastChange: CarefulBudget.minPump + 500*time.Millisecond - (CarefulBudget.quietWindow - 100*time.Millisecond),
 			want:       false,
 		},
 		{
 			name:       "after minPumpTime and quiet window elapsed -> settled",
-			now:        minPumpTime + settleQuietWindow + 100*time.Millisecond,
+			now:        CarefulBudget.minPump + CarefulBudget.quietWindow + 100*time.Millisecond,
 			lastChange: 0,
 			want:       true,
 		},
 		{
 			name:       "quiet window satisfied but minPumpTime not -> not settled",
-			now:        settleQuietWindow + 100*time.Millisecond,
+			now:        CarefulBudget.quietWindow + 100*time.Millisecond,
 			lastChange: 0,
-			want:       settleQuietWindow+100*time.Millisecond >= minPumpTime,
+			want:       CarefulBudget.quietWindow+100*time.Millisecond >= CarefulBudget.minPump,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := settled(start, start.Add(tc.lastChange), start.Add(tc.now))
+			got := settled(start, start.Add(tc.lastChange), start.Add(tc.now), CarefulBudget)
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -355,10 +423,13 @@ func flipPixels(buf []byte, n int, delta byte) {
 
 // TestFramesQuiet verifies the noise-tolerant inter-frame settle decision used by
 // pumpSession: a frame counts as "quiet" only when the number of pixels whose
-// brightness changed by more than changeThreshold is at most settleNoisePixels.
-// A blinking console cursor (a handful of changed pixels) must read as quiet so
-// a cmd window can settle, while a window repaint (tens of thousands of changed
-// pixels) must NOT be treated as quiet.
+// brightness changed by more than changeThreshold is at most noisePixels (from
+// the budget). A blinking console cursor (a handful of changed pixels) must read
+// as quiet so a cmd window can settle, while a window repaint (tens of thousands
+// of changed pixels) must NOT be treated as quiet.
+//
+// After the SettleBudget refactor, framesQuiet() takes a budget parameter;
+// these tests use CarefulBudget to verify the legacy behavior is unchanged.
 func TestFramesQuiet(t *testing.T) {
 	const w, h = uint32(200), uint32(200) // 40,000 pixels
 
@@ -378,13 +449,13 @@ func TestFramesQuiet(t *testing.T) {
 			wantQuiet: true,
 		},
 		{
-			name:      "exactly at settleNoisePixels is quiet",
-			changedPx: settleNoisePixels,
+			name:      "exactly at CarefulBudget noisePixels is quiet",
+			changedPx: CarefulBudget.noisePixels,
 			wantQuiet: true,
 		},
 		{
-			name:      "one above settleNoisePixels is not quiet",
-			changedPx: settleNoisePixels + 1,
+			name:      "one above CarefulBudget noisePixels is not quiet",
+			changedPx: CarefulBudget.noisePixels + 1,
 			wantQuiet: false,
 		},
 		{
@@ -400,8 +471,44 @@ func TestFramesQuiet(t *testing.T) {
 			cur := makeFrame(w, h, 100)
 			flipPixels(cur, tc.changedPx, changeThreshold+20) // diff well above threshold
 
-			got := framesQuiet(prev, cur, w, h)
+			got := framesQuiet(prev, cur, w, h, CarefulBudget)
 			assert.Equal(t, tc.wantQuiet, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Task 7: composition guard — gate output composes with never-clean invariant
+// ---------------------------------------------------------------------------
+
+// TestConsoleGate_ComposesWithStabilizedVerdict locks the composition invariant:
+// after the console gate downgrades backdoor_likely → indeterminate, the
+// stabilizedVerdict pass-through must leave "indeterminate" unchanged. Neither
+// fast=true nor stabilized=false should re-promote or flip indeterminate to clean.
+// This is a guard test (GREEN on arrival once stabilizedVerdict exists) that
+// prevents future regressions in the gate↔stabilized composition.
+func TestConsoleGate_ComposesWithStabilizedVerdict(t *testing.T) {
+	tests := []struct {
+		name       string
+		stabilized bool
+		fast       bool
+	}{
+		{"indeterminate + !stabilized + !fast → indeterminate", false, false},
+		{"indeterminate + stabilized + !fast → indeterminate", true, false},
+		{"indeterminate + !stabilized + fast → indeterminate", false, true},
+		{"indeterminate + stabilized + fast → indeterminate", true, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Simulate: gate turned backdoor_likely → indeterminate; now stabilizedVerdict runs.
+			got := stabilizedVerdict(verdictIndeterminate, tc.stabilized, tc.fast)
+			assert.Equal(t, verdictIndeterminate, got,
+				"stabilizedVerdict must leave gate-downgraded indeterminate unchanged (stabilized=%v fast=%v)",
+				tc.stabilized, tc.fast)
+			assert.NotEqual(t, "clean", got,
+				"composition CARDINAL: gate output must never become clean after stabilizedVerdict")
+			assert.NotEqual(t, "backdoor_likely", got,
+				"composition CARDINAL: gate output must never be re-promoted to backdoor_likely")
 		})
 	}
 }
@@ -411,11 +518,11 @@ func TestFramesQuiet(t *testing.T) {
 func TestScanTypeLabeling(t *testing.T) {
 	ctx := context.Background()
 
-	stickyResult := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false)
+	stickyResult := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false, false)
 	assert.NotNil(t, stickyResult)
 	assert.Equal(t, "sticky_keys", stickyResult.ScanType, "DetectStickyKeys should set ScanType to 'sticky_keys'")
 
-	utilmanResult := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false)
+	utilmanResult := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false, false)
 	assert.NotNil(t, utilmanResult)
 	assert.Equal(t, "utilman", utilmanResult.ScanType, "DetectUtilman should set ScanType to 'utilman'")
 }

@@ -77,7 +77,7 @@ func DecodeSlotCount() int64 {
 // (paralleling scanTargetFn in cmd/brutus) so tests can swap it for a fake that
 // records peak concurrency without a live RDP server. DetectBackdoors acquires a
 // decode slot before invoking it.
-var runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+var runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
 	noVision := !aiMode
 
 	// Sticky keys and utilman detection run sequentially under the single held
@@ -91,11 +91,11 @@ var runDetection = func(ctx context.Context, target string, connectTimeout, time
 	var sticky, utilman *brutus.Result
 
 	if checks != CheckUtilman {
-		sticky = detectSticky(ctx, target, connectTimeout, timeout, "(sticky-keys)", noVision)
+		sticky = detectSticky(ctx, target, connectTimeout, timeout, "(sticky-keys)", noVision, fast)
 		results = append(results, *sticky)
 	}
 	if checks != CheckStickyKeys {
-		utilman = detectUtilman(ctx, target, connectTimeout, timeout, "(utilman)", noVision)
+		utilman = detectUtilman(ctx, target, connectTimeout, timeout, "(utilman)", noVision, fast)
 		results = append(results, *utilman)
 	}
 

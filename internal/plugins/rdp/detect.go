@@ -41,10 +41,15 @@ const unreachableScanBanner = "[INFO] unreachable (no RDP/TCP connection to host
 // with the verdict formatted as a banner string.
 //
 // This function wraps RunStickyKeysCheck and interprets the StickyKeysResult into
-// a standardized Result format suitable for CLI output.
-func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
+// a standardized Result format suitable for CLI output. fast selects the short
+// FastBudget settle profile and enforces the never-clean invariant.
+func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool, fast bool) *brutus.Result {
 	plugin := &Plugin{}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, connectTimeout, timeout, noVision)
+	budget := CarefulBudget
+	if fast {
+		budget = FastBudget
+	}
+	stickyResult := plugin.RunStickyKeysCheck(ctx, target, connectTimeout, timeout, noVision, budget, fast)
 	result := mapStickyResult(stickyResult, username)
 	result.Target = target
 	return result
@@ -113,10 +118,15 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 // with the verdict formatted as a banner string.
 //
 // This function wraps RunUtilmanCheck and interprets the UtilmanResult into
-// a standardized Result format suitable for CLI output.
-func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
+// a standardized Result format suitable for CLI output. fast selects the short
+// FastBudget settle profile and enforces the never-clean invariant.
+func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool, fast bool) *brutus.Result {
 	plugin := &Plugin{}
-	utilmanResult := plugin.RunUtilmanCheck(ctx, target, connectTimeout, timeout, noVision)
+	budget := CarefulBudget
+	if fast {
+		budget = FastBudget
+	}
+	utilmanResult := plugin.RunUtilmanCheck(ctx, target, connectTimeout, timeout, noVision, budget, fast)
 	result := mapUtilmanResult(utilmanResult, username)
 	result.Target = target
 	return result
@@ -186,8 +196,9 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 // ---------------------------------------------------------------------------
 
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
-// The noVision flag disables Vision API confirmation.
-func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool) *StickyKeysResult {
+// The noVision flag disables Vision API confirmation. budget selects the settle
+// profile; fast enforces the never-clean invariant.
+func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *StickyKeysResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -209,7 +220,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectT
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision, timeout)
+	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision, timeout, budget, fast)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -218,7 +229,8 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectT
 }
 
 // RunUtilmanCheck performs utilman backdoor detection on a separate connection.
-func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool) *UtilmanResult {
+// budget selects the settle profile; fast enforces the never-clean invariant.
+func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *UtilmanResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -240,7 +252,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, connectTime
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision, timeout)
+	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision, timeout, budget, fast)
 	if err != nil {
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -253,8 +265,9 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, connectTime
 // ---------------------------------------------------------------------------
 
 // runStickyKeysDetection performs the full detection sequence on a non-NLA connection.
-// timeout is the per-host budget passed to each session pump phase.
-func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration) (*StickyKeysResult, error) {
+// timeout is the per-host budget passed to each session pump phase. budget selects
+// the settle profile; fast enforces the never-clean invariant in stabilizedVerdict.
+func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration, budget SettleBudget, fast bool) (*StickyKeysResult, error) {
 	result := &StickyKeysResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -283,7 +296,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout)
+	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout, budget)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
@@ -307,16 +320,18 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	result.Stabilized = stabilized
 
 	// Cardinal false-negative guard: only a "clean" verdict on a render that
-	// never stabilized is suspect. Positive verdicts (confirmed/likely/
-	// vulnerable) already saw the window and are never downgraded.
-	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized)
+	// never stabilized is suspect (or any clean in fast mode — never-clean
+	// invariant). Positive verdicts (confirmed/likely/vulnerable) already saw the
+	// window and are never downgraded.
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized, fast)
 
 	return result, nil
 }
 
 // runUtilmanDetection performs the full utilman detection sequence on a non-NLA connection.
-// timeout is the per-host budget passed to each session pump phase.
-func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration) (*UtilmanResult, error) {
+// timeout is the per-host budget passed to each session pump phase. budget selects
+// the settle profile; fast enforces the never-clean invariant in stabilizedVerdict.
+func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration, budget SettleBudget, fast bool) (*UtilmanResult, error) {
 	result := &UtilmanResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -345,7 +360,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout)
+	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout, budget)
 	if err != nil {
 		result.Performed = false
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
@@ -369,17 +384,20 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	result.Stabilized = stabilized
 
 	// Cardinal false-negative guard: only a "clean" verdict on a render that
-	// never stabilized is suspect. Positive verdicts (confirmed/likely/
-	// vulnerable) already saw the window and are never downgraded.
-	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized)
+	// never stabilized is suspect (or any clean in fast mode — never-clean
+	// invariant). Positive verdicts (confirmed/likely/vulnerable) already saw the
+	// window and are never downgraded.
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized, fast)
 
 	return result, nil
 }
 
-// stabilizedVerdict downgrades a clean verdict to indeterminate when the
-// render never stabilized; all other verdicts (including positives) pass through.
-func stabilizedVerdict(verdict string, stabilized bool) string {
-	if verdict == "clean" && !stabilized {
+// stabilizedVerdict downgrades a clean verdict to indeterminate when the render
+// never stabilized, OR when fast mode is active (never-clean invariant: a fast
+// triage pass may report HIGH/CRITICAL or indeterminate, never a confident clean).
+// All other verdicts (positives, vulnerable) pass through unchanged.
+func stabilizedVerdict(verdict string, stabilized, fast bool) string {
+	if verdict == "clean" && (!stabilized || fast) {
 		return verdictIndeterminate
 	}
 	return verdict

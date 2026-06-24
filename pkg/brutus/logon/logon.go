@@ -47,7 +47,7 @@ const (
 // (hasSuccess) and a stabilized clean render are both final verdicts and are
 // returned immediately; retrying a positive would risk masking a real backdoor.
 func DetectBackdoors(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool,
-	maxRetries int, checks Check, proxyURL string, noNLAProbe bool) ([]brutus.Result, bool) {
+	maxRetries int, checks Check, proxyURL string, noNLAProbe bool, fast bool) ([]brutus.Result, bool) {
 
 	// STAGE 1 — pre-WASM NLA probe (no decode slot, runs at full --threads).
 	// Only an explicit HYBRID selection / HYBRID_REQUIRED_BY_SERVER skips WASM;
@@ -82,7 +82,7 @@ func DetectBackdoors(ctx context.Context, target string, connectTimeout, timeout
 		if attempt > 0 {
 			retryBackoff(ctx, attempt)
 		}
-		results, hasSuccess := runDetection(ctx, target, connectTimeout, timeout, aiMode, checks)
+		results, hasSuccess := runDetection(ctx, target, connectTimeout, timeout, aiMode, checks, fast)
 		if hasSuccess || !anyIndeterminate(results) || attempt == attempts-1 {
 			return results, hasSuccess
 		}

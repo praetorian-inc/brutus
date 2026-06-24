@@ -29,11 +29,14 @@ import (
 )
 
 // outputDNSReconHuman displays DNS TXT recon results in human-readable format.
-func outputDNSReconHuman(result *enum.DNSReconResult, useColor bool) {
+// When teamsAvailable is true (the org is a Microsoft 365 tenant), an inferred
+// "teams" oracle line is appended to the Discovered Services block. The teams
+// entry is display/inference only — it is never enumerated unauthenticated.
+func outputDNSReconHuman(result *enum.DNSReconResult, teamsAvailable, useColor bool) {
 	fmt.Printf("\n%s %s\n", dim(useColor, SymbolInfo), heading(useColor, "DNS TXT Recon: "+result.Domain))
 	fmt.Printf("  Records found: %d\n", len(result.Records))
 
-	if len(result.Services) == 0 {
+	if len(result.Services) == 0 && !teamsAvailable {
 		fmt.Printf("  %s No SaaS services identified from TXT records\n", dim(useColor, SymbolInfo))
 		return
 	}
@@ -44,11 +47,19 @@ func outputDNSReconHuman(result *enum.DNSReconResult, useColor bool) {
 			colorIf(useColor, ColorGreen), svc.Name, colorIf(useColor, ColorReset),
 			dim(useColor, "("+svc.Indicator+")"))
 	}
+	if teamsAvailable {
+		fmt.Printf("    %s%-16s%s %s\n",
+			colorIf(useColor, ColorGreen), "teams", colorIf(useColor, ColorReset),
+			dim(useColor, "(available: Microsoft 365 tenant — run `brutus enum teams users` / `audit`)"))
+	}
 	fmt.Println()
 }
 
-// outputDNSReconJSONL writes DNS recon results as JSONL.
-func outputDNSReconJSONL(w io.Writer, result *enum.DNSReconResult) {
+// outputDNSReconJSONL writes DNS recon results as JSONL. When teamsAvailable is
+// true (the org is a Microsoft 365 tenant), a "teams_available":true field is
+// added so machine consumers can see the inferred Teams oracle. No tokens are
+// ever emitted, and teams is never added to the enumerated services.
+func outputDNSReconJSONL(w io.Writer, result *enum.DNSReconResult, teamsAvailable bool) {
 	type dnsReconJSON struct {
 		Type     string   `json:"type"`
 		Domain   string   `json:"domain"`
@@ -57,12 +68,14 @@ func outputDNSReconJSONL(w io.Writer, result *enum.DNSReconResult) {
 			Name      string `json:"name"`
 			Indicator string `json:"indicator"`
 		} `json:"services"`
+		TeamsAvailable bool `json:"teams_available,omitempty"`
 	}
 
 	jr := dnsReconJSON{
-		Type:    "dns_recon",
-		Domain:  result.Domain,
-		Records: result.Records,
+		Type:           "dns_recon",
+		Domain:         result.Domain,
+		Records:        result.Records,
+		TeamsAvailable: teamsAvailable,
 	}
 	for _, svc := range result.Services {
 		jr.Services = append(jr.Services, struct {

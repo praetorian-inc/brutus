@@ -16,7 +16,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -25,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
+	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
 // SaaS-specific flag variables
@@ -109,6 +112,24 @@ func registerDiscoverFlags(cmd *cobra.Command) {
 	_ = cmd.MarkFlagRequired("known-valid")
 }
 
+// teamsOracleAvailable reports whether the Microsoft Teams enumeration oracle is
+// applicable for the org behind result: it is whenever DNS recon detected a
+// "microsoft365" service (the org is a Microsoft 365 tenant). This is inference
+// only — teams is never injected into the DNS-parsing module (pkg/enum/dns.go
+// stays a pure DNS parser) and is never added to the unauthenticated
+// enumeration set (it is not a registered enum.Plugin).
+func teamsOracleAvailable(result *enum.DNSReconResult) bool {
+	if result == nil {
+		return false
+	}
+	for i := range result.Services {
+		if result.Services[i].Name == "microsoft365" {
+			return true
+		}
+	}
+	return false
+}
+
 // runEnumSaas handles the main saas enum command.
 func runEnumSaas(cmd *cobra.Command, args []string) error {
 	useColor := isColorEnabled(flagNoColor)
@@ -149,7 +170,7 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 			}
 
 			if !flagJSON {
-				outputDNSReconHuman(dnsResult, useColor)
+				outputDNSReconHuman(dnsResult, teamsOracleAvailable(dnsResult), useColor)
 			}
 		}
 	}
@@ -196,7 +217,7 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	// If no emails to enumerate, just show DNS recon results
 	if len(emails) == 0 {
 		if dnsResult != nil && flagJSON {
-			outputDNSReconJSONL(jsonWriter, dnsResult)
+			outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
 		}
 		if dnsResult == nil {
 			return fmt.Errorf("no emails to enumerate — provide --emails, --email-file, or --generate")
@@ -299,7 +320,7 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	// Phase 5: Output results
 	if flagJSON {
 		if dnsResult != nil {
-			outputDNSReconJSONL(jsonWriter, dnsResult)
+			outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
 		}
 		outputEnumJSONL(jsonWriter, results)
 	} else {
@@ -318,54 +339,82 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 
 	// Phase 1: Determine services to test
 	var services []string
+	teamsRequested := false
 	if flagSaasServices != "" {
 		for _, s := range strings.Split(flagSaasServices, ",") {
 			s = strings.TrimSpace(s)
 			if s != "" {
+				if s == "teams" {
+					// teams is not a registered enum.Plugin; it is confirmed
+					// opportunistically below, never via the plugin loop.
+					teamsRequested = true
+					continue
+				}
 				services = append(services, s)
 			}
 		}
 	}
 
-	// DNS recon (informational only — discover always tests all plugins)
+	// DNS recon (informational only — discover always tests all plugins). The
+	// result is retained so the inferred Teams oracle can be surfaced and
+	// opportunistically confirmed after the plugin oracles are tested.
+	var dnsResult *enum.DNSReconResult
 	if flagEnumDomain != "" {
 		if !flagQuiet && !flagJSON {
 			fmt.Fprintf(os.Stderr, "%s Querying DNS TXT records for %s...\n",
 				dim(useColor, SymbolInfo), flagEnumDomain)
 		}
-		dnsResult := enum.LookupDomainTXT(ctx, flagEnumDomain)
+		dnsResult = enum.LookupDomainTXT(ctx, flagEnumDomain)
 		if dnsResult.Error != nil {
 			warnMsg(useColor, "DNS lookup failed: %v", dnsResult.Error)
 		} else if !flagJSON {
-			outputDNSReconHuman(dnsResult, useColor)
+			outputDNSReconHuman(dnsResult, teamsOracleAvailable(dnsResult), useColor)
 		}
 	}
 
-	// Test all registered plugins unless --services explicitly specified
-	if len(services) == 0 {
+	teamsAvailable := teamsOracleAvailable(dnsResult)
+
+	// Test all registered plugins unless --services explicitly specified.
+	// teams is never a registered plugin, so it is excluded from this set and
+	// confirmed only via the opportunistic, token-gated path below.
+	if len(services) == 0 && !teamsRequested {
 		services = enum.ListPlugins()
 	}
 
-	if len(services) == 0 {
+	if len(services) == 0 && !teamsAvailable && !teamsRequested {
 		return fmt.Errorf("no enumeration plugins available")
 	}
 
-	if !flagQuiet && !flagJSON {
-		fmt.Fprintf(os.Stderr, "%s Testing %d oracle(s) with known-valid email %s...\n",
-			dim(useColor, SymbolInfo), len(services), flagSaasKnownValid)
+	var results []enum.Result
+	if len(services) > 0 {
+		if !flagQuiet && !flagJSON {
+			fmt.Fprintf(os.Stderr, "%s Testing %d oracle(s) with known-valid email %s...\n",
+				dim(useColor, SymbolInfo), len(services), flagSaasKnownValid)
+		}
+
+		// Phase 2: Test oracles
+		cfg := &enum.Config{
+			Emails:   []string{flagSaasKnownValid},
+			Services: services,
+			Threads:  flagThreads,
+			Timeout:  flagTimeout,
+			Verbose:  flagVerbose,
+		}
+		var enumErr error
+		results, enumErr = enum.EnumerateWithContext(ctx, cfg)
+		if enumErr != nil {
+			return fmt.Errorf("oracle testing failed: %w", enumErr)
+		}
 	}
 
-	// Phase 2: Test oracles
-	cfg := &enum.Config{
-		Emails:   []string{flagSaasKnownValid},
-		Services: services,
-		Threads:  flagThreads,
-		Timeout:  flagTimeout,
-		Verbose:  flagVerbose,
-	}
-	results, err := enum.EnumerateWithContext(ctx, cfg)
-	if err != nil {
-		return fmt.Errorf("oracle testing failed: %w", err)
+	// Phase 2.5: Opportunistically confirm the Teams oracle. Attempt only when
+	// the org looks like M365 (microsoft365 discovered) or the user explicitly
+	// asked for teams via -s. Resolution and printing handle the no-token case
+	// gracefully (no error). teams is never run through the unauthenticated
+	// enumeration loop above.
+	teamsLine := ""
+	if teamsAvailable || teamsRequested {
+		teamsLine = confirmTeamsOracle(ctx, flagSaasKnownValid, useColor)
 	}
 
 	// Phase 3: Output results
@@ -377,9 +426,120 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 		defer closeOutput()
 		_ = forceJSON
 		outputEnumJSONL(jsonWriter, results)
+		if teamsLine != "" {
+			outputDiscoverTeamsJSONL(jsonWriter, teamsLine)
+		}
 	} else {
 		outputOracleValidationHuman(results, useColor)
+		if teamsLine != "" {
+			fmt.Printf("  %s\n\n", teamsLine)
+		}
 	}
 
 	return nil
+}
+
+// confirmTeamsOracle opportunistically confirms the Microsoft Teams enumeration
+// oracle against knownValid. It resolves a token from the cached credential
+// store (teamsDefaultTokenPath / teamsEnumReadTokenFile) or an explicit
+// --access-token already present on the saas command, reusing the same teams
+// enumerator and credstore helpers as "enum teams users" (no duplicated HTTP or
+// token logic). When no token is available it reports teams as
+// "available (unconfirmed)" and does nothing else (no error). The returned
+// string is a single discover-style status line; token values never appear in
+// it.
+func confirmTeamsOracle(ctx context.Context, knownValid string, useColor bool) string {
+	accessToken, refreshToken, ok := resolveTeamsConfirmToken(useColor)
+	if !ok {
+		return "teams: available (unconfirmed) — run `brutus enum teams auth` then re-run to confirm"
+	}
+
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, false)
+	if err != nil {
+		return fmt.Sprintf("teams: unconfirmed (enumerator setup failed: %v)", err)
+	}
+
+	// Wire a refresh callback only when a refresh token is available, mirroring
+	// runEnumTeamsUsers so an expired access token is renewed once.
+	if refreshToken != "" {
+		client, cerr := teams.NewClient("organizations", teams.DefaultClientID, teams.DefaultScope, flagProxy, flagTimeout)
+		if cerr == nil {
+			enumerator.SetRefreshFunc(func(ctx context.Context) (string, error) {
+				tok, rerr := client.RefreshAccessToken(ctx, refreshToken)
+				if rerr != nil {
+					return "", rerr
+				}
+				return tok.AccessToken, nil
+			})
+		}
+	}
+
+	res := enumerator.EnumerateOne(ctx, knownValid)
+	return teamsDiscoverLine(res)
+}
+
+// resolveTeamsConfirmToken resolves a Teams token opportunistically for the
+// discover confirmation path from the cached credential store
+// (~/.brutus/teams.json) via teamsEnumReadTokenFile — reusing the same store
+// "enum teams auth" writes, so no new flags are introduced. It returns ok=false
+// (and never an error) when no token is available, so the caller degrades to an
+// "available (unconfirmed)" report. Token values are never logged.
+func resolveTeamsConfirmToken(useColor bool) (accessToken, refreshToken string, ok bool) {
+	path, err := teamsDefaultTokenPath()
+	if err != nil {
+		return "", "", false
+	}
+	if _, statErr := os.Stat(path); statErr != nil {
+		return "", "", false
+	}
+
+	at, rt, readErr := teamsEnumReadTokenFile(path)
+	if readErr != nil {
+		return "", "", false
+	}
+
+	if !flagQuiet && !flagJSON {
+		fmt.Fprintf(os.Stderr, "%s Using saved Teams tokens from %s to confirm the teams oracle\n",
+			dim(useColor, SymbolInfo), path)
+	}
+	return at, rt, true
+}
+
+// teamsDiscoverLine maps a Teams enumeration result to a discover-style status
+// line. A 403/blocked result is still a working oracle (it distinguishes real
+// from fake accounts). Token values never appear in the returned string.
+func teamsDiscoverLine(res teams.EnumResult) string {
+	switch res.Exists {
+	case teams.ExistenceYes:
+		line := "teams: working (corporate account resolved)"
+		if t := teams.AccountType(res.MRI); t != "" {
+			line += " [" + t + "]"
+		}
+		return line
+	case teams.ExistenceBlocked:
+		return "teams: working (account exists; external detail restricted)"
+	case teams.ExistenceNo:
+		return "teams: responded, known-valid not found (check the seed email / consumer-only)"
+	default:
+		return "teams: unconfirmed (auth/transport error)"
+	}
+}
+
+// outputDiscoverTeamsJSONL emits the Teams discover confirmation as a single
+// JSONL object alongside the other discover oracle results. Only the
+// human-readable status line is carried — no token values.
+func outputDiscoverTeamsJSONL(w io.Writer, statusLine string) {
+	type discoverTeamsJSON struct {
+		Type    string `json:"type"`
+		Service string `json:"service"`
+		Result  string `json:"result"`
+	}
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(discoverTeamsJSON{
+		Type:    "discover_teams",
+		Service: "teams",
+		Result:  statusLine,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "Error encoding discover teams JSON: %v\n", err)
+	}
 }

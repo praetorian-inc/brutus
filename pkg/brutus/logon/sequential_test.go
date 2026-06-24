@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
@@ -57,10 +58,17 @@ func TestSequential(t *testing.T) {
 	// origSticky / origUtilman are saved so Cleanup can restore them.
 	origSticky := detectSticky
 	origUtilman := detectUtilman
+	origProbe := nlaProbe
 	t.Cleanup(func() {
 		detectSticky = origSticky
 		detectUtilman = origUtilman
+		nlaProbe = origProbe
 	})
+
+	// Stub the NLA probe to return NegoScannable so the test exercises the WASM path.
+	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+		return rdp.NegoScannable
+	}
 
 	// Sticky fake: returns a positive (backdoor_confirmed / Success=true) result
 	// so we can assert that a positive sticky does NOT suppress the utilman check.
@@ -97,7 +105,9 @@ func TestSequential(t *testing.T) {
 	}
 
 	const target = "127.0.0.1:3389"
-	results, _ := DetectBackdoors(context.Background(), target, 5*time.Second, false, 0 /*maxRetries*/, CheckBoth)
+	// Signature: (ctx, target, timeout, aiMode, maxRetries, checks, proxyURL, noNLAProbe)
+	// proxyURL="", noNLAProbe=false (nlaProbe seam already stubbed to NegoScannable above).
+	results, _ := DetectBackdoors(context.Background(), target, 5*time.Second, false, 0 /*maxRetries*/, CheckBoth, "", false)
 
 	// --- Assertion 1: both checks ran (no early-exit) ---
 	require.Len(t, results, 2,

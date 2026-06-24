@@ -19,6 +19,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
@@ -189,6 +190,15 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 	if isDetectMode {
 		// Scan/detection mode
 		var scanResults []brutus.Result
+
+		// A pump phase can only settle after rdp.MinViableTimeout of evidence; a
+		// --timeout below that floor forces every host to INDETERMINATE (and a
+		// wasteful retry) for zero real signal. Warn (don't error) so existing
+		// scripts keep working.
+		if base.timeout < rdp.MinViableTimeout {
+			warnMsg(base.useColor, "--timeout %s is below the detection settle floor (%s); every host will return INDETERMINATE. Use --timeout 15s or higher for reliable results.",
+				base.timeout, rdp.MinViableTimeout)
+		}
 
 		// Validate mutual exclusivity of target sources.
 		if err := validateTargetSources(useStdin); err != nil {

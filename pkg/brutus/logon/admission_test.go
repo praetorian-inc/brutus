@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/semaphore"
 
+	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
@@ -57,6 +58,12 @@ func TestDecodeSlotBound(t *testing.T) {
 	//   - sleeps 10ms to ensure overlap
 	//   - decrements on exit
 	//   - returns a benign 2-result slice (sticky + utilman)
+	// Stub the NLA probe to return NegoScannable so all goroutines exercise the WASM path.
+	origProbe := nlaProbe
+	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+		return rdp.NegoScannable
+	}
+
 	var current, peak atomic.Int64
 	origRunDetection := runDetection
 	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
@@ -74,7 +81,10 @@ func TestDecodeSlotBound(t *testing.T) {
 			{Target: target, ScanType: "utilman"},
 		}, false
 	}
-	t.Cleanup(func() { runDetection = origRunDetection })
+	t.Cleanup(func() {
+		runDetection = origRunDetection
+		nlaProbe = origProbe
+	})
 
 	// Fire goroutines concurrent DetectBackdoors calls.
 	var wg sync.WaitGroup
@@ -82,7 +92,7 @@ func TestDecodeSlotBound(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			DetectBackdoors(context.Background(), "host:3389", 5*time.Second, false, 0, CheckBoth)
+			DetectBackdoors(context.Background(), "host:3389", 5*time.Second, false, 0, CheckBoth, "", false)
 		}()
 	}
 	wg.Wait()

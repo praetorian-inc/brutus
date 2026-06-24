@@ -95,9 +95,10 @@ var (
 
 // Logon flags
 var (
-	flagExec string
-	flagWeb  bool
-	flagOpen bool
+	flagExec       string
+	flagWeb        bool
+	flagOpen       bool
+	flagNoNLAProbe bool
 )
 
 // Version flag
@@ -186,6 +187,7 @@ func registerLogonFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&flagWeb, "web", false, "Start interactive web terminal via detected backdoor")
 	cmd.Flags().BoolVar(&flagOpen, "open", false, "Auto-open browser when web terminal starts")
 	cmd.Flags().BoolVar(&flagAIMode, "experimental-ai", false, "Enable Vision API for backdoor confirmation")
+	cmd.Flags().BoolVar(&flagNoNLAProbe, "no-nla-probe", false, "Disable the pre-WASM RDP negotiation probe (always run the full WASM session)")
 }
 
 // registerRootFlags registers flags specific to the root command.
@@ -249,6 +251,7 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 		anthropicKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		perplexityKey:    os.Getenv("PERPLEXITY_API_KEY"),
 		proxyURL:         flagProxy,
+		noNLAProbe:       flagNoNLAProbe,
 	}
 }
 

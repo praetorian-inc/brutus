@@ -19,6 +19,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // defaultUserAgent is a common browser UA to avoid fingerprinting.
@@ -53,6 +55,30 @@ func NewEnumHTTPClient(timeout time.Duration) *http.Client {
 		},
 		Transport: &uaTransport{base: http.DefaultTransport},
 	}
+}
+
+// NewEnumHTTPClientWithProxy is like NewEnumHTTPClient but routes through a SOCKS5
+// proxy when proxyURL is non-empty, while preserving the same safe defaults:
+// no-redirect policy and default User-Agent. proxyURL == "" returns a direct
+// client identical to NewEnumHTTPClient.
+//
+// It passes a nil *tls.Config so certificate verification stays enabled (it never
+// sets InsecureSkipVerify). Routing harvest traffic through this — not the
+// proxy-unaware NewEnumHTTPClient — is what makes --proxy actually take effect and
+// avoids leaking the operator's source IP (security P0-2).
+func NewEnumHTTPClientWithProxy(timeout time.Duration, proxyURL string) (*http.Client, error) {
+	if proxyURL == "" {
+		return NewEnumHTTPClient(timeout), nil
+	}
+	c, err := brutus.NewHTTPClientWithProxy(timeout, nil, proxyURL)
+	if err != nil {
+		return nil, err
+	}
+	c.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	c.Transport = &uaTransport{base: c.Transport}
+	return c, nil
 }
 
 // ReadResponseBody reads a response body with a size limit to prevent OOM from hostile endpoints.

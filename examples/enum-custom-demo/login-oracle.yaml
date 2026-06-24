@@ -1,0 +1,34 @@
+# Brutus custom oracle spec (schema v1) for the enum-custom-demo target.
+#
+# A second enumeration vector: the login endpoint. A valid email (with any
+# password) yields HTTP 401 "Incorrect password"; an invalid email yields HTTP
+# 404 "No account with that email". The 401-vs-404 split leaks account existence
+# without ever guessing a real password. The body_contains substrings below are
+# exact substrings of those responses (see examples/enum-custom-demo/main.go).
+#
+# Run (with the demo server running on :8080):
+#   ./brutus enum custom -f examples/enum-custom-demo/login-oracle.yaml \
+#       -e alice@demo.local,nobody@demo.local
+version: "1"
+oracle:
+  name: demo-login
+  request:
+    method: POST
+    url: "http://localhost:8080/api/login"
+    headers:
+      Content-Type: application/json
+    body: '{"email":"{{email}}","password":"x"}'
+    body_encoding: json
+  match:
+    rules:
+      - when:
+          status: 401
+          body_contains: "Incorrect password"
+        verdict: exists
+        confidence: high
+      - when:
+          status: 404
+          body_contains: "No account with that email"
+        verdict: absent
+        confidence: high
+    default: error

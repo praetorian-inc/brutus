@@ -24,6 +24,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
+	"github.com/praetorian-inc/brutus/pkg/enum/google"
 	"github.com/praetorian-inc/brutus/pkg/enum/hunter"
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
@@ -956,4 +957,102 @@ func presence(token string) string {
 		return "<absent>"
 	}
 	return "<present>"
+}
+
+// ---------------------------------------------------------------------------
+// Google Workspace account enumeration output functions
+// ---------------------------------------------------------------------------
+
+// outputGoogleEnumResultLine prints ONE Google enumeration result row. EXISTS
+// rows show the email, an "[+] EXISTS" label, and a method note: workspace-sso
+// renders as " (workspace-sso -> <IdP>)" (or just " (workspace-sso)" when the
+// IdP is empty), gmail as " (gmail)". Not-found rows render as "[ ] not found".
+// The server-controlled IdP host is sanitized via sanitizeTerminal (P0-4).
+// Callers decide which results to print (e.g. EXISTS only, unless verbose); this
+// helper renders whatever it is given.
+func outputGoogleEnumResultLine(w io.Writer, r google.Result, useColor bool) {
+	email := truncate(sanitizeTerminal(r.Email), 40)
+
+	if !r.Exists {
+		_, _ = fmt.Fprintf(w, "  %-40s %s[ ] not found%s\n",
+			email, colorIf(useColor, ColorDim), colorIf(useColor, ColorReset))
+		return
+	}
+
+	note := ""
+	switch r.Method {
+	case google.MethodWorkspaceSSO:
+		if r.IdP != "" {
+			note = " (workspace-sso -> " + sanitizeTerminal(r.IdP) + ")"
+		} else {
+			note = " (workspace-sso)"
+		}
+	case google.MethodGmail:
+		note = " (gmail)"
+	}
+
+	_, _ = fmt.Fprintf(w, "  %-40s %s%s EXISTS%s%s\n",
+		email,
+		colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset),
+		dim(useColor, note))
+}
+
+// outputGoogleEnumSummary prints the counts-by-status summary block for a set
+// of Google enumeration results: found / not found / errors / total.
+func outputGoogleEnumSummary(w io.Writer, results []google.Result, useColor bool) {
+	var foundCount, notFoundCount, errorCount int
+	for i := range results {
+		switch {
+		case results[i].Error != nil:
+			errorCount++
+		case results[i].Exists:
+			foundCount++
+		default:
+			notFoundCount++
+		}
+	}
+
+	_, _ = fmt.Fprintf(w, "\n  %s\n", heading(useColor, "Summary"))
+	if foundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d\n", colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset), foundCount)
+	}
+	if notFoundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sNot found:%s  %d\n", colorIf(useColor, ColorDim), colorIf(useColor, ColorReset), notFoundCount)
+	}
+	if errorCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
+	}
+	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	_, _ = fmt.Fprintln(w)
+}
+
+// outputGoogleEnumJSONL writes one JSON object per result. encoding/json escapes
+// control characters, so no sanitization is needed.
+func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
+	type googleEnumJSON struct {
+		Type   string `json:"type"`
+		Email  string `json:"email"`
+		Exists bool   `json:"exists"`
+		Method string `json:"method,omitempty"`
+		IdP    string `json:"idp,omitempty"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range results {
+		r := &results[i]
+		jr := googleEnumJSON{
+			Type:   "google_account",
+			Email:  r.Email,
+			Exists: r.Exists,
+			Method: string(r.Method),
+			IdP:    r.IdP,
+		}
+		if r.Error != nil {
+			jr.Error = r.Error.Error()
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding google enum JSON: %v\n", err)
+		}
+	}
 }

@@ -978,6 +978,40 @@ gracefully to an `unknown` result.
 
 ---
 
+### Google Workspace account enumeration
+
+Check whether email addresses correspond to Google accounts using two
+**unauthenticated** oracles — no token or sign-in required:
+
+- **AccountChooser SSO redirect** — reveals Workspace accounts on domains
+  configured with single sign-on, plus the identity provider (IdP) host they
+  redirect to (`workspace-sso`).
+- **GXLU Gmail probe** — reveals Gmail-enabled accounts (`gmail`).
+
+Each result is `exists` (with the confirming method and, for SSO, the IdP host)
+or `not found`.
+
+```bash
+# Enumerate a couple of emails
+brutus enum google -e alice@example.com,bob@example.com
+
+# Generate candidate emails for a domain and enumerate the most-likely 5000
+brutus enum google --domain target.com --format first.last --limit 5000
+
+# Enumerate emails from a file
+brutus enum google -E emails.txt
+
+# Route through a SOCKS5 proxy and raise concurrency
+brutus enum google -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20
+```
+
+`--domain` reuses the same frequency-ranked first/last name generator as
+`enum generate`; `--format` selects the username layout and `--limit` caps
+generation to the first N (most-likely) candidates. `--domain` may be combined
+with `-e`/`-E`.
+
+---
+
 ## Known Limitations
 
 ### Sticky Keys Heuristic Detection

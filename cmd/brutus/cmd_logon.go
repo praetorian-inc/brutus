@@ -109,9 +109,43 @@ backdoor. The protocol defaults to RDP.`,
 }
 
 func init() {
-	registerLogonFlags(logonCmd)
-	registerLogonFlags(stickykeysCmd)
-	registerLogonFlags(utilmanCmd)
+	for _, cmd := range []*cobra.Command{logonCmd, stickykeysCmd, utilmanCmd} {
+		registerLogonFlags(cmd)
+		guardLogonTimeoutFlag(cmd)
+	}
+}
+
+// guardLogonTimeoutFlag hard-renames the logon-family settle deadline from
+// --timeout to --scan-timeout. The shared --timeout flag is a persistent flag on
+// rootCmd that every command inherits, so it cannot simply be unregistered here
+// without breaking the non-logon commands that legitimately use it. Two pieces:
+//
+//   - Hard error (the must-have): a PreRunE rejects any explicit --timeout on
+//     these commands with guidance. PreRunE is used rather than
+//     PersistentPreRunE so it does not override rootCmd's PersistentPreRunE,
+//     which still validates --mode for the logon family.
+//   - Help hiding (best-effort): the inherited --timeout flag is hidden from
+//     this command's --help so only --scan-timeout/--connect-timeout surface.
+//     The flag object is shared with the root command, so toggling Hidden
+//     globally would also hide it from non-logon help. We instead flip Hidden
+//     only for the duration of this command's own help render via SetHelpFunc,
+//     restoring it immediately after so other commands are unaffected.
+func guardLogonTimeoutFlag(cmd *cobra.Command) {
+	cmd.PreRunE = func(c *cobra.Command, args []string) error {
+		if c.Flags().Changed("timeout") {
+			return fmt.Errorf("--timeout is not valid here; use --scan-timeout (settle deadline) and/or --connect-timeout (TCP connect)")
+		}
+		return nil
+	}
+
+	defaultHelp := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		if tf := c.InheritedFlags().Lookup("timeout"); tf != nil {
+			tf.Hidden = true
+			defer func() { tf.Hidden = false }()
+		}
+		defaultHelp(c, args)
+	})
 }
 
 // runLogon runs the combined sticky-keys + utilman detection (CheckBoth).
@@ -192,11 +226,11 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 		var scanResults []brutus.Result
 
 		// A pump phase can only settle after rdp.MinViableTimeout of evidence; a
-		// --timeout below that floor forces every host to INDETERMINATE (and a
-		// wasteful retry) for zero real signal. Warn (don't error) so existing
+		// --scan-timeout below that floor forces every host to INDETERMINATE (and
+		// a wasteful retry) for zero real signal. Warn (don't error) so existing
 		// scripts keep working.
 		if base.timeout < rdp.MinViableTimeout {
-			warnMsg(base.useColor, "--timeout %s is below the detection settle floor (%s); every host will return INDETERMINATE. Use --timeout 15s or higher for reliable results.",
+			warnMsg(base.useColor, "--scan-timeout %s is below the detection settle floor (%s); every host will return INDETERMINATE. Use --scan-timeout 15s or higher for reliable results.",
 				base.timeout, rdp.MinViableTimeout)
 		}
 

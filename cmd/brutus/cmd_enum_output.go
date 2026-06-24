@@ -24,16 +24,20 @@ import (
 	"unicode/utf8"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
+	"github.com/praetorian-inc/brutus/pkg/enum/google"
 	"github.com/praetorian-inc/brutus/pkg/enum/hunter"
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
 // outputDNSReconHuman displays DNS TXT recon results in human-readable format.
-func outputDNSReconHuman(result *enum.DNSReconResult, useColor bool) {
+// When teamsAvailable is true (the org is a Microsoft 365 tenant), an inferred
+// "teams" oracle line is appended to the Discovered Services block. The teams
+// entry is display/inference only — it is never enumerated unauthenticated.
+func outputDNSReconHuman(result *enum.DNSReconResult, teamsAvailable, useColor bool) {
 	fmt.Printf("\n%s %s\n", dim(useColor, SymbolInfo), heading(useColor, "DNS TXT Recon: "+result.Domain))
 	fmt.Printf("  Records found: %d\n", len(result.Records))
 
-	if len(result.Services) == 0 {
+	if len(result.Services) == 0 && !teamsAvailable {
 		fmt.Printf("  %s No SaaS services identified from TXT records\n", dim(useColor, SymbolInfo))
 		return
 	}
@@ -44,11 +48,19 @@ func outputDNSReconHuman(result *enum.DNSReconResult, useColor bool) {
 			colorIf(useColor, ColorGreen), svc.Name, colorIf(useColor, ColorReset),
 			dim(useColor, "("+svc.Indicator+")"))
 	}
+	if teamsAvailable {
+		fmt.Printf("    %s%-16s%s %s\n",
+			colorIf(useColor, ColorGreen), "teams", colorIf(useColor, ColorReset),
+			dim(useColor, "(available: Microsoft 365 tenant — run `brutus enum teams users` / `audit`)"))
+	}
 	fmt.Println()
 }
 
-// outputDNSReconJSONL writes DNS recon results as JSONL.
-func outputDNSReconJSONL(w io.Writer, result *enum.DNSReconResult) {
+// outputDNSReconJSONL writes DNS recon results as JSONL. When teamsAvailable is
+// true (the org is a Microsoft 365 tenant), a "teams_available":true field is
+// added so machine consumers can see the inferred Teams oracle. No tokens are
+// ever emitted, and teams is never added to the enumerated services.
+func outputDNSReconJSONL(w io.Writer, result *enum.DNSReconResult, teamsAvailable bool) {
 	type dnsReconJSON struct {
 		Type     string   `json:"type"`
 		Domain   string   `json:"domain"`
@@ -57,12 +69,14 @@ func outputDNSReconJSONL(w io.Writer, result *enum.DNSReconResult) {
 			Name      string `json:"name"`
 			Indicator string `json:"indicator"`
 		} `json:"services"`
+		TeamsAvailable bool `json:"teams_available,omitempty"`
 	}
 
 	jr := dnsReconJSON{
-		Type:    "dns_recon",
-		Domain:  result.Domain,
-		Records: result.Records,
+		Type:           "dns_recon",
+		Domain:         result.Domain,
+		Records:        result.Records,
+		TeamsAvailable: teamsAvailable,
 	}
 	for _, svc := range result.Services {
 		jr.Services = append(jr.Services, struct {
@@ -131,24 +145,116 @@ func outputEnumHuman(results []enum.Result, useColor bool) {
 	fmt.Println()
 }
 
-// outputOracleValidationHuman displays oracle validation results.
-func outputOracleValidationHuman(results []enum.Result, useColor bool) {
-	fmt.Printf("\n%s %s\n", dim(useColor, SymbolInfo), heading(useColor, "Oracle Validation"))
+// outputCandidateOraclesHuman prints the supporting one-liner that explains WHY
+// the org's oracles are candidates: the oracles surfaced by DNS TXT recon. It is
+// deliberately terse — the headline is the Oracle Check block, not the recon.
+// The full TXT detail is available under --verbose (outputDNSReconHuman) and in
+// JSON. When teamsAvailable is true (the org is a Microsoft 365 tenant), the
+// inferred "teams" oracle is appended to the candidate list.
+func outputCandidateOraclesHuman(result *enum.DNSReconResult, teamsAvailable, useColor bool) {
+	var candidates []string
+	for _, svc := range result.Services {
+		candidates = append(candidates, svc.Name)
+	}
+	if teamsAvailable {
+		candidates = append(candidates, "teams")
+	}
+
+	if len(candidates) == 0 {
+		fmt.Printf("\n%s Discovered no candidate oracles via DNS for %s\n",
+			dim(useColor, SymbolInfo), result.Domain)
+		return
+	}
+
+	fmt.Printf("\n%s Discovered candidate oracles via DNS: %s\n",
+		dim(useColor, SymbolInfo), strings.Join(candidates, ", "))
+}
+
+// outputOracleCheckHuman renders the headline Oracle Check report: every oracle
+// that was checked against the known-valid user and whether it WORKED or NOT.
+// This is the prominent, labeled block the oracles command leads with. The
+// plugin oracles come from results (Exists -> "[+] working"; otherwise
+// "[-] not working"; errored -> "[-] not working (error)"), and the Teams oracle
+// is rendered from teamsLine when present (reusing confirmTeamsOracle's
+// discover-style mapping: working / available-unconfirmed / not found /
+// unconfirmed). Token values never appear in the output.
+func outputOracleCheckHuman(label, knownValid string, results []enum.Result, teamsLine string, useColor bool) {
+	fmt.Printf("\n%s\n",
+		heading(useColor, fmt.Sprintf("=== Oracle Check: %s (validated against %s) ===", label, knownValid)))
+
 	for i := range results {
 		r := &results[i]
 		switch {
 		case r.Error != nil:
-			fmt.Printf("  %s%s FAIL%s    %-16s %v\n",
+			fmt.Printf("  %-16s %s%s not working%s (error: %v)\n",
+				r.Service,
 				colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
-				r.Service, r.Error)
+				r.Error)
 		case r.Exists:
-			fmt.Printf("  %s%s PASS%s    %-16s confirmed (%s, %s)\n",
-				colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset),
-				r.Service, r.Confidence, r.Duration)
+			fmt.Printf("  %-16s %s%s working%s\n",
+				r.Service,
+				colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
 		default:
-			fmt.Printf("  %s%s FAIL%s    %-16s did not confirm known-valid email (%s)\n",
-				colorIf(useColor, ColorYellow), SymbolWarning, colorIf(useColor, ColorReset),
-				r.Service, r.Duration)
+			fmt.Printf("  %-16s %s%s not working%s\n",
+				r.Service,
+				colorIf(useColor, ColorYellow), SymbolError, colorIf(useColor, ColorReset))
+		}
+	}
+
+	if teamsLine != "" {
+		name, status, working := parseTeamsOracleLine(teamsLine)
+		symbol, color := SymbolSuccess, ColorGreen
+		if !working {
+			symbol, color = SymbolError, ColorYellow
+		}
+		fmt.Printf("  %-16s %s%s %s%s\n",
+			name, colorIf(useColor, color), symbol, status, colorIf(useColor, ColorReset))
+	}
+
+	fmt.Println()
+}
+
+// parseTeamsOracleLine splits a confirmTeamsOracle status line (e.g.
+// "teams: working (account exists; external detail restricted)") into the oracle
+// name, the status remainder, and whether it represents a working oracle. A line
+// is "working" when its status begins with "working" (a 200 hit or a 403/blocked
+// hit, both of which distinguish real from fake accounts). "available
+// (unconfirmed)", "responded, known-valid not found", and "unconfirmed ..." are
+// not working.
+func parseTeamsOracleLine(line string) (name, status string, working bool) {
+	name = "teams"
+	status = line
+	if idx := strings.Index(line, ":"); idx >= 0 {
+		name = strings.TrimSpace(line[:idx])
+		status = strings.TrimSpace(line[idx+1:])
+	}
+	working = strings.HasPrefix(status, "working")
+	return name, status, working
+}
+
+// outputOracleValidationHuman renders the Oracle Check block for the discover
+// subcommand: every oracle tested against the known-valid user and whether it
+// WORKED or NOT. It shares the working/not-working mapping with
+// outputOracleCheckHuman but, lacking the domain/targets label and Teams line
+// (the discover caller prints the Teams line separately), keeps a simple header.
+func outputOracleValidationHuman(results []enum.Result, useColor bool) {
+	fmt.Printf("\n%s\n", heading(useColor, "=== Oracle Check ==="))
+	for i := range results {
+		r := &results[i]
+		switch {
+		case r.Error != nil:
+			fmt.Printf("  %-16s %s%s not working%s (error: %v)\n",
+				r.Service,
+				colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
+				r.Error)
+		case r.Exists:
+			fmt.Printf("  %-16s %s%s working%s\n",
+				r.Service,
+				colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
+		default:
+			fmt.Printf("  %-16s %s%s not working%s\n",
+				r.Service,
+				colorIf(useColor, ColorYellow), SymbolError, colorIf(useColor, ColorReset))
 		}
 	}
 	fmt.Println()
@@ -851,4 +957,102 @@ func presence(token string) string {
 		return "<absent>"
 	}
 	return "<present>"
+}
+
+// ---------------------------------------------------------------------------
+// Google Workspace account enumeration output functions
+// ---------------------------------------------------------------------------
+
+// outputGoogleEnumResultLine prints ONE Google enumeration result row. EXISTS
+// rows show the email, an "[+] EXISTS" label, and a method note: workspace-sso
+// renders as " (workspace-sso -> <IdP>)" (or just " (workspace-sso)" when the
+// IdP is empty), gmail as " (gmail)". Not-found rows render as "[ ] not found".
+// The server-controlled IdP host is sanitized via sanitizeTerminal (P0-4).
+// Callers decide which results to print (e.g. EXISTS only, unless verbose); this
+// helper renders whatever it is given.
+func outputGoogleEnumResultLine(w io.Writer, r google.Result, useColor bool) {
+	email := truncate(sanitizeTerminal(r.Email), 40)
+
+	if !r.Exists {
+		_, _ = fmt.Fprintf(w, "  %-40s %s[ ] not found%s\n",
+			email, colorIf(useColor, ColorDim), colorIf(useColor, ColorReset))
+		return
+	}
+
+	note := ""
+	switch r.Method {
+	case google.MethodWorkspaceSSO:
+		if r.IdP != "" {
+			note = " (workspace-sso -> " + sanitizeTerminal(r.IdP) + ")"
+		} else {
+			note = " (workspace-sso)"
+		}
+	case google.MethodGmail:
+		note = " (gmail)"
+	}
+
+	_, _ = fmt.Fprintf(w, "  %-40s %s%s EXISTS%s%s\n",
+		email,
+		colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset),
+		dim(useColor, note))
+}
+
+// outputGoogleEnumSummary prints the counts-by-status summary block for a set
+// of Google enumeration results: found / not found / errors / total.
+func outputGoogleEnumSummary(w io.Writer, results []google.Result, useColor bool) {
+	var foundCount, notFoundCount, errorCount int
+	for i := range results {
+		switch {
+		case results[i].Error != nil:
+			errorCount++
+		case results[i].Exists:
+			foundCount++
+		default:
+			notFoundCount++
+		}
+	}
+
+	_, _ = fmt.Fprintf(w, "\n  %s\n", heading(useColor, "Summary"))
+	if foundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d\n", colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset), foundCount)
+	}
+	if notFoundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sNot found:%s  %d\n", colorIf(useColor, ColorDim), colorIf(useColor, ColorReset), notFoundCount)
+	}
+	if errorCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
+	}
+	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	_, _ = fmt.Fprintln(w)
+}
+
+// outputGoogleEnumJSONL writes one JSON object per result. encoding/json escapes
+// control characters, so no sanitization is needed.
+func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
+	type googleEnumJSON struct {
+		Type   string `json:"type"`
+		Email  string `json:"email"`
+		Exists bool   `json:"exists"`
+		Method string `json:"method,omitempty"`
+		IdP    string `json:"idp,omitempty"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range results {
+		r := &results[i]
+		jr := googleEnumJSON{
+			Type:   "google_account",
+			Email:  r.Email,
+			Exists: r.Exists,
+			Method: string(r.Method),
+			IdP:    r.IdP,
+		}
+		if r.Error != nil {
+			jr.Error = r.Error.Error()
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding google enum JSON: %v\n", err)
+		}
+	}
 }

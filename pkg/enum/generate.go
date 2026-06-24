@@ -12,6 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package enum generates candidate usernames and emails for account
+// enumeration.
+//
+// Username/email generation is driven by wordlists/likely-names.txt.gz, a
+// frequency-ranked list of statistically likely "first.last" pairs (most
+// likely first). That list is derived from the insidetrust/statistically-likely-usernames
+// project (https://github.com/insidetrust/statistically-likely-usernames) and
+// is bundled here per the maintainer's decision. See wordlists/SOURCES.md for
+// full attribution. All username formats are derived from these ranked pairs,
+// so output is bounded and ordered by likelihood.
 package enum
 
 import (
@@ -28,20 +38,22 @@ var wordlistFS embed.FS
 
 // Username format constants.
 const (
-	FormatFirstDotLast = "first.last" // john.smith
-	FormatFLast        = "flast"      // jsmith
-	FormatFirstL       = "firstl"     // johns
-	FormatFDotLast     = "f.last"     // j.smith
-	FormatLastF        = "lastf"      // smithj
-	FormatLastDotFirst = "last.first" // smith.john
-	FormatLastFirst    = "lastfirst"  // smithjohn
-	FormatFirst        = "first"      // john
+	FormatFirstDotLast   = "first.last" // john.smith
+	FormatFirstUnderLast = "first_last" // john_smith
+	FormatFLast          = "flast"      // jsmith
+	FormatFirstL         = "firstl"     // johns
+	FormatFDotLast       = "f.last"     // j.smith
+	FormatLastF          = "lastf"      // smithj
+	FormatLastDotFirst   = "last.first" // smith.john
+	FormatLastFirst      = "lastfirst"  // smithjohn
+	FormatFirst          = "first"      // john
 )
 
 // ListFormats returns all available username format names.
 func ListFormats() []string {
 	return []string{
 		FormatFirstDotLast,
+		FormatFirstUnderLast,
 		FormatFLast,
 		FormatFirstL,
 		FormatFDotLast,
@@ -52,52 +64,36 @@ func ListFormats() []string {
 	}
 }
 
-// GenerateUsernames loads embedded first/last name lists and generates
-// usernames in the specified format. Returns deduplicated, lowercased usernames.
+// GenerateUsernames derives usernames in the requested format from the
+// frequency-ranked likely-names wordlist. Each source line is a "first.last"
+// pair; the requested format is built from its parts. Results are lowercased,
+// deduplicated preserving order (first occurrence wins, so output stays ranked
+// by likelihood), and bounded by the wordlist size (<=248k).
 func GenerateUsernames(format string) ([]string, error) {
-	firstNames, err := loadGzippedWordlist("wordlists/firstnames.txt.gz")
+	pairs, err := loadGzippedWordlist("wordlists/likely-names.txt.gz")
 	if err != nil {
-		return nil, fmt.Errorf("loading first names: %w", err)
+		return nil, fmt.Errorf("loading likely names: %w", err)
 	}
 
-	// first-name-only format
-	if format == FormatFirst {
-		seen := make(map[string]bool, len(firstNames))
-		var out []string
-		for _, f := range firstNames {
-			f = strings.ToLower(strings.TrimSpace(f))
-			if f != "" && !seen[f] {
-				out = append(out, f)
-				seen[f] = true
-			}
-		}
-		return out, nil
-	}
+	seen := make(map[string]bool, len(pairs))
+	usernames := make([]string, 0, len(pairs))
 
-	lastNames, err := loadGzippedWordlist("wordlists/lastnames.txt.gz")
-	if err != nil {
-		return nil, fmt.Errorf("loading last names: %w", err)
-	}
+	for _, pair := range pairs {
+		pair = strings.ToLower(strings.TrimSpace(pair))
 
-	seen := make(map[string]bool, len(firstNames)*len(lastNames))
-	var usernames []string
-
-	for _, first := range firstNames {
-		first = strings.ToLower(strings.TrimSpace(first))
-		if first == "" {
+		// Split on the FIRST "." only. lastRaw may itself contain dots
+		// (e.g. "al.mamun"), which FormatFirstDotLast preserves.
+		first, lastRaw, ok := strings.Cut(pair, ".")
+		if !ok || first == "" || lastRaw == "" {
 			continue
 		}
-		for _, last := range lastNames {
-			last = strings.ToLower(strings.TrimSpace(last))
-			if last == "" {
-				continue
-			}
-			u := formatUsername(first, last, format)
-			if u != "" && !seen[u] {
-				usernames = append(usernames, u)
-				seen[u] = true
-			}
+
+		u := formatUsername(first, lastRaw, format)
+		if u == "" || seen[u] {
+			continue
 		}
+		usernames = append(usernames, u)
+		seen[u] = true
 	}
 
 	return usernames, nil
@@ -157,23 +153,44 @@ func loadGzippedWordlist(path string) ([]string, error) {
 	return lines, scanner.Err()
 }
 
-// formatUsername applies a format template to a first+last name pair.
-func formatUsername(first, last, format string) string {
+// formatUsername derives a username in the given format from a first name and
+// the raw last-name component of a "first.last" pair. lastRaw may contain dots
+// (multi-part surnames); lastConcat strips them for concatenated/initial
+// formats, while FormatFirstDotLast emits the original pair to preserve the
+// multi-part name. Returns "" when the format needs an initial that isn't
+// available.
+func formatUsername(first, lastRaw, format string) string {
+	lastConcat := strings.ReplaceAll(lastRaw, ".", "")
+
 	switch format {
 	case FormatFirstDotLast:
-		return first + "." + last
+		return first + "." + lastRaw
+	case FormatFirstUnderLast:
+		if lastConcat == "" {
+			return ""
+		}
+		return first + "_" + lastConcat
 	case FormatFLast:
-		return first[:1] + last
+		if lastConcat == "" {
+			return ""
+		}
+		return first[:1] + lastConcat
 	case FormatFirstL:
-		return first + last[:1]
+		if lastConcat == "" {
+			return ""
+		}
+		return first + lastConcat[:1]
 	case FormatFDotLast:
-		return first[:1] + "." + last
+		if lastConcat == "" {
+			return ""
+		}
+		return first[:1] + "." + lastConcat
 	case FormatLastF:
-		return last + first[:1]
+		return lastConcat + first[:1]
 	case FormatLastDotFirst:
-		return last + "." + first
+		return lastConcat + "." + first
 	case FormatLastFirst:
-		return last + first
+		return lastConcat + first
 	case FormatFirst:
 		return first
 	default:

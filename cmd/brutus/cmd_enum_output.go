@@ -395,34 +395,439 @@ func outputTeamsTokenHuman(w io.Writer, tok *teams.TokenSet, useColor bool) {
 	_, _ = fmt.Fprintln(w)
 }
 
-// outputTeamsTokenJSONL writes the full TokenSet as a single JSON line.
-// encoding/json escapes control characters, so no sanitization is needed.
+// outputTeamsTokenJSONL writes the full TokenSet as a single JSON line. The
+// JSON shape (teamsTokenJSON) is shared with saveTeamsTokenFile so the -o sink
+// and the default credential store stay byte-compatible. encoding/json escapes
+// control characters, so no sanitization is needed.
 func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
-	type teamsTokenJSON struct {
-		Type         string    `json:"type"`
-		AccessToken  string    `json:"access_token"`
-		RefreshToken string    `json:"refresh_token,omitempty"`
-		IDToken      string    `json:"id_token,omitempty"`
-		TokenType    string    `json:"token_type"`
-		ExpiresIn    int       `json:"expires_in"`
-		Scope        string    `json:"scope,omitempty"`
-		ExpiresAt    time.Time `json:"expires_at"`
-	}
-
-	jr := teamsTokenJSON{
-		Type:         "teams_token",
-		AccessToken:  tok.AccessToken,
-		RefreshToken: tok.RefreshToken,
-		IDToken:      tok.IDToken,
-		TokenType:    tok.TokenType,
-		ExpiresIn:    tok.ExpiresIn,
-		Scope:        tok.Scope,
-		ExpiresAt:    tok.ExpiresAt,
-	}
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(jr); err != nil {
+	if err := enc.Encode(newTeamsTokenJSON(tok)); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams token JSON: %v\n", err)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Teams user enumeration output functions
+// ---------------------------------------------------------------------------
+
+// outputTeamsEnumHuman renders Teams user enumeration results as an aligned
+// table. All server-provided strings are sanitized via sanitizeTerminal (P0-4).
+// The presence columns (Availability, Device) are shown only when at least one
+// result carries presence data.
+func outputTeamsEnumHuman(w io.Writer, results []teams.EnumResult, useColor bool) {
+	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo), heading(useColor, "Teams User Enumeration"))
+
+	showPresence := false
+	for i := range results {
+		if results[i].Availability != "" || results[i].DeviceType != "" {
+			showPresence = true
+			break
+		}
+	}
+
+	// Header row.
+	if showPresence {
+		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-12s %-28s %-40s %-14s %-12s%s\n",
+			colorIf(useColor, ColorBold),
+			"Email", "Status", "Display Name", "MRI", "Availability", "Device",
+			colorIf(useColor, ColorReset))
+	} else {
+		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-12s %-28s %-40s%s\n",
+			colorIf(useColor, ColorBold),
+			"Email", "Status", "Display Name", "MRI",
+			colorIf(useColor, ColorReset))
+	}
+
+	for i := range results {
+		r := &results[i]
+		switch r.Exists {
+		case teams.ExistenceNo:
+			if flagQuiet {
+				continue
+			}
+		case teams.ExistenceUnknown:
+			if !flagVerbose {
+				continue
+			}
+		}
+
+		statusCol, statusColor := teamsEnumStatusLabel(r.Exists)
+		email := truncate(sanitizeTerminal(r.Email), 32)
+		name := truncate(sanitizeTerminal(r.DisplayName), 28)
+		mri := truncate(sanitizeTerminal(r.MRI), 40)
+
+		if showPresence {
+			_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s %-14s %-12s\n",
+				email,
+				colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
+				name, mri,
+				truncate(sanitizeTerminal(r.Availability), 14),
+				truncate(sanitizeTerminal(r.DeviceType), 12))
+		} else {
+			_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s\n",
+				email,
+				colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
+				name, mri)
+		}
+	}
+
+	outputTeamsEnumSummary(w, results, useColor)
+}
+
+// outputTeamsEnumResultLine prints ONE Teams enumeration result row in the same
+// visual style as outputTeamsEnumHuman's per-row rendering: Email, status label,
+// Display Name, and MRI, with the account type appended for EXISTS rows (e.g.
+// "(corporate)" or "(consumer)") via teams.AccountType. A 403/blocked result is
+// a confirmed hit whose details the tenant withholds, so it renders as an
+// "[+] EXISTS" row with a "(details restricted)" qualifier and no
+// DisplayName/MRI/account-type (a 403 carries none). All server-provided strings
+// are sanitized via sanitizeTerminal (P0-4). Token values are never printed.
+// Callers decide which results to print (e.g. positive signals only, unless
+// verbose); this helper renders whatever it is given.
+func outputTeamsEnumResultLine(w io.Writer, r teams.EnumResult, useColor bool) {
+	statusCol, statusColor := teamsEnumStatusLabel(r.Exists)
+	email := truncate(sanitizeTerminal(r.Email), 32)
+	name := truncate(sanitizeTerminal(r.DisplayName), 28)
+	mri := truncate(sanitizeTerminal(r.MRI), 40)
+
+	// A 403/blocked result is presented as a confirmed EXISTS hit with no
+	// metadata, since a 403 carries no DisplayName/MRI/account type.
+	if r.Exists == teams.ExistenceBlocked {
+		statusCol, statusColor = "[+] EXISTS", ColorGreen
+		name, mri = "", ""
+	}
+
+	acct := ""
+	switch r.Exists {
+	case teams.ExistenceYes:
+		if t := teams.AccountType(r.MRI); t != "" {
+			acct = " (" + t + ")"
+		}
+	case teams.ExistenceBlocked:
+		acct = " (details restricted)"
+	}
+
+	_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s%s\n",
+		email,
+		colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
+		name, mri, dim(useColor, acct))
+}
+
+// outputTeamsEnumSummary prints the counts-by-status summary block for a set of
+// Teams enumeration results. A 403/blocked result is a confirmed hit whose
+// details the tenant withholds, so the headline "Exists" count is the sum of
+// ExistenceYes (200 + data) and ExistenceBlocked (403), with the split shown
+// as "(N with details, M details-restricted)". Not-found / errors / total are
+// reported as before.
+func outputTeamsEnumSummary(w io.Writer, results []teams.EnumResult, useColor bool) {
+	var withDetailsCount, restrictedCount, notFoundCount, errorCount int
+	for i := range results {
+		switch results[i].Exists {
+		case teams.ExistenceYes:
+			withDetailsCount++
+		case teams.ExistenceBlocked:
+			restrictedCount++
+		case teams.ExistenceNo:
+			notFoundCount++
+		default:
+			errorCount++
+		}
+	}
+	existsCount := withDetailsCount + restrictedCount
+
+	_, _ = fmt.Fprintf(w, "\n  %s\n", heading(useColor, "Summary"))
+	if existsCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d (%d with details, %d details-restricted)\n",
+			colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset),
+			existsCount, withDetailsCount, restrictedCount)
+	}
+	if notFoundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sNot found:%s  %d\n", colorIf(useColor, ColorDim), colorIf(useColor, ColorReset), notFoundCount)
+	}
+	if errorCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
+	}
+	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	_, _ = fmt.Fprintln(w)
+}
+
+// teamsEnumStatusLabel maps a tri-state existence to a display label and color.
+func teamsEnumStatusLabel(e teams.Existence) (label, color string) {
+	switch e {
+	case teams.ExistenceYes:
+		return "[+] EXISTS", ColorGreen
+	case teams.ExistenceBlocked:
+		return "[!] BLOCKED", ColorYellow
+	case teams.ExistenceNo:
+		return "[ ] NOT FOUND", ColorDim
+	default:
+		return "[x] ERROR", ColorRed
+	}
+}
+
+// outputTeamsEnumJSONL writes one JSON object per result. Token fields are
+// never included. encoding/json escapes control characters, so no sanitization
+// is needed.
+func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
+	type teamsEnumJSON struct {
+		Type              string `json:"type"`
+		Email             string `json:"email"`
+		Exists            string `json:"exists"`
+		DetailsRestricted bool   `json:"details_restricted,omitempty"`
+		DisplayName       string `json:"display_name,omitempty"`
+		MRI               string `json:"mri,omitempty"`
+		AccountType       string `json:"account_type,omitempty"`
+		Availability      string `json:"availability,omitempty"`
+		DeviceType        string `json:"device_type,omitempty"`
+		Error             string `json:"error,omitempty"`
+		UserType          string `json:"user_type,omitempty"`
+		TenantID          string `json:"tenant_id,omitempty"`
+		UserPrincipalName string `json:"user_principal_name,omitempty"`
+		ObjectID          string `json:"object_id,omitempty"`
+		AccountEnabled    *bool  `json:"account_enabled,omitempty"`
+		CoExistenceMode   string `json:"coexistence_mode,omitempty"`
+		SourceNetwork     string `json:"source_network,omitempty"`
+		OutOfOfficeNote   string `json:"out_of_office_note,omitempty"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range results {
+		r := &results[i]
+		jr := teamsEnumJSON{
+			Type:  "teams_enum",
+			Email: r.Email,
+		}
+		// Map internal existence to the output shape. A 403/blocked result is a
+		// confirmed hit whose details the tenant withholds, so it is presented as
+		// "exists":"yes" with "details_restricted":true and no metadata fields (a
+		// 403 carries none).
+		switch r.Exists {
+		case teams.ExistenceBlocked:
+			jr.Exists = string(teams.ExistenceYes)
+			jr.DetailsRestricted = true
+		default:
+			jr.Exists = string(r.Exists)
+			jr.DisplayName = r.DisplayName
+			jr.MRI = r.MRI
+			jr.AccountType = teams.AccountType(r.MRI)
+			jr.Availability = r.Availability
+			jr.DeviceType = r.DeviceType
+			jr.UserType = r.Type
+			jr.TenantID = r.TenantID
+			jr.UserPrincipalName = r.UserPrincipalName
+			jr.ObjectID = r.ObjectID
+			jr.AccountEnabled = r.AccountEnabled
+			jr.CoExistenceMode = r.CoExistenceMode
+			jr.SourceNetwork = r.SourceNetwork
+			jr.OutOfOfficeNote = r.OutOfOfficeNote
+		}
+		if r.Error != nil {
+			jr.Error = r.Error.Error()
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams enum JSON: %v\n", err)
+		}
+	}
+}
+
+// outputTeamsPostureHuman prints a tenant-configuration posture summary block.
+// The "External / cross-tenant chat: ALLOWED" line is a finding and is colored
+// red when open, green when blocked, and dim when unknown. The server-derived
+// coexistence mode is sanitized via sanitizeTerminal (P0-4).
+func outputTeamsPostureHuman(w io.Writer, p teams.TenantPosture, useColor bool) {
+	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
+		heading(useColor, "Teams posture: "+sanitizeTerminal(p.Domain)))
+
+	var chatLabel, chatColor string
+	switch p.ExternalChatAllowed {
+	case "open":
+		chatLabel, chatColor = "ALLOWED", ColorRed
+	case "blocked":
+		chatLabel, chatColor = "BLOCKED", ColorGreen
+	default:
+		chatLabel, chatColor = "UNKNOWN", ColorDim
+	}
+
+	_, _ = fmt.Fprintf(w, "  External / cross-tenant chat: %s%s%s   (%d users resolvable, %d blocked)\n",
+		colorIf(useColor, chatColor), chatLabel, colorIf(useColor, ColorReset),
+		p.UsersFound, p.Blocked403)
+	_, _ = fmt.Fprintf(w, "  Federation observed:          %s\n", yesNo(p.FederatedObserved))
+	_, _ = fmt.Fprintf(w, "  Presence visible externally:  %s\n", yesNo(p.PresenceVisible))
+	_, _ = fmt.Fprintf(w, "  Out-of-office notes exposed:  %d\n", p.OOOExposed)
+
+	coex := p.CoExistenceMode
+	if coex == "" {
+		coex = "unknown"
+	} else {
+		coex = sanitizeTerminal(coex)
+	}
+	_, _ = fmt.Fprintf(w, "  Coexistence mode:             %s\n", coex)
+	_, _ = fmt.Fprintln(w)
+}
+
+// outputTeamsPostureJSONL writes the tenant posture as a single JSON object.
+// encoding/json escapes control characters, so no sanitization is needed.
+func outputTeamsPostureJSONL(w io.Writer, p teams.TenantPosture) {
+	type teamsPostureJSON struct {
+		Type                string `json:"type"`
+		Domain              string `json:"domain"`
+		Total               int    `json:"total"`
+		UsersFound          int    `json:"users_found"`
+		Blocked403          int    `json:"blocked_403"`
+		ExternalChatAllowed string `json:"external_chat_allowed"`
+		FederatedObserved   bool   `json:"federated_observed"`
+		PresenceVisible     bool   `json:"presence_visible"`
+		OOOExposed          int    `json:"ooo_exposed"`
+		CoExistenceMode     string `json:"coexistence_mode,omitempty"`
+	}
+
+	jr := teamsPostureJSON{
+		Type:                "teams_posture",
+		Domain:              p.Domain,
+		Total:               p.Total,
+		UsersFound:          p.UsersFound,
+		Blocked403:          p.Blocked403,
+		ExternalChatAllowed: p.ExternalChatAllowed,
+		FederatedObserved:   p.FederatedObserved,
+		PresenceVisible:     p.PresenceVisible,
+		OOOExposed:          p.OOOExposed,
+		CoExistenceMode:     p.CoExistenceMode,
+	}
+
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(jr); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams posture JSON: %v\n", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Teams audit (graded findings) output functions
+// ---------------------------------------------------------------------------
+
+// auditEvidenceMaxRunes bounds how much server-derived evidence (e.g. an
+// out-of-office note) is rendered in the human report.
+const auditEvidenceMaxRunes = 200
+
+// outputTeamsAuditHuman renders graded Teams audit findings as a human report.
+// Every server-derived string (Evidence and Affected may contain the OOO note
+// or display data) is sanitized via sanitizeTerminal and long evidence is
+// truncated (P0-4). Each finding is shown as "[SEVERITY] Title" with a
+// severity-appropriate color, followed by indented Evidence and Remediation
+// lines, and the run ends with a counts-by-severity summary. The posture block
+// is always printed first for context.
+func outputTeamsAuditHuman(w io.Writer, domain string, posture teams.TenantPosture, findings []teams.Finding, useColor bool) {
+	_, _ = fmt.Fprintf(w, "\n%s\n", heading(useColor, "=== Teams Audit: "+sanitizeTerminal(domain)+" ==="))
+
+	outputTeamsPostureHuman(w, posture, useColor)
+
+	if len(findings) == 0 {
+		_, _ = fmt.Fprintf(w, "  %s%s No findings — external Teams exposure looks restricted.%s\n\n",
+			colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
+		return
+	}
+
+	for i := range findings {
+		f := &findings[i]
+		color := teamsAuditSeverityColor(f.Severity)
+		label := strings.ToUpper(string(f.Severity))
+
+		_, _ = fmt.Fprintf(w, "  %s[%s]%s %s\n",
+			colorIf(useColor, color), label, colorIf(useColor, ColorReset),
+			sanitizeTerminal(f.Title))
+		if f.Affected != "" {
+			_, _ = fmt.Fprintf(w, "    Affected:    %s\n", sanitizeTerminal(f.Affected))
+		}
+		if f.Evidence != "" {
+			_, _ = fmt.Fprintf(w, "    Evidence:    %s\n",
+				truncate(sanitizeTerminal(f.Evidence), auditEvidenceMaxRunes))
+		}
+		if f.Remediation != "" {
+			_, _ = fmt.Fprintf(w, "    Remediation: %s\n", sanitizeTerminal(f.Remediation))
+		}
+		_, _ = fmt.Fprintln(w)
+	}
+
+	outputTeamsAuditSummary(w, findings, useColor)
+}
+
+// outputTeamsAuditSummary prints a counts-by-severity line for the findings.
+func outputTeamsAuditSummary(w io.Writer, findings []teams.Finding, useColor bool) {
+	var high, medium, low, info int
+	for i := range findings {
+		switch findings[i].Severity {
+		case teams.SeverityHigh:
+			high++
+		case teams.SeverityMedium:
+			medium++
+		case teams.SeverityLow:
+			low++
+		default:
+			info++
+		}
+	}
+
+	_, _ = fmt.Fprintf(w, "  %s %d finding(s): %s%d high%s, %s%d medium%s, %s%d low%s, %s%d info%s\n\n",
+		heading(useColor, "Summary:"), len(findings),
+		colorIf(useColor, ColorRed), high, colorIf(useColor, ColorReset),
+		colorIf(useColor, ColorRed), medium, colorIf(useColor, ColorReset),
+		colorIf(useColor, ColorYellow), low, colorIf(useColor, ColorReset),
+		colorIf(useColor, ColorDim), info, colorIf(useColor, ColorReset))
+}
+
+// teamsAuditSeverityColor maps a finding severity to its display color.
+func teamsAuditSeverityColor(s teams.Severity) string {
+	switch s {
+	case teams.SeverityHigh:
+		return ColorRed
+	case teams.SeverityMedium:
+		return ColorRed
+	case teams.SeverityLow:
+		return ColorYellow
+	default:
+		return ColorDim
+	}
+}
+
+// outputTeamsAuditJSONL writes one JSON object per finding. Token values are
+// never included. encoding/json escapes control characters, so no sanitization
+// is needed.
+func outputTeamsAuditJSONL(w io.Writer, findings []teams.Finding) {
+	type teamsFindingJSON struct {
+		Type        string `json:"type"`
+		ID          string `json:"id"`
+		Title       string `json:"title"`
+		Severity    string `json:"severity"`
+		Description string `json:"description"`
+		Evidence    string `json:"evidence,omitempty"`
+		Affected    string `json:"affected,omitempty"`
+		Remediation string `json:"remediation,omitempty"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range findings {
+		f := &findings[i]
+		jr := teamsFindingJSON{
+			Type:        "teams_finding",
+			ID:          f.ID,
+			Title:       f.Title,
+			Severity:    string(f.Severity),
+			Description: f.Description,
+			Evidence:    f.Evidence,
+			Affected:    f.Affected,
+			Remediation: f.Remediation,
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams finding JSON: %v\n", err)
+		}
+	}
+}
+
+// yesNo renders a bool as "yes"/"no" for posture summary rows.
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }
 
 // tokenPreview renders a token for human output without leaking it (P0-1):

@@ -95,7 +95,7 @@ func registerSaasFlags(cmd *cobra.Command) {
 	f.StringVarP(&flagSaasEmails, "emails", "e", "", "Comma-separated emails to enumerate")
 	f.StringVarP(&flagSaasEmailFile, "email-file", "E", "", "File of emails to enumerate (one per line, use - for stdin)")
 	f.StringVarP(&flagSaasServices, "services", "s", "", "Comma-separated services to check (default: all discovered/registered)")
-	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format for generation (first.last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
+	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format for generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
 	f.BoolVar(&flagSaasGenerate, "generate", false, "Generate emails from embedded name lists")
 	f.StringVar(&flagSaasKnownValid, "known-valid", "", "Known-valid email to validate oracles before enumeration")
 }

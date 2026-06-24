@@ -902,8 +902,10 @@ brutus enum teams auth
 brutus enum teams auth --tenant contoso.com
 brutus enum teams auth --tenant 00000000-0000-0000-0000-000000000000
 
-# Request additional Graph scopes (space-separated)
-brutus enum teams auth --scope "openid offline_access https://graph.microsoft.com/.default"
+# Request a different resource scope (space-separated). The default targets the
+# Skype/Teams resource (api.spaces.skype.com); the Teams client is NOT
+# authorized for Microsoft Graph (Graph yields AADSTS65002).
+brutus enum teams auth --scope "offline_access https://api.spaces.skype.com/.default"
 
 # Use a custom app registration (your own Azure app client ID)
 brutus enum teams auth --client-id 00000000-0000-0000-0000-000000000000
@@ -938,11 +940,41 @@ $ brutus enum teams auth --tenant contoso.com
 [+] Authentication successful
   Token type:    Bearer
   Expires at:    2026-06-16T13:00:00Z
-  Scope:         openid profile offline_access User.Read
+  Scope:         offline_access https://api.spaces.skype.com/.default
   Access token:  eyJ0eXAiOiJKV1Qi...
   Refresh token: <present>
   ID token:      <present>
 ```
+
+#### Teams user enumeration
+
+Once authenticated, enumerate corporate Teams users by email address. Each
+result is `exists`, `blocked` (the tenant forbids external search but the user
+may exist), `not found`, or `unknown` (auth/transport failure). Personal/Live
+accounts are not supported — corporate tenants only.
+
+```bash
+# Device-code auth inline, then enumerate a couple of emails
+brutus enum teams users -e alice@contoso.com,bob@contoso.com
+
+# Generate candidate emails for a domain and enumerate the most-likely 5000
+# (presence and out-of-office are gathered by default; use --no-presence to skip)
+brutus enum teams users --domain target.com --format first.last --limit 5000
+
+# Enumerate emails from a file
+brutus enum teams users -E emails.txt
+
+# Reuse a token captured earlier and route through a SOCKS5 proxy
+brutus enum teams auth -o token.jsonl
+brutus enum teams users -E emails.txt --token-file token.jsonl --proxy socks5://127.0.0.1:1080
+
+# Provide an access token directly
+brutus enum teams users -e alice@contoso.com --access-token "$TOKEN"
+```
+
+When a refresh token is available (via `--token-file` or `--refresh-token`), an
+expired access token is renewed automatically once; otherwise a `401` degrades
+gracefully to an `unknown` result.
 
 ---
 

@@ -30,47 +30,51 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// SaaS-specific flag variables
+// Oracle-enumeration flag variables
 var (
-	flagSaasEmails     string
-	flagSaasEmailFile  string
-	flagSaasServices   string
-	flagSaasGenerate   bool
-	flagSaasKnownValid string
+	flagOraclesEmails     string
+	flagOraclesEmailFile  string
+	flagOraclesServices   string
+	flagOraclesGenerate   bool
+	flagOraclesKnownValid string
 )
 
-var enumSaasCmd = &cobra.Command{
-	Use:   "saas",
-	Short: "Enumerate email accounts against SaaS services",
-	Long: `Discover SaaS services via DNS TXT records and enumerate email accounts
-against discovered or specified services using unauthenticated oracles.
+var enumOraclesCmd = &cobra.Command{
+	Use:   "oracles",
+	Short: "Enumerate which account-existence oracles work for an organization",
+	Long: `Identify which unauthenticated account-existence oracles (e.g. microsoft365,
+google) — plus the Microsoft Teams oracle — work for an organization, validate
+them against a known-valid user, then enumerate candidate emails against the
+working oracles.
 
-This command ALWAYS validates oracles against a known-valid user before
-enumerating: --known-valid is required, and enumeration runs only against the
-oracles that confirm it (including the Microsoft Teams oracle when applicable).
+DNS TXT recon surfaces the candidate oracles for the org; the validation step
+(against --known-valid) is the headline: it reports, per oracle, whether the
+oracle WORKED or NOT. --known-valid is required, and enumeration runs only
+against the oracles that confirm it (including the Microsoft Teams oracle when
+applicable).
 
 Modes:
-  DNS recon only:     brutus enum saas --domain example.com --known-valid admin@example.com
-  Enumerate emails:   brutus enum saas --domain example.com -e user@example.com --known-valid admin@example.com
-  Generate + enum:    brutus enum saas --domain example.com --generate --format flast --known-valid admin@example.com`,
-	Example: `  # DNS TXT recon — discover SaaS services (oracles validated against --known-valid)
-  brutus enum saas --domain praetorian.com --known-valid admin@praetorian.com
+  Oracle check only:  brutus enum oracles --domain example.com --known-valid admin@example.com
+  Enumerate emails:   brutus enum oracles --domain example.com -e user@example.com --known-valid admin@example.com
+  Generate + enum:    brutus enum oracles --domain example.com --generate --format flast --known-valid admin@example.com`,
+	Example: `  # Discover candidate oracles via DNS and report which ones work (validated against --known-valid)
+  brutus enum oracles --domain praetorian.com --known-valid admin@praetorian.com
 
-  # Enumerate specific emails against validated services
-  brutus enum saas --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com
+  # Enumerate specific emails against the working oracles
+  brutus enum oracles --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com
 
   # Enumerate emails from file
-  brutus enum saas --domain praetorian.com -E emails.txt --known-valid admin@praetorian.com
+  brutus enum oracles --domain praetorian.com -E emails.txt --known-valid admin@praetorian.com
 
-  # Generate emails and enumerate
-  brutus enum saas --domain target.com --generate --format first.last --known-valid admin@target.com
+  # Generate emails and enumerate against working oracles
+  brutus enum oracles --domain target.com --generate --format first.last --known-valid admin@target.com
 
-  # Enumerate against specific services only
-  brutus enum saas -e user@example.com -s microsoft365,google --known-valid admin@example.com
+  # Check / enumerate against specific oracles only
+  brutus enum oracles -e user@example.com -s microsoft365,google --known-valid admin@example.com
 
   # JSON output
-  brutus enum saas --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com --json`,
-	RunE: runEnumSaas,
+  brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com --json`,
+	RunE: runEnumOracles,
 }
 
 var enumDiscoverCmd = &cobra.Command{
@@ -80,40 +84,40 @@ var enumDiscoverCmd = &cobra.Command{
 services have working account detection. Use this before large-scale enumeration
 to avoid wasting time on broken or rate-limited oracles.
 
-Optionally combine with --domain to auto-discover services from DNS TXT records.`,
-	Example: `  # Test oracles for a domain (auto-discovers services from DNS)
-  brutus enum saas discover --domain praetorian.com --known-valid admin@praetorian.com
+Optionally combine with --domain to auto-discover candidate oracles from DNS TXT records.`,
+	Example: `  # Test oracles for a domain (auto-discovers candidate oracles from DNS)
+  brutus enum oracles discover --domain praetorian.com --known-valid admin@praetorian.com
 
-  # Test specific services only
-  brutus enum saas discover --known-valid admin@example.com -s microsoft365,google`,
+  # Test specific oracles only
+  brutus enum oracles discover --known-valid admin@example.com -s microsoft365,google`,
 	RunE: runEnumDiscover,
 }
 
 func init() {
-	registerSaasFlags(enumSaasCmd)
+	registerOraclesFlags(enumOraclesCmd)
 	registerDiscoverFlags(enumDiscoverCmd)
-	enumSaasCmd.AddCommand(enumDiscoverCmd)
+	enumOraclesCmd.AddCommand(enumDiscoverCmd)
 }
 
-// registerSaasFlags registers flags for the saas subcommand.
-func registerSaasFlags(cmd *cobra.Command) {
+// registerOraclesFlags registers flags for the oracles subcommand.
+func registerOraclesFlags(cmd *cobra.Command) {
 	f := cmd.Flags()
 	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to enumerate (used for DNS recon and email generation)")
-	f.StringVarP(&flagSaasEmails, "emails", "e", "", "Comma-separated emails to enumerate")
-	f.StringVarP(&flagSaasEmailFile, "email-file", "E", "", "File of emails to enumerate (one per line, use - for stdin)")
-	f.StringVarP(&flagSaasServices, "services", "s", "", "Comma-separated services to check (default: all discovered/registered)")
+	f.StringVarP(&flagOraclesEmails, "emails", "e", "", "Comma-separated emails to enumerate")
+	f.StringVarP(&flagOraclesEmailFile, "email-file", "E", "", "File of emails to enumerate (one per line, use - for stdin)")
+	f.StringVarP(&flagOraclesServices, "services", "s", "", "Comma-separated oracles to check (default: all discovered/registered)")
 	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format for generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
-	f.BoolVar(&flagSaasGenerate, "generate", false, "Generate emails from embedded name lists")
-	f.StringVar(&flagSaasKnownValid, "known-valid", "", "Known-valid email to validate oracles before enumeration (required)")
+	f.BoolVar(&flagOraclesGenerate, "generate", false, "Generate emails from embedded name lists")
+	f.StringVar(&flagOraclesKnownValid, "known-valid", "", "Known-valid email to validate oracles before enumeration (required)")
 	_ = cmd.MarkFlagRequired("known-valid")
 }
 
 // registerDiscoverFlags registers flags for the discover subcommand.
 func registerDiscoverFlags(cmd *cobra.Command) {
 	f := cmd.Flags()
-	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to discover services from DNS TXT records")
-	f.StringVarP(&flagSaasServices, "services", "s", "", "Comma-separated services to test (default: all registered)")
-	f.StringVar(&flagSaasKnownValid, "known-valid", "", "Known-valid email to test against oracles (required)")
+	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to discover candidate oracles from DNS TXT records")
+	f.StringVarP(&flagOraclesServices, "services", "s", "", "Comma-separated oracles to test (default: all registered)")
+	f.StringVar(&flagOraclesKnownValid, "known-valid", "", "Known-valid email to test against oracles (required)")
 	_ = cmd.MarkFlagRequired("known-valid")
 }
 
@@ -135,11 +139,15 @@ func teamsOracleAvailable(result *enum.DNSReconResult) bool {
 	return false
 }
 
-// runEnumSaas handles the main saas enum command.
-func runEnumSaas(cmd *cobra.Command, args []string) error {
+// runEnumOracles handles the main oracles enum command. Its output leads with
+// the oracle check — which oracles were validated against --known-valid and
+// whether each WORKED or NOT — and treats the DNS recon merely as a one-line
+// explanation of why those oracles are candidates. Enumeration then runs only
+// against the working oracles.
+func runEnumOracles(cmd *cobra.Command, args []string) error {
 	useColor := isColorEnabled(flagNoColor)
 
-	if flagEnumDomain == "" && flagSaasEmails == "" && flagSaasEmailFile == "" {
+	if flagEnumDomain == "" && flagOraclesEmails == "" && flagOraclesEmailFile == "" {
 		return fmt.Errorf("--domain, --emails/-e, or --email-file/-E is required")
 	}
 
@@ -156,7 +164,10 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Phase 1: DNS TXT recon
+	// Phase 1: DNS TXT recon — supporting context, not the headline. Surfaces
+	// the candidate oracles so the oracle check below has something to validate.
+	// Full TXT detail stays under --verbose and in JSON; the human path leads
+	// with a single "Discovered candidate oracles" line.
 	var dnsResult *enum.DNSReconResult
 	var discoveredServices []string
 
@@ -175,7 +186,10 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 			}
 
 			if !flagJSON {
-				outputDNSReconHuman(dnsResult, teamsOracleAvailable(dnsResult), useColor)
+				outputCandidateOraclesHuman(dnsResult, teamsOracleAvailable(dnsResult), useColor)
+				if flagVerbose {
+					outputDNSReconHuman(dnsResult, teamsOracleAvailable(dnsResult), useColor)
+				}
 			}
 		}
 	}
@@ -184,8 +198,8 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	var emails []string
 
 	// From --emails flag
-	if flagSaasEmails != "" {
-		for _, e := range strings.Split(flagSaasEmails, ",") {
+	if flagOraclesEmails != "" {
+		for _, e := range strings.Split(flagOraclesEmails, ",") {
 			e = strings.TrimSpace(e)
 			if e != "" {
 				emails = append(emails, e)
@@ -194,8 +208,8 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	}
 
 	// From --email-file flag
-	if flagSaasEmailFile != "" {
-		fileEmails, loadErr := loadLinesFromFile(flagSaasEmailFile)
+	if flagOraclesEmailFile != "" {
+		fileEmails, loadErr := loadLinesFromFile(flagOraclesEmailFile)
 		if loadErr != nil {
 			return fmt.Errorf("loading email file: %w", loadErr)
 		}
@@ -203,7 +217,7 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	}
 
 	// From --generate flag
-	if flagSaasGenerate {
+	if flagOraclesGenerate {
 		if flagEnumDomain == "" {
 			return fmt.Errorf("--generate requires --domain")
 		}
@@ -219,28 +233,22 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 		emails = append(emails, generated...)
 	}
 
-	// If no emails to enumerate, just show DNS recon results
-	if len(emails) == 0 {
-		if dnsResult != nil && flagJSON {
-			outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
-		}
-		if dnsResult == nil {
-			return fmt.Errorf("no emails to enumerate — provide --emails, --email-file, or --generate")
-		}
-		return nil
-	}
+	// Determine the oracle-check label up front: the domain when provided,
+	// otherwise the explicit targets, so the Oracle Check block can announce
+	// what was checked even when there are no emails to enumerate.
+	checkLabel := oracleCheckLabel(emails)
 
-	// Phase 3: Determine services to check
+	// Phase 3: Determine oracles to check
 	var services []string
-	if flagSaasServices != "" {
-		for _, s := range strings.Split(flagSaasServices, ",") {
+	if flagOraclesServices != "" {
+		for _, s := range strings.Split(flagOraclesServices, ",") {
 			s = strings.TrimSpace(s)
 			if s != "" {
 				services = append(services, s)
 			}
 		}
 	} else if len(discoveredServices) > 0 {
-		// Filter to only services that have registered plugins
+		// Filter to only oracles that have registered plugins
 		registered := enum.ListPlugins()
 		registeredSet := make(map[string]bool, len(registered))
 		for _, r := range registered {
@@ -254,22 +262,23 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	}
 	// If still empty, enum.Config.Services=nil means "all registered"
 
-	// Phase 3.5: Oracle validation with known-valid email. --known-valid is a
-	// required flag, so this validation always runs before enumeration, mirroring
-	// the "discover" subcommand. Enumeration is restricted to the oracles that
-	// confirmed the known-valid email.
+	// Phase 3.5: Oracle check against the known-valid email — THE HEADLINE.
+	// --known-valid is a required flag, so this validation always runs before
+	// enumeration. It reports, per oracle, whether the oracle WORKED or NOT, and
+	// enumeration is restricted to the oracles that confirmed the known-valid
+	// email.
 	svcList := services
 	if len(svcList) == 0 {
 		svcList = enum.ListPlugins()
 	}
 	if len(svcList) > 0 {
 		if !flagQuiet && !flagJSON {
-			fmt.Fprintf(os.Stderr, "%s Validating oracles with known-valid email %s...\n",
-				dim(useColor, SymbolInfo), flagSaasKnownValid)
+			fmt.Fprintf(os.Stderr, "%s Checking oracles against known-valid email %s...\n",
+				dim(useColor, SymbolInfo), flagOraclesKnownValid)
 		}
 
 		validCfg := &enum.Config{
-			Emails:   []string{flagSaasKnownValid},
+			Emails:   []string{flagOraclesKnownValid},
 			Services: svcList,
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
@@ -277,10 +286,17 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 		}
 		validResults, validErr := enum.EnumerateWithContext(ctx, validCfg)
 		if validErr != nil {
-			warnMsg(useColor, "Oracle validation error: %v", validErr)
+			warnMsg(useColor, "Oracle check error: %v", validErr)
 		} else {
+			// Opportunistically confirm the Teams oracle so it can be rendered as
+			// part of the same Oracle Check block. Attempt only when the org looks
+			// like M365 (microsoft365 discovered via DNS) or the user explicitly
+			// asked for teams via --services. Reuses confirmTeamsOracle — no
+			// duplicated token/enumerator logic.
+			teamsLine := maybeConfirmTeamsOracle(ctx, dnsResult, useColor)
+
 			if !flagJSON {
-				outputOracleValidationHuman(validResults, useColor)
+				outputOracleCheckHuman(checkLabel, flagOraclesKnownValid, validResults, teamsLine, useColor)
 			}
 
 			var validatedServices []string
@@ -295,26 +311,41 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 			} else {
 				services = validatedServices
 			}
+
+			// If there are no emails to enumerate, the oracle check IS the
+			// output: emit the JSON results and return without enumerating.
+			if len(emails) == 0 {
+				if flagJSON {
+					if dnsResult != nil {
+						outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
+					}
+					outputEnumJSONL(jsonWriter, validResults)
+					if teamsLine != "" {
+						outputDiscoverTeamsJSONL(jsonWriter, teamsLine)
+					}
+				}
+				return nil
+			}
+
+			// Carry the confirmed Teams line into the enumeration JSON output so
+			// machine consumers see the same oracle-check result the human block
+			// rendered.
+			if flagJSON && teamsLine != "" {
+				defer outputDiscoverTeamsJSONL(jsonWriter, teamsLine)
+			}
 		}
 	}
 
-	// Phase 3.6: Opportunistically confirm the Teams oracle, mirroring
-	// runEnumDiscover. Attempt only when the org looks like M365 (microsoft365
-	// discovered via DNS) or the user explicitly asked for teams via --services.
-	// Reuses confirmTeamsOracle — no duplicated token/enumerator logic.
-	teamsRequested := false
-	for _, s := range strings.Split(flagSaasServices, ",") {
-		if strings.TrimSpace(s) == "teams" {
-			teamsRequested = true
-			break
+	// If there were no oracles to check at all and no emails, there is nothing
+	// left to do beyond the DNS recon already surfaced above.
+	if len(emails) == 0 {
+		if dnsResult != nil && flagJSON {
+			outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
 		}
-	}
-	teamsLine := ""
-	if teamsOracleAvailable(dnsResult) || teamsRequested {
-		teamsLine = confirmTeamsOracle(ctx, flagSaasKnownValid, useColor)
-		if !flagJSON && teamsLine != "" {
-			fmt.Printf("  %s\n\n", teamsLine)
+		if dnsResult == nil {
+			return fmt.Errorf("no emails to enumerate — provide --emails, --email-file, or --generate")
 		}
+		return nil
 	}
 
 	if !flagQuiet && !flagJSON {
@@ -322,11 +353,11 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 		if len(svcNames) == 0 {
 			svcNames = enum.ListPlugins()
 		}
-		fmt.Fprintf(os.Stderr, "%s Enumerating %d email(s) against %d service(s): %s\n",
+		fmt.Fprintf(os.Stderr, "%s Enumerating %d email(s) against %d working oracle(s): %s\n",
 			dim(useColor, SymbolInfo), len(emails), len(svcNames), strings.Join(svcNames, ", "))
 	}
 
-	// Phase 4: Run enumeration
+	// Phase 4: Run enumeration against the working oracles
 	cfg := &enum.Config{
 		Emails:    emails,
 		Services:  services,
@@ -348,9 +379,6 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 			outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
 		}
 		outputEnumJSONL(jsonWriter, results)
-		if teamsLine != "" {
-			outputDiscoverTeamsJSONL(jsonWriter, teamsLine)
-		}
 	} else {
 		outputEnumHuman(results, useColor)
 	}
@@ -358,18 +386,18 @@ func runEnumSaas(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// runEnumDiscover handles the "saas discover" subcommand.
+// runEnumDiscover handles the "oracles discover" subcommand.
 func runEnumDiscover(cmd *cobra.Command, args []string) error {
 	useColor := isColorEnabled(flagNoColor)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Phase 1: Determine services to test
+	// Phase 1: Determine oracles to test
 	var services []string
 	teamsRequested := false
-	if flagSaasServices != "" {
-		for _, s := range strings.Split(flagSaasServices, ",") {
+	if flagOraclesServices != "" {
+		for _, s := range strings.Split(flagOraclesServices, ",") {
 			s = strings.TrimSpace(s)
 			if s != "" {
 				if s == "teams" {
@@ -417,12 +445,12 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 	if len(services) > 0 {
 		if !flagQuiet && !flagJSON {
 			fmt.Fprintf(os.Stderr, "%s Testing %d oracle(s) with known-valid email %s...\n",
-				dim(useColor, SymbolInfo), len(services), flagSaasKnownValid)
+				dim(useColor, SymbolInfo), len(services), flagOraclesKnownValid)
 		}
 
 		// Phase 2: Test oracles
 		cfg := &enum.Config{
-			Emails:   []string{flagSaasKnownValid},
+			Emails:   []string{flagOraclesKnownValid},
 			Services: services,
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
@@ -442,7 +470,7 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 	// enumeration loop above.
 	teamsLine := ""
 	if teamsAvailable || teamsRequested {
-		teamsLine = confirmTeamsOracle(ctx, flagSaasKnownValid, useColor)
+		teamsLine = confirmTeamsOracle(ctx, flagOraclesKnownValid, useColor)
 	}
 
 	// Phase 3: Output results
@@ -467,10 +495,29 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// maybeConfirmTeamsOracle opportunistically confirms the Microsoft Teams oracle
+// for the oracle-check block, mirroring runEnumDiscover. It attempts confirmation
+// only when the org looks like M365 (microsoft365 discovered via DNS) or the user
+// explicitly asked for teams via --services, and returns "" otherwise. Reuses
+// confirmTeamsOracle — no duplicated token/enumerator logic.
+func maybeConfirmTeamsOracle(ctx context.Context, dnsResult *enum.DNSReconResult, useColor bool) string {
+	teamsRequested := false
+	for _, s := range strings.Split(flagOraclesServices, ",") {
+		if strings.TrimSpace(s) == "teams" {
+			teamsRequested = true
+			break
+		}
+	}
+	if !teamsOracleAvailable(dnsResult) && !teamsRequested {
+		return ""
+	}
+	return confirmTeamsOracle(ctx, flagOraclesKnownValid, useColor)
+}
+
 // confirmTeamsOracle opportunistically confirms the Microsoft Teams enumeration
 // oracle against knownValid. It resolves a token from the cached credential
 // store (teamsDefaultTokenPath / teamsEnumReadTokenFile) or an explicit
-// --access-token already present on the saas command, reusing the same teams
+// --access-token already present on the oracles command, reusing the same teams
 // enumerator and credstore helpers as "enum teams users" (no duplicated HTTP or
 // token logic). When no token is available it reports teams as
 // "available (unconfirmed)" and does nothing else (no error). The returned
@@ -570,4 +617,16 @@ func outputDiscoverTeamsJSONL(w io.Writer, statusLine string) {
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "Error encoding discover teams JSON: %v\n", err)
 	}
+}
+
+// oracleCheckLabel returns the label for the Oracle Check header: the --domain
+// when one was provided, otherwise a compact list of the explicit email targets.
+func oracleCheckLabel(emails []string) string {
+	if flagEnumDomain != "" {
+		return flagEnumDomain
+	}
+	if len(emails) > 0 {
+		return strings.Join(emails, ", ")
+	}
+	return "(no targets)"
 }

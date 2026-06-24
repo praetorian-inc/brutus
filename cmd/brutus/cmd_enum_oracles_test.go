@@ -24,23 +24,23 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// TestEnumSaas_RequiresKnownValid
+// TestEnumOracles_RequiresKnownValid
 // ---------------------------------------------------------------------------
 
-// TestEnumSaas_RequiresKnownValid confirms that "brutus enum saas" errors at
-// flag-validation time when --known-valid is absent. registerSaasFlags calls
+// TestEnumOracles_RequiresKnownValid confirms that "brutus enum oracles" errors at
+// flag-validation time when --known-valid is absent. registerOraclesFlags calls
 // cmd.MarkFlagRequired("known-valid"), so cobra rejects the invocation before
 // RunE / any network call is made.
 //
 // Pattern mirrors TestEnumTeamsAuth_NoFlagCollisionPanic: redirect rootCmd
 // output to io.Discard and restore via t.Cleanup so subsequent tests in the
 // package are not affected.
-func TestEnumSaas_RequiresKnownValid(t *testing.T) {
+func TestEnumOracles_RequiresKnownValid(t *testing.T) {
 	// Redirect cobra output so error text doesn't pollute test output.
 	rootCmd.SetOut(io.Discard)
 	rootCmd.SetErr(io.Discard)
 	// Provide --domain so the only missing required flag is --known-valid.
-	rootCmd.SetArgs([]string{"enum", "saas", "--domain", "example.com"})
+	rootCmd.SetArgs([]string{"enum", "oracles", "--domain", "example.com"})
 
 	// Restore global rootCmd state after the test.
 	t.Cleanup(func() {
@@ -61,17 +61,17 @@ func TestEnumSaas_RequiresKnownValid(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestEnumSaasCmd_KnownValidMarkedRequired
+// TestEnumOraclesCmd_KnownValidMarkedRequired
 // ---------------------------------------------------------------------------
 
-// TestEnumSaasCmd_KnownValidMarkedRequired asserts — without executing the
-// command — that the "known-valid" flag on enumSaasCmd carries cobra's
+// TestEnumOraclesCmd_KnownValidMarkedRequired asserts — without executing the
+// command — that the "known-valid" flag on enumOraclesCmd carries cobra's
 // required-flag annotation. This is a static check that complements
-// TestEnumSaas_RequiresKnownValid: it verifies registerSaasFlags calls
+// TestEnumOracles_RequiresKnownValid: it verifies registerOraclesFlags calls
 // MarkFlagRequired at registration time, independent of command execution.
-func TestEnumSaasCmd_KnownValidMarkedRequired(t *testing.T) {
-	f := enumSaasCmd.Flags().Lookup("known-valid")
-	require.NotNil(t, f, "--known-valid flag must exist on enumSaasCmd")
+func TestEnumOraclesCmd_KnownValidMarkedRequired(t *testing.T) {
+	f := enumOraclesCmd.Flags().Lookup("known-valid")
+	require.NotNil(t, f, "--known-valid flag must exist on enumOraclesCmd")
 
 	annotations := f.Annotations
 	_, required := annotations[cobra.BashCompOneRequiredFlag]

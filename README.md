@@ -34,7 +34,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 - **Aggressiveness modes:** `--mode cautious|default|aggressive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
 - **Embedded bad keys:** Built-in collection of known SSH keys (Vagrant, F5, ExaGrid, etc.)
-- **Account enumeration:** SaaS email enumeration, Kerberos user enumeration, email generation, Microsoft Teams/Entra ID device code auth
+- **Account enumeration:** account-existence oracle enumeration, Kerberos user enumeration, email generation, Microsoft Teams/Entra ID device code auth
 - **Go library:** Import directly into your security automation tools
 - **Production ready:** Rate limiting, connection pooling, and comprehensive error handling
 
@@ -164,7 +164,7 @@ brutus web      # HTTP/web panel auditing (Basic Auth, form login, AI-powered)
 brutus snmp     # SNMP community string testing
 brutus badkeys  # Known weak/compromised SSH key testing
 brutus logon    # Windows logon-screen backdoor detection (sticky keys, utilman)
-brutus enum     # Account enumeration (SaaS services, Kerberos, Teams auth, email generation)
+brutus enum     # Account enumeration (account-existence oracles, Kerberos, Teams auth, email generation)
 ```
 
 Each subcommand has aliases for discoverability:
@@ -812,27 +812,27 @@ jq 'select(.finding == "[CRITICAL]")' rdp-findings.json
 
 ## Account Enumeration
 
-The `enum` subcommand enumerates accounts against SaaS services or Active Directory without sending passwords.
+The `enum` subcommand enumerates which account-existence oracles work for an organization (and enumerates emails against them) or enumerates Active Directory users, all without sending passwords.
 
-### SaaS Email Enumeration
+### Account-Existence Oracle Enumeration
 
-Discover SaaS services via DNS TXT records and enumerate email accounts using unauthenticated oracles:
+Identify which unauthenticated account-existence oracles (microsoft365, google, plus the Microsoft Teams oracle) work for an organization, validate them against a known-valid user, then enumerate candidate emails against the working oracles. DNS TXT recon surfaces the candidate oracles; the validation against `--known-valid` is the headline. `--known-valid` is required, and enumeration runs only against the oracles that confirm it:
 
 ```bash
-# DNS TXT recon — discover SaaS services for a domain
-brutus enum saas --domain example.com
+# Discover candidate oracles via DNS and report which ones work
+brutus enum oracles --domain example.com --known-valid admin@example.com
 
-# Enumerate specific emails against discovered services
-brutus enum saas --domain example.com -e user@example.com,admin@example.com
+# Enumerate specific emails against the working oracles
+brutus enum oracles --domain example.com -e user@example.com,admin@example.com --known-valid admin@example.com
 
 # Enumerate emails from file
-brutus enum saas --domain example.com -E emails.txt
+brutus enum oracles --domain example.com -E emails.txt --known-valid admin@example.com
 
-# Generate emails from embedded name lists and enumerate
-brutus enum saas --domain example.com --generate --format flast
+# Generate emails from embedded name lists and enumerate against working oracles
+brutus enum oracles --domain example.com --generate --format flast --known-valid admin@example.com
 
-# Validate oracles with a known-valid email before large-scale enumeration
-brutus enum saas discover --domain example.com --known-valid admin@example.com
+# Discover working oracles with a known-valid email before large-scale enumeration
+brutus enum oracles discover --domain example.com --known-valid admin@example.com
 ```
 
 ### Kerberos User Enumeration

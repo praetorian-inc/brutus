@@ -34,25 +34,26 @@ var (
 
 var enumCmd = &cobra.Command{
 	Use:   "enum",
-	Short: "Enumerate accounts against SaaS services or Active Directory",
-	Long: `Enumerate email accounts against SaaS services (Microsoft 365, Google Workspace, etc.)
-or enumerate Active Directory usernames via Kerberos AS-REQ.
+	Short: "Enumerate accounts against account-existence oracles or Active Directory",
+	Long: `Enumerate which account-existence oracles (Microsoft 365, Google Workspace, etc.)
+work for an organization and enumerate emails against them, or enumerate Active
+Directory usernames via Kerberos AS-REQ.
 
 Subcommands:
-  saas       Enumerate email accounts against SaaS services
+  oracles    Enumerate which account-existence oracles work for an organization
   kerberos   Enumerate Active Directory users via Kerberos AS-REQ
   generate   Generate email addresses or usernames from embedded name lists
   hunter     Discover people and emails via Hunter.io Domain Search
   teams      Authenticate with Microsoft Entra ID via device code flow
 
 See subcommand help for details:
-  brutus enum saas --help
+  brutus enum oracles --help
   brutus enum kerberos --help
   brutus enum generate --help
   brutus enum hunter --help
   brutus enum teams --help`,
-	Example: `  # SaaS email enumeration
-  brutus enum saas --domain praetorian.com -e test@praetorian.com
+	Example: `  # Account-existence oracle enumeration
+  brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com
 
   # Kerberos user enumeration
   brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator
@@ -112,7 +113,7 @@ func init() {
 
 	// Wire commands
 	enumCmd.AddCommand(enumGenerateCmd)
-	enumCmd.AddCommand(enumSaasCmd)
+	enumCmd.AddCommand(enumOraclesCmd)
 	enumCmd.AddCommand(enumKerberosCmd)
 	enumCmd.AddCommand(enumHunterCmd)
 	enumCmd.AddCommand(enumCustomCmd)

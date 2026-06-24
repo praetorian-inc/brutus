@@ -144,24 +144,116 @@ func outputEnumHuman(results []enum.Result, useColor bool) {
 	fmt.Println()
 }
 
-// outputOracleValidationHuman displays oracle validation results.
-func outputOracleValidationHuman(results []enum.Result, useColor bool) {
-	fmt.Printf("\n%s %s\n", dim(useColor, SymbolInfo), heading(useColor, "Oracle Validation"))
+// outputCandidateOraclesHuman prints the supporting one-liner that explains WHY
+// the org's oracles are candidates: the oracles surfaced by DNS TXT recon. It is
+// deliberately terse — the headline is the Oracle Check block, not the recon.
+// The full TXT detail is available under --verbose (outputDNSReconHuman) and in
+// JSON. When teamsAvailable is true (the org is a Microsoft 365 tenant), the
+// inferred "teams" oracle is appended to the candidate list.
+func outputCandidateOraclesHuman(result *enum.DNSReconResult, teamsAvailable, useColor bool) {
+	var candidates []string
+	for _, svc := range result.Services {
+		candidates = append(candidates, svc.Name)
+	}
+	if teamsAvailable {
+		candidates = append(candidates, "teams")
+	}
+
+	if len(candidates) == 0 {
+		fmt.Printf("\n%s Discovered no candidate oracles via DNS for %s\n",
+			dim(useColor, SymbolInfo), result.Domain)
+		return
+	}
+
+	fmt.Printf("\n%s Discovered candidate oracles via DNS: %s\n",
+		dim(useColor, SymbolInfo), strings.Join(candidates, ", "))
+}
+
+// outputOracleCheckHuman renders the headline Oracle Check report: every oracle
+// that was checked against the known-valid user and whether it WORKED or NOT.
+// This is the prominent, labeled block the oracles command leads with. The
+// plugin oracles come from results (Exists -> "[+] working"; otherwise
+// "[-] not working"; errored -> "[-] not working (error)"), and the Teams oracle
+// is rendered from teamsLine when present (reusing confirmTeamsOracle's
+// discover-style mapping: working / available-unconfirmed / not found /
+// unconfirmed). Token values never appear in the output.
+func outputOracleCheckHuman(label, knownValid string, results []enum.Result, teamsLine string, useColor bool) {
+	fmt.Printf("\n%s\n",
+		heading(useColor, fmt.Sprintf("=== Oracle Check: %s (validated against %s) ===", label, knownValid)))
+
 	for i := range results {
 		r := &results[i]
 		switch {
 		case r.Error != nil:
-			fmt.Printf("  %s%s FAIL%s    %-16s %v\n",
+			fmt.Printf("  %-16s %s%s not working%s (error: %v)\n",
+				r.Service,
 				colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
-				r.Service, r.Error)
+				r.Error)
 		case r.Exists:
-			fmt.Printf("  %s%s PASS%s    %-16s confirmed (%s, %s)\n",
-				colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset),
-				r.Service, r.Confidence, r.Duration)
+			fmt.Printf("  %-16s %s%s working%s\n",
+				r.Service,
+				colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
 		default:
-			fmt.Printf("  %s%s FAIL%s    %-16s did not confirm known-valid email (%s)\n",
-				colorIf(useColor, ColorYellow), SymbolWarning, colorIf(useColor, ColorReset),
-				r.Service, r.Duration)
+			fmt.Printf("  %-16s %s%s not working%s\n",
+				r.Service,
+				colorIf(useColor, ColorYellow), SymbolError, colorIf(useColor, ColorReset))
+		}
+	}
+
+	if teamsLine != "" {
+		name, status, working := parseTeamsOracleLine(teamsLine)
+		symbol, color := SymbolSuccess, ColorGreen
+		if !working {
+			symbol, color = SymbolError, ColorYellow
+		}
+		fmt.Printf("  %-16s %s%s %s%s\n",
+			name, colorIf(useColor, color), symbol, status, colorIf(useColor, ColorReset))
+	}
+
+	fmt.Println()
+}
+
+// parseTeamsOracleLine splits a confirmTeamsOracle status line (e.g.
+// "teams: working (account exists; external detail restricted)") into the oracle
+// name, the status remainder, and whether it represents a working oracle. A line
+// is "working" when its status begins with "working" (a 200 hit or a 403/blocked
+// hit, both of which distinguish real from fake accounts). "available
+// (unconfirmed)", "responded, known-valid not found", and "unconfirmed ..." are
+// not working.
+func parseTeamsOracleLine(line string) (name, status string, working bool) {
+	name = "teams"
+	status = line
+	if idx := strings.Index(line, ":"); idx >= 0 {
+		name = strings.TrimSpace(line[:idx])
+		status = strings.TrimSpace(line[idx+1:])
+	}
+	working = strings.HasPrefix(status, "working")
+	return name, status, working
+}
+
+// outputOracleValidationHuman renders the Oracle Check block for the discover
+// subcommand: every oracle tested against the known-valid user and whether it
+// WORKED or NOT. It shares the working/not-working mapping with
+// outputOracleCheckHuman but, lacking the domain/targets label and Teams line
+// (the discover caller prints the Teams line separately), keeps a simple header.
+func outputOracleValidationHuman(results []enum.Result, useColor bool) {
+	fmt.Printf("\n%s\n", heading(useColor, "=== Oracle Check ==="))
+	for i := range results {
+		r := &results[i]
+		switch {
+		case r.Error != nil:
+			fmt.Printf("  %-16s %s%s not working%s (error: %v)\n",
+				r.Service,
+				colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
+				r.Error)
+		case r.Exists:
+			fmt.Printf("  %-16s %s%s working%s\n",
+				r.Service,
+				colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset))
+		default:
+			fmt.Printf("  %-16s %s%s not working%s\n",
+				r.Service,
+				colorIf(useColor, ColorYellow), SymbolError, colorIf(useColor, ColorReset))
 		}
 	}
 	fmt.Println()

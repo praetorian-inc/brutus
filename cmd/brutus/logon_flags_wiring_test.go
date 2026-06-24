@@ -23,12 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// resetLogonFlags resets flagNoNLAProbe and flagScanTimeout to their defaults
-// so each subtest starts from a clean state. Cobra bool/duration flags are
-// sticky across ParseFlags calls (a re-parse with no args does not unset them),
-// so we reset the backing package vars directly.
+// resetLogonFlags resets flagNoNLAProbe, flagFast, and flagScanTimeout to their
+// defaults so each subtest starts from a clean state. Cobra bool/duration flags
+// are sticky across ParseFlags calls (a re-parse with no args does not unset
+// them), so we reset the backing package vars directly.
 func resetLogonFlags() {
 	flagNoNLAProbe = false
+	flagFast = false
 	flagScanTimeout = 10 * time.Second
 }
 
@@ -65,6 +66,39 @@ func TestLogonFlagsWiring(t *testing.T) {
 		base := buildBaseConfig(logonCmd)
 		assert.True(t, base.noNLAProbe,
 			"base.noNLAProbe must be true after parsing --no-nla-probe")
+	})
+}
+
+// TestFastFlagWiring verifies that --fast is registered on logon/stickykeys/
+// utilman commands, defaults to false, wires through to base.fast via
+// buildBaseConfig, and that the help text states the never-clean semantics.
+//
+// RED until the developer:
+//   1. Adds `flagFast bool` to flags.go in the Logon flags block.
+//   2. Adds `cmd.Flags().BoolVar(&flagFast, "fast", false, "...")` in registerLogonFlags.
+//   3. Adds `fast bool` field to baseConfigOptions (config.go).
+//   4. Adds `fast: flagFast` to buildBaseConfig return.
+func TestFastFlagWiring(t *testing.T) {
+	t.Cleanup(resetLogonFlags)
+	t.Run("default_false", func(t *testing.T) {
+		resetLogonFlags()
+		require.NoError(t, logonCmd.ParseFlags([]string{}))
+		assert.False(t, buildBaseConfig(logonCmd).fast, "fast defaults false")
+	})
+	t.Run("set_true", func(t *testing.T) {
+		resetLogonFlags()
+		require.NoError(t, logonCmd.ParseFlags([]string{"--fast"}))
+		assert.True(t, buildBaseConfig(logonCmd).fast, "--fast sets base.fast")
+	})
+	t.Run("registered_on_all_three", func(t *testing.T) {
+		for _, c := range []*cobra.Command{logonCmd, stickykeysCmd, utilmanCmd} {
+			assert.NotNil(t, c.Flags().Lookup("fast"), "%s must register --fast", c.Use)
+		}
+	})
+	t.Run("help_text_states_never_clean", func(t *testing.T) {
+		f := logonCmd.Flags().Lookup("fast")
+		require.NotNil(t, f)
+		assert.Contains(t, f.Usage, "never clean", "help text must state the never-clean semantics")
 	})
 }
 

@@ -72,7 +72,7 @@ func TestSequential(t *testing.T) {
 
 	// Sticky fake: returns a positive (backdoor_confirmed / Success=true) result
 	// so we can assert that a positive sticky does NOT suppress the utilman check.
-	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
+	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
 		invocationOrder = append(invocationOrder, "sticky")
 		// Signal that sticky has finished its work.
 		stickyDone.Store(true)
@@ -87,7 +87,7 @@ func TestSequential(t *testing.T) {
 	}
 
 	// Utilman fake: asserts that sticky completed before utilman started.
-	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
+	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
 		// If sticky did not finish before utilman began, the sequential ordering
 		// guarantee is violated. This assertion fires inside the fake so that a
 		// parallel implementation causes the test to fail during DetectBackdoors.
@@ -105,9 +105,9 @@ func TestSequential(t *testing.T) {
 	}
 
 	const target = "127.0.0.1:3389"
-	// Signature: (ctx, target, connectTimeout, timeout, aiMode, maxRetries, checks, proxyURL, noNLAProbe)
-	// proxyURL="", noNLAProbe=false (nlaProbe seam already stubbed to NegoScannable above).
-	results, _ := DetectBackdoors(context.Background(), target, 3*time.Second /*connectTimeout*/, 5*time.Second /*timeout*/, false, 0 /*maxRetries*/, CheckBoth, "", false)
+	// Signature: (ctx, target, connectTimeout, timeout, aiMode, maxRetries, checks, proxyURL, noNLAProbe, fast)
+	// proxyURL="", noNLAProbe=false (nlaProbe seam already stubbed to NegoScannable above), fast=false.
+	results, _ := DetectBackdoors(context.Background(), target, 3*time.Second /*connectTimeout*/, 5*time.Second /*timeout*/, false, 0 /*maxRetries*/, CheckBoth, "", false, false)
 
 	// --- Assertion 1: both checks ran (no early-exit) ---
 	require.Len(t, results, 2,
@@ -135,4 +135,41 @@ func TestSequential(t *testing.T) {
 	// --- Assertion 5: utilman ran even though sticky returned Success=true ---
 	assert.True(t, results[0].Success, "sticky result should be Success=true (positive fake)")
 	// utilman fake returns Success=false; we just care it was called
+}
+
+// TestDetectBackdoors_FastPropagates verifies the fast flag reaches detectSticky/
+// detectUtilman unchanged on every attempt (no promotion-to-careful on retry).
+//
+// Design decision D3 from the plan: fast mode uses FastBudget + fast=true on
+// every attempt; --retries still works but retries stay fast.
+//
+// RED until the developer adds the trailing `fast bool` parameter to
+// DetectBackdoors (logon.go:49), passes it to runDetection (logon.go:85),
+// and runDetection passes it to detectSticky/detectUtilman (admission.go:94,98).
+func TestDetectBackdoors_FastPropagates(t *testing.T) {
+	origProbe := nlaProbe
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
+		return rdp.NegoScannable
+	}
+	var seenFast []bool
+	origSticky := detectSticky
+	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+		seenFast = append(seenFast, fast)
+		return &brutus.Result{Protocol: "rdp", Target: target, Username: username, ScanType: "sticky_keys", Indeterminate: true,
+			Banner: "[WARN] INDETERMINATE"}
+	}
+	origUtilman := detectUtilman
+	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+		seenFast = append(seenFast, fast)
+		return &brutus.Result{Protocol: "rdp", Target: target, Username: username, ScanType: "utilman", Indeterminate: true,
+			Banner: "[WARN] INDETERMINATE"}
+	}
+	t.Cleanup(func() { nlaProbe = origProbe; detectSticky = origSticky; detectUtilman = origUtilman })
+
+	// fast=true, maxRetries=1 => 2 attempts (initial + 1 retry); both must carry fast=true.
+	_, _ = DetectBackdoors(context.Background(), "host:3389", 3*time.Second, 5*time.Second, false, 1, CheckBoth, "", false, true)
+	require.GreaterOrEqual(t, len(seenFast), 2, "fast pass with 1 retry runs >=2 detect calls")
+	for i, f := range seenFast {
+		assert.True(t, f, "call %d must carry fast=true (no promotion to careful on retry)", i)
+	}
 }

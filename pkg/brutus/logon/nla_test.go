@@ -97,7 +97,7 @@ func TestDetectBackdoors_NLARequired_SkipsWASM(t *testing.T) {
 	})
 
 	var ranDetection atomic.Bool
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
 		ranDetection.Store(true) // must NOT be called for nla_required
 		return nil, false
 	}
@@ -105,7 +105,7 @@ func TestDetectBackdoors_NLARequired_SkipsWASM(t *testing.T) {
 		return rdp.NegoNLARequired
 	}
 
-	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 2, CheckBoth, "", false)
+	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 2, CheckBoth, "", false, false)
 	assert.False(t, ok)
 	assert.False(t, ranDetection.Load(),
 		"WASM detection must be skipped for nla_required (no decode slot must be acquired)")
@@ -129,7 +129,7 @@ func TestDetectBackdoors_ProbeError_ProceedsToWASM(t *testing.T) {
 	})
 
 	var ran atomic.Bool
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
 		ran.Store(true)
 		return []brutus.Result{
 			{ScanType: "sticky_keys"},
@@ -140,7 +140,7 @@ func TestDetectBackdoors_ProbeError_ProceedsToWASM(t *testing.T) {
 		return rdp.NegoProbeError
 	}
 
-	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckBoth, "", false)
+	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckBoth, "", false, false)
 	assert.True(t, ran.Load(),
 		"probe error must fall through to WASM detection (fail-open)")
 }
@@ -162,11 +162,11 @@ func TestDetectBackdoors_NoNLAProbe_SkipsProbe(t *testing.T) {
 		probed.Store(true)
 		return rdp.NegoNLARequired
 	}
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
 		return []brutus.Result{{ScanType: "sticky_keys"}}, false
 	}
 
-	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckStickyKeys, "", true /*noNLAProbe*/)
+	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckStickyKeys, "", true /*noNLAProbe*/, false)
 	assert.False(t, probed.Load(),
 		"--no-nla-probe must bypass the probe entirely (noNLAProbe=true)")
 }
@@ -243,7 +243,7 @@ func TestDetectBackdoors_Unreachable_SkipsWASM(t *testing.T) {
 	t.Cleanup(func() { nlaProbe = origProbe; runDetection = origRun })
 
 	var ranDetection atomic.Bool
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
 		ranDetection.Store(true)
 		return nil, false
 	}
@@ -251,7 +251,7 @@ func TestDetectBackdoors_Unreachable_SkipsWASM(t *testing.T) {
 		return rdp.NegoUnreachable
 	}
 
-	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second /*connectTimeout*/, time.Second /*timeout*/, false, 2, CheckBoth, "", false)
+	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second /*connectTimeout*/, time.Second /*timeout*/, false, 2, CheckBoth, "", false, false)
 	assert.False(t, ok)
 	assert.False(t, ranDetection.Load(), "WASM detection must be skipped for unreachable (no decode slot)")
 	require.Len(t, rs, 2)

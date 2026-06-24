@@ -46,7 +46,24 @@ const (
 // Retries are keyed on the INDETERMINATE outcome only. A found backdoor
 // (hasSuccess) and a stabilized clean render are both final verdicts and are
 // returned immediately; retrying a positive would risk masking a real backdoor.
-func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool, maxRetries int, checks Check) ([]brutus.Result, bool) {
+func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool,
+	maxRetries int, checks Check, proxyURL string, noNLAProbe bool) ([]brutus.Result, bool) {
+
+	// STAGE 1 — pre-WASM NLA probe (no decode slot, runs at full --threads).
+	// Only an explicit HYBRID selection / HYBRID_REQUIRED_BY_SERVER skips WASM;
+	// every other outcome (including probe errors) falls through to detection.
+	if !noNLAProbe {
+		switch nlaProbe(ctx, target, timeout, proxyURL) {
+		case rdp.NegoNLARequired:
+			// Terminal, non-retryable: return BEFORE acquiring a decode slot.
+			return NLARequiredResults(target, checks), false
+		case rdp.NegoProbeError, rdp.NegoScannable:
+			// Fall through to the existing WASM path. The probe never skips on
+			// uncertainty (cardinal rule).
+		}
+	}
+
+	// STAGE 2 — existing decode-slot-gated WASM pipeline.
 	if err := decodeSlots.Acquire(ctx, 1); err != nil {
 		// Context cancelled while queued: the host never ran, so it must read
 		// as indeterminate, never silently clean.

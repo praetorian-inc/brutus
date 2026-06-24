@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
@@ -40,18 +41,29 @@ func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 	// Swap runDetection with a fake that records whether it was ever invoked.
 	// The cardinal property requires it is NOT invoked when the ctx is cancelled
 	// before the Acquire — the host never ran, so no detection work happens.
+	// Stub the NLA probe to return NegoScannable. The cancelled context causes the
+	// decode-slot Acquire to fail before runDetection is ever called, so we need the
+	// probe stub to ensure the probe itself also receives the cancelled context.
+	origProbe := nlaProbe
+	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+		return rdp.NegoScannable
+	}
+
 	var detectionInvoked atomic.Bool
 	origRunDetection := runDetection
 	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		detectionInvoked.Store(true)
 		return []brutus.Result{}, false
 	}
-	t.Cleanup(func() { runDetection = origRunDetection })
+	t.Cleanup(func() {
+		runDetection = origRunDetection
+		nlaProbe = origProbe
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before the call — Acquire must fail immediately
 
-	results, hasSuccess := DetectBackdoors(ctx, "1.2.3.4:3389", 5*time.Second, false, 0, CheckBoth)
+	results, hasSuccess := DetectBackdoors(ctx, "1.2.3.4:3389", 5*time.Second, false, 0, CheckBoth, "", false)
 
 	// The host never ran; both results must be INDETERMINATE.
 	require.Len(t, results, 2, "cancelled context must produce exactly 2 results (sticky + utilman)")

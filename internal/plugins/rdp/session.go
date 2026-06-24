@@ -88,6 +88,14 @@ const (
 	settleNoisePixels = 2000
 )
 
+// MinViableTimeout is the smallest per-pump-phase timeout that can ever produce
+// a settled (non-indeterminate) verdict. A phase only settles after minPumpTime
+// has elapsed AND the framebuffer has been quiet for settleQuietWindow, so a
+// --timeout below their sum forces every host to INDETERMINATE (and a wasteful
+// retry) for zero real signal. Derived from the settle constants so the floor
+// stays in lock-step with them (single source of truth).
+const MinViableTimeout = minPumpTime + settleQuietWindow
+
 // runSession creates a session from the connector, pumps it to receive the login screen bitmap,
 // sends 5x Shift key presses, then captures the post-keystroke bitmap.
 // Returns (baseline_rgba, response_rgba, width, height, stabilized, error).

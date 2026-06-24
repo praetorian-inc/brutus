@@ -45,6 +45,7 @@ type baseConfigOptions struct {
 	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
 	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
 	proxyURL         string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
+	noNLAProbe       bool   // disable the pre-WASM NLA negotiation probe (logon scan path)
 
 	// checks selects which logon-screen backdoor check(s) the scan path runs.
 	// The zero value (CheckBoth) runs both, matching the combined "brutus logon"

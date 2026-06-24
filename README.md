@@ -890,6 +890,32 @@ brutus enum hunter --domain example.com --limit 50
 
 ---
 
+### Passive Email Harvesting (theHarvester-style)
+
+Passively harvest email addresses for a domain from **free, no-API-key** OSINT sources — search-engine result scraping (Bing, DuckDuckGo, Brave, Yahoo) and crt.sh Certificate Transparency. Inspired by [theHarvester](https://github.com/laramies/theHarvester). Each discovered address is scored by **corroboration count** — how many independent sources surfaced it — giving a confidence signal without any active probing of the target.
+
+Emails only: hosts, subdomains, and certificate names are dropped. Every source runs independently and is isolated — a source failing, rate-limiting, or returning nothing never fails the run. The shared `--proxy`, `--threads`, `--rate-limit`, `--jitter`, and `--timeout` flags apply.
+
+```bash
+# Harvest emails for a domain from all sources
+brutus enum harvest --domain example.com
+
+# Restrict to specific sources (available: bing, brave, crtsh, ddg, yahoo)
+brutus enum harvest -d example.com --sources crtsh,bing
+
+# JSONL output to a file (one record per email, with type:"harvest" discriminator)
+brutus enum harvest -d example.com -o emails.jsonl
+
+# Cap emails kept per source (default: 500) and route through a proxy
+brutus enum harvest -d example.com --limit 100 --proxy socks5://127.0.0.1:1080
+```
+
+Output (human) lists each email with the sources that found it and a corroboration count; JSONL emits `{"type":"harvest","domain":...,"email":...,"sources":[...],"count":N}` per address.
+
+> **Note:** these sources rely on public search-engine HTML, which changes and rate-limits; yield varies and zero results for a domain is a valid (not failed) outcome. Use `--sources` and `--rate-limit` to stay polite.
+
+---
+
 ### Microsoft Teams / Entra ID Authentication
 
 Obtain an OAuth2 access token, refresh token, and ID token from Microsoft Entra ID (Azure AD) using the [device code flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code) (RFC 8628). The resulting tokens can be used for Microsoft Graph API calls, Teams enumeration, and auditing via tools like [ROADtools](https://github.com/dirkjanm/ROADtools) or custom Graph queries.

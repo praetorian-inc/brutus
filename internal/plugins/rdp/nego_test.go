@@ -240,3 +240,21 @@ func TestProbeNLA_EmptyEOF(t *testing.T) {
 	got := ProbeNLA(context.Background(), fc, 2*time.Second)
 	assert.Equal(t, NegoProbeError, got)
 }
+
+// ---------------------------------------------------------------------------
+// Task 1 — NegoUnreachable distinct class test
+// ---------------------------------------------------------------------------
+
+// TestNegoUnreachable_IsDistinctClass verifies that NegoUnreachable is a 4th,
+// distinct NegoClass value. All four values must be distinct — if any two share
+// the same iota, the map length will be less than 4 and the require.Len will
+// fail. This test is RED until the developer adds NegoUnreachable to nego.go.
+func TestNegoUnreachable_IsDistinctClass(t *testing.T) {
+	classes := map[NegoClass]string{
+		NegoScannable:   "scannable",
+		NegoNLARequired: "nla_required",
+		NegoProbeError:  "probe_error",
+		NegoUnreachable: "unreachable",
+	}
+	require.Len(t, classes, 4, "all four NegoClass values must be distinct")
+}

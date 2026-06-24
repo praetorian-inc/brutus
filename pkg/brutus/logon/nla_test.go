@@ -97,15 +97,15 @@ func TestDetectBackdoors_NLARequired_SkipsWASM(t *testing.T) {
 	})
 
 	var ranDetection atomic.Bool
-	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		ranDetection.Store(true) // must NOT be called for nla_required
 		return nil, false
 	}
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoNLARequired
 	}
 
-	rs, ok := DetectBackdoors(context.Background(), "h:3389", time.Second, false, 2, CheckBoth, "", false)
+	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 2, CheckBoth, "", false)
 	assert.False(t, ok)
 	assert.False(t, ranDetection.Load(),
 		"WASM detection must be skipped for nla_required (no decode slot must be acquired)")
@@ -129,18 +129,18 @@ func TestDetectBackdoors_ProbeError_ProceedsToWASM(t *testing.T) {
 	})
 
 	var ran atomic.Bool
-	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		ran.Store(true)
 		return []brutus.Result{
 			{ScanType: "sticky_keys"},
 			{ScanType: "utilman"},
 		}, false
 	}
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoProbeError
 	}
 
-	_, _ = DetectBackdoors(context.Background(), "h:3389", time.Second, false, 0, CheckBoth, "", false)
+	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckBoth, "", false)
 	assert.True(t, ran.Load(),
 		"probe error must fall through to WASM detection (fail-open)")
 }
@@ -158,15 +158,103 @@ func TestDetectBackdoors_NoNLAProbe_SkipsProbe(t *testing.T) {
 	})
 
 	var probed atomic.Bool
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		probed.Store(true)
 		return rdp.NegoNLARequired
 	}
-	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		return []brutus.Result{{ScanType: "sticky_keys"}}, false
 	}
 
-	_, _ = DetectBackdoors(context.Background(), "h:3389", time.Second, false, 0, CheckStickyKeys, "", true /*noNLAProbe*/)
+	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckStickyKeys, "", true /*noNLAProbe*/)
 	assert.False(t, probed.Load(),
 		"--no-nla-probe must bypass the probe entirely (noNLAProbe=true)")
+}
+
+// ---------------------------------------------------------------------------
+// Task 2 — nlaProbe dial-failure → NegoUnreachable
+// ---------------------------------------------------------------------------
+
+// TestNLAProbe_DialFailure_ReturnsUnreachable verifies that when the TCP dial
+// fails, nlaProbe classifies the host as NegoUnreachable (not NegoProbeError).
+// 192.0.2.0/24 is TEST-NET-1 (RFC 5737); :1 refuses/black-holes fast.
+func TestNLAProbe_DialFailure_ReturnsUnreachable(t *testing.T) {
+	// 192.0.2.0/24 is TEST-NET-1 (RFC 5737); :1 refuses/black-holes fast.
+	got := nlaProbe(context.Background(), "192.0.2.1:1", 200*time.Millisecond /*connectTimeout*/, 100*time.Millisecond /*readDeadline*/, "")
+	assert.Equal(t, rdp.NegoUnreachable, got,
+		"a failed TCP dial must classify as NegoUnreachable, not NegoProbeError")
+}
+
+// ---------------------------------------------------------------------------
+// Task 3 — UnreachableResults constructor tests
+// ---------------------------------------------------------------------------
+
+// TestUnreachableResults_Both verifies that CheckBoth produces 2 results, one
+// for sticky_keys and one for utilman, both terminal (Success=false,
+// Indeterminate=false) with a banner containing the "unreachable" token.
+func TestUnreachableResults_Both(t *testing.T) {
+	rs := UnreachableResults("10.0.0.5:3389", CheckBoth)
+	require.Len(t, rs, 2)
+	for _, r := range rs {
+		assert.False(t, r.Success)
+		assert.False(t, r.Indeterminate, "unreachable is TERMINAL, not indeterminate")
+		assert.Contains(t, r.Banner, "unreachable")
+		assert.Equal(t, "rdp", r.Protocol)
+		assert.Equal(t, "10.0.0.5:3389", r.Target)
+	}
+	assert.Equal(t, "sticky_keys", rs[0].ScanType)
+	assert.Equal(t, "utilman", rs[1].ScanType)
+}
+
+// TestUnreachableResults_StickyOnly verifies that CheckStickyKeys produces a
+// single sticky_keys result with the correct terminal state.
+func TestUnreachableResults_StickyOnly(t *testing.T) {
+	rs := UnreachableResults("h:3389", CheckStickyKeys)
+	require.Len(t, rs, 1)
+	assert.Equal(t, "sticky_keys", rs[0].ScanType)
+	assert.False(t, rs[0].Success)
+	assert.False(t, rs[0].Indeterminate)
+	assert.Contains(t, rs[0].Banner, "unreachable")
+}
+
+// TestUnreachableResults_UtilmanOnly verifies that CheckUtilman produces a
+// single utilman result with the correct terminal state.
+func TestUnreachableResults_UtilmanOnly(t *testing.T) {
+	rs := UnreachableResults("h:3389", CheckUtilman)
+	require.Len(t, rs, 1)
+	assert.Equal(t, "utilman", rs[0].ScanType)
+	assert.False(t, rs[0].Success)
+	assert.False(t, rs[0].Indeterminate)
+	assert.Contains(t, rs[0].Banner, "unreachable")
+}
+
+// ---------------------------------------------------------------------------
+// Task 4 — DetectBackdoors: NegoUnreachable short-circuits before decode slot
+// ---------------------------------------------------------------------------
+
+// TestDetectBackdoors_Unreachable_SkipsWASM verifies that when nlaProbe returns
+// NegoUnreachable, DetectBackdoors returns a terminal unreachable verdict
+// WITHOUT invoking runDetection (no decode slot acquired) and the results are
+// NON-retryable (Indeterminate=false).
+func TestDetectBackdoors_Unreachable_SkipsWASM(t *testing.T) {
+	withDecodeSlots(t, 4)
+	origProbe := nlaProbe
+	origRun := runDetection
+	t.Cleanup(func() { nlaProbe = origProbe; runDetection = origRun })
+
+	var ranDetection atomic.Bool
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+		ranDetection.Store(true)
+		return nil, false
+	}
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
+		return rdp.NegoUnreachable
+	}
+
+	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second /*connectTimeout*/, time.Second /*timeout*/, false, 2, CheckBoth, "", false)
+	assert.False(t, ok)
+	assert.False(t, ranDetection.Load(), "WASM detection must be skipped for unreachable (no decode slot)")
+	require.Len(t, rs, 2)
+	assert.Contains(t, rs[0].Banner, "unreachable")
+	assert.False(t, rs[0].Indeterminate, "unreachable is terminal, non-retryable")
 }

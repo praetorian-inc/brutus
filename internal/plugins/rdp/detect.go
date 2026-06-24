@@ -27,6 +27,12 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
+// unreachableScanBanner is the terminal verdict prefix for a host whose TCP dial
+// failed in the WASM scan path. It carries the literal token "unreachable" so
+// JSONL/grep and human output surface it, with a leading [INFO] tag. Shared by
+// both mappers to avoid drift between the two identical dial-failure sites.
+const unreachableScanBanner = "[INFO] unreachable (no RDP/TCP connection to host — not scannable): "
+
 // ---------------------------------------------------------------------------
 // CLI-level detection wrappers (format results as brutus.Result)
 // ---------------------------------------------------------------------------
@@ -36,9 +42,9 @@ import (
 //
 // This function wraps RunStickyKeysCheck and interprets the StickyKeysResult into
 // a standardized Result format suitable for CLI output.
-func DetectStickyKeys(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
+func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
 	plugin := &Plugin{}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, timeout, noVision)
+	stickyResult := plugin.RunStickyKeysCheck(ctx, target, connectTimeout, timeout, noVision)
 	result := mapStickyResult(stickyResult, username)
 	result.Target = target
 	return result
@@ -53,6 +59,14 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 
 	if stickyResult == nil {
 		result.Error = fmt.Errorf("sticky keys check returned nil")
+		return result
+	}
+
+	if stickyResult.Unreachable {
+		// TCP dial failed: terminal-unreachable, NOT indeterminate. Success and
+		// Indeterminate stay at their zero values (false/false) so the retry loop
+		// never fires (cardinal rule: unreachable != clean, unreachable != rerun).
+		result.Banner = unreachableScanBanner + stickyResult.SkipReason
 		return result
 	}
 
@@ -100,9 +114,9 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 //
 // This function wraps RunUtilmanCheck and interprets the UtilmanResult into
 // a standardized Result format suitable for CLI output.
-func DetectUtilman(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
+func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
 	plugin := &Plugin{}
-	utilmanResult := plugin.RunUtilmanCheck(ctx, target, timeout, noVision)
+	utilmanResult := plugin.RunUtilmanCheck(ctx, target, connectTimeout, timeout, noVision)
 	result := mapUtilmanResult(utilmanResult, username)
 	result.Target = target
 	return result
@@ -117,6 +131,14 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 
 	if utilmanResult == nil {
 		result.Error = fmt.Errorf("utilman check returned nil")
+		return result
+	}
+
+	if utilmanResult.Unreachable {
+		// TCP dial failed: terminal-unreachable, NOT indeterminate. Success and
+		// Indeterminate stay at their zero values (false/false) so the retry loop
+		// never fires (cardinal rule: unreachable != clean, unreachable != rerun).
+		result.Banner = unreachableScanBanner + utilmanResult.SkipReason
 		return result
 	}
 
@@ -165,7 +187,7 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
 // The noVision flag disables Vision API confirmation.
-func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout time.Duration, noVision bool) *StickyKeysResult {
+func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool) *StickyKeysResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -174,10 +196,10 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("wasm init: %v", err)}
 	}
 
-	dialer := &net.Dialer{Timeout: timeout}
+	dialer := &net.Dialer{Timeout: connectTimeout}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("connection failed: %v", err)}
+		return &StickyKeysResult{Performed: false, Unreachable: true, SkipReason: fmt.Sprintf("connection failed: %v", err)}
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -196,7 +218,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, timeout 
 }
 
 // RunUtilmanCheck performs utilman backdoor detection on a separate connection.
-func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout time.Duration, noVision bool) *UtilmanResult {
+func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool) *UtilmanResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -205,10 +227,10 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, timeout tim
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("wasm init: %v", err)}
 	}
 
-	dialer := &net.Dialer{Timeout: timeout}
+	dialer := &net.Dialer{Timeout: connectTimeout}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("connection failed: %v", err)}
+		return &UtilmanResult{Performed: false, Unreachable: true, SkipReason: fmt.Sprintf("connection failed: %v", err)}
 	}
 	defer func() { _ = conn.Close() }()
 

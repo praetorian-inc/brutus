@@ -68,12 +68,12 @@ func TestDetectBackdoors_RetriesIndeterminate(t *testing.T) {
 	const target = "host:3389"
 
 	origProbe := nlaProbe
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoScannable
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		n := int(attempts.Add(1))
 		if n == 1 {
 			return indeterminateResults(tgt)
@@ -85,7 +85,7 @@ func TestDetectBackdoors_RetriesIndeterminate(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 5*time.Second, false, 2, CheckBoth, "", false)
+	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false)
 
 	require.Len(t, results, 2, "expected 2 results (sticky + utilman)")
 	assert.Equal(t, int32(2), attempts.Load(), "expected exactly 2 attempts: indeterminate on 0, clean on 1")
@@ -101,12 +101,12 @@ func TestDetectBackdoors_NoRetryOnFoundBackdoor(t *testing.T) {
 	const target = "host:3389"
 
 	origProbe := nlaProbe
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoScannable
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		attempts.Add(1)
 		return foundResults(tgt)
 	}
@@ -115,7 +115,7 @@ func TestDetectBackdoors_NoRetryOnFoundBackdoor(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 5*time.Second, false, 2, CheckBoth, "", false)
+	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false)
 
 	require.Len(t, results, 2)
 	assert.Equal(t, int32(1), attempts.Load(), "backdoor found: must not retry (exactly 1 attempt)")
@@ -130,12 +130,12 @@ func TestDetectBackdoors_NoRetryOnStabilizedClean(t *testing.T) {
 	const target = "host:3389"
 
 	origProbe := nlaProbe
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoScannable
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		attempts.Add(1)
 		return cleanResults(tgt)
 	}
@@ -144,7 +144,7 @@ func TestDetectBackdoors_NoRetryOnStabilizedClean(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 5*time.Second, false, 2, CheckBoth, "", false)
+	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false)
 
 	require.Len(t, results, 2)
 	assert.Equal(t, int32(1), attempts.Load(), "clean non-indeterminate: must not retry (exactly 1 attempt)")
@@ -164,12 +164,12 @@ func TestDetectBackdoors_AttemptCap(t *testing.T) {
 	const maxRetries = 2
 
 	origProbe := nlaProbe
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoScannable
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		attempts.Add(1)
 		return indeterminateResults(tgt)
 	}
@@ -178,7 +178,7 @@ func TestDetectBackdoors_AttemptCap(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 5*time.Second, false, maxRetries, CheckBoth, "", false)
+	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, maxRetries, CheckBoth, "", false)
 
 	require.Len(t, results, 2)
 	assert.Equal(t, int32(maxRetries+1), attempts.Load(),

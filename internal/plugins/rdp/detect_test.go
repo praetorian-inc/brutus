@@ -24,20 +24,18 @@ import (
 
 func TestDetectStickyKeys_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "127.0.0.1:1", 2*time.Second, "(sticky-keys)", false)
+	result := DetectStickyKeys(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(sticky-keys)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
 	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.Equal(t, "(sticky-keys)", result.Username)
 	assert.False(t, result.Success)
-	assert.Contains(t, result.Banner, "INDETERMINATE")
-	assert.True(t, result.Indeterminate)
 }
 
 func TestDetectStickyKeys_ResultFields(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, "(sticky-keys)", false)
+	result := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "(sticky-keys)", result.Username)
@@ -47,20 +45,18 @@ func TestDetectStickyKeys_ResultFields(t *testing.T) {
 
 func TestDetectUtilman_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "127.0.0.1:1", 2*time.Second, "(utilman)", false)
+	result := DetectUtilman(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(utilman)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "rdp", result.Protocol)
 	assert.Equal(t, "127.0.0.1:1", result.Target)
 	assert.Equal(t, "(utilman)", result.Username)
 	assert.False(t, result.Success)
-	assert.Contains(t, result.Banner, "INDETERMINATE")
-	assert.True(t, result.Indeterminate)
 }
 
 func TestDetectUtilman_ResultFields(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, "(utilman)", false)
+	result := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false)
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "(utilman)", result.Username)
@@ -415,11 +411,48 @@ func TestFramesQuiet(t *testing.T) {
 func TestScanTypeLabeling(t *testing.T) {
 	ctx := context.Background()
 
-	stickyResult := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, "(sticky-keys)", false)
+	stickyResult := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false)
 	assert.NotNil(t, stickyResult)
 	assert.Equal(t, "sticky_keys", stickyResult.ScanType, "DetectStickyKeys should set ScanType to 'sticky_keys'")
 
-	utilmanResult := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, "(utilman)", false)
+	utilmanResult := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false)
 	assert.NotNil(t, utilmanResult)
 	assert.Equal(t, "utilman", utilmanResult.ScanType, "DetectUtilman should set ScanType to 'utilman'")
+}
+
+// ---------------------------------------------------------------------------
+// Task 5 — mapper tests: Unreachable=true → terminal; Unreachable=false → indeterminate
+// ---------------------------------------------------------------------------
+
+// TestMapStickyResult_Unreachable_Terminal verifies that a dial-failure result
+// (Unreachable=true) maps to a TERMINAL unreachable brutus.Result:
+// Success=false, Indeterminate=false, banner contains "unreachable".
+func TestMapStickyResult_Unreachable_Terminal(t *testing.T) {
+	r := mapStickyResult(&StickyKeysResult{Performed: false, Unreachable: true, SkipReason: "connection failed: i/o timeout"}, "(sticky-keys)")
+	assert.False(t, r.Success)
+	assert.False(t, r.Indeterminate, "dial failure is terminal unreachable, NOT indeterminate")
+	assert.Contains(t, r.Banner, "unreachable")
+}
+
+// TestMapStickyResult_WasmFailure_StaysIndeterminate verifies that a
+// wasm/connector failure (Performed=false, Unreachable=false) STAYS indeterminate.
+func TestMapStickyResult_WasmFailure_StaysIndeterminate(t *testing.T) {
+	r := mapStickyResult(&StickyKeysResult{Performed: false, Unreachable: false, SkipReason: "wasm instance: boom"}, "(sticky-keys)")
+	assert.True(t, r.Indeterminate, "non-dial !Performed failures must remain indeterminate")
+	assert.False(t, r.Success)
+}
+
+// TestMapUtilmanResult_Unreachable_Terminal verifies the same terminal-unreachable
+// behaviour for the utilman mapper.
+func TestMapUtilmanResult_Unreachable_Terminal(t *testing.T) {
+	r := mapUtilmanResult(&UtilmanResult{Performed: false, Unreachable: true, SkipReason: "connection failed: refused"}, "(utilman)")
+	assert.False(t, r.Indeterminate)
+	assert.Contains(t, r.Banner, "unreachable")
+}
+
+// TestMapUtilmanResult_WasmFailure_StaysIndeterminate verifies that a wasm init
+// failure (Performed=false, Unreachable=false) stays indeterminate.
+func TestMapUtilmanResult_WasmFailure_StaysIndeterminate(t *testing.T) {
+	r := mapUtilmanResult(&UtilmanResult{Performed: false, Unreachable: false, SkipReason: "wasm init: boom"}, "(utilman)")
+	assert.True(t, r.Indeterminate)
 }

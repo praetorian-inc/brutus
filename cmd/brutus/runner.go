@@ -523,7 +523,7 @@ func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool)
 // scanTargetFn performs detection for a single target. It is a package-level
 // variable so tests can substitute a fake without a live RDP server.
 var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]brutus.Result, bool) {
-	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode, base.maxRetries, base.checks,
+	return logon.DetectBackdoors(ctx, target, base.connectTimeout, base.timeout, base.aiMode, base.maxRetries, base.checks,
 		base.proxyURL, base.noNLAProbe)
 }
 

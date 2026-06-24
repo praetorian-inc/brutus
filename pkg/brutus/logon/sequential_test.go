@@ -66,13 +66,13 @@ func TestSequential(t *testing.T) {
 	})
 
 	// Stub the NLA probe to return NegoScannable so the test exercises the WASM path.
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoScannable
 	}
 
 	// Sticky fake: returns a positive (backdoor_confirmed / Success=true) result
 	// so we can assert that a positive sticky does NOT suppress the utilman check.
-	detectSticky = func(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
+	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
 		invocationOrder = append(invocationOrder, "sticky")
 		// Signal that sticky has finished its work.
 		stickyDone.Store(true)
@@ -87,7 +87,7 @@ func TestSequential(t *testing.T) {
 	}
 
 	// Utilman fake: asserts that sticky completed before utilman started.
-	detectUtilman = func(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result {
+	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool) *brutus.Result {
 		// If sticky did not finish before utilman began, the sequential ordering
 		// guarantee is violated. This assertion fires inside the fake so that a
 		// parallel implementation causes the test to fail during DetectBackdoors.
@@ -105,9 +105,9 @@ func TestSequential(t *testing.T) {
 	}
 
 	const target = "127.0.0.1:3389"
-	// Signature: (ctx, target, timeout, aiMode, maxRetries, checks, proxyURL, noNLAProbe)
+	// Signature: (ctx, target, connectTimeout, timeout, aiMode, maxRetries, checks, proxyURL, noNLAProbe)
 	// proxyURL="", noNLAProbe=false (nlaProbe seam already stubbed to NegoScannable above).
-	results, _ := DetectBackdoors(context.Background(), target, 5*time.Second, false, 0 /*maxRetries*/, CheckBoth, "", false)
+	results, _ := DetectBackdoors(context.Background(), target, 3*time.Second /*connectTimeout*/, 5*time.Second /*timeout*/, false, 0 /*maxRetries*/, CheckBoth, "", false)
 
 	// --- Assertion 1: both checks ran (no early-exit) ---
 	require.Len(t, results, 2,

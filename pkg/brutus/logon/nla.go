@@ -28,18 +28,20 @@ import (
 // output both surface it, and a leading [INFO] tag so extractFinding renders it.
 const nlaRequiredBanner = "[INFO] nla_required (NLA/CredSSP enforced; logon-screen backdoor check not possible without credentials — not scannable)"
 
-// nlaProbe is a swappable seam over the network probe so tests can classify
-// without a live RDP server. It dials, probes one RTT, and closes the conn.
-// Returns rdp.NegoProbeError on any dial/probe failure (caller treats it as
-// "proceed to WASM", since a failed probe must never skip detection).
-var nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+// nlaProbe dials with connectTimeout (short, dead-host-fast) and probes one RTT
+// with readDeadline. A FAILED DIAL is classified NegoUnreachable (terminal,
+// non-retryable). A successful dial whose ProbeNLA hits a read/parse error
+// returns NegoProbeError (fall through to WASM — a failed nego must never skip
+// detection). NegoNLARequired / NegoScannable pass through from ProbeNLA. It is
+// a swappable seam so tests can classify without a live RDP server.
+var nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 	host, port := brutus.ParseTarget(target, "3389")
-	conn, err := brutus.DialWithProxy(ctx, "tcp", net.JoinHostPort(host, port), timeout, proxyURL)
+	conn, err := brutus.DialWithProxy(ctx, "tcp", net.JoinHostPort(host, port), connectTimeout, proxyURL)
 	if err != nil {
-		return rdp.NegoProbeError
+		return rdp.NegoUnreachable
 	}
 	defer func() { _ = conn.Close() }()
-	return rdp.ProbeNLA(ctx, conn, timeout)
+	return rdp.ProbeNLA(ctx, conn, readDeadline)
 }
 
 // NLARequiredResults returns the terminal, non-retryable result pair for a host
@@ -66,6 +68,40 @@ func NLARequiredResults(target string, checks Check) []brutus.Result {
 			Username: "(utilman)",
 			ScanType: "utilman",
 			Banner:   nlaRequiredBanner,
+		})
+	}
+	return results
+}
+
+// unreachableBanner is the terminal verdict banner for a host we could not TCP-
+// connect to. It carries the literal token "unreachable" so JSONL/grep and human
+// output both surface it, with a leading [INFO] tag so extractFinding renders it.
+const unreachableBanner = "[INFO] unreachable (no RDP/TCP connection to host:port — not scannable)"
+
+// UnreachableResults returns the terminal, non-retryable result pair for a host
+// we could not reach over TCP. It mirrors NLARequiredResults: Success=false and
+// Indeterminate=false — unreachable is a distinct terminal state, NOT "clean"
+// and NOT "indeterminate" (so the retry loop never fires). The checks selector
+// controls which entries are returned (CheckBoth -> 2, CheckStickyKeys -> sticky
+// only, CheckUtilman -> utilman only).
+func UnreachableResults(target string, checks Check) []brutus.Result {
+	var results []brutus.Result
+	if checks != CheckUtilman {
+		results = append(results, brutus.Result{
+			Protocol: "rdp",
+			Target:   target,
+			Username: "(sticky-keys)",
+			ScanType: "sticky_keys",
+			Banner:   unreachableBanner,
+		})
+	}
+	if checks != CheckStickyKeys {
+		results = append(results, brutus.Result{
+			Protocol: "rdp",
+			Target:   target,
+			Username: "(utilman)",
+			ScanType: "utilman",
+			Banner:   unreachableBanner,
 		})
 	}
 	return results

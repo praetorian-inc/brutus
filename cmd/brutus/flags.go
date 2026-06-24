@@ -52,12 +52,13 @@ var (
 
 // Performance flags
 var (
-	flagThreads     int
-	flagTimeout     time.Duration
-	flagRateLimit   float64
-	flagJitter      time.Duration
-	flagMaxAttempts int
-	flagRetries     int
+	flagThreads        int
+	flagTimeout        time.Duration
+	flagConnectTimeout time.Duration
+	flagRateLimit      float64
+	flagJitter         time.Duration
+	flagMaxAttempts    int
+	flagRetries        int
 )
 
 // Output flags
@@ -121,6 +122,8 @@ func registerSharedFlags(cmd *cobra.Command) {
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
 	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
+	pf.DurationVar(&flagConnectTimeout, "connect-timeout", 3*time.Second,
+		"TCP connect timeout for scan dials (separate from --timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets.")
 	pf.Float64Var(&flagRateLimit, "rate-limit", 0, "Max requests per second (0 = unlimited)")
 	pf.DurationVar(&flagJitter, "jitter", 0, "Random delay variance for rate limiting")
 	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
@@ -237,6 +240,7 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 	return &baseConfigOptions{
 		threads:          threads,
 		timeout:          timeout,
+		connectTimeout:   flagConnectTimeout,
 		useColor:         isColorEnabled(flagNoColor),
 		quiet:            flagQuiet,
 		verbose:          flagVerbose,

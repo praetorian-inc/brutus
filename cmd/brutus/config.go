@@ -28,6 +28,7 @@ type baseConfigOptions struct {
 	credentials      []brutus.Credential // pre-paired user:pass (no Cartesian product)
 	threads          int
 	timeout          time.Duration
+	connectTimeout   time.Duration // TCP connect timeout for scan dials (--connect-timeout)
 	llmConfig        *brutus.LLMConfig
 	useColor         bool
 	quiet            bool

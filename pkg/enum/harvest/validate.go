@@ -35,6 +35,16 @@ var domainRe = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-
 // userinfo hijack (evil.com@internal), scheme, CRLF, control byte, path, or
 // traversal segment fails to match the allowlist and is refused.
 func validateDomain(domain string) (string, error) {
+	// Reject control bytes (CR, LF, tab, NUL, other C0, and DEL) BEFORE any
+	// trimming, so they are refused outright rather than silently stripped —
+	// honoring the reject-don't-strip contract above (mirrors the approach in
+	// pkg/enum/custom/request.go sanitizeHeaderValue).
+	for i := 0; i < len(domain); i++ {
+		if b := domain[i]; b < 0x20 || b == 0x7f {
+			return "", fmt.Errorf("invalid domain: illegal control byte 0x%02x", b)
+		}
+	}
+
 	d := strings.ToLower(strings.TrimSpace(domain))
 	if d == "" {
 		return "", fmt.Errorf("domain is required")

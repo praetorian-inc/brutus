@@ -113,7 +113,11 @@ func Harvest(ctx context.Context, opts Options) (*Report, error) {
 			raw, err := src.Search(ctx, domain)
 			if err != nil {
 				if opts.Verbose {
-					fmt.Fprintf(os.Stderr, "harvest: source %s failed: %v\n", src.Name(), err)
+					// Log the source name only — NEVER the wrapped error, which
+					// embeds the full request URL (and thus the domain in the
+					// query string) via *url.Error (security P1-3; mirrors the
+					// "full URL is never logged" rule in pkg/enum/hunter).
+					fmt.Fprintf(os.Stderr, "harvest: source %s failed\n", src.Name())
 				}
 				return nil // per-source isolation: never fail the run
 			}

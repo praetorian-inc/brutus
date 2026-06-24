@@ -47,6 +47,12 @@ type StickyKeysResult struct {
 	HeuristicResult string
 	VisionResult    string
 	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
+	// Unreachable is true only when the TCP dial itself failed (no connection to
+	// the host). It distinguishes a terminal-unreachable host from other
+	// !Performed failures (wasm init/instance, connector, session) which remain
+	// indeterminate (rerun). Set only by RunStickyKeysCheck at the
+	// dialer.DialContext failure site.
+	Unreachable bool
 }
 
 // UtilmanResult holds the outcome of utilman backdoor detection.
@@ -59,6 +65,12 @@ type UtilmanResult struct {
 	HeuristicResult string
 	VisionResult    string
 	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
+	// Unreachable is true only when the TCP dial itself failed (no connection to
+	// the host). It distinguishes a terminal-unreachable host from other
+	// !Performed failures (wasm init/instance, connector, session) which remain
+	// indeterminate (rerun). Set only by RunUtilmanCheck at the
+	// dialer.DialContext failure site.
+	Unreachable bool
 }
 
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).

@@ -16,6 +16,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,5 +60,28 @@ func TestLogonFlagsWiring(t *testing.T) {
 		base := buildBaseConfig(logonCmd)
 		assert.True(t, base.noNLAProbe,
 			"base.noNLAProbe must be true after parsing --no-nla-probe")
+	})
+}
+
+// TestConnectTimeoutFlagWiring verifies that --connect-timeout is wired through
+// cobra into baseConfigOptions via buildBaseConfig.
+//
+// This test is RED until the developer:
+//  1. Adds flagConnectTimeout package var to flags.go (Performance block)
+//  2. Registers --connect-timeout in registerSharedFlags with a 3s default
+//  3. Adds connectTimeout field to baseConfigOptions (config.go)
+//  4. Populates it in buildBaseConfig (flags.go)
+func TestConnectTimeoutFlagWiring(t *testing.T) {
+	t.Run("default_is_3s", func(t *testing.T) {
+		require.NoError(t, logonCmd.ParseFlags([]string{}))
+		base := buildBaseConfig(logonCmd)
+		assert.Equal(t, 3*time.Second, base.connectTimeout,
+			"connect-timeout must default to 3s")
+	})
+	t.Run("override_applies", func(t *testing.T) {
+		require.NoError(t, logonCmd.ParseFlags([]string{"--connect-timeout", "7s"}))
+		base := buildBaseConfig(logonCmd)
+		assert.Equal(t, 7*time.Second, base.connectTimeout,
+			"connect-timeout must reflect the parsed flag")
 	})
 }

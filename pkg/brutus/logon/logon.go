@@ -46,17 +46,23 @@ const (
 // Retries are keyed on the INDETERMINATE outcome only. A found backdoor
 // (hasSuccess) and a stabilized clean render are both final verdicts and are
 // returned immediately; retrying a positive would risk masking a real backdoor.
-func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, aiMode bool,
+func DetectBackdoors(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool,
 	maxRetries int, checks Check, proxyURL string, noNLAProbe bool) ([]brutus.Result, bool) {
 
 	// STAGE 1 — pre-WASM NLA probe (no decode slot, runs at full --threads).
 	// Only an explicit HYBRID selection / HYBRID_REQUIRED_BY_SERVER skips WASM;
 	// every other outcome (including probe errors) falls through to detection.
+	// The dial and the single-RTT nego read both use connectTimeout: a reachable
+	// host answers in ~1 RTT, so connectTimeout is the right read budget and
+	// never harms reachable hosts.
 	if !noNLAProbe {
-		switch nlaProbe(ctx, target, timeout, proxyURL) {
+		switch nlaProbe(ctx, target, connectTimeout, connectTimeout, proxyURL) {
 		case rdp.NegoNLARequired:
 			// Terminal, non-retryable: return BEFORE acquiring a decode slot.
 			return NLARequiredResults(target, checks), false
+		case rdp.NegoUnreachable:
+			// Terminal, non-retryable: return BEFORE acquiring a decode slot.
+			return UnreachableResults(target, checks), false
 		case rdp.NegoProbeError, rdp.NegoScannable:
 			// Fall through to the existing WASM path. The probe never skips on
 			// uncertainty (cardinal rule).
@@ -76,7 +82,7 @@ func DetectBackdoors(ctx context.Context, target string, timeout time.Duration, 
 		if attempt > 0 {
 			retryBackoff(ctx, attempt)
 		}
-		results, hasSuccess := runDetection(ctx, target, timeout, aiMode, checks)
+		results, hasSuccess := runDetection(ctx, target, connectTimeout, timeout, aiMode, checks)
 		if hasSuccess || !anyIndeterminate(results) || attempt == attempts-1 {
 			return results, hasSuccess
 		}

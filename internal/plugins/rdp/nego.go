@@ -37,6 +37,13 @@ const (
 	// failure, garbage, or malformed framing). Treat as a connect failure and fall
 	// through to WASM — a failed probe must NEVER skip detection.
 	NegoProbeError
+	// NegoUnreachable is a terminal classification: the TCP connection to the
+	// host could not be established at all (no SYN-ACK / RST within the connect
+	// timeout, or dial error). The host is not scannable, but this is NOT
+	// "clean" and NOT "indeterminate": it is a distinct terminal state that is
+	// never retried. SKIP WASM. Set ONLY by the nlaProbe dial seam, never by
+	// ProbeNLA (which still returns NegoProbeError on its internal errors).
+	NegoUnreachable
 )
 
 // requestedProtocols / response constants (MS-RDPBCGR 2.2.1.1.1 / 2.2.1.2.1).

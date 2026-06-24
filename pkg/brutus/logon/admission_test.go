@@ -60,13 +60,13 @@ func TestDecodeSlotBound(t *testing.T) {
 	//   - returns a benign 2-result slice (sticky + utilman)
 	// Stub the NLA probe to return NegoScannable so all goroutines exercise the WASM path.
 	origProbe := nlaProbe
-	nlaProbe = func(ctx context.Context, target string, timeout time.Duration, proxyURL string) rdp.NegoClass {
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoScannable
 	}
 
 	var current, peak atomic.Int64
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, target string, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check) ([]brutus.Result, bool) {
 		n := current.Add(1)
 		for {
 			p := peak.Load()
@@ -92,7 +92,7 @@ func TestDecodeSlotBound(t *testing.T) {
 	for i := 0; i < goroutines; i++ {
 		go func() {
 			defer wg.Done()
-			DetectBackdoors(context.Background(), "host:3389", 5*time.Second, false, 0, CheckBoth, "", false)
+			DetectBackdoors(context.Background(), "host:3389", 3*time.Second, 5*time.Second, false, 0, CheckBoth, "", false)
 		}()
 	}
 	wg.Wait()

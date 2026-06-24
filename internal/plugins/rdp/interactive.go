@@ -49,7 +49,33 @@ type InteractiveSession struct {
 func NewInteractiveSession(ctx context.Context, target string, timeout time.Duration, width, height uint32) (*InteractiveSession, error) {
 	host, port := parseTarget(target)
 	addr := net.JoinHostPort(host, port)
+	cfg := rdpConfig{Server: addr, SkipAuth: true}
+	return newSessionFromConfig(ctx, addr, timeout, width, height, cfg)
+}
 
+// NewAuthenticatedSession establishes an NLA/CredSSP RDP connection using the
+// supplied credentials and Restricted Admin Mode, then creates a fully-connected
+// interactive session. When creds carry an NT hash, this performs a pass-the-hash
+// logon. The target server must have Restricted Admin Mode enabled.
+func NewAuthenticatedSession(ctx context.Context, target string, timeout time.Duration, width, height uint32, creds AuthCredentials) (*InteractiveSession, error) {
+	host, port := parseTarget(target)
+	addr := net.JoinHostPort(host, port)
+	domain, user := creds.resolve()
+	cfg := rdpConfig{
+		Server:          addr,
+		Username:        user,
+		Password:        creds.secret(),
+		Domain:          domain,
+		SkipAuth:        false,
+		RestrictedAdmin: true,
+		FullSession:     true,
+	}
+	return newSessionFromConfig(ctx, addr, timeout, width, height, cfg)
+}
+
+// newSessionFromConfig dials addr, drives the connector with cfg, and starts an
+// interactive session. Shared by the non-NLA and authenticated constructors.
+func newSessionFromConfig(ctx context.Context, addr string, timeout time.Duration, width, height uint32, cfg rdpConfig) (*InteractiveSession, error) {
 	eng, err := initEngine()
 	if err != nil {
 		return nil, fmt.Errorf("wasm init: %w", err)
@@ -69,13 +95,6 @@ func NewInteractiveSession(ctx context.Context, target string, timeout time.Dura
 
 	p := &Plugin{}
 
-	cfg := rdpConfig{
-		Server:   addr,
-		Username: "",
-		Password: "",
-		Domain:   "",
-		SkipAuth: true,
-	}
 	configBytes, err := json.Marshal(cfg)
 	if err != nil {
 		_ = inst.close(ctx)

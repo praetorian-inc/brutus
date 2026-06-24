@@ -72,6 +72,12 @@ type rdpConfig struct {
 	Password string `json:"password"`
 	Domain   string `json:"domain"`
 	SkipAuth bool   `json:"skip_auth,omitempty"`
+	// RestrictedAdmin requests Restricted Admin Mode in the X.224 negotiation,
+	// enabling pass-the-hash logon when the server supports it.
+	RestrictedAdmin bool `json:"restricted_admin,omitempty"`
+	// FullSession continues the connector past CredSSP to a full ConnectionResult
+	// (required to open an interactive session, vs an auth-only check).
+	FullSession bool `json:"full_session,omitempty"`
 }
 
 // Test attempts RDP authentication using NLA/CredSSP via the IronRDP WASM module.

@@ -39,6 +39,21 @@ pub struct ConnectorConfig {
     /// When true, skip NLA/CredSSP authentication (for non-NLA session connections).
     #[serde(default)]
     pub skip_auth: bool,
+    /// When true, request Restricted Admin Mode in the X.224 negotiation. The server,
+    /// if it supports it, performs a credential-less network logon — enabling
+    /// pass-the-hash (the NTLM exchange authenticates with the hash regardless of
+    /// CredSSP delegation mode).
+    ///
+    /// NOTE: ironrdp-connector hardcodes CredSspMode::WithCredentials, so the
+    /// delegated TSCredentials still carry the (hash-prefixed) password; a
+    /// Restricted-Admin server ignores them and logs on via the network identity.
+    #[serde(default)]
+    pub restricted_admin: bool,
+    /// When true, continue the connector past CredSSP all the way to a full
+    /// ConnectionResult (needed to create an interactive session). When false
+    /// (auth-only Test), the connector short-circuits once auth is confirmed.
+    #[serde(default)]
+    pub full_session: bool,
 }
 
 /// Internal phase of the connector.
@@ -81,6 +96,13 @@ pub struct ConnectorHandle {
     /// Connection result extracted when connector reaches Connected state.
     /// Consumed by `take_connection_result()` to create a SessionHandle.
     connection_result: Option<ConnectionResult>,
+    /// Request Restricted Admin Mode by patching the outbound X.224 nego request.
+    restricted_admin: bool,
+    /// Continue the connector to a full session after CredSSP (vs auth-only).
+    full_session: bool,
+    /// Set once the X.224 negotiation request has been patched, so we only ever
+    /// patch the single outbound Connection Request.
+    nego_patched: bool,
 }
 
 impl ConnectorHandle {
@@ -154,6 +176,9 @@ impl ConnectorHandle {
             credssp_sequence: None,
             server_addr: config.server,
             connection_result: None,
+            restricted_admin: config.restricted_admin,
+            full_session: config.full_session,
+            nego_patched: false,
         })
     }
 
@@ -269,8 +294,14 @@ impl ConnectorHandle {
             }
 
             // Check if we produced output to send
-            let out_bytes = output.filled().to_vec();
+            let mut out_bytes = output.filled().to_vec();
             if !out_bytes.is_empty() {
+                // Restricted Admin Mode is negotiated via a flag in the X.224
+                // Connection Request. ironrdp-connector hardcodes the request flags
+                // to empty, so we patch the single outbound nego request here.
+                if self.restricted_admin && !self.nego_patched && set_restricted_admin_flag(&mut out_bytes) {
+                    self.nego_patched = true;
+                }
                 // Only expect server data if the connector has a PDU hint
                 // (meaning it's waiting for a specific response). One-way messages
                 // like MCS Erect Domain Request don't get responses.
@@ -449,10 +480,18 @@ impl ConnectorHandle {
             }
             None => {
                 // EarlyUserAuthResult::Success received — authentication succeeded.
-                // For auth-only testing, we stop here rather than continuing into
-                // MCS/GCC session negotiation. The server confirmed valid credentials.
-                self.phase = Phase::Connected;
-                Ok((STATE_CONNECTED, Vec::new()))
+                if self.full_session {
+                    // Interactive session: continue the connector through MCS/GCC,
+                    // licensing, and capabilities to obtain a full ConnectionResult.
+                    self.credssp_sequence = None;
+                    self.connector.mark_credssp_as_done();
+                    self.phase = Phase::Connector;
+                    self.step_connector(&[])
+                } else {
+                    // Auth-only testing: stop here. The server confirmed credentials.
+                    self.phase = Phase::Connected;
+                    Ok((STATE_CONNECTED, Vec::new()))
+                }
             }
         }
     }
@@ -483,5 +522,85 @@ impl ConnectorHandle {
             }
             _ => format!("connection error: {}", err),
         }
+    }
+}
+
+/// Patch a TPKT-framed X.224 Connection Request to set the
+/// RESTRICTED_ADMIN_MODE_REQUIRED flag in its trailing RDP_NEG_REQ structure.
+///
+/// The RDP_NEG_REQ is always the final 8 bytes of the X.224 Connection Request
+/// (it follows the optional cookie/routing token; ironrdp does not emit the
+/// optional correlation-info structure that would come after it). We validate
+/// the type byte (0x01 = TYPE_RDP_NEG_REQ) and the 8-byte length field before
+/// mutating, and return false (no-op) if the buffer does not look like a
+/// negotiation request.
+fn set_restricted_admin_flag(buf: &mut [u8]) -> bool {
+    const TYPE_RDP_NEG_REQ: u8 = 0x01;
+    const RESTRICTED_ADMIN_MODE_REQUIRED: u8 = 0x01;
+
+    if buf.len() < 8 {
+        return false;
+    }
+    let off = buf.len() - 8;
+    if buf[off] != TYPE_RDP_NEG_REQ {
+        return false;
+    }
+    let neg_len = u16::from_le_bytes([buf[off + 2], buf[off + 3]]);
+    if neg_len != 8 {
+        return false;
+    }
+    buf[off + 1] |= RESTRICTED_ADMIN_MODE_REQUIRED;
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::set_restricted_admin_flag;
+
+    // A representative cookie-less X.224 Connection Request: TPKT(4) + LI + CR
+    // header(6) + RDP_NEG_REQ(8). The NEG_REQ flags byte is at index 12.
+    fn sample_cr() -> Vec<u8> {
+        vec![
+            0x03, 0x00, 0x00, 0x13, // TPKT
+            0x0E, // X.224 LI
+            0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, // CR header
+            0x01, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00, // RDP_NEG_REQ
+        ]
+    }
+
+    #[test]
+    fn sets_flag_on_valid_request() {
+        let mut cr = sample_cr();
+        assert!(set_restricted_admin_flag(&mut cr));
+        assert_eq!(cr[12], 0x01, "RESTRICTED_ADMIN_MODE_REQUIRED set");
+    }
+
+    #[test]
+    fn is_idempotent() {
+        let mut cr = sample_cr();
+        assert!(set_restricted_admin_flag(&mut cr));
+        assert!(set_restricted_admin_flag(&mut cr));
+        assert_eq!(cr[12], 0x01, "flag stays set, no duplicate bits");
+    }
+
+    #[test]
+    fn preserves_existing_flags() {
+        let mut cr = sample_cr();
+        cr[12] = 0x08; // CORRELATION_INFO_PRESENT
+        assert!(set_restricted_admin_flag(&mut cr));
+        assert_eq!(cr[12], 0x09, "ORs in the restricted-admin bit");
+    }
+
+    #[test]
+    fn rejects_non_negotiation_buffer() {
+        // Trailing 8 bytes do not start with TYPE_RDP_NEG_REQ.
+        let mut buf = vec![0u8; 16];
+        assert!(!set_restricted_admin_flag(&mut buf));
+    }
+
+    #[test]
+    fn rejects_short_buffer() {
+        let mut buf = vec![0x01, 0x00, 0x08];
+        assert!(!set_restricted_admin_flag(&mut buf));
     }
 }

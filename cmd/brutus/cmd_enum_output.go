@@ -25,6 +25,7 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
 	"github.com/praetorian-inc/brutus/pkg/enum/google"
+	"github.com/praetorian-inc/brutus/pkg/enum/harvest"
 	"github.com/praetorian-inc/brutus/pkg/enum/hunter"
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
@@ -1053,6 +1054,76 @@ func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
 		}
 		if err := enc.Encode(jr); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding google enum JSON: %v\n", err)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Harvest (passive email harvesting) output functions
+// ---------------------------------------------------------------------------
+
+// outputHarvestHuman renders harvest results as an aligned table sorted by
+// corroboration count. Every server-derived string (email, source names) is
+// routed through sanitizeTerminal before printing (security P1) because SERP and
+// certificate content is attacker-influenced.
+func outputHarvestHuman(w io.Writer, rep *harvest.Report, useColor bool) {
+	corroborated := 0
+	for i := range rep.Hits {
+		if rep.Hits[i].Count > 1 {
+			corroborated++
+		}
+	}
+
+	_, _ = fmt.Fprintf(w, "\n%s %s  (%d emails, %d corroborated)\n",
+		dim(useColor, SymbolInfo),
+		heading(useColor, "Harvest: "+sanitizeTerminal(rep.Domain)),
+		len(rep.Hits), corroborated)
+
+	if len(rep.Hits) == 0 {
+		_, _ = fmt.Fprintf(w, "\n  %s No emails found for this domain\n\n", dim(useColor, SymbolInfo))
+		return
+	}
+
+	_, _ = fmt.Fprintf(w, "\n  %s%-40s %-28s %-5s%s\n",
+		colorIf(useColor, ColorBold),
+		"Email", "Sources", "Count",
+		colorIf(useColor, ColorReset))
+
+	for i := range rep.Hits {
+		hit := &rep.Hits[i]
+		_, _ = fmt.Fprintf(w, "  %s%-40s%s %-28s %s%3d%s\n",
+			colorIf(useColor, ColorGreen),
+			truncate(sanitizeTerminal(hit.Email), 40),
+			colorIf(useColor, ColorReset),
+			truncate(sanitizeTerminal(strings.Join(hit.Sources, ", ")), 28),
+			colorIf(useColor, ColorCyan), hit.Count, colorIf(useColor, ColorReset))
+	}
+	_, _ = fmt.Fprintln(w)
+}
+
+// outputHarvestJSONL writes one JSON object per harvested email.
+// encoding/json already escapes control characters, so no sanitization needed.
+func outputHarvestJSONL(w io.Writer, rep *harvest.Report) {
+	type harvestJSON struct {
+		Type    string   `json:"type"`
+		Domain  string   `json:"domain"`
+		Email   string   `json:"email"`
+		Sources []string `json:"sources"`
+		Count   int      `json:"count"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range rep.Hits {
+		hit := &rep.Hits[i]
+		jr := harvestJSON{
+			Type:    "harvest",
+			Domain:  rep.Domain,
+			Email:   hit.Email,
+			Sources: hit.Sources,
+			Count:   hit.Count,
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding harvest JSON: %v\n", err)
 		}
 	}
 }

@@ -85,3 +85,21 @@ func TestScanExitError(t *testing.T) {
 		})
 	}
 }
+
+// TestScanExitError_UnreachableIsExitZero locks in the cardinal-rule behaviour:
+// an unreachable result is terminal & non-retryable (Indeterminate=false), so
+// scanExitError must return nil (exit 0), NOT errIndeterminate (exit 2).
+//
+// This is a characterisation test — it passes immediately because scanExitError
+// already inspects only Indeterminate and unreachable results have
+// Indeterminate=false. If a future change accidentally marks unreachable
+// indeterminate, this test will catch the regression.
+func TestScanExitError_UnreachableIsExitZero(t *testing.T) {
+	// An unreachable result is terminal & non-retryable: Indeterminate=false.
+	results := []brutus.Result{
+		{Success: false, Indeterminate: false, Banner: "[INFO] unreachable (...)", ScanType: "sticky_keys"},
+		{Success: false, Indeterminate: false, Banner: "[INFO] unreachable (...)", ScanType: "utilman"},
+	}
+	assert.NoError(t, scanExitError(results),
+		"unreachable must NOT trigger errIndeterminate (exit 2); it is a completed-scan terminal state")
+}

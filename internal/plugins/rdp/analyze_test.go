@@ -248,41 +248,287 @@ func TestClassifyRegion_Unknown(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// A3: decideVerdict — pass-through + cardinal rule
-// decideVerdict(verdict, region) is now a pure pass-through: whatever verdict
-// comes in (from darkDeltaVerdict) goes out unchanged. The cardinal rule is
-// that a "backdoor_likely" verdict must never become "clean".
+// A3: decideVerdict — gates backdoor_likely on keepHigh boolean
+// Signature: decideVerdict(verdict string, keepHigh bool) string
+// When keepHigh=false a backdoor_likely is downgraded to indeterminate.
+// All other verdicts pass through unchanged.
+// CARDINAL RULE: backdoor_likely with keepHigh=false → indeterminate, NEVER clean.
 // ---------------------------------------------------------------------------
 
 func TestDecideVerdict(t *testing.T) {
 	tests := []struct {
 		name      string
-		heuristic string
-		region    regionSignal
+		verdict   string
+		keepHigh  bool
 		want      string
 	}{
-		// Pass-through: clean stays clean regardless of region.
-		{"clean stays clean (unknown region)", "clean", regionUnknown, "clean"},
-		{"clean stays clean (console region)", "clean", regionConsoleLike, "clean"},
-		{"clean stays clean (dialog region)", "clean", regionDialogLike, "clean"},
-		// Pass-through: backdoor_likely stays backdoor_likely.
-		{"backdoor_likely stays (unknown region)", "backdoor_likely", regionUnknown, "backdoor_likely"},
-		{"backdoor_likely stays (console region)", "backdoor_likely", regionConsoleLike, "backdoor_likely"},
-		{"backdoor_likely stays (dialog region)", "backdoor_likely", regionDialogLike, "backdoor_likely"},
-		// Pass-through: indeterminate stays indeterminate.
-		{"indeterminate stays (unknown region)", verdictIndeterminate, regionUnknown, verdictIndeterminate},
-		{"indeterminate stays (console region)", verdictIndeterminate, regionConsoleLike, verdictIndeterminate},
+		// Real console — keepHigh=true → kept as backdoor_likely.
+		{"backdoor_likely keepHigh=true → backdoor_likely", "backdoor_likely", true, "backdoor_likely"},
+		// No-console count artifact — keepHigh=false → downgraded to indeterminate.
+		{"backdoor_likely keepHigh=false → indeterminate", "backdoor_likely", false, verdictIndeterminate},
+		// Gate never touches clean.
+		{"clean keepHigh=false → clean", "clean", false, "clean"},
+		{"clean keepHigh=true → clean", "clean", true, "clean"},
+		// Gate never touches indeterminate.
+		{"indeterminate keepHigh=false → indeterminate", verdictIndeterminate, false, verdictIndeterminate},
+		// Vision positives (backdoor_confirmed, vulnerable) are never downgraded.
+		{"backdoor_confirmed keepHigh=false → backdoor_confirmed", "backdoor_confirmed", false, "backdoor_confirmed"},
+		{"vulnerable keepHigh=false → vulnerable", "vulnerable", false, "vulnerable"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := decideVerdict(tc.heuristic, tc.region)
+			got := decideVerdict(tc.verdict, tc.keepHigh)
 			assert.Equal(t, tc.want, got)
-			// CARDINAL RULE: a backdoor_likely in must never yield clean out.
-			if tc.heuristic == "backdoor_likely" {
-				assert.NotEqual(t, "clean", got, "CARDINAL RULE: backdoor_likely must never become clean")
+			// CARDINAL RULE: backdoor_likely with keepHigh=false must yield indeterminate,
+			// never clean.
+			if tc.verdict == "backdoor_likely" && !tc.keepHigh {
+				assert.NotEqual(t, "clean", got,
+					"CARDINAL RULE: backdoor_likely downgrade target is indeterminate, never clean")
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// A6: consoleGatePasses — pure predicate unit table
+// Signature: consoleGatePasses(response []byte, width, height uint32, box changedBox, confidence float64) bool
+// Tests cover: FP fragmented shift, full-screen console, windowed console,
+// confidence-floor path, floor boundary, below-floor non-rect, degenerate box.
+// ---------------------------------------------------------------------------
+
+func TestConsoleGatePasses(t *testing.T) {
+	const W, H = uint32(1024), uint32(768)
+	totalPx := int(W) * int(H)
+
+	// newResp builds a uniform gray response frame.
+	newResp := func(gray byte) []byte {
+		buf := make([]byte, totalPx*4)
+		for i := 0; i < len(buf); i += 4 {
+			buf[i], buf[i+1], buf[i+2], buf[i+3] = gray, gray, gray, 255
+		}
+		return buf
+	}
+
+	tests := []struct {
+		name       string
+		buildResp  func() []byte
+		box        changedBox
+		confidence float64
+		want       bool
+	}{
+		{
+			// FP: fragmented shift — sparse changed pixels, non-dense box → fillRatio=0.2
+			// darkness doesn't matter because fillRatio fails the rect check.
+			name: "FP fragmented shift: fillRatio=0.2 confidence=0 → false",
+			buildResp: func() []byte {
+				r := newResp(0) // dark response so mean passes
+				return r
+			},
+			// box: 200×200 at origin, fillRatio=0.2 (sparse) — area=3.2%, dark
+			box:        changedBox{minX: 0, minY: 0, maxX: 199, maxY: 199, fillRatio: 0.20, changedCount: 8000},
+			confidence: 0.0,
+			want:       false,
+		},
+		{
+			// Full-screen console: dark, large (≥18% area), dense fill.
+			// box: 560×560 = 313600/786432 ≈ 39.9% area; fillRatio=0.95
+			name: "full-screen console: dark large rect → true (geometry)",
+			buildResp: func() []byte {
+				r := newResp(128) // mid-gray frame
+				paintBox(r, int(W), 0, 0, 560, 560, 0)
+				return r
+			},
+			box:        changedBox{minX: 0, minY: 0, maxX: 559, maxY: 559, fillRatio: 0.95, changedCount: 560 * 560},
+			confidence: 0.0,
+			want:       true,
+		},
+		{
+			// Windowed console: centered, NOT top-left anchored (leftFrac≈0.39, topFrac≈0.39).
+			// classifyRegion would return regionUnknown because topLeft fails,
+			// but consoleGatePasses must still return true (position is irrelevant to the gate).
+			// box: 400×400 at (400,300) → area=400*400/786432≈20.3%; fillRatio=0.9
+			name: "windowed console centered NOT top-left: dark large rect → true (position irrelevant)",
+			buildResp: func() []byte {
+				r := newResp(128)
+				paintBox(r, int(W), 400, 300, 800, 700, 0)
+				return r
+			},
+			box:        changedBox{minX: 400, minY: 300, maxX: 799, maxY: 699, fillRatio: 0.90, changedCount: 400 * 400},
+			confidence: 0.0,
+			want:       true,
+		},
+		{
+			// Confidence-floor path: box is non-rectangular (fillRatio=0.1) but
+			// confidence=0.85 exceeds gateConfidenceFloor(0.30) → true via floor.
+			name: "non-rect box but confidence=0.85 ≥ floor → true (floor path)",
+			buildResp: func() []byte {
+				return newResp(128)
+			},
+			box:        changedBox{minX: 100, minY: 100, maxX: 299, maxY: 299, fillRatio: 0.10, changedCount: 4000},
+			confidence: 0.85,
+			want:       true,
+		},
+		{
+			// Floor boundary: confidence exactly at gateConfidenceFloor (0.30) → true (>=).
+			name: "non-rect box, confidence exactly at floor=0.30 → true",
+			buildResp: func() []byte {
+				return newResp(128)
+			},
+			box:        changedBox{minX: 100, minY: 100, maxX: 299, maxY: 299, fillRatio: 0.10, changedCount: 4000},
+			confidence: gateConfidenceFloor,
+			want:       true,
+		},
+		{
+			// Just below floor: confidence=0.29 AND non-rect (fillRatio=0.1) → false.
+			name: "non-rect box, confidence=0.29 just below floor → false",
+			buildResp: func() []byte {
+				return newResp(128)
+			},
+			box:        changedBox{minX: 100, minY: 100, maxX: 299, maxY: 299, fillRatio: 0.10, changedCount: 4000},
+			confidence: 0.29,
+			want:       false,
+		},
+		{
+			// Degenerate box (maxX <= minX): always false regardless of confidence.
+			name: "degenerate box maxX<=minX → false",
+			buildResp: func() []byte {
+				return newResp(0)
+			},
+			box:        changedBox{minX: 100, minY: 100, maxX: 100, maxY: 200, fillRatio: 0.0, changedCount: 0},
+			confidence: 0.0,
+			want:       false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := tc.buildResp()
+			got := consoleGatePasses(resp, W, H, tc.box, tc.confidence)
+			assert.Equal(t, tc.want, got,
+				"consoleGatePasses(box=%+v, confidence=%.2f)", tc.box, tc.confidence)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// A7: TestConsoleGate_EndToEnd — end-to-end frame→verdict gate behavior
+// Drives runUtilmanAnalysis and runStickyKeysAnalysis on 1024×768 RGBA frames.
+// No WASM, no network. Baseline = uniform mid-gray 128.
+// ---------------------------------------------------------------------------
+
+func TestConsoleGate_EndToEnd(t *testing.T) {
+	const W, H = uint32(1024), uint32(768)
+	totalPx := int(W) * int(H)
+
+	// Build a uniform mid-gray (128) baseline.
+	baseline := make([]byte, totalPx*4)
+	for i := 0; i < len(baseline); i += 4 {
+		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
+	}
+
+	newResponse := func() []byte {
+		r := make([]byte, totalPx*4)
+		copy(r, baseline)
+		return r
+	}
+
+	// runBoth drives the same frame through both analysis functions and returns
+	// (stickyVerdict, utilmanVerdict) so a single assertion loop covers both.
+	runBoth := func(response []byte) (string, string) {
+		ctx := context.Background()
+		sticky := runStickyKeysAnalysis(ctx, baseline, response, W, H, "")
+		utilman := runUtilmanAnalysis(ctx, baseline, response, W, H, "")
+		return sticky.OverallVerdict, utilman.OverallVerdict
+	}
+
+	t.Run("FP_regression: dispersed dark change fails the geometry arm (real FP covered by realframes fixture)", func(t *testing.T) {
+		// The genuine end-to-end wallpaper false positive is asserted against GROUND TRUTH by
+		// TestRealFrames_GateRegression/fp_clean_utilman (real capture: confidence ~0.000,
+		// darkBoxFraction ~0.35 → downgraded to indeterminate). That is the authoritative FP test.
+		//
+		// A SYNTHETIC checkerboard cannot honestly reproduce that FP: to put the dark-pixel COUNT
+		// delta inside the console band [0.04, 0.65] it must change >4% of pixels, and
+		// analyzeBackdoorResponse scores ANY >2.5%-changed non-rectangular frame at 0.4 confidence
+		// (its fixed "possible terminal window" fallback) — above gateConfidenceFloor(0.30). The
+		// old synthetic FP only "worked" because it painted a dense every-other-pixel band that the
+		// removed solidity veto happened to reject; that band was UNREALISTIC (the real FP is thinly
+		// dark, not near-solid) and forcing it to downgrade is exactly the over-aggressive gate that
+		// regressed real consoles. So here we assert the honest, non-overfit property: a dispersed
+		// dark change whose bounding box is only thinly dark FAILS the geometry arm (it is not a
+		// console body), which is the arm this synthetic exercises.
+		resp := newResponse()
+		// Paint 1 dark pixel out of every 16, spread over the whole frame: maximally dispersed,
+		// box spans the screen, but darkBoxFraction is tiny.
+		for y := 0; y < int(H); y += 4 {
+			for x := 0; x < int(W); x += 4 {
+				idx := (y*int(W) + x) * 4
+				resp[idx], resp[idx+1], resp[idx+2], resp[idx+3] = 0, 0, 0, 255
+			}
+		}
+
+		_, _, box := detectChangedRectangle(baseline, resp, W, H)
+		darkFrac := darkBoxFraction(resp, int(W), box)
+		assert.Less(t, darkFrac, gateMinDarkBoxFrac,
+			"dispersed dark change must have a thinly-dark box (darkBoxFraction %.3f) below the geometry bar", darkFrac)
+		// Geometry arm alone must NOT keep this HIGH (confidence=0 isolates the geometry path).
+		assert.False(t, consoleGatePasses(resp, W, H, box, 0.0),
+			"dispersed dark change with no confidence must NOT pass the gate via geometry")
+	})
+
+	t.Run("recall_full_screen_console: large dark rect top-left → backdoor_likely", func(t *testing.T) {
+		// Full-screen black console rectangle anchored top-left: ~40% area, solid.
+		// paintBox(resp, 1024, 0, 0, 560, 560, 0) → 560×560/786432 ≈ 39.9%
+		resp := newResponse()
+		paintBox(resp, int(W), 0, 0, 560, 560, 0)
+
+		stickyV, utilmanV := runBoth(resp)
+		assert.Equal(t, "backdoor_likely", stickyV,
+			"full-screen console (sticky) must stay backdoor_likely")
+		assert.Equal(t, "backdoor_likely", utilmanV,
+			"full-screen console (utilman) must stay backdoor_likely")
+	})
+
+	t.Run("recall_windowed_console: centered NOT top-left dark rect → backdoor_likely", func(t *testing.T) {
+		// Windowed console centered at (400,250)→(850,700): ~28% area, solid black.
+		// leftFrac=400/1024≈0.39 and topFrac=250/768≈0.33 — both exceed
+		// consoleMaxLeftFrac/consoleMaxTopFrac(0.25), so classifyRegion returns
+		// regionUnknown. The gate must still pass it via the geometry path
+		// (dark+large+rect, WITHOUT the position constraint).
+		resp := newResponse()
+		paintBox(resp, int(W), 400, 250, 850, 700, 0)
+
+		stickyV, utilmanV := runBoth(resp)
+		assert.Equal(t, "backdoor_likely", stickyV,
+			"windowed console (sticky) must stay backdoor_likely — gate must NOT require top-left anchoring")
+		assert.Equal(t, "backdoor_likely", utilmanV,
+			"windowed console (utilman) must stay backdoor_likely — gate must NOT require top-left anchoring")
+	})
+
+	t.Run("recall_themed_console: blue-ish dark windowed console → backdoor_likely", func(t *testing.T) {
+		// PowerShell-style console: RGB=(1,36,86), brightness=(1+36+86)/3=41 < darkBrightnessMax(60).
+		// Same position as windowed console test; centered, NOT top-left.
+		resp := newResponse()
+		paintBoxRGB(resp, int(W), 400, 250, 850, 700, 1, 36, 86)
+
+		stickyV, utilmanV := runBoth(resp)
+		assert.Equal(t, "backdoor_likely", stickyV,
+			"themed windowed console (sticky) must stay backdoor_likely")
+		assert.Equal(t, "backdoor_likely", utilmanV,
+			"themed windowed console (utilman) must stay backdoor_likely")
+	})
+
+	t.Run("unchanged_behavior: light dialog → clean", func(t *testing.T) {
+		// Light small centered dialog (gray 200) adds almost no dark pixels → clean.
+		// Mirrors existing TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean.
+		resp := newResponse()
+		paintBox(resp, int(W), 440, 280, 580, 480, 200)
+
+		stickyV, utilmanV := runBoth(resp)
+		assert.Equal(t, "clean", stickyV,
+			"light dialog (sticky) must remain clean")
+		assert.Equal(t, "clean", utilmanV,
+			"light dialog (utilman) must remain clean")
+	})
 }
 
 // ---------------------------------------------------------------------------

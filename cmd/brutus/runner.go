@@ -523,7 +523,8 @@ func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool)
 // scanTargetFn performs detection for a single target. It is a package-level
 // variable so tests can substitute a fake without a live RDP server.
 var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]brutus.Result, bool) {
-	return logon.DetectBackdoors(ctx, target, base.timeout, base.aiMode)
+	return logon.DetectBackdoors(ctx, target, base.connectTimeout, base.timeout, base.aiMode, base.maxRetries, base.checks,
+		base.proxyURL, base.noNLAProbe, base.fast)
 }
 
 // runScanTargetsConcurrent runs sticky-keys/utilman detection across many targets
@@ -533,16 +534,28 @@ var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]
 // host (credential-level threading does not apply). Results are returned in input
 // order so output stays deterministic regardless of completion order.
 func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Result, bool) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return runScanTargetsConcurrentCtx(ctx, targets, base)
+}
+
+// runScanTargetsConcurrentCtx is runScanTargetsConcurrent with an injectable
+// context, so tests can drive cancellation without sending real signals.
+func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *runConfig) ([]brutus.Result, bool) {
 	if len(targets) == 0 {
 		return nil, false
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	threads := base.threads
 	if threads < 1 {
 		threads = 1
+	}
+
+	// RDP decode is CPU-bound and process-wide bounded to ~decodeSlotCount cores
+	// (pkg/brutus/logon admission control), so cranking --threads far above that
+	// budget adds queueing, not throughput. Warn once on the scan path only.
+	if slots := logon.DecodeSlotCount(); int64(threads) > 4*slots {
+		warnMsg(base.useColor, "high --threads won't speed up CPU-bound RDP decode; decode is bounded to ~%d cores.", slots)
 	}
 
 	// Optional rate limiting across host scans, mirroring the brute-force path.
@@ -563,10 +576,16 @@ func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Resul
 		g.Go(func() error {
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
-					return nil // context canceled; stop quietly
+					// Context cancelled while queued: the host never ran, so it
+					// must read as INDETERMINATE, never silently disappear.
+					perTarget[idx] = logon.CancelledResults(target)
+					success[idx] = false
+					return nil
 				}
 			}
 			if ctx.Err() != nil {
+				perTarget[idx] = logon.CancelledResults(target)
+				success[idx] = false
 				return nil
 			}
 			results, ok := scanTargetFn(ctx, target, base)

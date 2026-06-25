@@ -19,18 +19,25 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
+	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
 var logonCmd = &cobra.Command{
-	Use:     "logon",
-	Aliases: []string{"stickykeys", "sticky-keys", "utilman", "sethc", "winlogon", "accessibility"},
-	Short:   "Detect Windows logon-screen backdoors (sticky keys, utilman)",
+	Use:   "logon",
+	Short: "Detect Windows logon-screen backdoors (runs both sticky keys and utilman)",
 	Long: `Detect and interact with Windows logon-screen accessibility backdoors over RDP.
 
-This subcommand automatically enables sticky keys and utilman backdoor
-detection. The protocol defaults to RDP.
+This subcommand runs BOTH the sticky keys and utilman backdoor checks to answer
+"does this host have a logon backdoor?". To run a single check on a clean screen
+(reliable per-binary attribution), use the dedicated subcommands instead:
+
+  brutus stickykeys --target host:3389   # sticky-keys only
+  brutus utilman    --target host:3389   # utilman only
+
+The protocol defaults to RDP.
 
 Modes:
   Detection:    brutus logon --target host:3389
@@ -65,16 +72,106 @@ confirmation via screenshot analysis.`,
 	RunE: runLogon,
 }
 
-func init() {
-	registerLogonFlags(logonCmd)
+// stickykeysCmd runs only the sticky-keys check on a clean logon screen, giving
+// reliable per-binary attribution (no preceding check, so no contamination).
+var stickykeysCmd = &cobra.Command{
+	Use:   "stickykeys",
+	Short: "Detect the Windows sticky-keys (sethc.exe) logon backdoor only",
+	Long: `Detect the Windows sticky-keys logon-screen backdoor (sethc.exe) over RDP.
+
+Unlike "brutus logon" (which runs both checks), this runs ONLY the sticky-keys
+check on a clean screen, so a positive result is reliably attributable to the
+sethc.exe backdoor. The protocol defaults to RDP.`,
+	Example: `  # Detect the sticky-keys backdoor only
+  brutus stickykeys --target 10.0.0.50:3389
+
+  # Vision API confirmation (more accurate)
+  brutus stickykeys --target 10.0.0.50:3389 --experimental-ai`,
+	RunE: runStickykeys,
 }
 
+// utilmanCmd runs only the utilman check on a clean logon screen.
+var utilmanCmd = &cobra.Command{
+	Use:   "utilman",
+	Short: "Detect the Windows utilman (Ease of Access) logon backdoor only",
+	Long: `Detect the Windows utilman logon-screen backdoor (utilman.exe / Ease of Access)
+over RDP.
+
+Unlike "brutus logon" (which runs both checks), this runs ONLY the utilman check
+on a clean screen, so a positive result is reliably attributable to the utilman
+backdoor. The protocol defaults to RDP.`,
+	Example: `  # Detect the utilman backdoor only
+  brutus utilman --target 10.0.0.50:3389
+
+  # Vision API confirmation (more accurate)
+  brutus utilman --target 10.0.0.50:3389 --experimental-ai`,
+	RunE: runUtilman,
+}
+
+func init() {
+	for _, cmd := range []*cobra.Command{logonCmd, stickykeysCmd, utilmanCmd} {
+		registerLogonFlags(cmd)
+		guardLogonTimeoutFlag(cmd)
+	}
+}
+
+// guardLogonTimeoutFlag hard-renames the logon-family settle deadline from
+// --timeout to --scan-timeout. The shared --timeout flag is a persistent flag on
+// rootCmd that every command inherits, so it cannot simply be unregistered here
+// without breaking the non-logon commands that legitimately use it. Two pieces:
+//
+//   - Hard error (the must-have): a PreRunE rejects any explicit --timeout on
+//     these commands with guidance. PreRunE is used rather than
+//     PersistentPreRunE so it does not override rootCmd's PersistentPreRunE,
+//     which still validates --mode for the logon family.
+//   - Help hiding (best-effort): the inherited --timeout flag is hidden from
+//     this command's --help so only --scan-timeout/--connect-timeout surface.
+//     The flag object is shared with the root command, so toggling Hidden
+//     globally would also hide it from non-logon help. We instead flip Hidden
+//     only for the duration of this command's own help render via SetHelpFunc,
+//     restoring it immediately after so other commands are unaffected.
+func guardLogonTimeoutFlag(cmd *cobra.Command) {
+	cmd.PreRunE = func(c *cobra.Command, args []string) error {
+		if c.Flags().Changed("timeout") {
+			return fmt.Errorf("--timeout is not valid here; use --scan-timeout (settle deadline) and/or --connect-timeout (TCP connect)")
+		}
+		return nil
+	}
+
+	defaultHelp := cmd.HelpFunc()
+	cmd.SetHelpFunc(func(c *cobra.Command, args []string) {
+		if tf := c.InheritedFlags().Lookup("timeout"); tf != nil {
+			tf.Hidden = true
+			defer func() { tf.Hidden = false }()
+		}
+		defaultHelp(c, args)
+	})
+}
+
+// runLogon runs the combined sticky-keys + utilman detection (CheckBoth).
 func runLogon(cmd *cobra.Command, args []string) error {
+	return runLogonChecks(cmd, logon.CheckBoth)
+}
+
+// runStickykeys runs only the sticky-keys check.
+func runStickykeys(cmd *cobra.Command, args []string) error {
+	return runLogonChecks(cmd, logon.CheckStickyKeys)
+}
+
+// runUtilman runs only the utilman check.
+func runUtilman(cmd *cobra.Command, args []string) error {
+	return runLogonChecks(cmd, logon.CheckUtilman)
+}
+
+// runLogonChecks is the shared body for the logon family of commands. checks
+// selects which logon-screen backdoor check(s) the scan path runs.
+func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 	if flagOpen && !flagWeb {
 		return fmt.Errorf("--open requires --web (starts a web terminal and opens the browser)")
 	}
 
 	base := buildBaseConfig(cmd)
+	base.checks = checks
 
 	// AI config (logon-specific)
 	if base.aiMode {
@@ -127,7 +224,15 @@ func runLogon(cmd *cobra.Command, args []string) error {
 	if isDetectMode {
 		// Scan/detection mode
 		var scanResults []brutus.Result
-		var hasSuccess bool
+
+		// A pump phase can only settle after rdp.MinViableTimeout of evidence; a
+		// --scan-timeout below that floor forces every host to INDETERMINATE (and
+		// a wasteful retry) for zero real signal. Warn (don't error) so existing
+		// scripts keep working.
+		if base.timeout < rdp.MinViableTimeout {
+			warnMsg(base.useColor, "--scan-timeout %s is below the detection settle floor (%s); every host will return INDETERMINATE. Use --scan-timeout 15s or higher for reliable results.",
+				base.timeout, rdp.MinViableTimeout)
+		}
 
 		// Validate mutual exclusivity of target sources.
 		if err := validateTargetSources(useStdin); err != nil {
@@ -136,11 +241,11 @@ func runLogon(cmd *cobra.Command, args []string) error {
 
 		switch {
 		case useStdin:
-			scanResults, hasSuccess = runScanFromStdin(rc)
+			scanResults, _ = runScanFromStdin(rc)
 		case flagNmapFile != "":
-			scanResults, hasSuccess = runScanFromNmapFile(rc)
+			scanResults, _ = runScanFromNmapFile(rc)
 		case flagMasscanFile != "":
-			scanResults, hasSuccess = runScanFromMasscanFile(rc)
+			scanResults, _ = runScanFromMasscanFile(rc)
 		case flagTargetsFile != "":
 			targetsList, loadErr := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 			if loadErr != nil {
@@ -149,12 +254,12 @@ func runLogon(cmd *cobra.Command, args []string) error {
 			if len(targetsList) == 0 {
 				return fmt.Errorf("targets file %q has no targets", flagTargetsFile)
 			}
-			scanResults, hasSuccess = runLogonFingerprint(targetsList, rc)
+			scanResults, _ = runLogonFingerprint(targetsList, rc)
 		default:
 			if flagTarget == "" {
 				return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 			}
-			scanResults, hasSuccess = runScanSingleTarget(flagTarget, rc)
+			scanResults, _ = runScanSingleTarget(flagTarget, rc)
 		}
 
 		if flagJSON {
@@ -163,10 +268,14 @@ func runLogon(cmd *cobra.Command, args []string) error {
 			outputScanHuman(scanResults, base.useColor)
 		}
 
-		if !hasSuccess {
-			return errNoSuccess
-		}
-		return nil
+		return scanExitError(scanResults)
+	}
+
+	// Interactive modes (exec/web) drive the sticky-keys backdoor, so they are
+	// not valid for the utilman-only check: silently executing via the wrong
+	// vector would be a footgun. Detection mode for utilman is unaffected.
+	if checks == logon.CheckUtilman && (flagExec != "" || flagWeb) {
+		return fmt.Errorf("--exec/--web are not supported for 'utilman' (interactive modes use the sticky-keys backdoor); use 'brutus stickykeys' or 'brutus logon'")
 	}
 
 	// Interactive modes (exec or web) require a single target
@@ -174,15 +283,26 @@ func runLogon(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--target is required for interactive sticky keys modes")
 	}
 
-	results, hasSuccess := runStickyKeysInteractive(flagTarget, rc)
+	results, _ := runStickyKeysInteractive(flagTarget, rc)
 	if flagJSON {
 		outputScanJSONL(jsonWriter, results)
 	} else {
 		outputScanHuman(results, base.useColor)
 	}
 
-	if !hasSuccess {
-		return errNoSuccess
+	return scanExitError(results)
+}
+
+// scanExitError maps aggregated scan outcomes to the process exit error for the
+// logon family of scans. A completed scan is a success whether or not a backdoor
+// was found, so a clean/nothing-found result is NOT an error (exit 0). Any
+// indeterminate result takes precedence and yields errIndeterminate (exit 2) so
+// the operator knows to rerun the affected hosts.
+func scanExitError(results []brutus.Result) error {
+	for i := range results {
+		if results[i].Indeterminate {
+			return errIndeterminate
+		}
 	}
 	return nil
 }

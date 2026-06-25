@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
 // baseConfigOptions holds configuration shared across all subcommands.
@@ -27,6 +28,7 @@ type baseConfigOptions struct {
 	credentials      []brutus.Credential // pre-paired user:pass (no Cartesian product)
 	threads          int
 	timeout          time.Duration
+	connectTimeout   time.Duration // TCP connect timeout for scan dials (--connect-timeout)
 	llmConfig        *brutus.LLMConfig
 	useColor         bool
 	quiet            bool
@@ -44,6 +46,13 @@ type baseConfigOptions struct {
 	anthropicKey     string // ANTHROPIC_API_KEY (read once in main)
 	perplexityKey    string // PERPLEXITY_API_KEY (read once in main)
 	proxyURL         string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
+	noNLAProbe       bool   // disable the pre-WASM NLA negotiation probe (logon scan path)
+	fast             bool   // --fast triage mode: short settle budget + never-clean invariant
+
+	// checks selects which logon-screen backdoor check(s) the scan path runs.
+	// The zero value (CheckBoth) runs both, matching the combined "brutus logon"
+	// command; the single subcommands set CheckStickyKeys/CheckUtilman.
+	checks logon.Check
 
 	// protocolFilter is an optional function that determines whether a discovered
 	// protocol should be processed. Used by subcommands to filter services in

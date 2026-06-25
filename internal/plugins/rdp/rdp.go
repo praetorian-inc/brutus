@@ -144,7 +144,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Sticky keys detection: runs on a separate non-NLA connection regardless of
 	// auth result, since it's a pre-auth check that doesn't require credentials.
 	if !pluginCfg.NoStickyKeys {
-		stickyResult := p.RunStickyKeysCheck(ctx, target, timeout, pluginCfg.NoVision)
+		// Creds path (brutus rdp): one-shot, human-driven, no bulk-scan dead-host
+		// amplification — keep --timeout for the dial (connectTimeout == timeout).
+		stickyResult := p.RunStickyKeysCheck(ctx, target, timeout, timeout, pluginCfg.NoVision, CarefulBudget, false)
 		if stickyResult != nil {
 			result.Banner = formatStickyKeysBanner(result.Banner, stickyResult)
 		}
@@ -152,7 +154,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Utilman detection: same approach as sticky keys but uses Win+U trigger.
 	if !pluginCfg.NoStickyKeys {
-		utilmanResult := p.RunUtilmanCheck(ctx, target, timeout, pluginCfg.NoVision)
+		utilmanResult := p.RunUtilmanCheck(ctx, target, timeout, timeout, pluginCfg.NoVision, CarefulBudget, false)
 		if utilmanResult != nil {
 			result.Banner = formatUtilmanBanner(result.Banner, utilmanResult)
 		}

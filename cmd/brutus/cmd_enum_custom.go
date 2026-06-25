@@ -73,7 +73,7 @@ func init() {
 	f.StringVarP(&flagCustomEmails, "emails", "e", "", "Comma-separated subjects (usernames or emails) to enumerate")
 	f.StringVarP(&flagCustomEmailFile, "email-file", "E", "", "File of subjects to enumerate (one per line, use - for stdin)")
 	f.BoolVar(&flagCustomGenerate, "generate", false, "Generate subjects from embedded name lists")
-	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format for generation (first.last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
+	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format for generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
 	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain for email generation (with --generate)")
 	_ = enumCustomCmd.MarkFlagRequired("file")
 }

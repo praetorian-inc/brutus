@@ -52,12 +52,14 @@ var (
 
 // Performance flags
 var (
-	flagThreads     int
-	flagTimeout     time.Duration
-	flagRateLimit   float64
-	flagJitter      time.Duration
-	flagMaxAttempts int
-	flagRetries     int
+	flagThreads        int
+	flagTimeout        time.Duration
+	flagScanTimeout    time.Duration
+	flagConnectTimeout time.Duration
+	flagRateLimit      float64
+	flagJitter         time.Duration
+	flagMaxAttempts    int
+	flagRetries        int
 )
 
 // Output flags
@@ -95,9 +97,11 @@ var (
 
 // Logon flags
 var (
-	flagExec string
-	flagWeb  bool
-	flagOpen bool
+	flagExec       string
+	flagWeb        bool
+	flagOpen       bool
+	flagNoNLAProbe bool
+	flagFast       bool
 )
 
 // Version flag
@@ -120,6 +124,8 @@ func registerSharedFlags(cmd *cobra.Command) {
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
 	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
+	pf.DurationVar(&flagConnectTimeout, "connect-timeout", 3*time.Second,
+		"TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets.")
 	pf.Float64Var(&flagRateLimit, "rate-limit", 0, "Max requests per second (0 = unlimited)")
 	pf.DurationVar(&flagJitter, "jitter", 0, "Random delay variance for rate limiting")
 	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
@@ -182,10 +188,14 @@ func registerWebFlags(cmd *cobra.Command) {
 
 // registerLogonFlags registers flags specific to the logon subcommand.
 func registerLogonFlags(cmd *cobra.Command) {
+	cmd.Flags().DurationVar(&flagScanTimeout, "scan-timeout", 10*time.Second,
+		"Per-host settle/scan deadline (post-connect): how long to watch the logon screen after the trigger before deciding. Distinct from --connect-timeout (the TCP dial timeout).")
 	cmd.Flags().StringVar(&flagExec, "exec", "", "Execute command via detected backdoor")
 	cmd.Flags().BoolVar(&flagWeb, "web", false, "Start interactive web terminal via detected backdoor")
 	cmd.Flags().BoolVar(&flagOpen, "open", false, "Auto-open browser when web terminal starts")
 	cmd.Flags().BoolVar(&flagAIMode, "experimental-ai", false, "Enable Vision API for backdoor confirmation")
+	cmd.Flags().BoolVar(&flagNoNLAProbe, "no-nla-probe", false, "Disable the pre-WASM RDP negotiation probe (always run the full WASM session)")
+	cmd.Flags().BoolVar(&flagFast, "fast", false, "fast triage: shorter settle budget for internet-scale sweeps; reports HIGH/CRITICAL or indeterminate, never clean (rerun indeterminates without --fast for a careful verdict)")
 }
 
 // registerRootFlags registers flags specific to the root command.
@@ -211,8 +221,14 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 	if isFlagChanged(cmd, "threads") {
 		threads = flagThreads
 	}
+	// The logon family (logon/stickykeys/utilman) hard-renames the settle
+	// deadline to --scan-timeout; --timeout is guarded out there. Detect that
+	// context via the presence of the scan-timeout flag and source the per-host
+	// settle deadline from it. All other commands keep using --timeout.
 	timeout := presets.Timeout
-	if isFlagChanged(cmd, "timeout") {
+	if cmd.Flags().Lookup("scan-timeout") != nil {
+		timeout = flagScanTimeout
+	} else if isFlagChanged(cmd, "timeout") {
 		timeout = flagTimeout
 	}
 	rateLimit := presets.RateLimit
@@ -235,6 +251,7 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 	return &baseConfigOptions{
 		threads:          threads,
 		timeout:          timeout,
+		connectTimeout:   flagConnectTimeout,
 		useColor:         isColorEnabled(flagNoColor),
 		quiet:            flagQuiet,
 		verbose:          flagVerbose,
@@ -249,6 +266,8 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 		anthropicKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		perplexityKey:    os.Getenv("PERPLEXITY_API_KEY"),
 		proxyURL:         flagProxy,
+		noNLAProbe:       flagNoNLAProbe,
+		fast:             flagFast,
 	}
 }
 

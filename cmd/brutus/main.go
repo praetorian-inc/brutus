@@ -37,8 +37,17 @@ var (
 // printing an error message.
 var errNoSuccess = errors.New("no successful credentials found")
 
+// errIndeterminate is a sentinel error returned when a scan completed but at
+// least one host produced an indeterminate result (e.g. CPU-starved render or
+// failed connect) and nothing succeeded. It signals main() to exit with code 2
+// (distinct from a clean-nothing exit 1) so callers can rerun the affected hosts.
+var errIndeterminate = errors.New("indeterminate results; rerun")
+
 func main() {
 	if err := rootCmd.Execute(); err != nil {
+		if errors.Is(err, errIndeterminate) {
+			os.Exit(2)
+		}
 		if errors.Is(err, errNoSuccess) {
 			os.Exit(1)
 		}

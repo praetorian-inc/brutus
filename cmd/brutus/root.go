@@ -75,6 +75,8 @@ func init() {
 	rootCmd.AddCommand(snmpCmd)
 	rootCmd.AddCommand(badkeysCmd)
 	rootCmd.AddCommand(logonCmd)
+	rootCmd.AddCommand(stickykeysCmd)
+	rootCmd.AddCommand(utilmanCmd)
 	rootCmd.AddCommand(enumCmd)
 }
 

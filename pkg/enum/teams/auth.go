@@ -28,15 +28,32 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // DefaultClientID is the public Microsoft Teams desktop client ID. It is a
 // first-party Microsoft application that supports the device code flow.
 const DefaultClientID = "1fec8e78-bce4-4aaf-ab1b-5451cc387264"
 
-// DefaultScope requests an access token, a refresh token, and the user's
-// basic profile via Microsoft Graph.
-const DefaultScope = "openid offline_access https://graph.microsoft.com/User.Read"
+// DefaultScope requests a refresh token plus all statically-configured
+// permissions for the Skype/Teams resource.
+//
+// The "offline_access" portion is required for Azure AD to return a refresh
+// token: Azure AD only issues a refresh token when offline_access is requested.
+// Without it the raw device-code grant yields no refresh token, so captured
+// tokens cannot be renewed AND the enumerator's 401 auto-retry (which depends on
+// a refresh token) never fires. offline_access is a reserved OIDC scope and is
+// permitted to be combined with a resource ".default" scope.
+//
+// The "https://api.spaces.skype.com/.default" portion requests every permission
+// the app is already statically configured for on the Skype/Teams resource. The
+// default Teams desktop client (DefaultClientID) is preauthorized for that
+// resource (api.spaces.skype.com), NOT for Microsoft Graph. Requesting a Graph
+// scope with this client yields AADSTS65002 (the client is not authorized to
+// request a token for that resource), so a Graph default is wrong for the Teams
+// enumeration endpoints.
+const DefaultScope = "offline_access https://api.spaces.skype.com/.default"
 
 const (
 	deviceCodeEndpointFmt       = "https://login.microsoftonline.com/%s/oauth2/v2.0/devicecode"
@@ -45,6 +62,11 @@ const (
 	maxResponseBody       int64 = 64 << 10
 	minPollInterval             = 5 * time.Second
 	maxPollInterval             = 60 * time.Second
+
+	// defaultHTTPTimeout is the minimum per-request timeout for the OAuth
+	// endpoints. The device-code flow is interactive and must tolerate slow
+	// networks/proxies, so it is NOT governed by the aggressive scan timeout.
+	defaultHTTPTimeout = 30 * time.Second
 )
 
 // Sentinel errors for use with errors.Is by callers.
@@ -112,13 +134,22 @@ type Client struct {
 }
 
 // NewClient builds a device code client. Empty arguments fall back to the
-// common tenant, the Microsoft Teams client ID, and the default scopes.
+// organizations tenant, the Microsoft Teams client ID, and the default scopes.
 //
-// It uses a plain *http.Client (not enum.NewEnumHTTPClient) because the OAuth2
-// endpoints redirect and those redirects must be followed.
-func NewClient(tenantID, clientID, scopes string, timeout time.Duration) *Client {
+// The HTTP client is built via brutus.NewHTTPClientWithProxy, which routes
+// requests through the SOCKS5 --proxy when proxyURL is set and still follows
+// redirects (unlike enum.NewEnumHTTPClient). Following redirects is required:
+// the OAuth2 endpoints redirect and those redirects must be followed.
+//
+// The HTTP timeout is floored at defaultHTTPTimeout before the client is built
+// so interactive auth is not governed by the aggressive per-target scan timeout
+// and so the proxy dial timeout is floored too.
+func NewClient(tenantID, clientID, scopes, proxyURL string, timeout time.Duration) (*Client, error) {
 	if tenantID == "" {
-		tenantID = "common"
+		// Default to the "organizations" endpoint, not "common": the default
+		// Teams first-party client is not enabled for consumer (personal MSA)
+		// accounts, so /common and /consumers return AADSTS70002 invalid_client.
+		tenantID = "organizations"
 	}
 	if clientID == "" {
 		clientID = DefaultClientID
@@ -126,14 +157,23 @@ func NewClient(tenantID, clientID, scopes string, timeout time.Duration) *Client
 	if scopes == "" {
 		scopes = DefaultScope
 	}
+	if timeout < defaultHTTPTimeout {
+		timeout = defaultHTTPTimeout
+	}
+
+	httpClient, err := brutus.NewHTTPClientWithProxy(timeout, nil, proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("teams: configuring HTTP client: %w", err)
+	}
+
 	return &Client{
 		tenantID:          tenantID,
 		clientID:          clientID,
 		scopes:            scopes,
-		httpClient:        &http.Client{Timeout: timeout},
+		httpClient:        httpClient,
 		deviceCodeBaseURL: fmt.Sprintf(deviceCodeEndpointFmt, tenantID),
 		tokenBaseURL:      fmt.Sprintf(tokenEndpointFmt, tenantID),
-	}
+	}, nil
 }
 
 // StartDeviceFlow requests a device code from the authorization endpoint and
@@ -225,6 +265,51 @@ func (c *Client) WaitForToken(ctx context.Context, dc *DeviceCode) (*TokenSet, e
 			return nil, err
 		}
 	}
+}
+
+// RefreshAccessToken exchanges a refresh token for a new access token via the
+// OAuth2 refresh_token grant. It reuses the Client's clientID, token endpoint,
+// and scopes. Unlike WaitForToken this is a single request with no polling loop,
+// so it always terminates. Token values are never logged (P0-1).
+func (c *Client) RefreshAccessToken(ctx context.Context, refreshToken string) (*TokenSet, error) {
+	form := url.Values{
+		"grant_type":    {"refresh_token"},
+		"client_id":     {c.clientID},
+		"refresh_token": {refreshToken},
+		"scope":         {c.scopes},
+	}
+
+	resp, err := c.postForm(ctx, c.tokenBaseURL, form)
+	if err != nil {
+		return nil, fmt.Errorf("refreshing access token: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
+	if err != nil {
+		return nil, fmt.Errorf("reading refresh response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, decodeAuthError(resp.StatusCode, body)
+	}
+
+	var tokResp tokenAPIResponse
+	if err := json.Unmarshal(body, &tokResp); err != nil {
+		return nil, fmt.Errorf("decoding refresh response: %w", err)
+	}
+	if tokResp.AccessToken == "" || tokResp.TokenType == "" {
+		return nil, fmt.Errorf("incomplete refresh response: missing access_token or token_type")
+	}
+	return &TokenSet{
+		AccessToken:  tokResp.AccessToken,
+		RefreshToken: tokResp.RefreshToken,
+		IDToken:      tokResp.IDToken,
+		TokenType:    tokResp.TokenType,
+		ExpiresIn:    tokResp.ExpiresIn,
+		Scope:        tokResp.Scope,
+		ExpiresAt:    time.Now().Add(time.Duration(tokResp.ExpiresIn) * time.Second),
+	}, nil
 }
 
 // ---------------------------------------------------------------------------

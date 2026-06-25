@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"net"
 	"time"
@@ -41,31 +40,53 @@ const verdictIndeterminate = "indeterminate"
 // StickyKeysResult holds the outcome of sticky keys detection.
 type StickyKeysResult struct {
 	Performed       bool
-	Stabilized      bool // response pump observed N consecutive no-change frames
+	Stabilized      bool // baseline and response pumps both settled (quiet window + min pump time)
 	SkipReason      string
 	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean", "indeterminate"
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
 	VisionResult    string
+	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
 }
 
 // UtilmanResult holds the outcome of utilman backdoor detection.
 type UtilmanResult struct {
 	Performed       bool
-	Stabilized      bool // response pump observed N consecutive no-change frames
+	Stabilized      bool // baseline and response pumps both settled (quiet window + min pump time)
 	SkipReason      string
 	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean", "indeterminate"
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
 	VisionResult    string
+	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
 }
 
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).
 const leftShiftScancode = 0x2A
 
-// stableFrames is the number of consecutive identical frame hashes that signal
-// the framebuffer has stopped changing (render complete).
-const stableFrames = 3
+// Settle tuning for pumpSession. RDP paints incrementally and bursty, with
+// short mid-paint pauses, so a "consecutive identical frames" heuristic
+// short-circuits on a brief pause and captures a half-painted frame. Instead
+// we require a wall-clock quiet window AND a minimum pump time before declaring
+// the framebuffer settled.
+const (
+	// settleQuietWindow is how long the framebuffer must be unchanged before it
+	// counts as settled.
+	settleQuietWindow = 1500 * time.Millisecond
+	// minPumpTime is the floor on elapsed pump time; the framebuffer is never
+	// declared settled before this elapses (guards against a quiet-but-still-
+	// initializing session, e.g. "Please wait for the Local Session Manager").
+	minPumpTime = 2 * time.Second
+	// settleNoisePixels is the inter-frame changed-pixel budget below which a
+	// frame still counts as "quiet". A blinking console cursor or spinner changes
+	// only a few hundred pixels between frames; a window repaint changes tens of
+	// thousands. Setting the budget comfortably above cursor-blink noise but well
+	// below a repaint lets a cmd window (cursor blinking) settle instead of
+	// flooding to indeterminate, while a real repaint still resets the quiet
+	// window. A real backdoor (large dark window) is far above this, so
+	// noise-tolerance can never hide it (cardinal rule).
+	settleNoisePixels = 2000
+)
 
 // runSession creates a session from the connector, pumps it to receive the login screen bitmap,
 // sends 5x Shift key presses, then captures the post-keystroke bitmap.
@@ -99,12 +120,16 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 		}
 	}()
 
-	// Pump session to get initial login screen (baseline stabilization is ignored).
-	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
+	// Pump the baseline to settle before triggering: if the host is still
+	// initializing ("Please wait for the Local Session Manager") the login
+	// screen has not painted yet, and capturing/triggering now yields a
+	// half-painted baseline. baselineStable is folded into stabilized below.
+	baselineStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout)
+	if pumpErr != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
-	// Capture baseline frame
+	// Capture baseline frame after it settles
 	baseline, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("capture baseline: %w", err)
@@ -125,7 +150,7 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	// The exec.go path uses 1s sleep + 2s WaitForFrame; we mirror that here.
 	time.Sleep(1500 * time.Millisecond)
-	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout)
+	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout)
 	if pumpErr != nil {
 		// Non-fatal -- target might not respond
 		_ = pumpErr
@@ -137,7 +162,10 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
 	}
 
-	return baseline, response, width, height, stabilized, nil
+	// Only trust a "clean" reading when BOTH the baseline and the response
+	// settled; otherwise stabilizedVerdict maps clean -> indeterminate
+	// (cardinal rule: a non-settled scan can only become more conservative).
+	return baseline, response, width, height, baselineStable && responseStable, nil
 }
 
 // runUtilmanSession creates a session from the connector, pumps it to receive the login screen bitmap,
@@ -172,12 +200,16 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 		}
 	}()
 
-	// Pump session to get initial login screen (baseline stabilization is ignored).
-	if _, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout); pumpErr != nil {
+	// Pump the baseline to settle before triggering: if the host is still
+	// initializing ("Please wait for the Local Session Manager") the login
+	// screen has not painted yet, and capturing/triggering now yields a
+	// half-painted baseline. baselineStable is folded into stabilized below.
+	baselineStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout)
+	if pumpErr != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
 
-	// Capture baseline frame
+	// Capture baseline frame after it settles
 	baseline, err := p.captureFrame(ctx, inst, sessHandle)
 	if err != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("capture baseline: %w", err)
@@ -203,7 +235,7 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	time.Sleep(1500 * time.Millisecond)
-	stabilized, pumpErr := p.pumpSession(ctx, inst, sessHandle, timeout)
+	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout)
 	if pumpErr != nil {
 		// Non-fatal -- target might not respond
 		_ = pumpErr
@@ -215,7 +247,10 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
 	}
 
-	return baseline, response, width, height, stabilized, nil
+	// Only trust a "clean" reading when BOTH the baseline and the response
+	// settled; otherwise stabilizedVerdict maps clean -> indeterminate
+	// (cardinal rule: a non-settled scan can only become more conservative).
+	return baseline, response, width, height, baselineStable && responseStable, nil
 }
 
 // readRDPFrame reads a single complete RDP PDU from the connection.
@@ -292,11 +327,15 @@ func readRDPFrame(r io.Reader) ([]byte, error) {
 }
 
 // pumpSession drives the session state machine until the framebuffer stabilizes
-// or the deadline expires. It returns stabilized=true if it observed
-// `stableFrames` consecutive frame-available steps with no pixel change before
-// the deadline; false if the deadline cut it off while frames were still
-// changing.
-func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle uint32, timeout time.Duration) (stabilized bool, err error) {
+// or the deadline expires. It returns stabilized=true only once at least
+// minPumpTime has elapsed AND the framebuffer hash has been unchanged for
+// settleQuietWindow (see settled). Read-timeouts let wall-clock time advance
+// without resetting the quiet window, so quiet time accumulates across the
+// short pauses in RDP's bursty painting. width/height bound the inter-frame
+// changed-pixel count used to decide whether a frame is quiet (see framesQuiet).
+// Returns false if the deadline cut it off while frames were still changing (or
+// it never settled).
+func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle uint32, width, height uint32, timeout time.Duration) (stabilized bool, err error) {
 	callCtx := inst.callCtx(ctx)
 	sessionStepFn := inst.mod.ExportedFunction("session_step")
 	if sessionStepFn == nil {
@@ -308,9 +347,9 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 	// Reset read deadline when we exit so subsequent operations are not affected.
 	defer func() { _ = conn.SetReadDeadline(time.Time{}) }()
 
-	var lastHash uint32
-	var haveHash bool
-	consecutiveStable := 0
+	var prevFrame []byte
+	start := time.Now()
+	lastChange := start
 
 	for time.Now().Before(deadline) {
 		// Set per-frame read deadline
@@ -364,20 +403,19 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
 			inst.freeInWasm(callCtx, outLenSlot, 4)
 			// Don't return on the first frame — RDP sends the screen
-			// incrementally across many frames. Hash the framebuffer and track
-			// consecutive no-change frames; once it stops changing for
-			// `stableFrames` steps the render is complete and we can return the
-			// slot sooner.
+			// incrementally across many bursty frames with short mid-paint
+			// pauses. Track when the framebuffer last changed ABOVE the noise
+			// budget; once it has been quiet for settleQuietWindow (and
+			// minPumpTime has elapsed) the render is complete and we can return
+			// early. Sub-threshold change (a blinking cmd cursor or spinner) does
+			// NOT reset the quiet window — see framesQuiet — so a cmd window
+			// settles instead of flooding to indeterminate.
 			if frameData, capErr := p.captureFrame(ctx, inst, sessHandle); capErr == nil {
-				h := crc32.ChecksumIEEE(frameData)
-				if haveHash && h == lastHash {
-					consecutiveStable++
-				} else {
-					consecutiveStable = 0
+				if prevFrame == nil || !framesQuiet(prevFrame, frameData, width, height) {
+					lastChange = time.Now()
 				}
-				lastHash = h
-				haveHash = true
-				if consecutiveStable >= stableFrames {
+				prevFrame = frameData
+				if settled(start, lastChange, time.Now()) {
 					return true, nil
 				}
 			}
@@ -410,6 +448,39 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 	}
 
 	return stabilized, nil // Timeout is not fatal; stabilized stays false if frames were still changing
+}
+
+// settled reports whether the framebuffer can be declared stable: at least
+// minPumpTime must have elapsed since the pump started (now-start) AND the
+// framebuffer must have been unchanged for at least settleQuietWindow
+// (now-lastChange). Pure function so it is unit-testable without driving I/O.
+func settled(start, lastChange, now time.Time) bool {
+	return now.Sub(start) >= minPumpTime && now.Sub(lastChange) >= settleQuietWindow
+}
+
+// framesQuiet reports whether two consecutive captured frames are quiet enough to
+// keep accumulating the settle quiet window. It counts pixels whose brightness
+// differs by more than changeThreshold (the same brightness-diff logic used by
+// analyzeBackdoorResponse) and treats the frame as quiet when that count is at
+// most settleNoisePixels. This tolerates sub-threshold change (a blinking cursor
+// or spinner) so a cmd window can settle, while a real repaint — far above the
+// budget — resets the quiet window. Pure so it is unit-testable without I/O.
+func framesQuiet(prev, cur []byte, width, height uint32) bool {
+	total := int(width) * int(height)
+	changed := 0
+	for i := 0; i < total*4; i += 4 {
+		if i+2 >= len(prev) || i+2 >= len(cur) {
+			break
+		}
+		diff := pixelBrightness(prev, i) - pixelBrightness(cur, i)
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > changeThreshold {
+			changed++
+		}
+	}
+	return changed <= settleNoisePixels
 }
 
 // captureFrame reads the current RGBA frame buffer from the WASM session.

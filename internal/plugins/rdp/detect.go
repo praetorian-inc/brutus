@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
@@ -85,6 +87,11 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 		// Success stays false (fail-closed)
 	}
 
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if stickyResult.RegionNote != "" {
+		result.Banner += fmt.Sprintf(" (%s)", stickyResult.RegionNote)
+	}
+
 	return result
 }
 
@@ -142,6 +149,11 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 	default:
 		result.Banner = fmt.Sprintf("[INFO] Utilman check returned unknown verdict: %q", utilmanResult.OverallVerdict)
 		// Success stays false (fail-closed)
+	}
+
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if utilmanResult.RegionNote != "" {
+		result.Banner += fmt.Sprintf(" (%s)", utilmanResult.RegionNote)
 	}
 
 	return result
@@ -256,6 +268,12 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 		return result, nil
 	}
 
+	// DEBUG: dump captured frames to PNG when BRUTUS_DEBUG_SCREENSHOT_DIR is set.
+	if dir := os.Getenv("BRUTUS_DEBUG_SCREENSHOT_DIR"); dir != "" {
+		dumpFrame(dir, addr, "sticky_keys", "baseline", baseline, width, height)
+		dumpFrame(dir, addr, "sticky_keys", "response", response, width, height)
+	}
+
 	// Vision API confirmation is optional: requires ANTHROPIC_API_KEY and
 	// can be disabled with --no-vision flag.
 	var visionAPIKey string
@@ -312,6 +330,12 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 		return result, nil
 	}
 
+	// DEBUG: dump captured frames to PNG when BRUTUS_DEBUG_SCREENSHOT_DIR is set.
+	if dir := os.Getenv("BRUTUS_DEBUG_SCREENSHOT_DIR"); dir != "" {
+		dumpFrame(dir, addr, "utilman", "baseline", baseline, width, height)
+		dumpFrame(dir, addr, "utilman", "response", response, width, height)
+	}
+
 	// Vision API confirmation is optional: requires ANTHROPIC_API_KEY and
 	// can be disabled with --no-vision flag.
 	var visionAPIKey string
@@ -337,6 +361,25 @@ func stabilizedVerdict(verdict string, stabilized bool) string {
 		return verdictIndeterminate
 	}
 	return verdict
+}
+
+// dumpFrame is an env-var-gated DEBUG aid: when dir is non-empty it saves the
+// captured framebuffer as a PNG named <sanitizedTarget>_<scanType>_<phase>.png
+// (target ':' → '_'). All errors are non-fatal (logged to stderr) so detection
+// is never broken by a failed dump. When dir is empty this is a no-op.
+func dumpFrame(dir, target, scanType, phase string, rgba []byte, w, h uint32) {
+	if dir == "" {
+		return
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "[!] DEBUG screenshot dir %q: %v\n", dir, err)
+		return
+	}
+	sanitizedTarget := strings.ReplaceAll(target, ":", "_")
+	path := filepath.Join(dir, fmt.Sprintf("%s_%s_%s.png", sanitizedTarget, scanType, phase))
+	if err := saveRGBAScreenshot(rgba, w, h, path); err != nil {
+		fmt.Fprintf(os.Stderr, "[!] DEBUG screenshot %q: %v\n", path, err)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -387,6 +430,11 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 		banner += "[INFO] Sticky keys check: clean (no response to 5x Shift)."
 	}
 
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if result.RegionNote != "" {
+		banner += fmt.Sprintf(" (%s)", result.RegionNote)
+	}
+
 	return banner
 }
 
@@ -432,6 +480,11 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 		banner += "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"
 	case "clean":
 		banner += "[INFO] Utilman check: clean (no response to Win+U)."
+	}
+
+	// Geometry diagnostic (never affects the verdict — confidence/banner only).
+	if result.RegionNote != "" {
+		banner += fmt.Sprintf(" (%s)", result.RegionNote)
 	}
 
 	return banner

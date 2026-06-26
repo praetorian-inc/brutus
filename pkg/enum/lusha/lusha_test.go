@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -588,13 +589,12 @@ func TestSearchDomain_Success(t *testing.T) {
 }
 
 func TestSearchDomain_Pagination(t *testing.T) {
-	// newPaginationServer builds a fresh httptest.Server for each subtest so
-	// call-count state does not bleed between subtests.
-	makeEnrich := func(reqID string, names []string) map[string]interface{} {
+	// makeEnrichContacts builds a prospect enrich response body.
+	makeEnrichContacts := func(reqID string, names []string) map[string]interface{} {
 		contacts := make([]map[string]interface{}, 0, len(names))
-		for _, name := range names {
+		for i, name := range names {
 			contacts = append(contacts, map[string]interface{}{
-				"id":        strings.ToLower(strings.ReplaceAll(name, " ", "")),
+				"id":        strings.ToLower(strings.ReplaceAll(name, " ", "")) + fmt.Sprintf("-%d", i),
 				"isSuccess": true,
 				"data": map[string]interface{}{
 					"fullName":       name,
@@ -612,7 +612,20 @@ func TestSearchDomain_Pagination(t *testing.T) {
 		}
 	}
 
-	newPaginationServer := func(t *testing.T) *httptest.Server {
+	// makeContactIDs generates n unique contactId strings for a given page.
+	makeContactIDs := func(page, n int) []map[string]interface{} {
+		entries := make([]map[string]interface{}, n)
+		for i := 0; i < n; i++ {
+			entries[i] = map[string]interface{}{
+				"contactId": fmt.Sprintf("page%d-contact%d", page, i),
+			}
+		}
+		return entries
+	}
+
+	// newSmallPaginationServer creates a server with page0=2 contacts, page1=1.
+	// Used by collect-all and limit=1 subtests.
+	newSmallPaginationServer := func(t *testing.T) *httptest.Server {
 		t.Helper()
 		searchCallCount := 0
 		page0Search := map[string]interface{}{
@@ -650,7 +663,6 @@ func TestSearchDomain_Pagination(t *testing.T) {
 				var eb prospectEnrichBody
 				require.NoError(t, json.Unmarshal(body, &eb))
 				w.Header().Set("Content-Type", "application/json")
-				// Mirror a real API: only return contacts for the requested ids.
 				allNames := map[string][]string{
 					"page0-req": {"Alice P", "Bob P"},
 					"page1-req": {"Carol P"},
@@ -660,19 +672,157 @@ func TestSearchDomain_Pagination(t *testing.T) {
 					http.Error(w, "unknown requestId", http.StatusBadRequest)
 					return
 				}
-				// Truncate names to however many ids were actually requested.
 				if len(eb.ContactIDs) < len(names) {
 					names = names[:len(eb.ContactIDs)]
 				}
-				require.NoError(t, json.NewEncoder(w).Encode(makeEnrich(eb.RequestID, names)))
+				require.NoError(t, json.NewEncoder(w).Encode(makeEnrichContacts(eb.RequestID, names)))
 			default:
 				http.NotFound(w, r)
 			}
 		}))
 	}
 
+	// CRITICAL: limit=75 spanning page0 (50 contacts) + page1 (25 contacts).
+	// This is the regression test for the pagination bug:
+	//   Bug: pages.size shrank on page 1 (e.g., to 25), corrupting the offset
+	//        (page1*25 != page1*50) and causing dupes/skips.
+	//   Fix: pages.size is CONSTANT (prospectPageSize=50) across ALL pages.
+	t.Run("limit=75 spans two pages with CONSTANT search size (regression: no dupes)", func(t *testing.T) {
+		// Track captured search bodies so we can assert pages.size is constant.
+		// The httptest server is called sequentially by SearchDomain, so no
+		// locking is needed; a plain slice is sufficient.
+		var searchBodies [][]byte
+
+		// Page 0: 50 distinct contactIds.  Page 1: 50 distinct contactIds.
+		// With limit=75, enrich should request all 50 from page 0, then only 25
+		// from page 1 (remaining = 75 - 50 = 25).
+		page0ContactIDs := makeContactIDs(0, 50)
+		page1ContactIDs := makeContactIDs(1, 50)
+
+		// Build corresponding enriched names for each page.
+		page0Names := make([]string, 50)
+		for i := 0; i < 50; i++ {
+			page0Names[i] = fmt.Sprintf("Page0Contact%d", i)
+		}
+		page1Names := make([]string, 50)
+		for i := 0; i < 50; i++ {
+			page1Names[i] = fmt.Sprintf("Page1Contact%d", i)
+		}
+
+		searchCallCount := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+
+			switch r.URL.Path {
+			case prospectSearchPath:
+				// Capture the raw search body for size assertion.
+				bodyCopy := make([]byte, len(body))
+				copy(bodyCopy, body)
+				searchBodies = append(searchBodies, bodyCopy)
+
+				w.Header().Set("Content-Type", "application/json")
+				if searchCallCount == 0 {
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+						"requestId":    "page0-75-req",
+						"currentPage":  0,
+						"totalResults": 100, // pretend 100 total
+						"data":         page0ContactIDs,
+						"billing":      map[string]interface{}{"creditsCharged": 1, "resultsReturned": 50},
+					}))
+				} else {
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+						"requestId":    "page1-75-req",
+						"currentPage":  1,
+						"totalResults": 100,
+						"data":         page1ContactIDs,
+						"billing":      map[string]interface{}{"creditsCharged": 1, "resultsReturned": 50},
+					}))
+				}
+				searchCallCount++
+
+			case prospectEnrichPath:
+				var eb prospectEnrichBody
+				require.NoError(t, json.Unmarshal(body, &eb))
+				w.Header().Set("Content-Type", "application/json")
+
+				var names []string
+				switch eb.RequestID {
+				case "page0-75-req":
+					names = page0Names[:len(eb.ContactIDs)]
+				case "page1-75-req":
+					names = page1Names[:len(eb.ContactIDs)]
+				default:
+					http.Error(w, "unknown requestId", http.StatusBadRequest)
+					return
+				}
+				require.NoError(t, json.NewEncoder(w).Encode(makeEnrichContacts(eb.RequestID, names)))
+
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer srv.Close()
+
+		c := newTestClient(srv.URL)
+		result, err := c.SearchDomain(context.Background(), "bigcorp.com", 75)
+		require.NoError(t, err)
+
+		// --- Regression assertion: exactly 75 contacts, no duplicates ---
+		require.Len(t, result.Contacts, 75,
+			"limit=75 must return exactly 75 contacts spanning both pages")
+
+		// Collect all names returned; verify no duplicates.
+		seen := make(map[string]int)
+		for _, c := range result.Contacts {
+			seen[c.Name]++
+		}
+		for name, count := range seen {
+			assert.Equal(t, 1, count,
+				"duplicate contact detected: %q appeared %d times (pagination bug)", name, count)
+		}
+
+		// The first 50 must come from page 0, the last 25 from page 1.
+		for i := 0; i < 50; i++ {
+			assert.Equal(t, fmt.Sprintf("Page0Contact%d", i), result.Contacts[i].Name,
+				"contact %d must be from page 0", i)
+		}
+		for i := 50; i < 75; i++ {
+			assert.Equal(t, fmt.Sprintf("Page1Contact%d", i-50), result.Contacts[i].Name,
+				"contact %d must be from page 1", i)
+		}
+
+		// --- Key invariant: pages.size must be CONSTANT across both search calls ---
+		// Both captured search bodies must have the same pages.size value (prospectPageSize=50).
+		require.Len(t, searchBodies, 2, "exactly 2 search requests must have been made")
+		type pagesBlock struct {
+			Pages struct {
+				Page int `json:"page"`
+				Size int `json:"size"`
+			} `json:"pages"`
+		}
+		var sb0, sb1 pagesBlock
+		require.NoError(t, json.Unmarshal(searchBodies[0], &sb0))
+		require.NoError(t, json.Unmarshal(searchBodies[1], &sb1))
+
+		assert.Equal(t, prospectPageSize, sb0.Pages.Size,
+			"page 0 search size must equal prospectPageSize (%d)", prospectPageSize)
+		assert.Equal(t, prospectPageSize, sb1.Pages.Size,
+			"page 1 search size must equal prospectPageSize (%d) — NOT shrunk to remaining", prospectPageSize)
+		assert.Equal(t, sb0.Pages.Size, sb1.Pages.Size,
+			"pages.size must be CONSTANT across all pages (regression: size must not shrink on later pages)")
+
+		// Correct page offsets: page 0 → offset 0, page 1 → offset 1.
+		assert.Equal(t, 0, sb0.Pages.Page, "first search request must be page 0")
+		assert.Equal(t, 1, sb1.Pages.Page, "second search request must be page 1")
+
+		// Credits: page0 search(1) + page0 enrich(50) + page1 search(1) + page1 enrich(25) = 77
+		assert.Equal(t, 77, result.CreditsCharged,
+			"credits must accumulate across both search and enrich calls")
+	})
+
 	t.Run("collect_all fetches both pages and accumulates contacts and credits", func(t *testing.T) {
-		srv := newPaginationServer(t)
+		srv := newSmallPaginationServer(t)
 		defer srv.Close()
 		c := newTestClient(srv.URL)
 		result, err := c.SearchDomain(context.Background(), "example.com", 0)
@@ -683,15 +833,16 @@ func TestSearchDomain_Pagination(t *testing.T) {
 		assert.Equal(t, 5, result.CreditsCharged, "credits must be summed across all search and enrich calls")
 	})
 
-	t.Run("limit=1 truncates to 1 enriched contact", func(t *testing.T) {
-		srv := newPaginationServer(t)
+	t.Run("limit=5 single page", func(t *testing.T) {
+		srv := newSmallPaginationServer(t)
 		defer srv.Close()
 		c := newTestClient(srv.URL)
-		result, err := c.SearchDomain(context.Background(), "example.com", 1)
+		result, err := c.SearchDomain(context.Background(), "example.com", 5)
 		require.NoError(t, err)
-		// Even though 3 results exist, limit=1 stops after enriching 1 contact.
-		assert.LessOrEqual(t, len(result.Contacts), 1,
-			"limit=1 must produce at most 1 contact")
+		// Only 3 total contacts exist; limit=5 collects all without truncation.
+		assert.LessOrEqual(t, len(result.Contacts), 5,
+			"limit=5 must produce at most 5 contacts")
+		assert.Equal(t, 3, result.Total)
 	})
 }
 

@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,6 +40,7 @@ var (
 	flagLushaPhone     bool
 	flagLushaEmailOnly bool
 	flagLushaAPIKey    string
+	flagLushaLimit     int
 )
 
 // newEnumLushaCmd builds the "lusha" command. A fresh instance is constructed
@@ -54,6 +56,11 @@ func newEnumLushaCmd() *cobra.Command {
 numbers) via the Lusha v3 search-and-enrich API. Provide exactly one identity:
 a name (--first-name + --last-name) with a --company or --domain, OR an --email,
 OR a --linkedin URL. Standalone — does not feed the saas enumeration pipeline.
+
+ROSTER MODE: provide ONLY --domain (no name/email/linkedin) to enumerate a whole
+company roster via the Lusha prospecting API. Use --limit N to bound the roster
+(and credit spend); --limit 0 (the default) collects all matches. Roster mode
+consumes ~1 credit per contact searched and enriched.
 
 Every invocation consumes Lusha credits (the command has no free tier). Phone
 numbers may carry a Do-Not-Call (DNC) flag, which is always shown — do not
@@ -75,6 +82,12 @@ Requires a Lusha API key via the LUSHA_API_KEY environment variable
   # Enrich by LinkedIn URL, also request phone numbers
   brutus enum passive lusha --linkedin https://linkedin.com/in/ada --phone
 
+  # Roster: enumerate an entire company by domain (collect all — consumes credits)
+  brutus enum passive lusha --domain example.com
+
+  # Roster: cap the roster (and credit spend) at 25 contacts
+  brutus enum passive lusha --domain example.com --limit 25
+
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum passive lusha --email ada@example.com --api-key abc123`,
 		RunE: runEnumLusha,
@@ -91,6 +104,8 @@ Requires a Lusha API key via the LUSHA_API_KEY environment variable
 	f.BoolVar(&flagLushaEmailOnly, "email-only", false, "Request only email datapoints (mutually exclusive with --phone)")
 	f.StringVar(&flagLushaAPIKey, "api-key", "",
 		"Lusha API key (overrides LUSHA_API_KEY; WARNING: visible in process list and shell history — prefer LUSHA_API_KEY)")
+	f.IntVar(&flagLushaLimit, "limit", 0,
+		"Roster mode (--domain only): max contacts to search + enrich; 0 = collect all (consumes ~1 credit/contact)")
 	// No MarkFlagRequired — identity is validated in runEnumLusha.
 
 	return cmd
@@ -121,6 +136,13 @@ func runEnumLusha(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	client := lusha.NewClient(apiKey, flagTimeout)
+
+	// Roster mode: enumerate a whole company by domain via the prospecting API.
+	if isLushaRosterMode() {
+		return runEnumLushaRoster(ctx, client, jsonWriter, useColor)
+	}
+
 	// Unconditional cost notice — Lusha enrichment always spends credits (P0-7).
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s lusha enrichment consumes credits\n", dim(useColor, SymbolInfo))
@@ -139,7 +161,6 @@ func runEnumLusha(cmd *cobra.Command, args []string) error {
 		reveal = lusha.RevealOptions{Email: true, Phone: false}
 	}
 
-	client := lusha.NewClient(apiKey, flagTimeout)
 	contact, err := client.Enrich(ctx, query, reveal)
 	if err != nil {
 		return classifyLushaError(err)
@@ -157,13 +178,57 @@ func runEnumLusha(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// validateLushaIdentity enforces that exactly one identity group is set:
+// isLushaRosterMode reports whether the flags select domain-roster enumeration:
+// ONLY --domain is set (no --first-name/--last-name/--company/--email/--linkedin).
+// Pure function over the flag values — trivially testable.
+func isLushaRosterMode() bool {
+	return flagLushaDomain != "" &&
+		flagLushaFirstName == "" && flagLushaLastName == "" &&
+		flagLushaCompany == "" && flagLushaEmail == "" && flagLushaLinkedin == ""
+}
+
+// runEnumLushaRoster enumerates a company roster by domain and writes it out.
+// The cost notice goes to stderr (CLI layer only — the library prints nothing).
+func runEnumLushaRoster(ctx context.Context, client *lusha.Client, jsonWriter io.Writer, useColor bool) error {
+	if !flagQuiet && !flagJSON {
+		count := fmt.Sprintf("%d", flagLushaLimit)
+		if flagLushaLimit <= 0 {
+			count = "all"
+		}
+		fmt.Fprintf(os.Stderr, "%s lusha: enumerating %s — searching + enriching up to %s contacts (consumes credits)\n",
+			dim(useColor, SymbolInfo), flagLushaDomain, count)
+	}
+
+	roster, err := client.SearchDomain(ctx, flagLushaDomain, flagLushaLimit)
+	if err != nil {
+		return classifyLushaError(err)
+	}
+
+	logVerbose(flagVerbose, "Lusha roster: %d contacts, %d credits charged",
+		len(roster.Contacts), roster.CreditsCharged)
+
+	if flagJSON {
+		outputLushaDomainJSONL(jsonWriter, roster)
+	} else {
+		outputLushaDomainHuman(os.Stdout, roster, useColor)
+	}
+	return nil
+}
+
+// validateLushaIdentity enforces a valid identity selection. Roster mode (ONLY
+// --domain set) is valid for whole-company enumeration. Otherwise exactly one
+// single-contact identity group must be set:
 // (1) name group: --first-name + --last-name + exactly one of (--company | --domain),
 // (2) --email, or (3) --linkedin. --phone and --email-only are mutually exclusive.
 // Pure function over the flag values — no network, trivially testable.
 func validateLushaIdentity() error {
 	if flagLushaPhone && flagLushaEmailOnly {
 		return fmt.Errorf("--phone and --email-only are mutually exclusive")
+	}
+
+	// Roster mode: only --domain set → valid whole-company enumeration.
+	if isLushaRosterMode() {
+		return nil
 	}
 
 	hasName := flagLushaFirstName != "" || flagLushaLastName != "" ||

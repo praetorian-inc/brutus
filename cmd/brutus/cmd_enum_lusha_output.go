@@ -97,41 +97,46 @@ func outputLushaHuman(w io.Writer, c *lusha.Contact, useColor bool) {
 	_, _ = fmt.Fprintln(w)
 }
 
-// outputLushaJSONL writes the contact as a single JSON line.
-// encoding/json already escapes control characters, so no sanitization needed.
-// The per-phone do_not_call bool is always emitted to surface DNC (P0-DNC).
-func outputLushaJSONL(w io.Writer, c *lusha.Contact) {
-	type emailJSON struct {
-		Address    string `json:"address"`
-		Type       string `json:"type,omitempty"`
-		Confidence string `json:"confidence,omitempty"`
-	}
-	type phoneJSON struct {
-		Number    string `json:"number"`
-		Type      string `json:"type,omitempty"`
-		DoNotCall bool   `json:"do_not_call"`
-	}
-	type employmentJSON struct {
-		Organization string `json:"organization,omitempty"`
-		Title        string `json:"title,omitempty"`
-		Current      bool   `json:"current"`
-	}
-	type contactJSON struct {
-		Type          string           `json:"type"`
-		Name          string           `json:"name,omitempty"`
-		JobTitle      string           `json:"job_title,omitempty"`
-		Company       string           `json:"company,omitempty"`
-		CompanyDomain string           `json:"company_domain,omitempty"`
-		LinkedIn      string           `json:"linkedin,omitempty"`
-		Departments   []string         `json:"departments,omitempty"`
-		Seniority     string           `json:"seniority,omitempty"`
-		Location      string           `json:"location,omitempty"`
-		Emails        []emailJSON      `json:"emails,omitempty"`
-		Phones        []phoneJSON      `json:"phones,omitempty"`
-		Employment    []employmentJSON `json:"employment,omitempty"`
-	}
+// JSON shapes for a single Lusha contact, shared by single-identity and roster
+// (domain) JSONL output (DRY). encoding/json escapes control chars, so no
+// sanitization is needed. The per-phone do_not_call bool is always emitted to
+// surface DNC (P0-DNC). These carry no credential fields beyond email/phone.
+type lushaEmailJSON struct {
+	Address    string `json:"address"`
+	Type       string `json:"type,omitempty"`
+	Confidence string `json:"confidence,omitempty"`
+}
 
-	jr := contactJSON{
+type lushaPhoneJSON struct {
+	Number    string `json:"number"`
+	Type      string `json:"type,omitempty"`
+	DoNotCall bool   `json:"do_not_call"`
+}
+
+type lushaEmploymentJSON struct {
+	Organization string `json:"organization,omitempty"`
+	Title        string `json:"title,omitempty"`
+	Current      bool   `json:"current"`
+}
+
+type lushaContactJSON struct {
+	Type          string                `json:"type"`
+	Name          string                `json:"name,omitempty"`
+	JobTitle      string                `json:"job_title,omitempty"`
+	Company       string                `json:"company,omitempty"`
+	CompanyDomain string                `json:"company_domain,omitempty"`
+	LinkedIn      string                `json:"linkedin,omitempty"`
+	Departments   []string              `json:"departments,omitempty"`
+	Seniority     string                `json:"seniority,omitempty"`
+	Location      string                `json:"location,omitempty"`
+	Emails        []lushaEmailJSON      `json:"emails,omitempty"`
+	Phones        []lushaPhoneJSON      `json:"phones,omitempty"`
+	Employment    []lushaEmploymentJSON `json:"employment,omitempty"`
+}
+
+// toLushaContactJSON maps a public Contact to its JSONL shape (type:"lusha").
+func toLushaContactJSON(c *lusha.Contact) lushaContactJSON {
+	jr := lushaContactJSON{
 		Type:          "lusha",
 		Name:          c.Name,
 		JobTitle:      c.JobTitle,
@@ -144,7 +149,7 @@ func outputLushaJSONL(w io.Writer, c *lusha.Contact) {
 	}
 	for i := range c.Emails {
 		e := &c.Emails[i]
-		jr.Emails = append(jr.Emails, emailJSON{
+		jr.Emails = append(jr.Emails, lushaEmailJSON{
 			Address:    e.Address,
 			Type:       e.Type,
 			Confidence: e.Confidence,
@@ -152,7 +157,7 @@ func outputLushaJSONL(w io.Writer, c *lusha.Contact) {
 	}
 	for i := range c.Phones {
 		p := &c.Phones[i]
-		jr.Phones = append(jr.Phones, phoneJSON{
+		jr.Phones = append(jr.Phones, lushaPhoneJSON{
 			Number:    p.Number,
 			Type:      p.Type,
 			DoNotCall: p.DoNotCall,
@@ -160,16 +165,78 @@ func outputLushaJSONL(w io.Writer, c *lusha.Contact) {
 	}
 	for i := range c.Employment {
 		em := &c.Employment[i]
-		jr.Employment = append(jr.Employment, employmentJSON{
+		jr.Employment = append(jr.Employment, lushaEmploymentJSON{
 			Organization: em.Organization,
 			Title:        em.Title,
 			Current:      em.Current,
 		})
 	}
+	return jr
+}
 
+// outputLushaJSONL writes the contact as a single JSON line.
+func outputLushaJSONL(w io.Writer, c *lusha.Contact) {
 	enc := json.NewEncoder(w)
-	if err := enc.Encode(jr); err != nil {
+	if err := enc.Encode(toLushaContactJSON(c)); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error encoding lusha JSON: %v\n", err)
+	}
+}
+
+// outputLushaDomainHuman renders a Lusha domain roster as an aligned table.
+// All vendor-controlled strings are sanitized via sanitizeTerminal then
+// truncated (P0-4). The per-phone Do-Not-Call flag is surfaced as a DNC marker
+// appended to the phone column so the operator can honor suppression (P0-DNC).
+func outputLushaDomainHuman(w io.Writer, r *lusha.DomainResult, useColor bool) {
+	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
+		heading(useColor, "Lusha: "+truncate(sanitizeTerminal(r.Domain), 80)))
+	_, _ = fmt.Fprintf(w, "  Contacts: %d of %d · credits charged: %d\n",
+		len(r.Contacts), r.Total, r.CreditsCharged)
+
+	if len(r.Contacts) == 0 {
+		_, _ = fmt.Fprintf(w, "\n  %s No contacts returned\n\n", dim(useColor, SymbolInfo))
+		return
+	}
+
+	_, _ = fmt.Fprintf(w, "\n  %s%-24s %-24s %-32s %-20s %-30s %-18s%s\n",
+		colorIf(useColor, ColorBold),
+		"Name", "Title", "Email", "Phone", "LinkedIn", "Dept",
+		colorIf(useColor, ColorReset))
+
+	for i := range r.Contacts {
+		c := &r.Contacts[i]
+		email := ""
+		if len(c.Emails) > 0 {
+			email = c.Emails[0].Address
+		}
+		phone := ""
+		if len(c.Phones) > 0 {
+			phone = c.Phones[0].Number
+			if c.Phones[0].DoNotCall {
+				phone += " [DNC]"
+			}
+		}
+		_, _ = fmt.Fprintf(w, "  %-24s %-24s %s%-32s%s %-20s %-30s %-18s\n",
+			truncate(sanitizeTerminal(c.Name), 24),
+			truncate(sanitizeTerminal(c.JobTitle), 24),
+			colorIf(useColor, ColorGreen),
+			truncate(sanitizeTerminal(email), 32),
+			colorIf(useColor, ColorReset),
+			truncate(sanitizeTerminal(phone), 20),
+			truncate(sanitizeTerminal(c.LinkedIn), 30),
+			truncate(sanitizeTerminal(strings.Join(c.Departments, ", ")), 18))
+	}
+	_, _ = fmt.Fprintln(w)
+}
+
+// outputLushaDomainJSONL writes one JSON object per roster contact, reusing the
+// single-identity per-contact rendering (DRY). No envelope object is emitted;
+// each line is a standalone type:"lusha" contact.
+func outputLushaDomainJSONL(w io.Writer, r *lusha.DomainResult) {
+	enc := json.NewEncoder(w)
+	for i := range r.Contacts {
+		if err := enc.Encode(toLushaContactJSON(&r.Contacts[i])); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding lusha JSON: %v\n", err)
+		}
 	}
 }
 

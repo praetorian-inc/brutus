@@ -104,6 +104,12 @@ func runEnumHunter(cmd *cobra.Command, args []string) error {
 	logVerbose(flagVerbose, "Hunter returned %d people (total available: %d)",
 		len(result.People), result.Total)
 
+	// Plan cap hit: results were truncated. Notify on stderr (not in JSON mode).
+	if result.Truncated && !flagQuiet && !flagJSON {
+		fmt.Fprintf(os.Stderr, "%s hunter: plan result cap reached — returning first %d of %d (more available)\n",
+			dim(useColor, SymbolInfo), len(result.People), result.Total)
+	}
+
 	if flagJSON {
 		outputHunterJSONL(jsonWriter, result)
 	} else {

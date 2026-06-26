@@ -38,10 +38,16 @@ var (
 	flagDehashedIncludeCombolists bool
 )
 
-var enumDehashedCmd = &cobra.Command{
-	Use:   "dehashed",
-	Short: "Collect breach-exposed identity data for a domain via DeHashed",
-	Long: `Query the DeHashed v2 search API to collect breach-exposed identity data
+// newEnumDehashedCmd builds the "dehashed" command. A fresh instance is
+// constructed per call so the same command can be mounted under two parents (the
+// canonical "enum passive dehashed" path and the hidden back-compat "enum
+// dehashed" alias) without sharing one *cobra.Command. All instances bind the
+// same package-level flag vars, which is fine since only one runs per invocation.
+func newEnumDehashedCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "dehashed",
+		Short: "Collect breach-exposed identity data for a domain via DeHashed",
+		Long: `Query the DeHashed v2 search API to collect breach-exposed identity data
 associated with a domain: emails, usernames, names, IP addresses, phone numbers,
 addresses, dates of birth, and the source breach database. Standalone — does not
 feed the saas enumeration pipeline.
@@ -62,22 +68,21 @@ Requires a DeHashed API key via the DEHASHED_API_KEY environment variable
 
 This search consumes API credits (~1 credit per page of results); use --limit
 to bound the number of results (and therefore credits) per run.`,
-	Example: `  # Collect refined breach contacts for a domain (key from DEHASHED_API_KEY)
-  brutus enum dehashed --domain example.com
+		Example: `  # Collect refined breach contacts for a domain (key from DEHASHED_API_KEY)
+  brutus enum passive dehashed --domain example.com
 
   # Keep every email (not just @example.com), unmerged, including combolists
-  brutus enum dehashed -d example.com --all-emails --no-dedup --include-combolists
+  brutus enum passive dehashed -d example.com --all-emails --no-dedup --include-combolists
 
   # Provide the key explicitly (note: visible in process list / shell history)
-  brutus enum dehashed -d example.com --api-key abc123
+  brutus enum passive dehashed -d example.com --api-key abc123
 
   # Cap results (and credit spend) and write JSONL to a file
-  brutus enum dehashed -d example.com --limit 50 -o breaches.jsonl`,
-	RunE: runEnumDehashed,
-}
+  brutus enum passive dehashed -d example.com --limit 50 -o breaches.jsonl`,
+		RunE: runEnumDehashed,
+	}
 
-func init() {
-	f := enumDehashedCmd.Flags()
+	f := cmd.Flags()
 	f.StringVarP(&flagDehashedDomain, "domain", "d", "", "Domain to search (required)")
 	f.StringVar(&flagDehashedAPIKey, "api-key", "",
 		"DeHashed API key (overrides DEHASHED_API_KEY; WARNING: visible in process list and shell history — prefer DEHASHED_API_KEY)")
@@ -85,7 +90,9 @@ func init() {
 	f.BoolVar(&flagDehashedAllEmails, "all-emails", false, "Keep all emails, not just those @<domain> (disables corporate-only filtering)")
 	f.BoolVar(&flagDehashedNoDedup, "no-dedup", false, "Do not merge records that share an email")
 	f.BoolVar(&flagDehashedIncludeCombolists, "include-combolists", false, "Include records from known aggregator/combolist source databases")
-	_ = enumDehashedCmd.MarkFlagRequired("domain")
+	_ = cmd.MarkFlagRequired("domain")
+
+	return cmd
 }
 
 // runEnumDehashed implements the "enum dehashed" subcommand.

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -385,29 +386,50 @@ func TestClassifyLushaError_NetworkWrap(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEnumLushaRegistered(t *testing.T) {
-	var found bool
+	// 1. enumCmd must have a "passive" subcommand.
+	var passive *cobra.Command
 	for _, cmd := range enumCmd.Commands() {
-		if cmd.Use != "lusha" {
-			continue
+		if cmd.Use == "passive" {
+			passive = cmd
+			break
 		}
-		found = true
-
-		flagNames := []string{
-			"first-name", "last-name", "company", "domain",
-			"email", "linkedin", "phone", "email-only", "api-key",
-		}
-		for _, name := range flagNames {
-			f := cmd.Flags().Lookup(name)
-			require.NotNilf(t, f, "--%s flag must exist", name)
-		}
-
-		// --domain must NOT be marked required (identity validated in RunE).
-		domainFlag := cmd.Flags().Lookup("domain")
-		require.NotNil(t, domainFlag)
-		annotations := domainFlag.Annotations
-		_, isRequired := annotations["cobra_annotation_bash_completion_one_required_flag"]
-		assert.False(t, isRequired, "--domain must NOT be marked as required for lusha")
-		break
 	}
-	require.True(t, found, "lusha subcommand must be registered with enumCmd")
+	require.NotNil(t, passive, `enumCmd must have a "passive" subcommand`)
+
+	// 2. The canonical "lusha" command must live under passive.
+	var canonicalLusha *cobra.Command
+	for _, cmd := range passive.Commands() {
+		if cmd.Use == "lusha" {
+			canonicalLusha = cmd
+			break
+		}
+	}
+	require.NotNil(t, canonicalLusha, `"lusha" must be a subcommand of enumPassiveCmd`)
+
+	// Verify expected flags on the canonical command.
+	for _, name := range []string{
+		"first-name", "last-name", "company", "domain",
+		"email", "linkedin", "phone", "email-only", "api-key",
+	} {
+		require.NotNilf(t, canonicalLusha.Flags().Lookup(name),
+			"--%s flag must exist on canonical lusha", name)
+	}
+
+	// --domain must NOT be marked required (identity validated in RunE).
+	domainFlag := canonicalLusha.Flags().Lookup("domain")
+	require.NotNil(t, domainFlag)
+	_, isRequired := domainFlag.Annotations["cobra_annotation_bash_completion_one_required_flag"]
+	assert.False(t, isRequired, "--domain must NOT be marked as required for lusha")
+
+	// 3. A hidden back-compat alias must exist directly under enumCmd.
+	var alias *cobra.Command
+	for _, cmd := range enumCmd.Commands() {
+		if cmd.Use == "lusha" {
+			alias = cmd
+			break
+		}
+	}
+	require.NotNil(t, alias, `hidden "lusha" alias must be registered directly under enumCmd`)
+	assert.True(t, alias.Hidden, "back-compat lusha alias must be Hidden")
+	assert.NotEmpty(t, alias.Deprecated, "back-compat lusha alias must be Deprecated")
 }

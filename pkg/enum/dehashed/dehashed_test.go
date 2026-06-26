@@ -225,6 +225,271 @@ func TestSearch_DropsCredentials(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Task A: TestRefine — table-driven coverage of Refine()
+// ---------------------------------------------------------------------------
+
+func TestRefine(t *testing.T) {
+	tests := []struct {
+		name    string
+		records []Record
+		opts    RefineOptions
+		check   func(t *testing.T, got []Entry)
+	}{
+		// ----- CorporateOnly -----
+		{
+			name: "CorporateOnly: keeps @domain email, drops @gmail.com email",
+			records: []Record{
+				{Email: []string{"alice@fox.com"}, Name: []string{"Alice"}, Database: "DB1"},
+				{Email: []string{"bob@gmail.com"}, Name: []string{"Bob"}, Database: "DB2"},
+			},
+			opts: RefineOptions{Domain: "fox.com", CorporateOnly: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				assert.Equal(t, "alice@fox.com", got[0].Email)
+			},
+		},
+		{
+			name: "CorporateOnly: case-insensitive domain match (FOX.COM vs fox.com)",
+			records: []Record{
+				{Email: []string{"alice@FOX.COM"}, Database: "DB1"},
+			},
+			opts: RefineOptions{Domain: "fox.com", CorporateOnly: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				assert.Equal(t, "alice@FOX.COM", got[0].Email)
+			},
+		},
+		{
+			name: "CorporateOnly false: keeps @gmail.com",
+			records: []Record{
+				{Email: []string{"bob@gmail.com"}, Database: "DB1"},
+			},
+			opts: RefineOptions{Domain: "fox.com", CorporateOnly: false},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				assert.Equal(t, "bob@gmail.com", got[0].Email)
+			},
+		},
+		// ----- Dedup merge -----
+		{
+			name: "Dedup: two records with same email → one Entry, Count=2, databases merged",
+			records: []Record{
+				{Email: []string{"alice@example.com"}, Name: []string{"Alice"}, Username: []string{"alice1"}, Phone: []string{"+1-555-0100"}, Database: "DB-A"},
+				{Email: []string{"alice@example.com"}, Name: []string{"Alice Smith"}, Username: []string{"a.smith"}, Phone: []string{"+1-555-0200"}, Database: "DB-B"},
+			},
+			opts: RefineOptions{Domain: "example.com", Dedup: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				e := got[0]
+				assert.Equal(t, "alice@example.com", e.Email)
+				assert.Equal(t, 2, e.Count)
+				assert.ElementsMatch(t, []string{"DB-A", "DB-B"}, e.Databases)
+				// Names from both records merged
+				assert.ElementsMatch(t, []string{"Alice", "Alice Smith"}, e.Names)
+				// Usernames from both records merged
+				assert.ElementsMatch(t, []string{"alice1", "a.smith"}, e.Usernames)
+				// Phones from both records merged — cross-breach phone union
+				assert.ElementsMatch(t, []string{"+1-555-0100", "+1-555-0200"}, e.Phones)
+			},
+		},
+		{
+			name: "Dedup: empty strings dropped during union",
+			records: []Record{
+				{Email: []string{"alice@example.com"}, Name: []string{"", "Alice"}, Database: "DB-A"},
+				{Email: []string{"alice@example.com"}, Name: []string{"Alice", ""}, Database: "DB-B"},
+			},
+			opts: RefineOptions{Domain: "example.com", Dedup: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				// Empty string must be dropped from Names
+				assert.Equal(t, []string{"Alice"}, got[0].Names)
+			},
+		},
+		{
+			name: "Dedup: duplicate names de-duplicated across records",
+			records: []Record{
+				{Email: []string{"carol@example.com"}, Name: []string{"Carol"}, Phone: []string{"+44-7000-000001"}, Database: "DB-X"},
+				{Email: []string{"carol@example.com"}, Name: []string{"Carol"}, Phone: []string{"+44-7000-000002"}, Database: "DB-Y"},
+			},
+			opts: RefineOptions{Domain: "example.com", Dedup: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				// Name appears in both — must deduplicate to one occurrence
+				assert.Equal(t, []string{"Carol"}, got[0].Names)
+				// Phones are distinct — both must appear
+				assert.ElementsMatch(t, []string{"+44-7000-000001", "+44-7000-000002"}, got[0].Phones)
+			},
+		},
+		// ----- ExcludeCombolists -----
+		{
+			name: "ExcludeCombolists: Naz.API dropped",
+			records: []Record{
+				{Email: []string{"x@example.com"}, Database: "Naz.API"},
+			},
+			opts: RefineOptions{Domain: "example.com", ExcludeCombolists: true},
+			check: func(t *testing.T, got []Entry) {
+				assert.Empty(t, got)
+			},
+		},
+		{
+			name: "ExcludeCombolists: ALIEN TXTBASE dropped",
+			records: []Record{
+				{Email: []string{"x@example.com"}, Database: "ALIEN TXTBASE"},
+			},
+			opts: RefineOptions{Domain: "example.com", ExcludeCombolists: true},
+			check: func(t *testing.T, got []Entry) {
+				assert.Empty(t, got)
+			},
+		},
+		{
+			name: "ExcludeCombolists: Collection #2 dropped (substring match)",
+			records: []Record{
+				{Email: []string{"x@example.com"}, Database: "Collection #2"},
+			},
+			opts: RefineOptions{Domain: "example.com", ExcludeCombolists: true},
+			check: func(t *testing.T, got []Entry) {
+				assert.Empty(t, got)
+			},
+		},
+		{
+			name: "ExcludeCombolists: Exploit.in dropped",
+			records: []Record{
+				{Email: []string{"x@example.com"}, Database: "Exploit.in"},
+			},
+			opts: RefineOptions{Domain: "example.com", ExcludeCombolists: true},
+			check: func(t *testing.T, got []Entry) {
+				assert.Empty(t, got)
+			},
+		},
+		{
+			name: "ExcludeCombolists: Adobe kept (real breach, not combolist)",
+			records: []Record{
+				{Email: []string{"x@example.com"}, Database: "Adobe"},
+			},
+			opts: RefineOptions{Domain: "example.com", ExcludeCombolists: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				assert.Equal(t, "x@example.com", got[0].Email)
+			},
+		},
+		// ----- All opts false = passthrough -----
+		{
+			name: "All opts false: @gmail kept, no dedup, combolists kept, Count=1",
+			records: []Record{
+				{Email: []string{"bob@gmail.com"}, Database: "Naz.API"},
+				{Email: []string{"bob@gmail.com"}, Database: "Adobe"},
+			},
+			opts: RefineOptions{},
+			check: func(t *testing.T, got []Entry) {
+				// Two separate entries (no dedup), both kept
+				require.Len(t, got, 2)
+				for _, e := range got {
+					assert.Equal(t, 1, e.Count)
+				}
+				assert.Equal(t, "bob@gmail.com", got[0].Email)
+				assert.Equal(t, "bob@gmail.com", got[1].Email)
+			},
+		},
+		// ----- Edge cases -----
+		{
+			name:    "Empty input → empty output",
+			records: []Record{},
+			opts:    RefineOptions{},
+			check: func(t *testing.T, got []Entry) {
+				assert.Empty(t, got)
+			},
+		},
+		{
+			name:    "Nil input → empty output",
+			records: nil,
+			opts:    RefineOptions{},
+			check: func(t *testing.T, got []Entry) {
+				assert.Empty(t, got)
+			},
+		},
+		{
+			name: "Record with no email and CorporateOnly=false → kept with Email=''",
+			records: []Record{
+				{Name: []string{"Ghost"}, Database: "some-db"},
+			},
+			opts: RefineOptions{CorporateOnly: false},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				assert.Equal(t, "", got[0].Email)
+			},
+		},
+		{
+			name: "Record with multiple emails uses first @domain email when CorporateOnly",
+			records: []Record{
+				{Email: []string{"personal@gmail.com", "work@fox.com", "also@fox.com"}, Database: "DB1"},
+			},
+			opts: RefineOptions{Domain: "fox.com", CorporateOnly: true},
+			check: func(t *testing.T, got []Entry) {
+				// Only one Entry emitted (does not double-emit for second @fox.com)
+				require.Len(t, got, 1)
+				assert.Equal(t, "work@fox.com", got[0].Email)
+			},
+		},
+		{
+			name: "Order preserved: first-seen email order with Dedup",
+			records: []Record{
+				{Email: []string{"beta@example.com"}, Database: "DB1"},
+				{Email: []string{"alpha@example.com"}, Database: "DB2"},
+				{Email: []string{"beta@example.com"}, Database: "DB3"},
+			},
+			opts: RefineOptions{Domain: "example.com", Dedup: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 2)
+				assert.Equal(t, "beta@example.com", got[0].Email)
+				assert.Equal(t, "alpha@example.com", got[1].Email)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Refine(tc.records, tc.opts)
+			tc.check(t, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Task B: TestIsCombolist
+// ---------------------------------------------------------------------------
+
+func TestIsCombolist(t *testing.T) {
+	// Every entry in combolistDatabases must match itself (exact) and a variation.
+	for _, entry := range combolistDatabases {
+		t.Run("matches denylist entry: "+entry, func(t *testing.T) {
+			assert.True(t, isCombolist(entry), "expected %q to match combolist denylist", entry)
+			// Case-insensitive: upper-case variant must also match.
+			assert.True(t, isCombolist(strings.ToUpper(entry)),
+				"expected upper-case %q to match combolist denylist (case-insensitive)", entry)
+		})
+	}
+
+	// Substring match: "Collection #1 (part of a set)" contains "Collection"
+	t.Run("substring match: Collection #1 (part of a set)", func(t *testing.T) {
+		assert.True(t, isCombolist("Collection #1 (part of a set)"))
+	})
+
+	// Real breaches must NOT match.
+	realBreaches := []string{
+		"Adobe",
+		"LinkedIn",
+		"Dropbox",
+		"MyFitnessPal",
+		"Canva",
+	}
+	for _, db := range realBreaches {
+		t.Run("does not match real breach: "+db, func(t *testing.T) {
+			assert.False(t, isCombolist(db), "expected real breach %q NOT to match combolist denylist", db)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Task 3: Search pagination
 // ---------------------------------------------------------------------------
 

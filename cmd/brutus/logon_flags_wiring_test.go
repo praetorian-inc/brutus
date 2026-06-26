@@ -74,10 +74,10 @@ func TestLogonFlagsWiring(t *testing.T) {
 // buildBaseConfig, and that the help text states the never-clean semantics.
 //
 // RED until the developer:
-//   1. Adds `flagFast bool` to flags.go in the Logon flags block.
-//   2. Adds `cmd.Flags().BoolVar(&flagFast, "fast", false, "...")` in registerLogonFlags.
-//   3. Adds `fast bool` field to baseConfigOptions (config.go).
-//   4. Adds `fast: flagFast` to buildBaseConfig return.
+//  1. Adds `flagFast bool` to flags.go in the Logon flags block.
+//  2. Adds `cmd.Flags().BoolVar(&flagFast, "fast", false, "...")` in registerLogonFlags.
+//  3. Adds `fast bool` field to baseConfigOptions (config.go).
+//  4. Adds `fast: flagFast` to buildBaseConfig return.
 func TestFastFlagWiring(t *testing.T) {
 	t.Cleanup(resetLogonFlags)
 	t.Run("default_false", func(t *testing.T) {

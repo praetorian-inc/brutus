@@ -40,7 +40,8 @@ func newTestClient(baseURL string) *Client {
 // ---------------------------------------------------------------------------
 
 func TestToContact(t *testing.T) {
-	// v3 batch response: results array with nested jobTitle/company/contactMethods.
+	// v3 batch response: results array with top-level emails/phones on each result
+	// (no contactMethods wrapper). Verified against live API 2026-06-26.
 	resp := &lushaEnrichResponse{
 		RequestID: "req-1",
 		Results: []lushaResult{
@@ -54,18 +55,13 @@ func TestToContact(t *testing.T) {
 					Name   string `json:"name"`
 					Domain string `json:"domain"`
 				}{Name: "Analytical Engine Co"},
-				ContactMethods: struct {
-					Emails []lushaEmail `json:"emails"`
-					Phones []lushaPhone `json:"phones"`
-				}{
-					Emails: []lushaEmail{
-						{Address: "ada@example.com", Type: "professional", Confidence: "high"},
-						{Address: "ada.personal@gmail.com", Type: "personal", Confidence: "medium"},
-					},
-					Phones: []lushaPhone{
-						{Number: "+1-555-0100", Type: "direct", DoNotCall: false},
-						{Number: "+1-555-0199", Type: "mobile", DoNotCall: true},
-					},
+				Emails: []lushaEmail{
+					{Email: "ada@example.com", Type: "professional", Confidence: "A+", UpdateDate: "2026-06-26"},
+					{Email: "ada.personal@gmail.com", Type: "personal", Confidence: "B", UpdateDate: "2026-06-26"},
+				},
+				Phones: []lushaPhone{
+					{Number: "+1-555-0100", Type: "direct", DoNotCall: false, UpdateDate: "2026-06-26"},
+					{Number: "+1-555-0199", Type: "mobile", DoNotCall: true, UpdateDate: "2026-06-26"},
 				},
 			},
 		},
@@ -76,9 +72,10 @@ func TestToContact(t *testing.T) {
 	assert.Equal(t, "Analytical Engine Co", got.Company)
 
 	require.Len(t, got.Emails, 2)
+	// lushaEmail.Email maps to EmailEntry.Address
 	assert.Equal(t, "ada@example.com", got.Emails[0].Address)
 	assert.Equal(t, "professional", got.Emails[0].Type)
-	assert.Equal(t, "high", got.Emails[0].Confidence)
+	assert.Equal(t, "A+", got.Emails[0].Confidence) // string grade, not numeric
 	assert.Equal(t, "ada.personal@gmail.com", got.Emails[1].Address)
 
 	require.Len(t, got.Phones, 2)
@@ -152,21 +149,22 @@ func TestEnrich_Success(t *testing.T) {
 		capturedReqBody = body
 
 		// v3 batch response shape: requestId + results array.
+		// emails/phones are TOP-LEVEL on each result (no contactMethods wrapper).
+		// email key (not address); confidence is a letter grade string.
+		// Verified against live API 2026-06-26.
 		resp := map[string]interface{}{
 			"requestId": "req-test",
 			"results": []map[string]interface{}{
 				{
-					"firstName": "Ada",
-					"lastName":  "Lovelace",
-					"jobTitle":  map[string]interface{}{"title": "Engineer"},
-					"company":   map[string]interface{}{"name": "AnalyticalCo", "domain": ""},
-					"contactMethods": map[string]interface{}{
-						"emails": []map[string]interface{}{
-							{"address": "ada@example.com", "type": "work", "confidence": "95"},
-						},
-						"phones": []map[string]interface{}{
-							{"number": "+1-555-0100", "type": "mobile", "doNotCall": true},
-						},
+					"firstName": "Rodrigo",
+					"lastName":  "Alvear",
+					"jobTitle":  map[string]interface{}{"title": "Director"},
+					"company":   map[string]interface{}{"name": "Chilevision", "domain": "chilevision.cl"},
+					"emails": []map[string]interface{}{
+						{"email": "r@chilevision.cl", "type": "work", "confidence": "A+", "updateDate": "2026-06-26"},
+					},
+					"phones": []map[string]interface{}{
+						{"number": "+56 9 8220 8875", "type": "phone", "doNotCall": false, "updateDate": "2026-06-26"},
 					},
 				},
 			},
@@ -193,14 +191,16 @@ func TestEnrich_Success(t *testing.T) {
 	assert.Contains(t, string(capturedReqBody), "Ada",
 		"request body must contain identity fields")
 
-	// Contact fields mapped correctly.
+	// Contact fields mapped correctly (live-verified shape, 2026-06-26).
 	require.NotNil(t, contact)
 	require.Len(t, contact.Emails, 1)
-	assert.Equal(t, "ada@example.com", contact.Emails[0].Address)
+	assert.Equal(t, "r@chilevision.cl", contact.Emails[0].Address)
+	assert.Equal(t, "work", contact.Emails[0].Type)
+	assert.Equal(t, "A+", contact.Emails[0].Confidence)
 
 	require.Len(t, contact.Phones, 1)
-	assert.Equal(t, "+1-555-0100", contact.Phones[0].Number)
-	assert.True(t, contact.Phones[0].DoNotCall, "DNC flag must be preserved")
+	assert.Equal(t, "+56 9 8220 8875", contact.Phones[0].Number)
+	assert.False(t, contact.Phones[0].DoNotCall, "DNC flag must be preserved as false")
 }
 
 func TestBuildEnrichRequest(t *testing.T) {

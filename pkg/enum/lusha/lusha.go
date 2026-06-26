@@ -258,19 +258,27 @@ func toContact(resp *lushaEnrichResponse) *Contact {
 		JobTitle: r.JobTitle.Title,
 		Company:  r.Company.Name,
 	}
-	// lushaEmail/lushaPhone are field-for-field identical to EmailEntry/PhoneEntry,
-	// so convert directly per element (staticcheck S1016).
-	for _, e := range r.ContactMethods.Emails {
-		c.Emails = append(c.Emails, EmailEntry(e))
+	// emails/phones are top-level on each result; map explicitly because the
+	// vendor field names differ from the public type (e.g. email -> Address).
+	for _, e := range r.Emails {
+		c.Emails = append(c.Emails, EmailEntry{
+			Address:    e.Email,
+			Type:       e.Type,
+			Confidence: e.Confidence,
+		})
 	}
-	for _, p := range r.ContactMethods.Phones {
-		c.Phones = append(c.Phones, PhoneEntry(p))
+	for _, p := range r.Phones {
+		c.Phones = append(c.Phones, PhoneEntry{
+			Number:    p.Number,
+			Type:      p.Type,
+			DoNotCall: p.DoNotCall,
+		})
 	}
 	return c
 }
 
 // ---------------------------------------------------------------------------
-// JSON-mapping structs (unexported) — UNVERIFIED Lusha v3 field names.
+// JSON-mapping structs (unexported) — verified against live API 2026-06-26.
 // Architecture §11: isolated here so a single edit corrects a live mismatch
 // without touching control flow. httptest tests use controlled payloads and
 // pass regardless of live-schema correctness.
@@ -306,7 +314,8 @@ type lushaEnrichResponse struct {
 	Results   []lushaResult `json:"results"`
 }
 
-// lushaResult is one enriched contact from the batch.
+// lushaResult is one enriched contact from the batch. emails and phones are
+// TOP-LEVEL arrays on each result (there is no contactMethods wrapper).
 type lushaResult struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
@@ -317,24 +326,22 @@ type lushaResult struct {
 		Name   string `json:"name"`
 		Domain string `json:"domain"`
 	} `json:"company"`
-	ContactMethods struct {
-		Emails []lushaEmail `json:"emails"`
-		Phones []lushaPhone `json:"phones"`
-	} `json:"contactMethods"`
+	Emails []lushaEmail `json:"emails"`
+	Phones []lushaPhone `json:"phones"`
 }
 
 type lushaEmail struct {
-	// NOTE: the email field key ("address" vs "email") remains UNVERIFIED against
-	// a live key — residual live-schema risk flagged in review.
-	Address    string `json:"address"`
+	Email      string `json:"email"`
 	Type       string `json:"type"`
-	Confidence string `json:"confidence"`
+	Confidence string `json:"confidence"` // letter grade, e.g. "A+"
+	UpdateDate string `json:"updateDate"`
 }
 
 type lushaPhone struct {
-	Number    string `json:"number"`
-	Type      string `json:"type"`
-	DoNotCall bool   `json:"doNotCall"`
+	Number     string `json:"number"`
+	Type       string `json:"type"`
+	DoNotCall  bool   `json:"doNotCall"`
+	UpdateDate string `json:"updateDate"`
 }
 
 // lushaErrorEnvelope is the (UNVERIFIED) shape of a v3 error body. Only its

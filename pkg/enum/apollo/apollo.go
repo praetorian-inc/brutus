@@ -241,7 +241,7 @@ func (c *Client) searchPage(ctx context.Context, domain string, titles []string,
 	for i := range resp.People {
 		out[i] = toPerson(&resp.People[i])
 	}
-	return out, resp.Pagination.TotalEntries, nil
+	return out, resp.TotalEntries, nil
 }
 
 // matchPerson reveals the email for a single Apollo person id. Consumes credits.
@@ -324,11 +324,11 @@ func toPerson(p *apolloPerson) Person {
 // ---------------------------------------------------------------------------
 // JSON-mapping structs (unexported — map to the Apollo API shapes).
 //
-// NOTE (UNVERIFIED): the request/response field names and endpoint paths below
-// are derived from Apollo docs (architecture §7) and have NOT been verified
-// against a live key. They are intentionally isolated here so a single edit
-// corrects any mismatch without touching control flow. httptest tests use
-// controlled payloads and pass regardless of live-schema correctness.
+// NOTE: verified against live API 2026-06-26 (total_entries top-level;
+// last_name masked pre-reveal). The request/response field names and endpoint
+// paths below are intentionally isolated here so a single edit corrects any
+// mismatch without touching control flow. httptest tests use controlled
+// payloads and pass regardless of live-schema correctness.
 // ---------------------------------------------------------------------------
 
 type apolloSearchRequest struct {
@@ -338,16 +338,11 @@ type apolloSearchRequest struct {
 	PerPage             int      `json:"per_page"`
 }
 
+// apolloSearchResponse maps the mixed_people/api_search body. total_entries is a
+// TOP-LEVEL field (the pagination object is null at the credit-free tier).
 type apolloSearchResponse struct {
-	People     []apolloPerson   `json:"people"`
-	Pagination apolloPagination `json:"pagination"`
-}
-
-type apolloPagination struct {
-	Page         int `json:"page"`
-	PerPage      int `json:"per_page"`
-	TotalEntries int `json:"total_entries"`
-	TotalPages   int `json:"total_pages"`
+	People       []apolloPerson `json:"people"`
+	TotalEntries int            `json:"total_entries"`
 }
 
 type apolloMatchRequest struct {

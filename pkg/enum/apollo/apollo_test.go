@@ -127,14 +127,10 @@ func TestAPIError_Error(t *testing.T) {
 // T002: searchPage + matchPerson + do
 // ---------------------------------------------------------------------------
 
-func makeSearchResponse(people []apolloPerson, total, page, perPage int) []byte {
+func makeSearchResponse(people []apolloPerson, total int) []byte {
 	resp := apolloSearchResponse{
-		People: people,
-		Pagination: apolloPagination{
-			Page:         page,
-			PerPage:      perPage,
-			TotalEntries: total,
-		},
+		People:       people,
+		TotalEntries: total,
 	}
 	b, _ := json.Marshal(resp)
 	return b
@@ -174,7 +170,7 @@ func TestSearchPage_Decode(t *testing.T) {
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(makeSearchResponse(people, 2, 1, 10))
+		_, _ = w.Write(makeSearchResponse(people, 2))
 	}))
 	defer srv.Close()
 
@@ -260,7 +256,7 @@ func TestDo_SetsAuthHeader(t *testing.T) {
 		capturedHeader = r.Header.Get(headerAPIKey)
 		capturedURL = r.URL.String()
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(makeSearchResponse(nil, 0, 1, 10))
+		_, _ = w.Write(makeSearchResponse(nil, 0))
 	}))
 	defer srv.Close()
 
@@ -313,7 +309,7 @@ func pagedSearchServer(t *testing.T, allPeople []apolloPerson, total, pageSize, 
 		pageSlice := allPeople[start:end]
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(makeSearchResponse(pageSlice, total, page, pageSize))
+		_, _ = w.Write(makeSearchResponse(pageSlice, total))
 	}))
 
 	return srv, &requestCount
@@ -431,7 +427,7 @@ func TestSearchPeople_ContextCancellation(t *testing.T) {
 		// Simulate a slow server that outlasts the context timeout.
 		time.Sleep(200 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(makeSearchResponse([]apolloPerson{makePerson("p1")}, 100, 1, 1))
+		_, _ = w.Write(makeSearchResponse([]apolloPerson{makePerson("p1")}, 100))
 	}))
 	defer srv.Close()
 

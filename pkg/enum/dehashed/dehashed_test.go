@@ -15,11 +15,9 @@
 package dehashed
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -100,82 +98,49 @@ func TestAPIError_Unwrap(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// P0-SCOPE: TestSearch_DropsCredentials
-// Verify that even if the API returns password / hashed_password fields, they
-// are never present in the Record, human output, or JSONL output.
+// P0-SCOPE: TestSearch_CollectsCredentials
+// Verify that the API "password" field is collected into Record.Passwords and
+// surfaces through Refine into Entry.Passwords. Verify that "hashed_password"
+// is NEVER collected (not present in Record or Entry — dropped at unmarshal).
 // ---------------------------------------------------------------------------
 
-// outputDehashedHumanForTest is a local re-implementation that mirrors what
-// cmd/brutus/cmd_enum_dehashed_output.go does so the package-level test can
-// exercise both output paths without importing main. It uses the same approach
-// as the production code: iterate records and emit email, username, name, database.
-func outputDehashedHumanForTest(w *bytes.Buffer, result *DomainResult) {
-	for i := range result.Records {
-		r := &result.Records[i]
-		email := strings.Join(r.Email, ", ")
-		username := strings.Join(r.Username, ", ")
-		name := strings.Join(r.Name, ", ")
-		fmt.Fprintf(w, "%s %s %s %s %s\n", email, username, name, r.Database, r.ObtainedDate)
-	}
-}
-
-func outputDehashedJSONLForTest(w *bytes.Buffer, result *DomainResult) {
-	type dehashedJSON struct {
-		Type         string   `json:"type"`
-		Domain       string   `json:"domain"`
-		ID           string   `json:"id,omitempty"`
-		Email        []string `json:"email,omitempty"`
-		Username     []string `json:"username,omitempty"`
-		Name         []string `json:"name,omitempty"`
-		IPAddress    []string `json:"ip_address,omitempty"`
-		Phone        []string `json:"phone,omitempty"`
-		Address      []string `json:"address,omitempty"`
-		DOB          []string `json:"dob,omitempty"`
-		Database     string   `json:"database,omitempty"`
-		ObtainedDate string   `json:"obtained_date,omitempty"`
-	}
-	enc := json.NewEncoder(w)
-	for i := range result.Records {
-		r := &result.Records[i]
-		jr := dehashedJSON{
-			Type:         "dehashed",
-			Domain:       result.Domain,
-			ID:           r.ID,
-			Email:        r.Email,
-			Username:     r.Username,
-			Name:         r.Name,
-			IPAddress:    r.IPAddress,
-			Phone:        r.Phone,
-			Address:      r.Address,
-			DOB:          r.DOB,
-			Database:     r.Database,
-			ObtainedDate: r.ObtainedDate,
-		}
-		_ = enc.Encode(jr)
-	}
-}
-
-func TestSearch_DropsCredentials(t *testing.T) {
-	// The mock API response deliberately includes password and hashed_password
-	// fields alongside the identity fields we DO collect.
+func TestSearch_CollectsCredentials(t *testing.T) {
+	// The mock API returns two entries for the same email with different passwords,
+	// plus a hashed_password field that must be silently dropped.
 	apiResp := `{
 		"balance": 9000,
-		"total": 1,
+		"total": 2,
 		"took": "1ms",
-		"entries": [{
-			"id": "cred-entry-1",
-			"email": ["alice@example.com"],
-			"username": ["alice"],
-			"name": ["Alice Smith"],
-			"ip_address": ["1.2.3.4"],
-			"phone": [],
-			"address": [],
-			"dob": [],
-			"database_name": "breach-db",
-			"obtained_date": "2021-01",
-			"password": ["secret123"],
-			"hashed_password": ["abc...hashedvalue"]
-		}]
+		"entries": [
+			{
+				"id": "entry-1",
+				"email": ["alice@example.com"],
+				"username": ["alice"],
+				"name": ["Alice Smith"],
+				"ip_address": ["1.2.3.4"],
+				"phone": [],
+				"address": [],
+				"dob": [],
+				"database_name": "breach-db-A",
+				"obtained_date": "2021-01",
+				"password": ["secret123"],
+				"hashed_password": ["abc...hashedvalue"]
+			},
+			{
+				"id": "entry-2",
+				"email": ["alice@example.com"],
+				"username": ["alice2"],
+				"name": ["Alice Smith"],
+				"ip_address": [],
+				"phone": [],
+				"address": [],
+				"dob": [],
+				"database_name": "breach-db-B",
+				"obtained_date": "2022-06",
+				"password": ["hunter2", "p@ss"],
+				"hashed_password": ["def...anotherhash"]
+			}
+		]
 	}`
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -187,41 +152,48 @@ func TestSearch_DropsCredentials(t *testing.T) {
 	c := newTestClient(srv.URL)
 	result, err := c.Search(context.Background(), "example.com", 0)
 	require.NoError(t, err)
-	require.Len(t, result.Records, 1)
+	require.Len(t, result.Records, 2)
 
-	rec := result.Records[0]
+	// --- Assert plaintext passwords ARE collected into Record.Passwords ---
+	rec0 := result.Records[0]
+	assert.Equal(t, []string{"secret123"}, rec0.Passwords,
+		"plaintext password must be collected into Record.Passwords")
 
-	// --- Assert identity fields ARE present ---
-	assert.Equal(t, []string{"alice@example.com"}, rec.Email)
-	assert.Equal(t, []string{"alice"}, rec.Username)
-	assert.Equal(t, []string{"Alice Smith"}, rec.Name)
+	rec1 := result.Records[1]
+	assert.ElementsMatch(t, []string{"hunter2", "p@ss"}, rec1.Passwords,
+		"multiple plaintext passwords must all be collected into Record.Passwords")
 
-	// --- Assert credential fields NEVER appear in Record struct ---
-	// Record has no Password or HashedPassword fields by design (P0-SCOPE).
-	// Verify via JSON round-trip: marshal the record and check no cred keys appear.
-	recBytes, err := json.Marshal(rec)
-	require.NoError(t, err)
-	recJSON := strings.ToLower(string(recBytes))
-	assert.NotContains(t, recJSON, "secret123", "credential value must not appear in Record JSON")
-	assert.NotContains(t, recJSON, "abc...hashedvalue", "hashed credential must not appear in Record JSON")
-	assert.NotContains(t, recJSON, "password", "no password key must appear in Record JSON")
+	// --- Assert hashed_password is NOT collected (dropped at unmarshal) ---
+	// Record has no hashed_password field by design (P0-SCOPE). Verify via
+	// JSON round-trip that neither the hash value nor key appears.
+	for i, rec := range result.Records {
+		recBytes, merr := json.Marshal(rec)
+		require.NoError(t, merr)
+		recJSON := strings.ToLower(string(recBytes))
+		assert.NotContains(t, recJSON, "hashedvalue", "hashed credential value must not appear in Record JSON (record %d)", i)
+		assert.NotContains(t, recJSON, "anotherhash", "hashed credential value must not appear in Record JSON (record %d)", i)
+		assert.NotContains(t, recJSON, "hashed_password", "hashed_password key must not appear in Record JSON (record %d)", i)
+	}
 
-	// --- Assert credential values NEVER appear in human output ---
-	var humanBuf bytes.Buffer
-	outputDehashedHumanForTest(&humanBuf, result)
-	humanOut := humanBuf.String()
-	assert.NotContains(t, humanOut, "secret123", "credential value must not appear in human output")
-	assert.NotContains(t, humanOut, "abc...hashedvalue", "hashed credential must not appear in human output")
-	assert.NotContains(t, strings.ToLower(humanOut), "password", "password key must not appear in human output")
+	// --- Assert Refine with Dedup unions passwords across records for same email ---
+	entries := Refine(result.Records, RefineOptions{
+		Domain: "example.com",
+		Dedup:  true,
+	})
+	require.Len(t, entries, 1, "two records for same email must merge into one Entry")
 
-	// --- Assert credential values NEVER appear in JSONL output ---
-	var jsonlBuf bytes.Buffer
-	outputDehashedJSONLForTest(&jsonlBuf, result)
-	jsonlOut := jsonlBuf.String()
-	assert.NotContains(t, jsonlOut, "secret123", "credential value must not appear in JSONL output")
-	assert.NotContains(t, jsonlOut, "abc...hashedvalue", "hashed credential must not appear in JSONL output")
-	assert.NotContains(t, strings.ToLower(jsonlOut), "hashed_password", "hashed_password key must not appear in JSONL output")
-	assert.NotContains(t, strings.ToLower(jsonlOut), `"password"`, "password key must not appear in JSONL output")
+	merged := entries[0]
+	assert.Equal(t, "alice@example.com", merged.Email)
+
+	// Password UNION: secret123 + hunter2 + p@ss (deduped, empties dropped)
+	assert.ElementsMatch(t, []string{"secret123", "hunter2", "p@ss"}, merged.Passwords,
+		"Refine/Dedup must union plaintext passwords across records for the same email")
+
+	// Hashed passwords must not appear anywhere in the merged Entry.
+	for _, pw := range merged.Passwords {
+		assert.NotContains(t, strings.ToLower(pw), "hash",
+			"hashed_password value must never appear in Entry.Passwords")
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -290,6 +262,23 @@ func TestRefine(t *testing.T) {
 				assert.ElementsMatch(t, []string{"alice1", "a.smith"}, e.Usernames)
 				// Phones from both records merged — cross-breach phone union
 				assert.ElementsMatch(t, []string{"+1-555-0100", "+1-555-0200"}, e.Phones)
+			},
+		},
+		{
+			name: "Dedup: passwords unioned across records for same email (deduped, empties dropped)",
+			records: []Record{
+				{Email: []string{"alice@example.com"}, Passwords: []string{"secret123"}, Database: "DB-A"},
+				{Email: []string{"alice@example.com"}, Passwords: []string{"hunter2", "p@ss"}, Database: "DB-B"},
+				// Third record has a duplicate password and an empty string — both must be dropped.
+				{Email: []string{"alice@example.com"}, Passwords: []string{"secret123", ""}, Database: "DB-C"},
+			},
+			opts: RefineOptions{Domain: "example.com", Dedup: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1)
+				e := got[0]
+				// Union: secret123, hunter2, p@ss (deduplicated; "" dropped)
+				assert.ElementsMatch(t, []string{"secret123", "hunter2", "p@ss"}, e.Passwords,
+					"Dedup must union passwords across records (deduped, empties dropped)")
 			},
 		},
 		{

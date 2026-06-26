@@ -132,7 +132,7 @@ func TestClassifyDehashedError_NoKeyLeak(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 9 (updated): outputDehashedHuman — new signature with []dehashed.Entry
+// Task 9 (updated): outputDehashedHuman — showCredentials bool param
 // ---------------------------------------------------------------------------
 
 func TestOutputDehashedHuman(t *testing.T) {
@@ -148,7 +148,7 @@ func TestOutputDehashedHuman(t *testing.T) {
 			},
 		}
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, "example.com", 1, 10, 500, entries, false)
+		outputDehashedHuman(&buf, "example.com", 1, 10, 500, entries, false, false)
 		out := buf.String()
 
 		// Column headers must be present.
@@ -179,7 +179,7 @@ func TestOutputDehashedHuman(t *testing.T) {
 			},
 		}
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, "example.com", 1, 1, 0, entries, false)
+		outputDehashedHuman(&buf, "example.com", 1, 1, 0, entries, false, false)
 		out := buf.String()
 		assert.Contains(t, out, "+44-7700-900000", "phone value must appear in human output")
 	})
@@ -190,7 +190,7 @@ func TestOutputDehashedHuman(t *testing.T) {
 			{Email: "b@example.com", Databases: []string{"DB2"}, Count: 1},
 		}
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, "example.com", 5, 100, 0, entries, false)
+		outputDehashedHuman(&buf, "example.com", 5, 100, 0, entries, false, false)
 		out := buf.String()
 		// Summary: "5 records → 2 unique contacts"
 		assert.Contains(t, out, "5 records")
@@ -199,30 +199,55 @@ func TestOutputDehashedHuman(t *testing.T) {
 
 	t.Run("empty entries shows no matching records message", func(t *testing.T) {
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, "empty.com", 0, 0, 0, []dehashed.Entry{}, false)
+		outputDehashedHuman(&buf, "empty.com", 0, 0, 0, []dehashed.Entry{}, false, false)
 		out := buf.String()
 		assert.Contains(t, out, "No matching records for this domain")
 	})
 
-	t.Run("no password or hashed_password in output", func(t *testing.T) {
+	// showCredentials=false: the Password(s) column and values must NOT appear.
+	t.Run("showCredentials=false: no Password(s) column and no password values", func(t *testing.T) {
 		entries := []dehashed.Entry{
 			{
 				Email:     "bob@example.com",
 				Usernames: []string{"bob"},
+				Passwords: []string{"secret123"},
 				Databases: []string{"some-db"},
 				Count:     1,
 			},
 		}
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, "example.com", 1, 1, 0, entries, false)
-		out := strings.ToLower(buf.String())
-		assert.NotContains(t, out, "password", "password must never appear in human output")
-		assert.NotContains(t, out, "hashed_password", "hashed_password must never appear in human output")
+		outputDehashedHuman(&buf, "example.com", 1, 1, 0, entries, false, false)
+		out := buf.String()
+		outLower := strings.ToLower(out)
+		assert.NotContains(t, outLower, "password", "Password(s) column must not appear when showCredentials=false")
+		assert.NotContains(t, out, "secret123", "password value must not appear when showCredentials=false")
+		assert.NotContains(t, outLower, "hashed_password", "hashed_password must never appear in human output")
+	})
+
+	// showCredentials=true: the Password(s) column header AND values must appear.
+	t.Run("showCredentials=true: Password(s) column and values appear", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{
+				Email:     "carol@example.com",
+				Passwords: []string{"hunter2", "p@ss"},
+				Databases: []string{"breach-db"},
+				Count:     1,
+			},
+		}
+		var buf bytes.Buffer
+		outputDehashedHuman(&buf, "example.com", 1, 1, 0, entries, false, true)
+		out := buf.String()
+		assert.Contains(t, out, "Password(s)", "Password(s) column header must appear when showCredentials=true")
+		assert.Contains(t, out, "hunter2", "password value must appear when showCredentials=true")
+		assert.Contains(t, out, "p@ss", "all password values must appear when showCredentials=true")
+		// hashed_password must never appear regardless of showCredentials.
+		assert.NotContains(t, strings.ToLower(out), "hashed_password",
+			"hashed_password must never appear in human output")
 	})
 }
 
 // ---------------------------------------------------------------------------
-// Task 10 (updated): outputDehashedJSONL — new signature with []dehashed.Entry
+// Task 10 (updated): outputDehashedJSONL — showCredentials bool param
 // ---------------------------------------------------------------------------
 
 func TestOutputDehashedJSONL(t *testing.T) {
@@ -238,7 +263,7 @@ func TestOutputDehashedJSONL(t *testing.T) {
 			},
 		}
 		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, entries)
+		outputDehashedJSONL(&buf, entries, false)
 
 		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 		require.Len(t, lines, 1)
@@ -283,29 +308,64 @@ func TestOutputDehashedJSONL(t *testing.T) {
 			},
 		}
 		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, entries)
+		outputDehashedJSONL(&buf, entries, false)
 		out := buf.String()
 		assert.Contains(t, out, "+1-800-555-1234", "phone must appear in JSONL output")
 	})
 
-	t.Run("no password or hashed_password keys in JSONL output", func(t *testing.T) {
+	// showCredentials=false: "passwords" key must not appear, hashed_password never.
+	t.Run("showCredentials=false: no passwords key in JSONL output", func(t *testing.T) {
 		entries := []dehashed.Entry{
 			{
 				Email:     "alice@example.com",
+				Passwords: []string{"secret123"},
 				Databases: []string{"breach-db"},
 				Count:     1,
 			},
 		}
 		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, entries)
+		outputDehashedJSONL(&buf, entries, false)
 		out := strings.ToLower(buf.String())
-		assert.NotContains(t, out, `"password"`, "password key must never appear in JSONL output")
+		assert.NotContains(t, out, `"passwords"`, "passwords key must not appear in JSONL when showCredentials=false")
+		assert.NotContains(t, out, "secret123", "password value must not appear in JSONL when showCredentials=false")
 		assert.NotContains(t, out, "hashed_password", "hashed_password key must never appear in JSONL output")
+	})
+
+	// showCredentials=true: "passwords" key AND values must appear.
+	t.Run("showCredentials=true: passwords key and values appear in JSONL output", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{
+				Email:     "bob@example.com",
+				Passwords: []string{"hunter2", "p@ss"},
+				Databases: []string{"breach-db"},
+				Count:     1,
+			},
+		}
+		var buf bytes.Buffer
+		outputDehashedJSONL(&buf, entries, true)
+		out := buf.String()
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &obj))
+
+		passwords, ok := obj["passwords"].([]interface{})
+		require.True(t, ok, "passwords must be a JSON array when showCredentials=true")
+		var pwStrings []string
+		for _, p := range passwords {
+			s, ok := p.(string)
+			require.True(t, ok)
+			pwStrings = append(pwStrings, s)
+		}
+		assert.ElementsMatch(t, []string{"hunter2", "p@ss"}, pwStrings,
+			"passwords values must appear in JSONL when showCredentials=true")
+		// hashed_password must never appear regardless of showCredentials.
+		assert.NotContains(t, strings.ToLower(out), "hashed_password",
+			"hashed_password must never appear in JSONL output")
 	})
 
 	t.Run("empty entries emits zero lines", func(t *testing.T) {
 		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, []dehashed.Entry{})
+		outputDehashedJSONL(&buf, []dehashed.Entry{}, false)
 		assert.Empty(t, strings.TrimSpace(buf.String()))
 	})
 
@@ -316,7 +376,7 @@ func TestOutputDehashedJSONL(t *testing.T) {
 			{Email: "c@example.com", Databases: []string{"DB3"}, Count: 1},
 		}
 		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, entries)
+		outputDehashedJSONL(&buf, entries, false)
 
 		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 		require.Len(t, lines, 3)
@@ -377,8 +437,13 @@ func TestEnumDehashedRegistered(t *testing.T) {
 	nodedupFlag := canonicalDehashed.Flags().Lookup("no-dedup")
 	require.NotNil(t, nodedupFlag, "--no-dedup flag must exist")
 
-	includeCombolistsFlag := canonicalDehashed.Flags().Lookup("include-combolists")
-	require.NotNil(t, includeCombolistsFlag, "--include-combolists flag must exist")
+	excludeCombolistsFlag := canonicalDehashed.Flags().Lookup("exclude-combolists")
+	require.NotNil(t, excludeCombolistsFlag, "--exclude-combolists flag must exist")
+	assert.Equal(t, "false", excludeCombolistsFlag.DefValue, "--exclude-combolists default must be false (combolists included by default)")
+
+	noCredentialsFlag := canonicalDehashed.Flags().Lookup("no-credentials")
+	require.NotNil(t, noCredentialsFlag, "--no-credentials flag must exist")
+	assert.Equal(t, "false", noCredentialsFlag.DefValue, "--no-credentials default must be false (passwords shown by default)")
 
 	// 3. A hidden back-compat alias must exist directly under enumCmd.
 	var alias *cobra.Command

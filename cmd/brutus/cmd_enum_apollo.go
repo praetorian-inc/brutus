@@ -30,11 +30,11 @@ import (
 // File-local flag variables for the apollo subcommand.
 // Separate from flagEnumDomain to avoid cross-command state bleed.
 var (
-	flagApolloDomain   string
-	flagApolloTitles   []string
-	flagApolloNoReveal bool
-	flagApolloLimit    int
-	flagApolloAPIKey   string
+	flagApolloDomain string
+	flagApolloTitles []string
+	flagApolloEnrich bool
+	flagApolloLimit  int
+	flagApolloAPIKey string
 )
 
 // newEnumApolloCmd builds the "apollo" command. A fresh instance is constructed
@@ -45,13 +45,20 @@ var (
 func newEnumApolloCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apollo",
-		Short: "Discover and enrich people for a domain via Apollo.io",
-		Long: `Query the Apollo.io people-search API to discover people associated with a
-company domain, then enrich each with the full matched record. By DEFAULT this
-reveals per person via the people/match API — un-obfuscated last name, email and
-status, LinkedIn/Twitter, seniority, departments, location, and employment
-history — which CONSUMES APOLLO CREDITS, bounded by --limit. Pass --no-reveal for
-free discovery only (thin records: id, first name, title, organization; no PII).
+		Short: "Discover people for a domain via Apollo.io (free; --enrich reveals emails)",
+		Long: `Query the Apollo.io people-search API to DISCOVER people associated with a
+company domain. By DEFAULT this is FREE and consumes NO credits: it returns thin
+records (id, first name, title, organization) plus per-person AVAILABILITY flags
+(whether a verified email / direct phone could be revealed) — no actual emails or
+phone numbers.
+
+Pass --enrich to reveal the full matched record for every discovered person via
+the people/match API — un-obfuscated last name, verified email and status,
+LinkedIn/Twitter, seniority, departments, location, and employment history. This
+CONSUMES APOLLO CREDITS (one per person), bounded by --limit.
+
+The SaaS UI performs SELECTIVE per-person enrichment (the operator picks who to
+reveal) directly via the library; this CLI's --enrich is the manual full-pull.
 Standalone — does not feed the saas enumeration pipeline.
 
 Authorized use only: respect Apollo.io's Terms of Service and only enumerate
@@ -59,14 +66,14 @@ domains you are authorized to assess.
 
 Requires an Apollo.io API key via the APOLLO_API_KEY environment variable
 (or the --api-key flag).`,
-		Example: `  # Discover AND enrich people (DEFAULT — CONSUMES CREDITS, bounded by --limit)
+		Example: `  # Discover people (DEFAULT — FREE, no credits; shows email/phone availability)
   brutus enum passive apollo --domain example.com
 
   # Filter by job titles
   brutus enum passive apollo -d example.com --titles "VP Engineering" --titles "CTO"
 
-  # Free discovery only — thin records, no emails, no credits
-  brutus enum passive apollo -d example.com --no-reveal
+  # Enrich all discovered people (CONSUMES CREDITS, bounded by --limit)
+  brutus enum passive apollo -d example.com --enrich --limit 50
 
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum passive apollo -d example.com --api-key abc123`,
@@ -76,8 +83,8 @@ Requires an Apollo.io API key via the APOLLO_API_KEY environment variable
 	f := cmd.Flags()
 	f.StringVarP(&flagApolloDomain, "domain", "d", "", "Company domain to discover people for (required)")
 	f.StringSliceVar(&flagApolloTitles, "titles", nil, "Optional job-title filter (repeatable or comma-separated)")
-	f.BoolVar(&flagApolloNoReveal, "no-reveal", false, "Free discovery only — skip people/match enrichment (no PII, no credits)")
-	f.IntVar(&flagApolloLimit, "limit", 100, "Max people to return AND max to reveal (bounds credit spend; 0 = no cap, requires --no-reveal)")
+	f.BoolVar(&flagApolloEnrich, "enrich", false, "Reveal emails for all discovered people via people/match (CONSUMES CREDITS; bounded by --limit)")
+	f.IntVar(&flagApolloLimit, "limit", 0, "Max people to discover AND (with --enrich) to reveal (bounds credit spend; 0 = no cap)")
 	f.StringVar(&flagApolloAPIKey, "api-key", "",
 		"Apollo.io API key (overrides APOLLO_API_KEY; WARNING: visible in process list and shell history — prefer APOLLO_API_KEY)")
 	_ = cmd.MarkFlagRequired("domain")
@@ -93,17 +100,14 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--domain/-d is required")
 	}
 
-	// Reveal is the default; --no-reveal opts out to free discovery only.
-	reveal := !flagApolloNoReveal
+	// DISCOVER is the default (free, no credits). --enrich opts in to revealing
+	// emails for every discovered person (consumes credits, bounded by --limit).
+	enrich := flagApolloEnrich
 
-	// Bound credit spend: reject a negative cap outright, and reject an unbounded
-	// cap (0 = no cap) while revealing (the default) since reveal spends credits
-	// per person. An unbounded cap is only allowed with --no-reveal.
+	// --limit bounds discovery breadth and (with --enrich) enrich spend.
+	// 0 = no cap. Reject a negative cap outright.
 	if flagApolloLimit < 0 {
 		return fmt.Errorf("--limit must be >= 0")
-	}
-	if reveal && flagApolloLimit == 0 {
-		return fmt.Errorf("revealing (the default) requires a positive --limit to bound credit spend; pass --no-reveal for unbounded free discovery")
 	}
 
 	apiKey, err := resolveApolloAPIKey(flagApolloAPIKey)
@@ -143,9 +147,9 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 	}
 
 	client := apollo.NewClient(apiKey, flagTimeout, pageSizeForLimit(flagApolloLimit))
-	result, err := client.SearchPeople(ctx, flagApolloDomain, flagApolloTitles, flagApolloLimit)
+	result, err := client.Discover(ctx, flagApolloDomain, flagApolloTitles, flagApolloLimit)
 	if err != nil {
-		// Output any partial discovery (SearchPeople returns partial + err) before
+		// Output any partial discovery (Discover returns partial + err) before
 		// surfacing the classified, nonzero-exit error — discovered contacts are free.
 		if result != nil && len(result.People) > 0 {
 			emitResult(result)
@@ -153,10 +157,12 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 		return classifyApolloError(err)
 	}
 
-	if reveal {
+	if enrich {
+		// Discovery is free, so the only credit-spending action is --enrich. Warn
+		// once, on stderr, with the exact count that will be charged.
 		if !flagQuiet && !flagJSON && len(result.People) > 0 {
-			fmt.Fprintf(os.Stderr, "%s revealing will consume Apollo credits for %d people (pass --no-reveal to skip)\n",
-				dim(useColor, SymbolInfo), len(result.People))
+			fmt.Fprintf(os.Stderr, "%s --enrich will reveal emails for %d people (consumes ~%d Apollo credits)\n",
+				dim(useColor, SymbolInfo), len(result.People), len(result.People))
 		}
 		if err := client.RevealEmails(ctx, result); err != nil {
 			// Output the partial result (emails merged so far are paid for) before

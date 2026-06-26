@@ -52,8 +52,8 @@ const (
 // Public types
 // ---------------------------------------------------------------------------
 
-// Person is one discovered contact for the domain. The reveal-only fields are
-// empty until RevealEmails runs (default-on, consumes credits).
+// Person is one discovered contact for the domain. The enrichment-only fields
+// are empty until EnrichByIDs/RevealEmails runs (consumes credits).
 type Person struct {
 	// From people-search (FREE, thin — last_name is obfuscated/empty here).
 	ID           string
@@ -65,7 +65,14 @@ type Person struct {
 	Department   string
 	Organization string
 
-	// From people/match (CREDITS, PII) — empty unless reveal ran.
+	// Availability signals from people-search (FREE, no credits): whether a
+	// verified email / direct phone could be revealed by enrichment. HasPhone is
+	// true only when the search tier reports a definite "Yes" (a "Maybe" requires
+	// a separate bulk_match request and is treated as not-available here).
+	HasEmail bool
+	HasPhone bool
+
+	// From people/match (CREDITS, PII) — empty unless enrichment ran.
 	Email       string
 	EmailStatus string
 	LinkedinURL string
@@ -90,10 +97,11 @@ type EmploymentEntry struct {
 
 // DomainResult is the aggregated, de-paginated result for a domain.
 type DomainResult struct {
-	Domain   string
-	People   []Person
-	Total    int  // pagination.total_entries
-	Revealed bool // true if RevealEmails ran (any credits spent)
+	Domain         string
+	People         []Person
+	Total          int  // pagination.total_entries
+	Revealed       bool // true if enrichment ran (any credits spent)
+	CreditsCharged int  // count of people enriched = Apollo credits spent
 }
 
 // APIError is returned for any non-2xx HTTP status from Apollo.
@@ -154,10 +162,11 @@ func NewClient(apiKey string, timeout time.Duration, pageSize int) *Client {
 	}
 }
 
-// SearchPeople paginates people-search for domain (optionally filtered by
-// titles), accumulating up to limit people. Phase 1 is FREE and returns no PII.
-// Honors ctx cancellation between pages.
-func (c *Client) SearchPeople(ctx context.Context, domain string, titles []string, limit int) (*DomainResult, error) {
+// Discover paginates people-search for domain (optionally filtered by titles),
+// accumulating up to limit people. This is the cheap discovery step: it is FREE,
+// returns no PII (only availability flags HasEmail/HasPhone), and consumes no
+// credits. Honors ctx cancellation between pages.
+func (c *Client) Discover(ctx context.Context, domain string, titles []string, limit int) (*DomainResult, error) {
 	result := &DomainResult{Domain: domain}
 	page := 1
 
@@ -200,37 +209,71 @@ func (c *Client) SearchPeople(ctx context.Context, domain string, titles []strin
 	return result, nil
 }
 
-// RevealEmails enriches the already-discovered people in result with the full
-// matched record via people/match, in place, serially. Consumes credits. Skips
-// people without an id. Merges the enriched fields (un-obfuscated last name,
-// email/status, LinkedIn/Twitter, seniority, departments, location, employment
-// history) onto each person and sets Revealed=true (even when the returned
-// email is empty — partial-result honesty), and sets result.Revealed=true on
-// the FIRST successful match so spent credits are reflected even if a later
-// match fails. Surfaces the first error (no partial swallow), leaving
-// already-merged records intact.
-func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
-	for i := range result.People {
-		p := &result.People[i]
-		if p.ID == "" { // can't match without an id
+// EnrichByIDs is the selective enrichment step: it reveals the full matched
+// record (linkedin_url, verified email, departments, seniority, employment,
+// etc.) for each given Apollo person id via people/match, serially. This is what
+// the SaaS UI calls on the operator's per-person selection. CONSUMES CREDITS —
+// one per id. Skips empty ids. Returns the enriched Person records (each with
+// Revealed=true) in id order, omitting any skipped (empty) ids. Surfaces the
+// first match error, returning the records enriched so far alongside it so the
+// caller still has — and is accountable for — the credits already spent. Honors
+// ctx cancellation between matches.
+func (c *Client) EnrichByIDs(ctx context.Context, ids []string) ([]Person, error) {
+	enriched := make([]Person, 0, len(ids))
+	for _, id := range ids {
+		if id == "" { // can't match without an id
 			continue
 		}
-		matched, err := c.matchPerson(ctx, p.ID)
+		matched, err := c.matchPerson(ctx, id)
 		if err != nil {
-			// On error, return it but leave the records merged so far intact;
-			// result.Revealed is already true if any earlier reveal succeeded.
-			return err
+			// Return the records enriched so far alongside the error — those
+			// credits are already spent, so the caller must still see them.
+			return enriched, err
 		}
-		mergeReveal(p, matched)
-		// Mark the aggregate as revealed on the FIRST successful match — credits
-		// have been spent, so the partial result must reflect that even if a
-		// later match fails.
-		result.Revealed = true
+		matched.ID = id // preserve the requested id (match echo may differ/omit)
+		matched.Revealed = true
+		enriched = append(enriched, matched)
 		if err := ctx.Err(); err != nil {
-			return err
+			return enriched, err
 		}
 	}
-	return nil
+	return enriched, nil
+}
+
+// RevealEmails is a convenience that enriches ALL discovered people in result,
+// in place. It is the CLI --enrich (manual full-pull) path, NOT the default. It
+// delegates to EnrichByIDs over the result's ids and merges the enriched fields
+// (un-obfuscated last name, email/status, LinkedIn/Twitter, seniority,
+// departments, location, employment history) back onto each person by id.
+// CONSUMES CREDITS — one per enriched person, recorded in result.CreditsCharged.
+// Sets result.Revealed=true if any person was enriched (so spent credits are
+// reflected even if a later match fails). Surfaces the first error (no partial
+// swallow), leaving already-merged records intact.
+func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
+	ids := make([]string, len(result.People))
+	for i := range result.People {
+		ids[i] = result.People[i].ID
+	}
+
+	enriched, err := c.EnrichByIDs(ctx, ids)
+
+	// Merge whatever was enriched (even on partial error) back by id, and record
+	// the credits spent so the partial result stays honest.
+	byID := make(map[string]*Person, len(enriched))
+	for i := range enriched {
+		byID[enriched[i].ID] = &enriched[i]
+	}
+	for i := range result.People {
+		if m, ok := byID[result.People[i].ID]; ok {
+			mergeReveal(&result.People[i], *m)
+		}
+	}
+	result.CreditsCharged = len(enriched)
+	if len(enriched) > 0 {
+		result.Revealed = true
+	}
+
+	return err
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +395,8 @@ func (p apolloPerson) toPerson() Person {
 		Seniority:    p.Seniority,
 		Department:   dept,
 		Organization: p.Organization.Name,
+		HasEmail:     p.HasEmail,
+		HasPhone:     p.HasDirectPhone == "Yes",
 		Email:        p.Email,
 		EmailStatus:  p.EmailStatus,
 		LinkedinURL:  p.LinkedinURL,
@@ -417,14 +462,19 @@ type apolloMatchResponse struct {
 }
 
 type apolloPerson struct {
-	ID                string                  `json:"id"`
-	FirstName         string                  `json:"first_name"`
-	LastName          string                  `json:"last_name"`
-	Name              string                  `json:"name"`
-	Title             string                  `json:"title"`
-	Seniority         string                  `json:"seniority"`
-	Departments       []string                `json:"departments"`
-	Organization      apolloOrganization      `json:"organization"`
+	ID           string             `json:"id"`
+	FirstName    string             `json:"first_name"`
+	LastName     string             `json:"last_name"`
+	Name         string             `json:"name"`
+	Title        string             `json:"title"`
+	Seniority    string             `json:"seniority"`
+	Departments  []string           `json:"departments"`
+	Organization apolloOrganization `json:"organization"`
+	// Availability flags from people-search (no credits). has_email is a bool;
+	// has_direct_phone is a STRING ("Yes" / "Maybe: ...") — verified live
+	// 2026-06-26, hence the string type and the =="Yes" mapping in toPerson.
+	HasEmail          bool                    `json:"has_email"`
+	HasDirectPhone    string                  `json:"has_direct_phone"`
 	Email             string                  `json:"email"`
 	EmailStatus       string                  `json:"email_status"`
 	LinkedinURL       string                  `json:"linkedin_url"`

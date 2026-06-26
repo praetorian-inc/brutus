@@ -41,10 +41,16 @@ var (
 	flagLushaAPIKey    string
 )
 
-var enumLushaCmd = &cobra.Command{
-	Use:   "lusha",
-	Short: "Enrich a single person identity to emails and phones via Lusha v3",
-	Long: `Resolve one person identity to an enriched contact (emails and phone
+// newEnumLushaCmd builds the "lusha" command. A fresh instance is constructed
+// per call so the same command can be mounted under two parents (the canonical
+// "enum passive lusha" path and the hidden back-compat "enum lusha" alias)
+// without sharing one *cobra.Command. All instances bind the same package-level
+// flag vars, which is fine since only one runs per invocation.
+func newEnumLushaCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "lusha",
+		Short: "Enrich a single person identity to emails and phones via Lusha v3",
+		Long: `Resolve one person identity to an enriched contact (emails and phone
 numbers) via the Lusha v3 search-and-enrich API. Provide exactly one identity:
 a name (--first-name + --last-name) with a --company or --domain, OR an --email,
 OR a --linkedin URL. Standalone — does not feed the saas enumeration pipeline.
@@ -57,25 +63,24 @@ targeted individuals/organizations.
 
 Requires a Lusha API key via the LUSHA_API_KEY environment variable
 (or the --api-key flag).`,
-	Example: `  # Enrich by name + company (key from LUSHA_API_KEY)
-  brutus enum lusha --first-name Ada --last-name Lovelace --company Analytical
+		Example: `  # Enrich by name + company (key from LUSHA_API_KEY)
+  brutus enum passive lusha --first-name Ada --last-name Lovelace --company Analytical
 
   # Enrich by name + company domain
-  brutus enum lusha --first-name Ada --last-name Lovelace --domain example.com
+  brutus enum passive lusha --first-name Ada --last-name Lovelace --domain example.com
 
   # Enrich by email
-  brutus enum lusha --email ada@example.com
+  brutus enum passive lusha --email ada@example.com
 
   # Enrich by LinkedIn URL, also request phone numbers
-  brutus enum lusha --linkedin https://linkedin.com/in/ada --phone
+  brutus enum passive lusha --linkedin https://linkedin.com/in/ada --phone
 
   # Provide the key explicitly (note: visible in process list / shell history)
-  brutus enum lusha --email ada@example.com --api-key abc123`,
-	RunE: runEnumLusha,
-}
+  brutus enum passive lusha --email ada@example.com --api-key abc123`,
+		RunE: runEnumLusha,
+	}
 
-func init() {
-	f := enumLushaCmd.Flags()
+	f := cmd.Flags()
 	f.StringVar(&flagLushaFirstName, "first-name", "", "First name (with --last-name and --company or --domain)")
 	f.StringVar(&flagLushaLastName, "last-name", "", "Last name (with --first-name)")
 	f.StringVar(&flagLushaCompany, "company", "", "Company name (with the name pair)")
@@ -87,6 +92,8 @@ func init() {
 	f.StringVar(&flagLushaAPIKey, "api-key", "",
 		"Lusha API key (overrides LUSHA_API_KEY; WARNING: visible in process list and shell history — prefer LUSHA_API_KEY)")
 	// No MarkFlagRequired — identity is validated in runEnumLusha.
+
+	return cmd
 }
 
 // runEnumLusha implements the "enum lusha" subcommand.

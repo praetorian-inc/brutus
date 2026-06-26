@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -157,7 +158,7 @@ func TestRunEnumApollo_RejectsNegativeLimit(t *testing.T) {
 	resetApolloFlags()
 	flagApolloLimit = -1
 
-	err := runEnumApollo(enumApolloCmd, nil)
+	err := runEnumApollo(nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--limit",
 		"error must mention --limit so the operator knows what to fix")
@@ -172,7 +173,7 @@ func TestRunEnumApollo_RejectsRevealWithZeroLimit(t *testing.T) {
 	// reveal is default (flagApolloNoReveal=false), so --limit 0 alone must fail.
 	flagApolloLimit = 0
 
-	err := runEnumApollo(enumApolloCmd, nil)
+	err := runEnumApollo(nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "--limit",
 		"error must mention --limit so the operator knows how to fix it")
@@ -188,7 +189,7 @@ func TestRunEnumApollo_AllowsNoRevealWithZeroLimit(t *testing.T) {
 	// No API key set — runEnumApollo will fail on resolveApolloAPIKey, which is
 	// expected; the important thing is it does NOT fail on the limit guard.
 	t.Setenv("APOLLO_API_KEY", "")
-	err := runEnumApollo(enumApolloCmd, nil)
+	err := runEnumApollo(nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "APOLLO_API_KEY",
 		"error must be about missing API key, not the limit guard")
@@ -342,39 +343,48 @@ func TestOutputApolloHuman(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEnumApolloRegistered(t *testing.T) {
-	var found bool
+	// 1. enumCmd must have a "passive" subcommand.
+	var passive *cobra.Command
 	for _, cmd := range enumCmd.Commands() {
-		if cmd.Use != "apollo" {
-			continue
+		if cmd.Use == "passive" {
+			passive = cmd
+			break
 		}
-		found = true
-
-		// Required flags must exist.
-		domainFlag := cmd.Flags().Lookup("domain")
-		require.NotNil(t, domainFlag, "--domain flag must exist")
-
-		titlesFlag := cmd.Flags().Lookup("titles")
-		require.NotNil(t, titlesFlag, "--titles flag must exist")
-
-		revealFlag := cmd.Flags().Lookup("no-reveal")
-		require.NotNil(t, revealFlag, "--no-reveal flag must exist")
-
-		limitFlag := cmd.Flags().Lookup("limit")
-		require.NotNil(t, limitFlag, "--limit flag must exist")
-
-		apiKeyFlag := cmd.Flags().Lookup("api-key")
-		require.NotNil(t, apiKeyFlag, "--api-key flag must exist")
-
-		// -d shorthand must exist.
-		domainShort := cmd.Flags().ShorthandLookup("d")
-		require.NotNil(t, domainShort, "-d shorthand for --domain must exist")
-
-		// --domain must be marked required via cobra annotation.
-		annotations := domainFlag.Annotations
-		_, isRequired := annotations["cobra_annotation_bash_completion_one_required_flag"]
-		assert.True(t, isRequired, "--domain must be marked as required")
-
-		break
 	}
-	require.True(t, found, "apollo subcommand must be registered with enumCmd")
+	require.NotNil(t, passive, `enumCmd must have a "passive" subcommand`)
+
+	// 2. The canonical "apollo" command must live under passive.
+	var canonicalApollo *cobra.Command
+	for _, cmd := range passive.Commands() {
+		if cmd.Use == "apollo" {
+			canonicalApollo = cmd
+			break
+		}
+	}
+	require.NotNil(t, canonicalApollo, `"apollo" must be a subcommand of enumPassiveCmd`)
+
+	// Verify expected flags on the canonical command.
+	for _, flagName := range []string{"domain", "titles", "no-reveal", "limit", "api-key"} {
+		require.NotNilf(t, canonicalApollo.Flags().Lookup(flagName),
+			"--%s flag must exist on canonical apollo", flagName)
+	}
+
+	domainShort := canonicalApollo.Flags().ShorthandLookup("d")
+	require.NotNil(t, domainShort, "-d shorthand for --domain must exist")
+
+	domainFlag := canonicalApollo.Flags().Lookup("domain")
+	_, isRequired := domainFlag.Annotations["cobra_annotation_bash_completion_one_required_flag"]
+	assert.True(t, isRequired, "--domain must be marked as required")
+
+	// 3. A hidden back-compat alias must exist directly under enumCmd.
+	var alias *cobra.Command
+	for _, cmd := range enumCmd.Commands() {
+		if cmd.Use == "apollo" {
+			alias = cmd
+			break
+		}
+	}
+	require.NotNil(t, alias, `hidden "apollo" alias must be registered directly under enumCmd`)
+	assert.True(t, alias.Hidden, "back-compat apollo alias must be Hidden")
+	assert.NotEmpty(t, alias.Deprecated, "back-compat apollo alias must be Deprecated")
 }

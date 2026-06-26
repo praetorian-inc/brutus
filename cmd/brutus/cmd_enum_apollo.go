@@ -37,10 +37,16 @@ var (
 	flagApolloAPIKey   string
 )
 
-var enumApolloCmd = &cobra.Command{
-	Use:   "apollo",
-	Short: "Discover and enrich people for a domain via Apollo.io",
-	Long: `Query the Apollo.io people-search API to discover people associated with a
+// newEnumApolloCmd builds the "apollo" command. A fresh instance is constructed
+// per call so the same command can be mounted under two parents (the canonical
+// "enum passive apollo" path and the hidden back-compat "enum apollo" alias)
+// without sharing one *cobra.Command. All instances bind the same package-level
+// flag vars, which is fine since only one runs per invocation.
+func newEnumApolloCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "apollo",
+		Short: "Discover and enrich people for a domain via Apollo.io",
+		Long: `Query the Apollo.io people-search API to discover people associated with a
 company domain, then enrich each with the full matched record. By DEFAULT this
 reveals per person via the people/match API — un-obfuscated last name, email and
 status, LinkedIn/Twitter, seniority, departments, location, and employment
@@ -53,29 +59,30 @@ domains you are authorized to assess.
 
 Requires an Apollo.io API key via the APOLLO_API_KEY environment variable
 (or the --api-key flag).`,
-	Example: `  # Discover AND enrich people (DEFAULT — CONSUMES CREDITS, bounded by --limit)
-  brutus enum apollo --domain example.com
+		Example: `  # Discover AND enrich people (DEFAULT — CONSUMES CREDITS, bounded by --limit)
+  brutus enum passive apollo --domain example.com
 
   # Filter by job titles
-  brutus enum apollo -d example.com --titles "VP Engineering" --titles "CTO"
+  brutus enum passive apollo -d example.com --titles "VP Engineering" --titles "CTO"
 
   # Free discovery only — thin records, no emails, no credits
-  brutus enum apollo -d example.com --no-reveal
+  brutus enum passive apollo -d example.com --no-reveal
 
   # Provide the key explicitly (note: visible in process list / shell history)
-  brutus enum apollo -d example.com --api-key abc123`,
-	RunE: runEnumApollo,
-}
+  brutus enum passive apollo -d example.com --api-key abc123`,
+		RunE: runEnumApollo,
+	}
 
-func init() {
-	f := enumApolloCmd.Flags()
+	f := cmd.Flags()
 	f.StringVarP(&flagApolloDomain, "domain", "d", "", "Company domain to discover people for (required)")
 	f.StringSliceVar(&flagApolloTitles, "titles", nil, "Optional job-title filter (repeatable or comma-separated)")
 	f.BoolVar(&flagApolloNoReveal, "no-reveal", false, "Free discovery only — skip people/match enrichment (no PII, no credits)")
 	f.IntVar(&flagApolloLimit, "limit", 100, "Max people to return AND max to reveal (bounds credit spend; 0 = no cap, requires --no-reveal)")
 	f.StringVar(&flagApolloAPIKey, "api-key", "",
 		"Apollo.io API key (overrides APOLLO_API_KEY; WARNING: visible in process list and shell history — prefer APOLLO_API_KEY)")
-	_ = enumApolloCmd.MarkFlagRequired("domain")
+	_ = cmd.MarkFlagRequired("domain")
+
+	return cmd
 }
 
 // runEnumApollo implements the "enum apollo" subcommand.

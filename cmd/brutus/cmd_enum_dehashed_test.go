@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -328,49 +329,66 @@ func TestOutputDehashedJSONL(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 11: enumDehashedCmd registration and flags (updated — new flags added)
+// Task 11: enumDehashedCmd registration and flags (updated — passive regroup)
 // ---------------------------------------------------------------------------
 
 func TestEnumDehashedRegistered(t *testing.T) {
-	var found bool
+	// 1. enumCmd must have a "passive" subcommand.
+	var passive *cobra.Command
 	for _, cmd := range enumCmd.Commands() {
-		if cmd.Use != "dehashed" {
-			continue
+		if cmd.Use == "passive" {
+			passive = cmd
+			break
 		}
-		found = true
-
-		domainFlag := cmd.Flags().Lookup("domain")
-		require.NotNil(t, domainFlag, "--domain flag must exist")
-
-		apiKeyFlag := cmd.Flags().Lookup("api-key")
-		require.NotNil(t, apiKeyFlag, "--api-key flag must exist")
-
-		limitFlag := cmd.Flags().Lookup("limit")
-		require.NotNil(t, limitFlag, "--limit flag must exist")
-
-		// Verify -d shorthand exists.
-		domainShort := cmd.Flags().ShorthandLookup("d")
-		require.NotNil(t, domainShort, "-d shorthand must exist")
-
-		// Verify --domain is marked required via cobra annotation.
-		annotations := domainFlag.Annotations
-		_, isRequired := annotations["cobra_annotation_bash_completion_one_required_flag"]
-		assert.True(t, isRequired, "--domain must be marked as required")
-
-		// Verify --limit default value is 100.
-		assert.Equal(t, "100", limitFlag.DefValue, "--limit default must be 100")
-
-		// New flags from the filtering feature.
-		allEmailsFlag := cmd.Flags().Lookup("all-emails")
-		require.NotNil(t, allEmailsFlag, "--all-emails flag must exist")
-
-		nodedupFlag := cmd.Flags().Lookup("no-dedup")
-		require.NotNil(t, nodedupFlag, "--no-dedup flag must exist")
-
-		includeCombolistsFlag := cmd.Flags().Lookup("include-combolists")
-		require.NotNil(t, includeCombolistsFlag, "--include-combolists flag must exist")
-
-		break
 	}
-	require.True(t, found, "dehashed subcommand must be registered with enumCmd")
+	require.NotNil(t, passive, `enumCmd must have a "passive" subcommand`)
+
+	// 2. The canonical "dehashed" command must live under passive.
+	var canonicalDehashed *cobra.Command
+	for _, cmd := range passive.Commands() {
+		if cmd.Use == "dehashed" {
+			canonicalDehashed = cmd
+			break
+		}
+	}
+	require.NotNil(t, canonicalDehashed, `"dehashed" must be a subcommand of enumPassiveCmd`)
+
+	// Verify expected flags on the canonical command.
+	domainFlag := canonicalDehashed.Flags().Lookup("domain")
+	require.NotNil(t, domainFlag, "--domain flag must exist")
+
+	apiKeyFlag := canonicalDehashed.Flags().Lookup("api-key")
+	require.NotNil(t, apiKeyFlag, "--api-key flag must exist")
+
+	limitFlag := canonicalDehashed.Flags().Lookup("limit")
+	require.NotNil(t, limitFlag, "--limit flag must exist")
+
+	domainShort := canonicalDehashed.Flags().ShorthandLookup("d")
+	require.NotNil(t, domainShort, "-d shorthand must exist")
+
+	_, isRequired := domainFlag.Annotations["cobra_annotation_bash_completion_one_required_flag"]
+	assert.True(t, isRequired, "--domain must be marked as required")
+
+	assert.Equal(t, "100", limitFlag.DefValue, "--limit default must be 100")
+
+	allEmailsFlag := canonicalDehashed.Flags().Lookup("all-emails")
+	require.NotNil(t, allEmailsFlag, "--all-emails flag must exist")
+
+	nodedupFlag := canonicalDehashed.Flags().Lookup("no-dedup")
+	require.NotNil(t, nodedupFlag, "--no-dedup flag must exist")
+
+	includeCombolistsFlag := canonicalDehashed.Flags().Lookup("include-combolists")
+	require.NotNil(t, includeCombolistsFlag, "--include-combolists flag must exist")
+
+	// 3. A hidden back-compat alias must exist directly under enumCmd.
+	var alias *cobra.Command
+	for _, cmd := range enumCmd.Commands() {
+		if cmd.Use == "dehashed" {
+			alias = cmd
+			break
+		}
+	}
+	require.NotNil(t, alias, `hidden "dehashed" alias must be registered directly under enumCmd`)
+	assert.True(t, alias.Hidden, "back-compat dehashed alias must be Hidden")
+	assert.NotEmpty(t, alias.Deprecated, "back-compat dehashed alias must be Deprecated")
 }

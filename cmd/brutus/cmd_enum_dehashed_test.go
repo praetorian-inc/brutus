@@ -131,57 +131,89 @@ func TestClassifyDehashedError_NoKeyLeak(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 9: outputDehashedHuman
+// Task 9 (updated): outputDehashedHuman — new signature with []dehashed.Entry
 // ---------------------------------------------------------------------------
 
 func TestOutputDehashedHuman(t *testing.T) {
-	t.Run("renders records with email username name database", func(t *testing.T) {
-		result := &dehashed.DomainResult{
-			Domain: "example.com",
-			Records: []dehashed.Record{
-				{
-					ID:       "1",
-					Email:    []string{"alice@example.com"},
-					Username: []string{"alice"},
-					Name:     []string{"Alice Smith"},
-					Database: "breach-db",
-				},
+	t.Run("renders entries with email name username phone sources columns", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{
+				Email:     "alice@example.com",
+				Names:     []string{"Alice Smith"},
+				Usernames: []string{"alice"},
+				Phones:    []string{"+1-555-0100"},
+				Databases: []string{"breach-db"},
+				Count:     1,
 			},
-			Total:   1,
-			Balance: 500,
 		}
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, result, false)
+		outputDehashedHuman(&buf, "example.com", 1, 10, 500, entries, false)
 		out := buf.String()
+
+		// Column headers must be present.
 		assert.Contains(t, out, "Email")
+		assert.Contains(t, out, "Name")
+		assert.Contains(t, out, "Username")
+		assert.Contains(t, out, "Phone")
+		assert.Contains(t, out, "Sources")
+
+		// No "Date" column (date was removed from Entry).
+		assert.NotContains(t, out, "Date")
+
+		// Data values must appear.
 		assert.Contains(t, out, "alice@example.com")
-		assert.Contains(t, out, "alice")
 		assert.Contains(t, out, "Alice Smith")
+		assert.Contains(t, out, "alice")
+		assert.Contains(t, out, "+1-555-0100")
 		assert.Contains(t, out, "breach-db")
 	})
 
-	t.Run("empty result shows no records found message", func(t *testing.T) {
-		result := &dehashed.DomainResult{Domain: "empty.com", Total: 0}
+	t.Run("phone column value rendered", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{
+				Email:     "bob@example.com",
+				Phones:    []string{"+44-7700-900000"},
+				Databases: []string{"some-db"},
+				Count:     1,
+			},
+		}
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, result, false)
+		outputDehashedHuman(&buf, "example.com", 1, 1, 0, entries, false)
 		out := buf.String()
-		assert.Contains(t, out, "No records found")
+		assert.Contains(t, out, "+44-7700-900000", "phone value must appear in human output")
+	})
+
+	t.Run("summary line contains rawFetched → unique contacts", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{Email: "a@example.com", Databases: []string{"DB1"}, Count: 1},
+			{Email: "b@example.com", Databases: []string{"DB2"}, Count: 1},
+		}
+		var buf bytes.Buffer
+		outputDehashedHuman(&buf, "example.com", 5, 100, 0, entries, false)
+		out := buf.String()
+		// Summary: "5 records → 2 unique contacts"
+		assert.Contains(t, out, "5 records")
+		assert.Contains(t, out, "2 unique contacts")
+	})
+
+	t.Run("empty entries shows no matching records message", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputDehashedHuman(&buf, "empty.com", 0, 0, 0, []dehashed.Entry{}, false)
+		out := buf.String()
+		assert.Contains(t, out, "No matching records for this domain")
 	})
 
 	t.Run("no password or hashed_password in output", func(t *testing.T) {
-		result := &dehashed.DomainResult{
-			Domain: "example.com",
-			Records: []dehashed.Record{
-				{
-					Email:    []string{"bob@example.com"},
-					Username: []string{"bob"},
-					Database: "some-db",
-				},
+		entries := []dehashed.Entry{
+			{
+				Email:     "bob@example.com",
+				Usernames: []string{"bob"},
+				Databases: []string{"some-db"},
+				Count:     1,
 			},
-			Total: 1,
 		}
 		var buf bytes.Buffer
-		outputDehashedHuman(&buf, result, false)
+		outputDehashedHuman(&buf, "example.com", 1, 1, 0, entries, false)
 		out := strings.ToLower(buf.String())
 		assert.NotContains(t, out, "password", "password must never appear in human output")
 		assert.NotContains(t, out, "hashed_password", "hashed_password must never appear in human output")
@@ -189,55 +221,101 @@ func TestOutputDehashedHuman(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 10: outputDehashedJSONL
+// Task 10 (updated): outputDehashedJSONL — new signature with []dehashed.Entry
 // ---------------------------------------------------------------------------
 
 func TestOutputDehashedJSONL(t *testing.T) {
-	t.Run("single record emits one JSONL line with type dehashed", func(t *testing.T) {
-		result := &dehashed.DomainResult{
-			Domain: "example.com",
-			Records: []dehashed.Record{
-				{
-					ID:       "r1",
-					Email:    []string{"alice@example.com"},
-					Username: []string{"alice"},
-					Name:     []string{"Alice Smith"},
-					Database: "breach-db",
-				},
+	t.Run("single entry emits one JSONL line with expected fields", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{
+				Email:     "alice@example.com",
+				Names:     []string{"Alice Smith"},
+				Usernames: []string{"alice"},
+				Phones:    []string{"+1-555-0100"},
+				Databases: []string{"breach-db"},
+				Count:     1,
 			},
-			Total: 1,
 		}
 		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, result)
+		outputDehashedJSONL(&buf, entries)
 
 		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 		require.Len(t, lines, 1)
 
 		var obj map[string]interface{}
 		require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj))
+
 		assert.Equal(t, "dehashed", obj["type"])
-		assert.Equal(t, "example.com", obj["domain"])
-		assert.Equal(t, "r1", obj["id"])
+		assert.Equal(t, "alice@example.com", obj["email"])
+
+		// Names, usernames, phones must be present.
+		names, ok := obj["names"].([]interface{})
+		require.True(t, ok, "names must be array")
+		assert.Equal(t, "Alice Smith", names[0])
+
+		usernames, ok := obj["usernames"].([]interface{})
+		require.True(t, ok, "usernames must be array")
+		assert.Equal(t, "alice", usernames[0])
+
+		phones, ok := obj["phones"].([]interface{})
+		require.True(t, ok, "phones must be array")
+		assert.Equal(t, "+1-555-0100", phones[0])
+
+		// Databases must include the source DB.
+		dbs, ok := obj["databases"].([]interface{})
+		require.True(t, ok, "databases must be array")
+		assert.Equal(t, "breach-db", dbs[0])
+
+		// Count must be present.
+		count, ok := obj["count"].(float64)
+		require.True(t, ok, "count must be a number")
+		assert.Equal(t, float64(1), count)
 	})
 
-	t.Run("empty result emits zero lines", func(t *testing.T) {
-		result := &dehashed.DomainResult{Domain: "empty.com"}
-		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, result)
-		assert.Empty(t, strings.TrimSpace(buf.String()))
-	})
-
-	t.Run("multiple records emit multiple valid JSON lines", func(t *testing.T) {
-		result := &dehashed.DomainResult{
-			Domain: "multi.com",
-			Records: []dehashed.Record{
-				{Email: []string{"a@multi.com"}},
-				{Email: []string{"b@multi.com"}},
-				{Email: []string{"c@multi.com"}},
+	t.Run("phones appear in JSONL output", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{
+				Email:     "carol@example.com",
+				Phones:    []string{"+1-800-555-1234"},
+				Databases: []string{"some-db"},
+				Count:     1,
 			},
 		}
 		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, result)
+		outputDehashedJSONL(&buf, entries)
+		out := buf.String()
+		assert.Contains(t, out, "+1-800-555-1234", "phone must appear in JSONL output")
+	})
+
+	t.Run("no password or hashed_password keys in JSONL output", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{
+				Email:     "alice@example.com",
+				Databases: []string{"breach-db"},
+				Count:     1,
+			},
+		}
+		var buf bytes.Buffer
+		outputDehashedJSONL(&buf, entries)
+		out := strings.ToLower(buf.String())
+		assert.NotContains(t, out, `"password"`, "password key must never appear in JSONL output")
+		assert.NotContains(t, out, "hashed_password", "hashed_password key must never appear in JSONL output")
+	})
+
+	t.Run("empty entries emits zero lines", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputDehashedJSONL(&buf, []dehashed.Entry{})
+		assert.Empty(t, strings.TrimSpace(buf.String()))
+	})
+
+	t.Run("multiple entries emit multiple valid JSON lines", func(t *testing.T) {
+		entries := []dehashed.Entry{
+			{Email: "a@example.com", Databases: []string{"DB1"}, Count: 1},
+			{Email: "b@example.com", Databases: []string{"DB2"}, Count: 1},
+			{Email: "c@example.com", Databases: []string{"DB3"}, Count: 1},
+		}
+		var buf bytes.Buffer
+		outputDehashedJSONL(&buf, entries)
 
 		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 		require.Len(t, lines, 3)
@@ -247,27 +325,10 @@ func TestOutputDehashedJSONL(t *testing.T) {
 			assert.Equal(t, "dehashed", obj["type"])
 		}
 	})
-
-	t.Run("no password or hashed_password keys in JSONL output", func(t *testing.T) {
-		result := &dehashed.DomainResult{
-			Domain: "example.com",
-			Records: []dehashed.Record{
-				{
-					Email:    []string{"alice@example.com"},
-					Database: "breach-db",
-				},
-			},
-		}
-		var buf bytes.Buffer
-		outputDehashedJSONL(&buf, result)
-		out := strings.ToLower(buf.String())
-		assert.NotContains(t, out, `"password"`, "password key must never appear in JSONL output")
-		assert.NotContains(t, out, "hashed_password", "hashed_password key must never appear in JSONL output")
-	})
 }
 
 // ---------------------------------------------------------------------------
-// Task 11: enumDehashedCmd registration and flags
+// Task 11: enumDehashedCmd registration and flags (updated — new flags added)
 // ---------------------------------------------------------------------------
 
 func TestEnumDehashedRegistered(t *testing.T) {
@@ -298,6 +359,16 @@ func TestEnumDehashedRegistered(t *testing.T) {
 
 		// Verify --limit default value is 100.
 		assert.Equal(t, "100", limitFlag.DefValue, "--limit default must be 100")
+
+		// New flags from the filtering feature.
+		allEmailsFlag := cmd.Flags().Lookup("all-emails")
+		require.NotNil(t, allEmailsFlag, "--all-emails flag must exist")
+
+		nodedupFlag := cmd.Flags().Lookup("no-dedup")
+		require.NotNil(t, nodedupFlag, "--no-dedup flag must exist")
+
+		includeCombolistsFlag := cmd.Flags().Lookup("include-combolists")
+		require.NotNil(t, includeCombolistsFlag, "--include-combolists flag must exist")
 
 		break
 	}

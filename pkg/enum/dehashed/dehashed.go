@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -73,6 +74,74 @@ type DomainResult struct {
 	Records []Record
 	Total   int
 	Balance int
+}
+
+// RefineOptions controls the refinement pipeline applied to raw breach records
+// before output. All filters are opt-in here; the command layer flips them on
+// by default and exposes opt-out flags.
+type RefineOptions struct {
+	Domain            string // searched domain, for CorporateOnly
+	CorporateOnly     bool   // keep only records whose email is @Domain
+	Dedup             bool   // merge records sharing an email
+	ExcludeCombolists bool   // drop combolist/aggregator source DBs
+}
+
+// Entry is a refined (optionally merged) output row.
+type Entry struct {
+	Email     string
+	Names     []string
+	Usernames []string
+	Phones    []string
+	Databases []string // distinct source DBs contributing to this entry
+	Count     int      // number of raw breach records merged into this entry
+}
+
+// Refine applies the filtering/merging pipeline to raw breach records and
+// returns refined output rows. It is PURE (no I/O) so it is unit-testable.
+//
+// Pipeline order:
+//  1. ExcludeCombolists: drop records whose Database matches the combolist denylist.
+//  2. Representative email: with CorporateOnly, the first Email entry ending in
+//     "@"+Domain (case-insensitive); record dropped if none match. Without it,
+//     the first Email entry (records with no email are kept with Email="").
+//  3. Build entries: with Dedup, group by lowercased representative email and
+//     union Names/Usernames/Phones (deduped, empties dropped) plus distinct
+//     Databases, Count = records merged. Without Dedup, one Entry per surviving
+//     record. Input order is preserved (emails in first-seen order).
+func Refine(records []Record, opts RefineOptions) []Entry {
+	domainSuffix := "@" + strings.ToLower(opts.Domain)
+
+	entries := make([]Entry, 0, len(records))
+	indexByEmail := make(map[string]int) // lowercased email -> entries index (Dedup only)
+
+	for i := range records {
+		r := &records[i]
+
+		if opts.ExcludeCombolists && isCombolist(r.Database) {
+			continue
+		}
+
+		email, ok := representativeEmail(r.Email, opts.CorporateOnly, domainSuffix)
+		if !ok {
+			continue
+		}
+
+		if opts.Dedup {
+			mergeEntry(&entries, indexByEmail, email, r)
+			continue
+		}
+
+		entries = append(entries, Entry{
+			Email:     email,
+			Names:     dedupStrings(r.Name),
+			Usernames: dedupStrings(r.Username),
+			Phones:    dedupStrings(r.Phone),
+			Databases: dedupStrings([]string{r.Database}),
+			Count:     1,
+		})
+	}
+
+	return entries
 }
 
 // APIError is returned for any non-2xx HTTP status from DeHashed.
@@ -216,6 +285,90 @@ func (c *Client) do(ctx context.Context, body searchRequest) ([]byte, error) {
 	}
 
 	return respBody, nil
+}
+
+// combolistDatabases is a curated, conservative denylist of source-database
+// substrings identifying aggregator/combolist dumps (not single-breach data).
+// Matched case-insensitively as a substring of Record.Database. Kept short on
+// purpose: false positives silently drop real breach rows, so only well-known
+// combolists/aggregators are listed.
+var combolistDatabases = []string{
+	"Naz.API",
+	"ALIEN TXTBASE",
+	"Collection",
+	"Combolist",
+	"AntiPublic",
+	"BreachCompilation",
+	"Exploit.in",
+	"Cit0day",
+	"Pemiblanc",
+}
+
+// isCombolist reports whether db matches the combolist denylist (case-insensitive
+// substring match).
+func isCombolist(db string) bool {
+	lower := strings.ToLower(db)
+	for _, c := range combolistDatabases {
+		if strings.Contains(lower, strings.ToLower(c)) {
+			return true
+		}
+	}
+	return false
+}
+
+// representativeEmail picks the email used to represent a record. With
+// corporateOnly, it returns the first email ending in domainSuffix
+// (case-insensitive) and ok=false if none match. Without corporateOnly, it
+// returns the first email (or "" with ok=true when the record has no email).
+func representativeEmail(emails []string, corporateOnly bool, domainSuffix string) (string, bool) {
+	if corporateOnly {
+		for _, e := range emails {
+			if strings.HasSuffix(strings.ToLower(e), domainSuffix) {
+				return e, true
+			}
+		}
+		return "", false
+	}
+	if len(emails) > 0 {
+		return emails[0], true
+	}
+	return "", true
+}
+
+// mergeEntry merges record r into the entry keyed by the lowercased email,
+// creating it on first sight (preserving first-seen order in entries).
+func mergeEntry(entries *[]Entry, indexByEmail map[string]int, email string, r *Record) {
+	key := strings.ToLower(email)
+	idx, seen := indexByEmail[key]
+	if !seen {
+		*entries = append(*entries, Entry{Email: email})
+		idx = len(*entries) - 1
+		indexByEmail[key] = idx
+	}
+
+	e := &(*entries)[idx]
+	e.Names = dedupStrings(append(e.Names, r.Name...))
+	e.Usernames = dedupStrings(append(e.Usernames, r.Username...))
+	e.Phones = dedupStrings(append(e.Phones, r.Phone...))
+	e.Databases = dedupStrings(append(e.Databases, r.Database))
+	e.Count++
+}
+
+// dedupStrings returns the distinct, non-empty values of in, preserving order.
+func dedupStrings(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
 }
 
 // toRecord converts an API entry to the public Record type. Credential fields

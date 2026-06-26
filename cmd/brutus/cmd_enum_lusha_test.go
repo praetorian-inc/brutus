@@ -255,6 +255,32 @@ func TestValidateLushaIdentity(t *testing.T) {
 			wantErr:     true,
 			errContains: "mutually exclusive",
 		},
+		// Roster-mode cases (new: domain-only is valid roster mode).
+		{
+			name: "ROSTER: domain only → valid",
+			setup: func() {
+				flagLushaDomain = "fox.com"
+			},
+			wantErr: false,
+		},
+		{
+			name: "ROSTER+NAME: domain + name pair → single-contact valid (not roster)",
+			setup: func() {
+				flagLushaDomain = "fox.com"
+				flagLushaFirstName = "Ada"
+				flagLushaLastName = "Lovelace"
+			},
+			wantErr: false,
+		},
+		{
+			name: "ERROR ROSTER+EMAIL: domain + email → ambiguous (not roster, two groups)",
+			setup: func() {
+				flagLushaDomain = "fox.com"
+				flagLushaEmail = "ada@fox.com"
+			},
+			wantErr:     true,
+			errContains: "exactly one identity",
+		},
 	}
 
 	for _, tc := range tests {
@@ -382,6 +408,139 @@ func TestClassifyLushaError_NetworkWrap(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// T107: outputLushaDomainJSONL + outputLushaDomainHuman
+// ---------------------------------------------------------------------------
+
+func TestOutputLushaDomainJSONL(t *testing.T) {
+	t.Run("one JSON object per contact, type lusha, DNC preserved", func(t *testing.T) {
+		r := &lusha.DomainResult{
+			Domain: "fox.com",
+			Total:  2,
+			Contacts: []lusha.Contact{
+				{
+					Name:     "Bruna White",
+					JobTitle: "Assistant Director",
+					Company:  "Fox",
+					Emails: []lusha.EmailEntry{
+						{Address: "bruna.white@fox.com", Type: "work", Confidence: "A+"},
+					},
+					Phones: []lusha.PhoneEntry{
+						{Number: "+1 818", Type: "phone", DoNotCall: true},
+					},
+				},
+				{
+					Name:     "Steve R",
+					JobTitle: "Director",
+					Company:  "Fox",
+				},
+			},
+			CreditsCharged: 3,
+		}
+
+		var buf bytes.Buffer
+		outputLushaDomainJSONL(&buf, r)
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 2, "must emit exactly one JSON object per contact")
+
+		var obj0 map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj0))
+		assert.Equal(t, "lusha", obj0["type"], "type must be 'lusha'")
+		assert.Equal(t, "Bruna White", obj0["name"])
+
+		phones, ok := obj0["phones"].([]interface{})
+		require.True(t, ok, "phones must be a JSON array")
+		require.Len(t, phones, 1)
+		phone := phones[0].(map[string]interface{})
+		doNotCall, exists := phone["do_not_call"]
+		require.True(t, exists, "do_not_call field must always be present (P0-DNC)")
+		assert.Equal(t, true, doNotCall, "DNC flag must be true")
+
+		var obj1 map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[1]), &obj1))
+		assert.Equal(t, "lusha", obj1["type"])
+		assert.Equal(t, "Steve R", obj1["name"])
+
+		// No password or credential keys must appear.
+		for _, line := range lines {
+			assert.NotContains(t, line, "password",
+				"JSONL output must not contain password keys")
+			assert.NotContains(t, line, "api_key",
+				"JSONL output must not contain api_key")
+		}
+	})
+
+	t.Run("empty roster emits no lines", func(t *testing.T) {
+		r := &lusha.DomainResult{Domain: "empty.com"}
+		var buf bytes.Buffer
+		outputLushaDomainJSONL(&buf, r)
+		assert.Empty(t, strings.TrimSpace(buf.String()),
+			"empty roster must produce no JSONL output")
+	})
+}
+
+func TestOutputLushaDomainHuman(t *testing.T) {
+	t.Run("header shows N of Total and credits charged", func(t *testing.T) {
+		r := &lusha.DomainResult{
+			Domain: "fox.com",
+			Total:  10,
+			Contacts: []lusha.Contact{
+				{
+					Name:     "Bruna White",
+					JobTitle: "Assistant Director",
+					Company:  "Fox",
+					Emails: []lusha.EmailEntry{
+						{Address: "bruna.white@fox.com", Type: "work", Confidence: "A+"},
+					},
+				},
+			},
+			CreditsCharged: 3,
+		}
+		var buf bytes.Buffer
+		outputLushaDomainHuman(&buf, r, false)
+		out := buf.String()
+
+		// Header: "1 of 10 · credits charged: 3"
+		assert.Contains(t, out, "1", "header must show contact count")
+		assert.Contains(t, out, "10", "header must show total")
+		assert.Contains(t, out, "3", "header must show credits charged")
+		// Table row
+		assert.Contains(t, out, "Bruna White")
+		assert.Contains(t, out, "bruna.white@fox.com")
+	})
+
+	t.Run("DNC phone shows [DNC] marker in table row", func(t *testing.T) {
+		r := &lusha.DomainResult{
+			Domain: "fox.com",
+			Total:  1,
+			Contacts: []lusha.Contact{
+				{
+					Name: "Eve Example",
+					Phones: []lusha.PhoneEntry{
+						{Number: "+1 818", Type: "phone", DoNotCall: true},
+					},
+				},
+			},
+			CreditsCharged: 1,
+		}
+		var buf bytes.Buffer
+		outputLushaDomainHuman(&buf, r, false)
+		out := buf.String()
+		assert.Contains(t, out, "[DNC]", "DNC phone must show [DNC] marker")
+		assert.Contains(t, out, "+1 818")
+	})
+
+	t.Run("empty roster shows graceful no-contacts message", func(t *testing.T) {
+		r := &lusha.DomainResult{Domain: "empty.com", Total: 0}
+		var buf bytes.Buffer
+		outputLushaDomainHuman(&buf, r, false)
+		out := buf.String()
+		assert.Contains(t, out, "No contacts returned",
+			"empty roster must show graceful message")
+	})
+}
+
+// ---------------------------------------------------------------------------
 // T105: Command registration
 // ---------------------------------------------------------------------------
 
@@ -406,14 +565,19 @@ func TestEnumLushaRegistered(t *testing.T) {
 	}
 	require.NotNil(t, canonicalLusha, `"lusha" must be a subcommand of enumPassiveCmd`)
 
-	// Verify expected flags on the canonical command.
+	// Verify expected flags on the canonical command (includes --limit for roster mode).
 	for _, name := range []string{
 		"first-name", "last-name", "company", "domain",
-		"email", "linkedin", "phone", "email-only", "api-key",
+		"email", "linkedin", "phone", "email-only", "api-key", "limit",
 	} {
 		require.NotNilf(t, canonicalLusha.Flags().Lookup(name),
 			"--%s flag must exist on canonical lusha", name)
 	}
+
+	// --limit default must be 0 (collect all).
+	limitFlag := canonicalLusha.Flags().Lookup("limit")
+	require.NotNil(t, limitFlag, "--limit flag must exist")
+	assert.Equal(t, "0", limitFlag.DefValue, "--limit default must be 0 (collect all)")
 
 	// --domain must NOT be marked required (identity validated in RunE).
 	domainFlag := canonicalLusha.Flags().Lookup("domain")

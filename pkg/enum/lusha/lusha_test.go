@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -401,4 +402,362 @@ func TestEnrich_ContextCancellation(t *testing.T) {
 
 	_, err := c.Enrich(ctx, ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
 	require.Error(t, err, "context cancellation must produce an error")
+}
+
+// ---------------------------------------------------------------------------
+// T106: SearchDomain — prospecting search + enrich pagination
+// ---------------------------------------------------------------------------
+
+// prospectSearchBody mirrors the fields our handler needs to inspect.
+type prospectSearchBody struct {
+	Pages struct {
+		Page int `json:"page"`
+		Size int `json:"size"`
+	} `json:"pages"`
+	Filters struct {
+		Companies struct {
+			Include struct {
+				Domains []string `json:"domains"`
+			} `json:"include"`
+		} `json:"companies"`
+	} `json:"filters"`
+}
+
+type prospectEnrichBody struct {
+	RequestID  string   `json:"requestId"`
+	ContactIDs []string `json:"contactIds"`
+}
+
+// newProspectServer builds an httptest.Server that handles the two prospecting
+// endpoints via a router. The search handler is called once (page 0); the enrich
+// handler is called once with the page's requestId + contactIds.
+func newProspectServer(t *testing.T, searchResp, enrichResp interface{}, captureSearch, captureEnrich *[]byte) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		switch r.URL.Path {
+		case prospectSearchPath:
+			if captureSearch != nil {
+				*captureSearch = body
+			}
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(searchResp))
+		case prospectEnrichPath:
+			if captureEnrich != nil {
+				*captureEnrich = body
+			}
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(enrichResp))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+}
+
+func TestSearchDomain_Success(t *testing.T) {
+	var capturedSearch, capturedEnrich []byte
+	var capturedAPIKey string
+
+	searchResp := map[string]interface{}{
+		"requestId":    "r1",
+		"currentPage":  0,
+		"pageLength":   2,
+		"totalResults": 2,
+		"data": []map[string]interface{}{
+			{"contactId": "c1"},
+			{"contactId": "c2"},
+		},
+		"billing": map[string]interface{}{
+			"creditsCharged":  1,
+			"resultsReturned": 2,
+		},
+	}
+	enrichResp := map[string]interface{}{
+		"requestId": "r1",
+		"contacts": []map[string]interface{}{
+			{
+				"id":        "c1",
+				"isSuccess": true,
+				"data": map[string]interface{}{
+					"fullName":    "Bruna White",
+					"jobTitle":    "Assistant Director",
+					"companyName": "Fox",
+					"location":    map[string]interface{}{"country": "United States"},
+					"emailAddresses": []map[string]interface{}{
+						{"email": "bruna.white@fox.com", "emailType": "work", "emailConfidence": "A+"},
+					},
+					"phoneNumbers": []map[string]interface{}{
+						{"number": "+1 818", "phoneType": "phone", "doNotCall": true},
+					},
+					"socialLinks": map[string]interface{}{
+						"linkedin": "https://linkedin.com/in/bw",
+					},
+					"departments": []string{"Other"},
+					"seniority": []map[string]interface{}{
+						{"id": 6, "value": "director"},
+					},
+				},
+			},
+			{
+				"id":        "c2",
+				"isSuccess": true,
+				"data": map[string]interface{}{
+					"fullName":       "Steve R",
+					"jobTitle":       "Director",
+					"companyName":    "Fox",
+					"emailAddresses": []interface{}{},
+					"phoneNumbers":   []interface{}{},
+					"departments":    []string{},
+					"seniority":      []interface{}{},
+				},
+			},
+		},
+		"creditsCharged": 2,
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAPIKey = r.Header.Get(headerAPIKey)
+		// api_key must NOT appear in the URL query string (P0-1).
+		assert.NotContains(t, r.URL.RawQuery, "api_key",
+			"api_key must not appear in URL")
+
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		switch r.URL.Path {
+		case prospectSearchPath:
+			capturedSearch = body
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(searchResp))
+		case prospectEnrichPath:
+			capturedEnrich = body
+			w.Header().Set("Content-Type", "application/json")
+			require.NoError(t, json.NewEncoder(w).Encode(enrichResp))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	result, err := c.SearchDomain(context.Background(), "fox.com", 0)
+	require.NoError(t, err)
+
+	// ---- result shape ----
+	assert.Equal(t, 2, result.Total, "Total must equal totalResults from search page")
+	require.Len(t, result.Contacts, 2)
+
+	// Credits: 1 (search) + 2 (enrich) = 3
+	assert.Equal(t, 3, result.CreditsCharged, "CreditsCharged must sum search+enrich billing")
+
+	// ---- Bruna White (first contact) ----
+	bruna := result.Contacts[0]
+	assert.Equal(t, "Bruna White", bruna.Name)
+	assert.Equal(t, "Assistant Director", bruna.JobTitle)
+	assert.Equal(t, "Fox", bruna.Company)
+	assert.Equal(t, "United States", bruna.Location)
+	assert.Equal(t, "https://linkedin.com/in/bw", bruna.LinkedIn)
+	assert.Equal(t, []string{"Other"}, bruna.Departments)
+	assert.Equal(t, "director", bruna.Seniority)
+
+	require.Len(t, bruna.Emails, 1, "Bruna must have 1 email")
+	assert.Equal(t, "bruna.white@fox.com", bruna.Emails[0].Address)
+	assert.Equal(t, "A+", bruna.Emails[0].Confidence)
+
+	require.Len(t, bruna.Phones, 1, "Bruna must have 1 phone")
+	assert.True(t, bruna.Phones[0].DoNotCall, "DoNotCall flag must be preserved (P0-DNC)")
+
+	// ---- api_key header ----
+	assert.Equal(t, "testkey", capturedAPIKey, "api_key header must be sent")
+
+	// ---- search request body carries domain filter ----
+	var sb prospectSearchBody
+	require.NoError(t, json.Unmarshal(capturedSearch, &sb))
+	require.Contains(t, sb.Filters.Companies.Include.Domains, "fox.com",
+		"search request must carry the domain filter")
+
+	// ---- enrich request carries correct requestId + contactIds ----
+	var eb prospectEnrichBody
+	require.NoError(t, json.Unmarshal(capturedEnrich, &eb))
+	assert.Equal(t, "r1", eb.RequestID,
+		"enrich request must use the page's requestId")
+	assert.ElementsMatch(t, []string{"c1", "c2"}, eb.ContactIDs,
+		"enrich request must carry the page's contactIds")
+}
+
+func TestSearchDomain_Pagination(t *testing.T) {
+	// newPaginationServer builds a fresh httptest.Server for each subtest so
+	// call-count state does not bleed between subtests.
+	makeEnrich := func(reqID string, names []string) map[string]interface{} {
+		contacts := make([]map[string]interface{}, 0, len(names))
+		for _, name := range names {
+			contacts = append(contacts, map[string]interface{}{
+				"id":        strings.ToLower(strings.ReplaceAll(name, " ", "")),
+				"isSuccess": true,
+				"data": map[string]interface{}{
+					"fullName":       name,
+					"emailAddresses": []interface{}{},
+					"phoneNumbers":   []interface{}{},
+					"departments":    []string{},
+					"seniority":      []interface{}{},
+				},
+			})
+		}
+		return map[string]interface{}{
+			"requestId":      reqID,
+			"contacts":       contacts,
+			"creditsCharged": len(names),
+		}
+	}
+
+	newPaginationServer := func(t *testing.T) *httptest.Server {
+		t.Helper()
+		searchCallCount := 0
+		page0Search := map[string]interface{}{
+			"requestId":    "page0-req",
+			"currentPage":  0,
+			"totalResults": 3,
+			"data": []map[string]interface{}{
+				{"contactId": "p0c1"},
+				{"contactId": "p0c2"},
+			},
+			"billing": map[string]interface{}{"creditsCharged": 1, "resultsReturned": 2},
+		}
+		page1Search := map[string]interface{}{
+			"requestId":    "page1-req",
+			"currentPage":  1,
+			"totalResults": 3,
+			"data": []map[string]interface{}{
+				{"contactId": "p1c1"},
+			},
+			"billing": map[string]interface{}{"creditsCharged": 1, "resultsReturned": 1},
+		}
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			switch r.URL.Path {
+			case prospectSearchPath:
+				w.Header().Set("Content-Type", "application/json")
+				if searchCallCount == 0 {
+					require.NoError(t, json.NewEncoder(w).Encode(page0Search))
+				} else {
+					require.NoError(t, json.NewEncoder(w).Encode(page1Search))
+				}
+				searchCallCount++
+			case prospectEnrichPath:
+				var eb prospectEnrichBody
+				require.NoError(t, json.Unmarshal(body, &eb))
+				w.Header().Set("Content-Type", "application/json")
+				// Mirror a real API: only return contacts for the requested ids.
+				allNames := map[string][]string{
+					"page0-req": {"Alice P", "Bob P"},
+					"page1-req": {"Carol P"},
+				}
+				names, ok := allNames[eb.RequestID]
+				if !ok {
+					http.Error(w, "unknown requestId", http.StatusBadRequest)
+					return
+				}
+				// Truncate names to however many ids were actually requested.
+				if len(eb.ContactIDs) < len(names) {
+					names = names[:len(eb.ContactIDs)]
+				}
+				require.NoError(t, json.NewEncoder(w).Encode(makeEnrich(eb.RequestID, names)))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+	}
+
+	t.Run("collect_all fetches both pages and accumulates contacts and credits", func(t *testing.T) {
+		srv := newPaginationServer(t)
+		defer srv.Close()
+		c := newTestClient(srv.URL)
+		result, err := c.SearchDomain(context.Background(), "example.com", 0)
+		require.NoError(t, err)
+		assert.Equal(t, 3, result.Total)
+		require.Len(t, result.Contacts, 3, "must collect all 3 contacts across 2 pages")
+		// Credits: page0 search(1) + page0 enrich(2) + page1 search(1) + page1 enrich(1) = 5
+		assert.Equal(t, 5, result.CreditsCharged, "credits must be summed across all search and enrich calls")
+	})
+
+	t.Run("limit=1 truncates to 1 enriched contact", func(t *testing.T) {
+		srv := newPaginationServer(t)
+		defer srv.Close()
+		c := newTestClient(srv.URL)
+		result, err := c.SearchDomain(context.Background(), "example.com", 1)
+		require.NoError(t, err)
+		// Even though 3 results exist, limit=1 stops after enriching 1 contact.
+		assert.LessOrEqual(t, len(result.Contacts), 1,
+			"limit=1 must produce at most 1 contact")
+	})
+}
+
+func TestSearchDomain_ContextCancellation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Slow server: sleeps longer than the ctx deadline.
+		time.Sleep(300 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	_, err := c.SearchDomain(ctx, "example.com", 0)
+	require.Error(t, err, "context cancellation must produce an error")
+}
+
+// TestToProspectContact verifies the prospecting-specific field mapping
+// (emailAddresses, phoneNumbers, seniority[].value differ from single-identity).
+func TestToProspectContact(t *testing.T) {
+	d := &prospectEnrichData{
+		FullName:    "Bruna White",
+		JobTitle:    "Assistant Director",
+		CompanyName: "Fox",
+	}
+	d.Location.Country = "United States"
+	d.EmailAddresses = []struct {
+		Email           string `json:"email"`
+		EmailType       string `json:"emailType"`
+		EmailConfidence string `json:"emailConfidence"`
+	}{
+		{Email: "bruna.white@fox.com", EmailType: "work", EmailConfidence: "A+"},
+	}
+	d.PhoneNumbers = []struct {
+		Number    string `json:"number"`
+		PhoneType string `json:"phoneType"`
+		DoNotCall bool   `json:"doNotCall"`
+	}{
+		{Number: "+1 818", PhoneType: "phone", DoNotCall: true},
+	}
+	d.SocialLinks.Linkedin = "https://linkedin.com/in/bw"
+	d.Departments = []string{"Other"}
+	d.Seniority = []struct {
+		ID    int    `json:"id"`
+		Value string `json:"value"`
+	}{
+		{ID: 6, Value: "director"},
+	}
+
+	got := toProspectContact(d)
+	assert.Equal(t, "Bruna White", got.Name)
+	assert.Equal(t, "Assistant Director", got.JobTitle)
+	assert.Equal(t, "Fox", got.Company)
+	assert.Equal(t, "United States", got.Location)
+	assert.Equal(t, "https://linkedin.com/in/bw", got.LinkedIn)
+	assert.Equal(t, []string{"Other"}, got.Departments)
+	assert.Equal(t, "director", got.Seniority)
+
+	require.Len(t, got.Emails, 1)
+	assert.Equal(t, "bruna.white@fox.com", got.Emails[0].Address)
+	assert.Equal(t, "work", got.Emails[0].Type)
+	assert.Equal(t, "A+", got.Emails[0].Confidence)
+
+	require.Len(t, got.Phones, 1)
+	assert.True(t, got.Phones[0].DoNotCall, "DoNotCall must be preserved (P0-DNC)")
+	assert.Equal(t, "+1 818", got.Phones[0].Number)
 }

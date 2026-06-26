@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -41,6 +42,23 @@ var (
 const (
 	defaultBaseURL = "https://api.lusha.com"
 	enrichPath     = "/v3/contacts/search-and-enrich"
+	// prospectSearchPath / prospectEnrichPath are the prospecting (roster) API
+	// endpoints. Their request/response shapes DIFFER from the single-identity
+	// search-and-enrich path above (different field names), so they have their
+	// own request/response structs below.
+	prospectSearchPath = "/prospecting/contact/search"
+	prospectEnrichPath = "/prospecting/contact/enrich"
+	// prospectPageSize is the per-page result count for prospecting search
+	// (API accepts 10-50; we use the max to minimize search-page credits).
+	prospectPageSize = 50
+	// prospectMinPageSize is the API's minimum search page size; requesting
+	// fewer is rejected ("pages.size must not be less than 10"). A small --limit
+	// still over-fetches the search page to this floor (search is ~1 credit/page
+	// regardless), but only the needed contactIds are enriched.
+	prospectMinPageSize = 10
+	// prospectMaxPages bounds collect-all (limit<=0) so a huge org cannot spin
+	// indefinitely; 40 pages * 50 = up to 2000 contacts.
+	prospectMaxPages = 40
 	// headerAPIKey is the Lusha auth header name. UNVERIFIED against a live key
 	// (discovery §3 / architecture §11) — isolated here for a single-edit fix.
 	headerAPIKey = "api_key"
@@ -104,6 +122,17 @@ type Contact struct {
 	Emails        []EmailEntry
 	Phones        []PhoneEntry
 	Employment    []EmploymentEntry
+}
+
+// DomainResult is the roster returned by SearchDomain for one company domain.
+// Total is the company-wide match count reported by the search API (may exceed
+// len(Contacts) when a limit was applied or the page cap was hit). CreditsCharged
+// is the accumulated credit cost across every search and enrich call.
+type DomainResult struct {
+	Domain         string
+	Contacts       []Contact
+	Total          int
+	CreditsCharged int
 }
 
 // APIError is returned for any non-2xx HTTP status from Lusha.
@@ -175,6 +204,81 @@ func (c *Client) Enrich(ctx context.Context, q ContactQuery, r RevealOptions) (*
 		return nil, fmt.Errorf("decoding lusha response: %w", err)
 	}
 	return toContact(&resp), nil
+}
+
+// SearchDomain enumerates a company roster by domain via the prospecting API.
+// It paginates POST /prospecting/contact/search (company-domain filter), then
+// enriches each search page's contacts via POST /prospecting/contact/enrich
+// using that page's requestId. Set limit>0 to bound the roster (and credit
+// spend); limit<=0 collects ALL matches, bounded by prospectMaxPages.
+//
+// Total is taken from the first page's totalResults. CreditsCharged accumulates
+// every search and enrich call's billing.creditsCharged. ctx is honored between
+// pages. NO printing — all data and cost are returned as values.
+func (c *Client) SearchDomain(ctx context.Context, domain string, limit int) (*DomainResult, error) {
+	result := &DomainResult{Domain: domain}
+
+	for page := 0; page < prospectMaxPages; page++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		remaining := 0
+		size := prospectPageSize
+		if limit > 0 {
+			remaining = limit - len(result.Contacts)
+			if remaining <= 0 {
+				break
+			}
+			// Shrink the page toward the limit, but never below the API minimum
+			// (a sub-minimum size is rejected with HTTP 400).
+			if remaining < size {
+				size = remaining
+				if size < prospectMinPageSize {
+					size = prospectMinPageSize
+				}
+			}
+		}
+
+		search, err := c.searchProspectPage(ctx, domain, page, size)
+		if err != nil {
+			return nil, err
+		}
+		result.CreditsCharged += search.Billing.CreditsCharged
+		if page == 0 {
+			result.Total = search.TotalResults
+		}
+		if len(search.Data) == 0 {
+			break
+		}
+
+		// Enrich only as many contacts as we still need, so a small --limit does
+		// not pay enrich credits for the over-fetched page tail.
+		entries := search.Data
+		if limit > 0 && remaining < len(entries) {
+			entries = entries[:remaining]
+		}
+		ids := make([]string, 0, len(entries))
+		for _, d := range entries {
+			ids = append(ids, d.ContactID)
+		}
+
+		enriched, credits, err := c.enrichProspectPage(ctx, search.RequestID, ids)
+		if err != nil {
+			return nil, err
+		}
+		result.CreditsCharged += credits
+		result.Contacts = append(result.Contacts, enriched...)
+
+		if limit > 0 && len(result.Contacts) >= limit {
+			break
+		}
+		if result.Total > 0 && len(result.Contacts) >= result.Total {
+			break
+		}
+	}
+
+	return result, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +417,110 @@ func toContact(resp *lushaEnrichResponse) *Contact {
 	return c
 }
 
+// searchProspectPage requests one prospecting search page filtered by company
+// domain and decodes the response.
+func (c *Client) searchProspectPage(ctx context.Context, domain string, page, size int) (*prospectSearchResponse, error) {
+	body := prospectSearchRequest{}
+	body.Pages.Page = page
+	body.Pages.Size = size
+	body.Filters.Companies.Include.Domains = []string{domain}
+
+	raw, err := c.do(ctx, http.MethodPost, prospectSearchPath, body)
+	if err != nil {
+		return nil, err
+	}
+	var resp prospectSearchResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, fmt.Errorf("decoding lusha prospecting search response: %w", err)
+	}
+	return &resp, nil
+}
+
+// enrichProspectPage enriches one search page's contactIds (tied to its
+// requestId) and maps each successful result to a public Contact. It returns
+// the contacts and the credits charged for the call.
+func (c *Client) enrichProspectPage(ctx context.Context, requestID string, ids []string) ([]Contact, int, error) {
+	if len(ids) == 0 {
+		return nil, 0, nil
+	}
+
+	raw, err := c.do(ctx, http.MethodPost, prospectEnrichPath, prospectEnrichRequest{
+		RequestID:  requestID,
+		ContactIDs: ids,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	var resp prospectEnrichResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, 0, fmt.Errorf("decoding lusha prospecting enrich response: %w", err)
+	}
+
+	contacts := make([]Contact, 0, len(resp.Contacts))
+	for i := range resp.Contacts {
+		ec := &resp.Contacts[i]
+		if !ec.IsSuccess {
+			continue
+		}
+		contacts = append(contacts, toProspectContact(&ec.Data))
+	}
+	return contacts, resp.CreditsCharged, nil
+}
+
+// toProspectContact maps one enriched prospecting contact to the public Contact
+// type. Field names differ from the single-identity path (e.g. emailAddresses,
+// phoneNumbers, seniority[].value), so the mapping is explicit. DoNotCall is
+// preserved per phone (P0-DNC).
+func toProspectContact(d *prospectEnrichData) Contact {
+	name := d.FullName
+	if name == "" {
+		name = d.FirstName
+		if d.LastName != "" {
+			if name != "" {
+				name += " "
+			}
+			name += d.LastName
+		}
+	}
+
+	seniority := make([]string, 0, len(d.Seniority))
+	for _, s := range d.Seniority {
+		if s.Value != "" {
+			seniority = append(seniority, s.Value)
+		}
+	}
+
+	c := Contact{
+		Name:        name,
+		JobTitle:    d.JobTitle,
+		Company:     d.CompanyName,
+		LinkedIn:    d.SocialLinks.Linkedin,
+		Departments: d.Departments,
+		Seniority:   strings.Join(seniority, ", "),
+		Location:    d.Location.Country,
+	}
+	for _, e := range d.EmailAddresses {
+		c.Emails = append(c.Emails, EmailEntry{
+			Address:    e.Email,
+			Type:       e.EmailType,
+			Confidence: e.EmailConfidence,
+		})
+	}
+	for _, p := range d.PhoneNumbers {
+		c.Phones = append(c.Phones, PhoneEntry{
+			Number:    p.Number,
+			Type:      p.PhoneType,
+			DoNotCall: p.DoNotCall,
+		})
+	}
+	c.Employment = append(c.Employment, EmploymentEntry{
+		Organization: d.CompanyName,
+		Title:        d.JobTitle,
+		Current:      true,
+	})
+	return c
+}
+
 // ---------------------------------------------------------------------------
 // JSON-mapping structs (unexported) — verified against live API 2026-06-26.
 // Architecture §11: isolated here so a single edit corrects a live mismatch
@@ -414,4 +622,99 @@ type lushaPhone struct {
 // Message is surfaced as APIError.Details (never the key or request body).
 type lushaErrorEnvelope struct {
 	Message string `json:"message"`
+}
+
+// ---------------------------------------------------------------------------
+// Prospecting (roster) JSON-mapping structs — field names DIFFER from the
+// single-identity search-and-enrich structs above. Verified live 2026-06-26.
+// ---------------------------------------------------------------------------
+
+// prospectSearchRequest filters prospecting search by company domain.
+type prospectSearchRequest struct {
+	Pages struct {
+		Page int `json:"page"`
+		Size int `json:"size"`
+	} `json:"pages"`
+	Filters struct {
+		Companies struct {
+			Include struct {
+				Domains []string `json:"domains"`
+			} `json:"include"`
+		} `json:"companies"`
+	} `json:"filters"`
+}
+
+// prospectSearchResponse is one prospecting search page. requestId ties this
+// page's contactIds to a subsequent enrich call.
+type prospectSearchResponse struct {
+	RequestID    string                `json:"requestId"`
+	CurrentPage  int                   `json:"currentPage"`
+	TotalResults int                   `json:"totalResults"`
+	Data         []prospectSearchEntry `json:"data"`
+	Billing      prospectSearchBilling `json:"billing"`
+}
+
+// prospectSearchEntry is one contact stub from a search page; only contactId is
+// needed to enrich (full data comes from the enrich call).
+type prospectSearchEntry struct {
+	ContactID string `json:"contactId"`
+}
+
+type prospectSearchBilling struct {
+	CreditsCharged  int `json:"creditsCharged"`
+	ResultsReturned int `json:"resultsReturned"`
+}
+
+// prospectEnrichRequest enriches contactIds tied to a search page's requestId.
+type prospectEnrichRequest struct {
+	RequestID  string   `json:"requestId"`
+	ContactIDs []string `json:"contactIds"`
+}
+
+// prospectEnrichResponse is the enrich result batch plus the credits charged.
+type prospectEnrichResponse struct {
+	RequestID      string                  `json:"requestId"`
+	Contacts       []prospectEnrichContact `json:"contacts"`
+	CreditsCharged int                     `json:"creditsCharged"`
+}
+
+// prospectEnrichContact wraps one enriched contact; data is only valid when
+// isSuccess is true.
+type prospectEnrichContact struct {
+	ID        string             `json:"id"`
+	IsSuccess bool               `json:"isSuccess"`
+	Data      prospectEnrichData `json:"data"`
+}
+
+// prospectEnrichData is the enriched payload. Field names (emailAddresses,
+// phoneNumbers, seniority[].value) differ from the single-identity result.
+type prospectEnrichData struct {
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	FullName    string `json:"fullName"`
+	JobTitle    string `json:"jobTitle"`
+	CompanyName string `json:"companyName"`
+	Location    struct {
+		Country   string `json:"country"`
+		Continent string `json:"continent"`
+	} `json:"location"`
+	EmailAddresses []struct {
+		Email           string `json:"email"`
+		EmailType       string `json:"emailType"`
+		EmailConfidence string `json:"emailConfidence"`
+	} `json:"emailAddresses"`
+	PhoneNumbers []struct {
+		Number    string `json:"number"`
+		PhoneType string `json:"phoneType"`
+		DoNotCall bool   `json:"doNotCall"`
+	} `json:"phoneNumbers"`
+	SocialLinks struct {
+		Linkedin string `json:"linkedin"`
+		XURL     string `json:"xUrl"`
+	} `json:"socialLinks"`
+	Departments []string `json:"departments"`
+	Seniority   []struct {
+		ID    int    `json:"id"`
+		Value string `json:"value"`
+	} `json:"seniority"`
 }

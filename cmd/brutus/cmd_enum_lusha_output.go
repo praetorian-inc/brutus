@@ -34,10 +34,25 @@ func outputLushaHuman(w io.Writer, c *lusha.Contact, useColor bool) {
 		heading(useColor, "Lusha: "+summary))
 
 	if c.JobTitle != "" {
-		_, _ = fmt.Fprintf(w, "  Title:   %s\n", sanitizeTerminal(c.JobTitle))
+		_, _ = fmt.Fprintf(w, "  Title:    %s\n", truncate(sanitizeTerminal(c.JobTitle), 80))
+	}
+	if c.Seniority != "" {
+		_, _ = fmt.Fprintf(w, "  Seniority: %s\n", truncate(sanitizeTerminal(c.Seniority), 40))
+	}
+	if len(c.Departments) > 0 {
+		_, _ = fmt.Fprintf(w, "  Dept:     %s\n", truncate(sanitizeTerminal(strings.Join(c.Departments, ", ")), 80))
 	}
 	if c.Company != "" {
-		_, _ = fmt.Fprintf(w, "  Company: %s\n", sanitizeTerminal(c.Company))
+		_, _ = fmt.Fprintf(w, "  Company:  %s\n", truncate(sanitizeTerminal(c.Company), 80))
+	}
+	if c.Location != "" {
+		_, _ = fmt.Fprintf(w, "  Location: %s\n", truncate(sanitizeTerminal(c.Location), 60))
+	}
+	if c.LinkedIn != "" {
+		_, _ = fmt.Fprintf(w, "  LinkedIn: %s\n", truncate(sanitizeTerminal(c.LinkedIn), 100))
+	}
+	if line := lushaEmploymentSummary(c); line != "" {
+		_, _ = fmt.Fprintf(w, "  History:  %s\n", line)
 	}
 
 	if len(c.Emails) == 0 && len(c.Phones) == 0 {
@@ -96,20 +111,36 @@ func outputLushaJSONL(w io.Writer, c *lusha.Contact) {
 		Type      string `json:"type,omitempty"`
 		DoNotCall bool   `json:"do_not_call"`
 	}
+	type employmentJSON struct {
+		Organization string `json:"organization,omitempty"`
+		Title        string `json:"title,omitempty"`
+		Current      bool   `json:"current"`
+	}
 	type contactJSON struct {
-		Type     string      `json:"type"`
-		Name     string      `json:"name,omitempty"`
-		JobTitle string      `json:"job_title,omitempty"`
-		Company  string      `json:"company,omitempty"`
-		Emails   []emailJSON `json:"emails,omitempty"`
-		Phones   []phoneJSON `json:"phones,omitempty"`
+		Type          string           `json:"type"`
+		Name          string           `json:"name,omitempty"`
+		JobTitle      string           `json:"job_title,omitempty"`
+		Company       string           `json:"company,omitempty"`
+		CompanyDomain string           `json:"company_domain,omitempty"`
+		LinkedIn      string           `json:"linkedin,omitempty"`
+		Departments   []string         `json:"departments,omitempty"`
+		Seniority     string           `json:"seniority,omitempty"`
+		Location      string           `json:"location,omitempty"`
+		Emails        []emailJSON      `json:"emails,omitempty"`
+		Phones        []phoneJSON      `json:"phones,omitempty"`
+		Employment    []employmentJSON `json:"employment,omitempty"`
 	}
 
 	jr := contactJSON{
-		Type:     "lusha",
-		Name:     c.Name,
-		JobTitle: c.JobTitle,
-		Company:  c.Company,
+		Type:          "lusha",
+		Name:          c.Name,
+		JobTitle:      c.JobTitle,
+		Company:       c.Company,
+		CompanyDomain: c.CompanyDomain,
+		LinkedIn:      c.LinkedIn,
+		Departments:   c.Departments,
+		Seniority:     c.Seniority,
+		Location:      c.Location,
 	}
 	for i := range c.Emails {
 		e := &c.Emails[i]
@@ -127,6 +158,14 @@ func outputLushaJSONL(w io.Writer, c *lusha.Contact) {
 			DoNotCall: p.DoNotCall,
 		})
 	}
+	for i := range c.Employment {
+		em := &c.Employment[i]
+		jr.Employment = append(jr.Employment, employmentJSON{
+			Organization: em.Organization,
+			Title:        em.Title,
+			Current:      em.Current,
+		})
+	}
 
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(jr); err != nil {
@@ -140,4 +179,29 @@ func lushaIdentitySummary(c *lusha.Contact) string {
 		return name
 	}
 	return "contact"
+}
+
+// lushaEmploymentSummary renders employment history compactly for the human
+// view: the current organization plus a count of prior roles. Full per-role
+// detail is available in JSONL output. Returns "" when no history is present.
+func lushaEmploymentSummary(c *lusha.Contact) string {
+	current := ""
+	prior := 0
+	for i := range c.Employment {
+		em := &c.Employment[i]
+		if em.Current && current == "" {
+			current = truncate(sanitizeTerminal(em.Organization), 60)
+			continue
+		}
+		prior++
+	}
+	switch {
+	case current != "" && prior > 0:
+		return fmt.Sprintf("%s (+%d prior)", current, prior)
+	case current != "":
+		return current
+	case prior > 0:
+		return fmt.Sprintf("%d prior role(s)", prior)
+	}
+	return ""
 }

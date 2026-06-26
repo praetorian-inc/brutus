@@ -54,6 +54,8 @@ type Person struct {
 	Seniority  string
 	Department string
 	Phone      string
+	LinkedIn   string
+	Twitter    string
 	Confidence int
 	Type       string
 	Sources    []string
@@ -229,6 +231,8 @@ func toPerson(e *apiEmail) Person {
 		Seniority:  e.Seniority,
 		Department: e.Department,
 		Phone:      e.Phone,
+		LinkedIn:   e.LinkedIn,
+		Twitter:    e.Twitter,
 		Confidence: e.Confidence,
 		Type:       e.Type,
 		Sources:    sources,
@@ -261,6 +265,8 @@ type apiEmail struct {
 	Seniority  string      `json:"seniority"`
 	Department string      `json:"department"`
 	Phone      string      `json:"phone_number"`
+	LinkedIn   string      `json:"linkedin"`
+	Twitter    string      `json:"twitter"`
 	Sources    []apiSource `json:"sources"`
 }
 

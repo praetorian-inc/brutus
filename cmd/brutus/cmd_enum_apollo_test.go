@@ -142,10 +142,11 @@ func TestClassifyApolloError_NetworkWrap(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // resetApolloFlags resets the package-level apollo flag vars to safe defaults.
+// Reveal is DEFAULT-ON: flagApolloNoReveal=false means reveal is active.
 func resetApolloFlags() {
 	flagApolloDomain = "example.com"
 	flagApolloTitles = nil
-	flagApolloReveal = false
+	flagApolloNoReveal = false
 	flagApolloLimit = 100
 	flagApolloAPIKey = ""
 }
@@ -162,19 +163,37 @@ func TestRunEnumApollo_RejectsNegativeLimit(t *testing.T) {
 		"error must mention --limit so the operator knows what to fix")
 }
 
-// TestRunEnumApollo_RejectsRevealWithZeroLimit asserts that --reveal combined
-// with --limit 0 (unbounded) is rejected to prevent unbounded credit spend.
+// TestRunEnumApollo_RejectsRevealWithZeroLimit asserts that reveal (the DEFAULT)
+// combined with --limit 0 (unbounded) is rejected to prevent unbounded credit
+// spend. With reveal as default, --limit 0 alone must be rejected; passing
+// --no-reveal (flagApolloNoReveal=true) with --limit 0 is allowed.
 func TestRunEnumApollo_RejectsRevealWithZeroLimit(t *testing.T) {
 	resetApolloFlags()
-	flagApolloReveal = true
+	// reveal is default (flagApolloNoReveal=false), so --limit 0 alone must fail.
 	flagApolloLimit = 0
 
 	err := runEnumApollo(enumApolloCmd, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--reveal",
-		"error must mention --reveal so the operator understands the constraint")
 	assert.Contains(t, err.Error(), "--limit",
 		"error must mention --limit so the operator knows how to fix it")
+}
+
+// TestRunEnumApollo_AllowsNoRevealWithZeroLimit asserts that --no-reveal with
+// --limit 0 (unbounded free discovery) is accepted.
+func TestRunEnumApollo_AllowsNoRevealWithZeroLimit(t *testing.T) {
+	resetApolloFlags()
+	flagApolloNoReveal = true
+	flagApolloLimit = 0
+
+	// No API key set — runEnumApollo will fail on resolveApolloAPIKey, which is
+	// expected; the important thing is it does NOT fail on the limit guard.
+	t.Setenv("APOLLO_API_KEY", "")
+	err := runEnumApollo(enumApolloCmd, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "APOLLO_API_KEY",
+		"error must be about missing API key, not the limit guard")
+	assert.NotContains(t, err.Error(), "--limit",
+		"--no-reveal with --limit 0 must not be rejected by the limit guard")
 }
 
 // ---------------------------------------------------------------------------
@@ -337,8 +356,8 @@ func TestEnumApolloRegistered(t *testing.T) {
 		titlesFlag := cmd.Flags().Lookup("titles")
 		require.NotNil(t, titlesFlag, "--titles flag must exist")
 
-		revealFlag := cmd.Flags().Lookup("reveal")
-		require.NotNil(t, revealFlag, "--reveal flag must exist")
+		revealFlag := cmd.Flags().Lookup("no-reveal")
+		require.NotNil(t, revealFlag, "--no-reveal flag must exist")
 
 		limitFlag := cmd.Flags().Lookup("limit")
 		require.NotNil(t, limitFlag, "--limit flag must exist")

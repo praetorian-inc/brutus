@@ -52,10 +52,10 @@ const (
 // Public types
 // ---------------------------------------------------------------------------
 
-// Person is one discovered contact for the domain. Email/EmailStatus are empty
-// until RevealEmails runs (opt-in, consumes credits).
+// Person is one discovered contact for the domain. The reveal-only fields are
+// empty until RevealEmails runs (default-on, consumes credits).
 type Person struct {
-	// From people-search (FREE, no PII).
+	// From people-search (FREE, thin — last_name is obfuscated/empty here).
 	ID           string
 	FirstName    string
 	LastName     string
@@ -68,7 +68,24 @@ type Person struct {
 	// From people/match (CREDITS, PII) — empty unless reveal ran.
 	Email       string
 	EmailStatus string
+	LinkedinURL string
+	Twitter     string
+	Departments []string
+	City        string
+	State       string
+	Country     string
+	Employment  []EmploymentEntry
 	Revealed    bool
+}
+
+// EmploymentEntry is one raw entry from a person's employment_history. Raw
+// pass-through — no derived fields (e.g. tenure) are computed.
+type EmploymentEntry struct {
+	Organization string
+	Title        string
+	StartDate    string
+	EndDate      string
+	Current      bool
 }
 
 // DomainResult is the aggregated, de-paginated result for a domain.
@@ -183,26 +200,28 @@ func (c *Client) SearchPeople(ctx context.Context, domain string, titles []strin
 	return result, nil
 }
 
-// RevealEmails enriches the already-discovered people in result with emails via
-// people/match, in place, serially. Consumes credits. Skips people without an
-// id. Sets Email/EmailStatus/Revealed per person (Revealed=true even when the
-// returned email is empty — partial-result honesty) and sets result.Revealed=true
-// on the FIRST successful match so spent credits are reflected even if a later
+// RevealEmails enriches the already-discovered people in result with the full
+// matched record via people/match, in place, serially. Consumes credits. Skips
+// people without an id. Merges the enriched fields (un-obfuscated last name,
+// email/status, LinkedIn/Twitter, seniority, departments, location, employment
+// history) onto each person and sets Revealed=true (even when the returned
+// email is empty — partial-result honesty), and sets result.Revealed=true on
+// the FIRST successful match so spent credits are reflected even if a later
 // match fails. Surfaces the first error (no partial swallow), leaving
-// already-merged emails intact.
+// already-merged records intact.
 func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
 	for i := range result.People {
 		p := &result.People[i]
 		if p.ID == "" { // can't match without an id
 			continue
 		}
-		email, status, err := c.matchPerson(ctx, p.ID)
+		matched, err := c.matchPerson(ctx, p.ID)
 		if err != nil {
-			// On error, return it but leave the emails merged so far intact;
+			// On error, return it but leave the records merged so far intact;
 			// result.Revealed is already true if any earlier reveal succeeded.
 			return err
 		}
-		p.Email, p.EmailStatus, p.Revealed = email, status, true
+		mergeReveal(p, matched)
 		// Mark the aggregate as revealed on the FIRST successful match — credits
 		// have been spent, so the partial result must reflect that even if a
 		// later match fails.
@@ -239,24 +258,26 @@ func (c *Client) searchPage(ctx context.Context, domain string, titles []string,
 
 	out := make([]Person, len(resp.People))
 	for i := range resp.People {
-		out[i] = toPerson(&resp.People[i])
+		out[i] = resp.People[i].toPerson()
 	}
 	return out, resp.TotalEntries, nil
 }
 
-// matchPerson reveals the email for a single Apollo person id. Consumes credits.
-func (c *Client) matchPerson(ctx context.Context, id string) (email, status string, err error) {
+// matchPerson reveals the full record for a single Apollo person id via
+// people/match. Consumes credits. Returns the mapped Person (search + reveal
+// fields), which the caller merges onto the discovered person.
+func (c *Client) matchPerson(ctx context.Context, id string) (Person, error) {
 	reqBody := apolloMatchRequest{ID: id, RevealPersonalEmails: true}
 	body, err := c.do(ctx, http.MethodPost, matchPath, reqBody)
 	if err != nil {
-		return "", "", err
+		return Person{}, err
 	}
 
 	var resp apolloMatchResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return "", "", fmt.Errorf("decoding apollo match response: %w", err)
+		return Person{}, fmt.Errorf("decoding apollo match response: %w", err)
 	}
-	return resp.Person.Email, resp.Person.EmailStatus, nil
+	return resp.Person.toPerson(), nil
 }
 
 // do is the single P0-1/P0-3 choke point: it JSON-encodes body, sets the
@@ -302,12 +323,25 @@ func (c *Client) do(ctx context.Context, method, path string, body any) ([]byte,
 	return respBody, nil
 }
 
-// toPerson converts the API person struct to the public Person type. Search
-// fields only; PII (Email/EmailStatus) is left empty and Revealed=false.
-func toPerson(p *apolloPerson) Person {
+// toPerson converts the API person struct to the public Person type, mapping
+// every field present in the payload. The search response is thin (reveal-only
+// fields are null/empty and map to zero values); the match response populates
+// the full record. Revealed is NOT set here — the caller owns that flag.
+func (p apolloPerson) toPerson() Person {
 	dept := ""
 	if len(p.Departments) > 0 {
 		dept = p.Departments[0]
+	}
+	employment := make([]EmploymentEntry, len(p.EmploymentHistory))
+	for i := range p.EmploymentHistory {
+		h := &p.EmploymentHistory[i]
+		employment[i] = EmploymentEntry{
+			Organization: h.OrganizationName,
+			Title:        h.Title,
+			StartDate:    h.StartDate,
+			EndDate:      h.EndDate,
+			Current:      h.Current,
+		}
 	}
 	return Person{
 		ID:           p.ID,
@@ -318,7 +352,35 @@ func toPerson(p *apolloPerson) Person {
 		Seniority:    p.Seniority,
 		Department:   dept,
 		Organization: p.Organization.Name,
+		Email:        p.Email,
+		EmailStatus:  p.EmailStatus,
+		LinkedinURL:  p.LinkedinURL,
+		Twitter:      p.TwitterURL,
+		Departments:  p.Departments,
+		City:         p.City,
+		State:        p.State,
+		Country:      p.Country,
+		Employment:   employment,
 	}
+}
+
+// mergeReveal merges the enriched fields from a people/match record onto the
+// discovered person, overwriting the obfuscated/empty search-tier last name and
+// filling in the reveal-only fields. Search-tier identity fields already on p
+// (ID, Name, Title, Organization) are left intact.
+func mergeReveal(p *Person, m Person) {
+	p.LastName = m.LastName
+	p.Email = m.Email
+	p.EmailStatus = m.EmailStatus
+	p.LinkedinURL = m.LinkedinURL
+	p.Twitter = m.Twitter
+	p.Seniority = m.Seniority
+	p.Departments = m.Departments
+	p.City = m.City
+	p.State = m.State
+	p.Country = m.Country
+	p.Employment = m.Employment
+	p.Revealed = true
 }
 
 // ---------------------------------------------------------------------------
@@ -355,16 +417,30 @@ type apolloMatchResponse struct {
 }
 
 type apolloPerson struct {
-	ID           string             `json:"id"`
-	FirstName    string             `json:"first_name"`
-	LastName     string             `json:"last_name"`
-	Name         string             `json:"name"`
-	Title        string             `json:"title"`
-	Seniority    string             `json:"seniority"`
-	Departments  []string           `json:"departments"`
-	Organization apolloOrganization `json:"organization"`
-	Email        string             `json:"email"`
-	EmailStatus  string             `json:"email_status"`
+	ID                string                  `json:"id"`
+	FirstName         string                  `json:"first_name"`
+	LastName          string                  `json:"last_name"`
+	Name              string                  `json:"name"`
+	Title             string                  `json:"title"`
+	Seniority         string                  `json:"seniority"`
+	Departments       []string                `json:"departments"`
+	Organization      apolloOrganization      `json:"organization"`
+	Email             string                  `json:"email"`
+	EmailStatus       string                  `json:"email_status"`
+	LinkedinURL       string                  `json:"linkedin_url"`
+	TwitterURL        string                  `json:"twitter_url"`
+	City              string                  `json:"city"`
+	State             string                  `json:"state"`
+	Country           string                  `json:"country"`
+	EmploymentHistory []apolloEmploymentEntry `json:"employment_history"`
+}
+
+type apolloEmploymentEntry struct {
+	OrganizationName string `json:"organization_name"`
+	Title            string `json:"title"`
+	StartDate        string `json:"start_date"`
+	EndDate          string `json:"end_date"`
+	Current          bool   `json:"current"`
 }
 
 type apolloOrganization struct {

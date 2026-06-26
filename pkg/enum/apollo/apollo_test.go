@@ -46,7 +46,7 @@ func newTestClient(baseURL string) *Client {
 // ---------------------------------------------------------------------------
 
 func TestToPerson(t *testing.T) {
-	src := &apolloPerson{
+	src := apolloPerson{
 		ID:           "abc123",
 		FirstName:    "Alice",
 		LastName:     "Smith",
@@ -56,7 +56,7 @@ func TestToPerson(t *testing.T) {
 		Departments:  []string{"Engineering", "Product"},
 		Organization: apolloOrganization{Name: "Example Corp"},
 	}
-	got := toPerson(src)
+	got := src.toPerson()
 
 	assert.Equal(t, "abc123", got.ID)
 	assert.Equal(t, "Alice", got.FirstName)
@@ -74,11 +74,11 @@ func TestToPerson(t *testing.T) {
 }
 
 func TestToPerson_EmptyDepartments(t *testing.T) {
-	src := &apolloPerson{
+	src := apolloPerson{
 		ID:   "empty-dept",
 		Name: "Bob",
 	}
-	got := toPerson(src)
+	got := src.toPerson()
 	assert.Empty(t, got.Department, "empty departments slice should yield empty Department")
 }
 
@@ -136,11 +136,28 @@ func makeSearchResponse(people []apolloPerson, total int) []byte {
 	return b
 }
 
+// makeMatchResponse returns a full apolloMatchResponse JSON payload with the
+// reveal-only fields populated. The extra fields (linkedin_url, last_name,
+// seniority, departments, city/state/country, employment_history) mirror what
+// people/match returns and must be preserved through mergeReveal.
 func makeMatchResponse(email, emailStatus string) []byte {
 	resp := apolloMatchResponse{
 		Person: apolloPerson{
+			FirstName:   "Alice",
+			LastName:    "Smith",
+			Name:        "Alice Smith",
 			Email:       email,
 			EmailStatus: emailStatus,
+			LinkedinURL: "https://linkedin.com/in/alice",
+			TwitterURL:  "https://twitter.com/alice",
+			Seniority:   "senior",
+			Departments: []string{"Engineering"},
+			City:        "San Francisco",
+			State:       "CA",
+			Country:     "United States",
+			EmploymentHistory: []apolloEmploymentEntry{
+				{OrganizationName: "Example Corp", Title: "Engineer", StartDate: "2020-01", Current: true},
+			},
 		},
 	}
 	b, _ := json.Marshal(resp)
@@ -228,10 +245,20 @@ func TestMatchPerson_Decode(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	email, status, err := c.matchPerson(context.Background(), "p1")
+	person, err := c.matchPerson(context.Background(), "p1")
 	require.NoError(t, err)
-	assert.Equal(t, "alice@example.com", email)
-	assert.Equal(t, "verified", status)
+	assert.Equal(t, "alice@example.com", person.Email)
+	assert.Equal(t, "verified", person.EmailStatus)
+	assert.Equal(t, "https://linkedin.com/in/alice", person.LinkedinURL)
+	assert.Equal(t, "Smith", person.LastName)
+	assert.Equal(t, "senior", person.Seniority)
+	assert.Equal(t, []string{"Engineering"}, person.Departments)
+	assert.Equal(t, "San Francisco", person.City)
+	assert.Equal(t, "CA", person.State)
+	assert.Equal(t, "United States", person.Country)
+	require.Len(t, person.Employment, 1)
+	assert.Equal(t, "Example Corp", person.Employment[0].Organization)
+	assert.True(t, person.Employment[0].Current)
 }
 
 func TestDo_MalformedJSON(t *testing.T) {
@@ -448,6 +475,8 @@ func TestSearchPeople_ContextCancellation(t *testing.T) {
 func TestRevealEmails_Merge(t *testing.T) {
 	// 3 people: server returns email for p1, email for p2, empty for p3.
 	// All 3 should get Revealed=true (partial-result honesty); result.Revealed=true.
+	// makeMatchResponse now includes full reveal fields (linkedin_url, last_name,
+	// seniority, departments, city/state/country, employment_history).
 	responses := map[string]string{
 		"p1": "alice@example.com",
 		"p2": "bob@example.com",
@@ -482,9 +511,20 @@ func TestRevealEmails_Merge(t *testing.T) {
 	err := c.RevealEmails(context.Background(), result)
 	require.NoError(t, err)
 
+	// p1: full reveal fields merged.
 	assert.Equal(t, "alice@example.com", result.People[0].Email)
+	assert.Equal(t, "verified", result.People[0].EmailStatus)
+	assert.Equal(t, "https://linkedin.com/in/alice", result.People[0].LinkedinURL)
+	assert.Equal(t, "Smith", result.People[0].LastName)
+	assert.Equal(t, "senior", result.People[0].Seniority)
+	assert.Equal(t, []string{"Engineering"}, result.People[0].Departments)
+	assert.Equal(t, "San Francisco", result.People[0].City)
+	assert.Equal(t, "United States", result.People[0].Country)
+	require.Len(t, result.People[0].Employment, 1)
+	assert.True(t, result.People[0].Employment[0].Current)
 	assert.True(t, result.People[0].Revealed)
 
+	// p2: also merged.
 	assert.Equal(t, "bob@example.com", result.People[1].Email)
 	assert.True(t, result.People[1].Revealed)
 

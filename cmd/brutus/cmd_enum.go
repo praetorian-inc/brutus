@@ -44,6 +44,7 @@ Subcommands:
   kerberos   Enumerate Active Directory users via Kerberos AS-REQ
   generate   Generate email addresses or usernames from embedded name lists
   hunter     Discover people and emails via Hunter.io Domain Search
+  dehashed   Collect breach-exposed identity data for a domain via DeHashed
   teams      Authenticate with Microsoft Entra ID via device code flow
 
 See subcommand help for details:
@@ -51,6 +52,7 @@ See subcommand help for details:
   brutus enum kerberos --help
   brutus enum generate --help
   brutus enum hunter --help
+  brutus enum dehashed --help
   brutus enum teams --help`,
 	Example: `  # Account-existence oracle enumeration
   brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com
@@ -63,6 +65,9 @@ See subcommand help for details:
 
   # Discover people via Hunter.io
   brutus enum hunter --domain example.com
+
+  # Collect breach-exposed identity data via DeHashed
+  brutus enum dehashed --domain example.com
 
   # Authenticate with Microsoft Entra ID via device code
   brutus enum teams auth --tenant contoso.com`,
@@ -116,6 +121,7 @@ func init() {
 	enumCmd.AddCommand(enumOraclesCmd)
 	enumCmd.AddCommand(enumKerberosCmd)
 	enumCmd.AddCommand(enumHunterCmd)
+	enumCmd.AddCommand(enumDehashedCmd)
 	enumCmd.AddCommand(enumCustomCmd)
 	enumCmd.AddCommand(enumTeamsCmd)
 }

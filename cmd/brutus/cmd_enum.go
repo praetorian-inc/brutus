@@ -43,21 +43,15 @@ Subcommands:
   oracles    Enumerate which account-existence oracles work for an organization
   kerberos   Enumerate Active Directory users via Kerberos AS-REQ
   generate   Generate email addresses or usernames from embedded name lists
-  hunter     Discover people and emails via Hunter.io Domain Search
-  dehashed   Collect breach-exposed identity data for a domain via DeHashed
   teams      Authenticate with Microsoft Entra ID via device code flow
-  apollo     Discover people/emails for a domain via Apollo.io (opt-in --reveal enrichment)
-  lusha      Enrich a single contact (email/phone) via Lusha
+  passive    API-key OSINT/HUMINT sources (Hunter, Apollo, Lusha, DeHashed)
 
 See subcommand help for details:
   brutus enum oracles --help
   brutus enum kerberos --help
   brutus enum generate --help
-  brutus enum hunter --help
-  brutus enum dehashed --help
   brutus enum teams --help
-  brutus enum apollo --help
-  brutus enum lusha --help`,
+  brutus enum passive --help`,
 	Example: `  # Account-existence oracle enumeration
   brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com
 
@@ -67,20 +61,14 @@ See subcommand help for details:
   # Generate emails for enumeration
   brutus enum generate --domain example.com --format flast
 
-  # Discover people via Hunter.io
-  brutus enum hunter --domain example.com
-
-  # Collect breach-exposed identity data via DeHashed
-  brutus enum dehashed --domain example.com
-
-  # Discover people via Apollo.io
-  brutus enum apollo --domain example.com
-
-  # Enrich a contact via Lusha
-  brutus enum lusha --first-name Jane --last-name Doe --company "Example Inc"
-
   # Authenticate with Microsoft Entra ID via device code
-  brutus enum teams auth --tenant contoso.com`,
+  brutus enum teams auth --tenant contoso.com
+
+  # API-key OSINT/HUMINT sources (employee email/contact discovery)
+  brutus enum passive hunter --domain example.com
+  brutus enum passive apollo --domain example.com
+  brutus enum passive lusha --first-name Jane --last-name Doe --company "Example Inc"
+  brutus enum passive dehashed --domain example.com`,
 }
 
 var enumGenerateCmd = &cobra.Command{
@@ -126,16 +114,28 @@ func init() {
 	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
 	f.IntVar(&flagEnumGenerateLimit, "limit", 0, "Emit only the first N (most-likely) results (0 = no limit, emit all)")
 
-	// Wire commands
+	// Wire direct children of enum (unchanged commands).
 	enumCmd.AddCommand(enumGenerateCmd)
 	enumCmd.AddCommand(enumOraclesCmd)
 	enumCmd.AddCommand(enumKerberosCmd)
-	enumCmd.AddCommand(enumHunterCmd)
-	enumCmd.AddCommand(enumDehashedCmd)
 	enumCmd.AddCommand(enumCustomCmd)
 	enumCmd.AddCommand(enumTeamsCmd)
-	enumCmd.AddCommand(enumApolloCmd)
-	enumCmd.AddCommand(enumLushaCmd)
+
+	// Canonical path: the passive API-key OSINT/HUMINT sources live under "passive".
+	enumPassiveCmd.AddCommand(newEnumHunterCmd(), newEnumApolloCmd(), newEnumLushaCmd(), newEnumDehashedCmd())
+	enumCmd.AddCommand(enumPassiveCmd)
+
+	// Hidden back-compat aliases: the old "enum <name>" paths still work but are
+	// hidden from help and marked deprecated to nudge users to "enum passive
+	// <name>". A second builder instance is used per source (binding the same
+	// package-level flag vars — only one runs per invocation).
+	for _, alias := range []*cobra.Command{
+		newEnumHunterCmd(), newEnumApolloCmd(), newEnumLushaCmd(), newEnumDehashedCmd(),
+	} {
+		alias.Hidden = true
+		alias.Deprecated = `use "brutus enum passive ` + alias.Name() + `" instead`
+		enumCmd.AddCommand(alias)
+	}
 }
 
 // runEnumGenerate handles the "enum generate" subcommand.

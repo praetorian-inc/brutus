@@ -20,6 +20,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -117,33 +118,52 @@ func TestClassifyHunterError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestEnumHunterRegistered(t *testing.T) {
-	var found bool
+	// 1. enumCmd must have a "passive" subcommand.
+	var passive *cobra.Command
 	for _, cmd := range enumCmd.Commands() {
-		if cmd.Use != "hunter" {
-			continue
+		if cmd.Use == "passive" {
+			passive = cmd
+			break
 		}
-		found = true
-
-		domainFlag := cmd.Flags().Lookup("domain")
-		require.NotNil(t, domainFlag, "--domain flag must exist")
-
-		apiKeyFlag := cmd.Flags().Lookup("api-key")
-		require.NotNil(t, apiKeyFlag, "--api-key flag must exist")
-
-		limitFlag := cmd.Flags().Lookup("limit")
-		require.NotNil(t, limitFlag, "--limit flag must exist")
-
-		// Verify -d shorthand exists.
-		domainShort := cmd.Flags().ShorthandLookup("d")
-		require.NotNil(t, domainShort, "-d shorthand must exist")
-
-		// Verify --domain is marked required via cobra annotation.
-		annotations := domainFlag.Annotations
-		_, isRequired := annotations["cobra_annotation_bash_completion_one_required_flag"]
-		assert.True(t, isRequired, "--domain must be marked as required")
-		break
 	}
-	require.True(t, found, "hunter subcommand must be registered with enumCmd")
+	require.NotNil(t, passive, `enumCmd must have a "passive" subcommand`)
+
+	// 2. The canonical "hunter" command must live under passive.
+	var canonicalHunter *cobra.Command
+	for _, cmd := range passive.Commands() {
+		if cmd.Use == "hunter" {
+			canonicalHunter = cmd
+			break
+		}
+	}
+	require.NotNil(t, canonicalHunter, `"hunter" must be a subcommand of enumPassiveCmd`)
+
+	// Verify expected flags on the canonical command (cross-check with builder).
+	ref := newEnumHunterCmd()
+	for _, flagName := range []string{"domain", "api-key", "limit"} {
+		require.NotNilf(t, canonicalHunter.Flags().Lookup(flagName),
+			"--%s flag must exist on canonical hunter", flagName)
+		require.NotNilf(t, ref.Flags().Lookup(flagName),
+			"--%s flag must exist on builder output", flagName)
+	}
+	domainShort := canonicalHunter.Flags().ShorthandLookup("d")
+	require.NotNil(t, domainShort, "-d shorthand must exist")
+
+	domainFlag := canonicalHunter.Flags().Lookup("domain")
+	_, isRequired := domainFlag.Annotations["cobra_annotation_bash_completion_one_required_flag"]
+	assert.True(t, isRequired, "--domain must be marked as required")
+
+	// 3. A hidden back-compat alias must exist directly under enumCmd.
+	var alias *cobra.Command
+	for _, cmd := range enumCmd.Commands() {
+		if cmd.Use == "hunter" {
+			alias = cmd
+			break
+		}
+	}
+	require.NotNil(t, alias, `hidden "hunter" alias must be registered directly under enumCmd`)
+	assert.True(t, alias.Hidden, "back-compat hunter alias must be Hidden")
+	assert.NotEmpty(t, alias.Deprecated, "back-compat hunter alias must be Deprecated")
 }
 
 // ---------------------------------------------------------------------------

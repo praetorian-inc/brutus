@@ -40,17 +40,34 @@ func newTestClient(baseURL string) *Client {
 // ---------------------------------------------------------------------------
 
 func TestToContact(t *testing.T) {
+	// v3 batch response: results array with nested jobTitle/company/contactMethods.
 	resp := &lushaEnrichResponse{
-		Name:     "Ada Lovelace",
-		JobTitle: "Mathematician",
-		Company:  "Analytical Engine Co",
-		EmailAddresses: []lushaEmail{
-			{Address: "ada@example.com", Type: "professional", Confidence: "high"},
-			{Address: "ada.personal@gmail.com", Type: "personal", Confidence: "medium"},
-		},
-		PhoneNumbers: []lushaPhone{
-			{Number: "+1-555-0100", Type: "direct", DoNotCall: false},
-			{Number: "+1-555-0199", Type: "mobile", DoNotCall: true},
+		RequestID: "req-1",
+		Results: []lushaResult{
+			{
+				FirstName: "Ada",
+				LastName:  "Lovelace",
+				JobTitle: struct {
+					Title string `json:"title"`
+				}{Title: "Mathematician"},
+				Company: struct {
+					Name   string `json:"name"`
+					Domain string `json:"domain"`
+				}{Name: "Analytical Engine Co"},
+				ContactMethods: struct {
+					Emails []lushaEmail `json:"emails"`
+					Phones []lushaPhone `json:"phones"`
+				}{
+					Emails: []lushaEmail{
+						{Address: "ada@example.com", Type: "professional", Confidence: "high"},
+						{Address: "ada.personal@gmail.com", Type: "personal", Confidence: "medium"},
+					},
+					Phones: []lushaPhone{
+						{Number: "+1-555-0100", Type: "direct", DoNotCall: false},
+						{Number: "+1-555-0199", Type: "mobile", DoNotCall: true},
+					},
+				},
+			},
 		},
 	}
 	got := toContact(resp)
@@ -73,6 +90,14 @@ func TestToContact(t *testing.T) {
 	assert.Equal(t, "mobile", got.Phones[1].Type)
 	// DoNotCall MUST be preserved (P0-DNC compliance requirement).
 	assert.True(t, got.Phones[1].DoNotCall, "DoNotCall flag must be preserved")
+}
+
+func TestToContact_EmptyResults(t *testing.T) {
+	resp := &lushaEnrichResponse{RequestID: "req-2", Results: nil}
+	got := toContact(resp)
+	require.NotNil(t, got)
+	assert.Empty(t, got.Emails)
+	assert.Empty(t, got.Phones)
 }
 
 func TestAPIError_Unwrap(t *testing.T) {
@@ -100,9 +125,12 @@ func TestAPIError_Unwrap(t *testing.T) {
 }
 
 func TestAPIError_Error(t *testing.T) {
-	err := &APIError{StatusCode: 402, Details: "no credits remaining"}
+	// Error() must include the HTTP status code.
+	err := &APIError{StatusCode: 402, Details: "SECRETKEY-DO-NOT-LEAK"}
 	assert.Contains(t, err.Error(), "402")
-	assert.Contains(t, err.Error(), "no credits remaining")
+	// P0-1 security fix: Details must NOT appear in Error() output.
+	assert.NotContains(t, err.Error(), "SECRETKEY-DO-NOT-LEAK",
+		"APIError.Error() must not include Details (P0-1 key-leak prevention)")
 }
 
 // ---------------------------------------------------------------------------
@@ -123,15 +151,24 @@ func TestEnrich_Success(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		capturedReqBody = body
 
-		resp := lushaEnrichResponse{
-			Name:     "Ada Lovelace",
-			JobTitle: "Engineer",
-			Company:  "AnalyticalCo",
-			EmailAddresses: []lushaEmail{
-				{Address: "ada@example.com", Type: "professional", Confidence: "high"},
-			},
-			PhoneNumbers: []lushaPhone{
-				{Number: "+1-555-0100", Type: "direct", DoNotCall: true},
+		// v3 batch response shape: requestId + results array.
+		resp := map[string]interface{}{
+			"requestId": "req-test",
+			"results": []map[string]interface{}{
+				{
+					"firstName": "Ada",
+					"lastName":  "Lovelace",
+					"jobTitle":  map[string]interface{}{"title": "Engineer"},
+					"company":   map[string]interface{}{"name": "AnalyticalCo", "domain": ""},
+					"contactMethods": map[string]interface{}{
+						"emails": []map[string]interface{}{
+							{"address": "ada@example.com", "type": "work", "confidence": "95"},
+						},
+						"phones": []map[string]interface{}{
+							{"number": "+1-555-0100", "type": "mobile", "doNotCall": true},
+						},
+					},
+				},
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -167,67 +204,70 @@ func TestEnrich_Success(t *testing.T) {
 }
 
 func TestBuildEnrichRequest(t *testing.T) {
+	// v3 batch shape: {contacts:[{identity fields}], reveal:["emails","phones"]}.
 	tests := []struct {
-		name    string
-		query   ContactQuery
-		reveal  RevealOptions
-		wantReq lushaEnrichRequest
+		name        string
+		query       ContactQuery
+		reveal      RevealOptions
+		wantContact lushaReqContact
+		wantReveal  []string
 	}{
 		{
-			name: "name + company",
+			name: "name + company, email reveal only",
 			query: ContactQuery{
 				FirstName:   "Ada",
 				LastName:    "Lovelace",
 				CompanyName: "AnalyticalCo",
 			},
 			reveal: RevealOptions{Email: true},
-			wantReq: lushaEnrichRequest{
-				FirstName:    "Ada",
-				LastName:     "Lovelace",
-				CompanyName:  "AnalyticalCo",
-				RevealEmails: true,
+			wantContact: lushaReqContact{
+				FirstName:   "Ada",
+				LastName:    "Lovelace",
+				CompanyName: "AnalyticalCo",
 			},
+			wantReveal: []string{"emails"},
 		},
 		{
-			name: "name + domain",
+			name: "name + domain, email+phone reveal",
 			query: ContactQuery{
 				FirstName:     "Ada",
 				LastName:      "Lovelace",
 				CompanyDomain: "analytical.example.com",
 			},
 			reveal: RevealOptions{Email: true, Phone: true},
-			wantReq: lushaEnrichRequest{
+			wantContact: lushaReqContact{
 				FirstName:     "Ada",
 				LastName:      "Lovelace",
 				CompanyDomain: "analytical.example.com",
-				RevealEmails:  true,
-				RevealPhones:  true,
 			},
+			wantReveal: []string{"emails", "phones"},
 		},
 		{
-			name:   "email only",
+			name:   "email identity, email reveal",
 			query:  ContactQuery{Email: "ada@example.com"},
 			reveal: RevealOptions{Email: true},
-			wantReq: lushaEnrichRequest{
-				Email:        "ada@example.com",
-				RevealEmails: true,
+			wantContact: lushaReqContact{
+				Email: "ada@example.com",
 			},
+			wantReveal: []string{"emails"},
 		},
 		{
-			name:   "linkedin only",
+			name:   "linkedin identity, email+phone reveal",
 			query:  ContactQuery{LinkedinURL: "https://linkedin.com/in/ada"},
 			reveal: RevealOptions{Email: true, Phone: true},
-			wantReq: lushaEnrichRequest{
-				LinkedinURL:  "https://linkedin.com/in/ada",
-				RevealEmails: true,
-				RevealPhones: true,
+			wantContact: lushaReqContact{
+				LinkedinURL: "https://linkedin.com/in/ada",
 			},
+			wantReveal: []string{"emails", "phones"},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := buildEnrichRequest(tc.query, tc.reveal)
-			assert.Equal(t, tc.wantReq, got)
+			// Must be a batch with exactly one contact.
+			require.Len(t, got.Contacts, 1, "batch must have exactly one contact")
+			assert.Equal(t, tc.wantContact, got.Contacts[0])
+			assert.Equal(t, tc.wantReveal, got.Reveal)
 		})
 	}
 }
@@ -277,8 +317,8 @@ func TestEnrich_429ErrRateLimited(t *testing.T) {
 
 func TestEnrich_EmptyMatch(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 200 with empty arrays — a "no match" that is not an error.
-		resp := lushaEnrichResponse{}
+		// v3 batch response with empty results array — a "no match", not an error.
+		resp := lushaEnrichResponse{RequestID: "req-empty", Results: []lushaResult{}}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	}))
@@ -309,7 +349,7 @@ func TestEnrich_ContextCancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Slow server: sleep longer than the ctx deadline.
 		time.Sleep(300 * time.Millisecond)
-		resp := lushaEnrichResponse{}
+		resp := lushaEnrichResponse{RequestID: "req-slow", Results: []lushaResult{}}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	}))

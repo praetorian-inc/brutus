@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -120,6 +121,60 @@ func TestClassifyApolloError_NoKeyLeak(t *testing.T) {
 				"header name X-Api-Key must not appear in classified error")
 		})
 	}
+}
+
+// TestClassifyApolloError_NetworkWrap verifies that non-*APIError (network/DNS/
+// timeout) errors are %w-wrapped by classifyApolloError so errors.Is chains work,
+// while still not leaking any vendor details.
+func TestClassifyApolloError_NetworkWrap(t *testing.T) {
+	networkErr := errors.New("dial tcp: connection timeout")
+	result := classifyApolloError(networkErr)
+	require.Error(t, result)
+	// The network error must be wrapped (errors.Is unwraps the chain).
+	assert.True(t, errors.Is(result, networkErr),
+		"classifyApolloError must %w-wrap non-*APIError so errors.Is works")
+	// The error message must contain the original cause for debuggability.
+	assert.Contains(t, result.Error(), "timeout")
+}
+
+// ---------------------------------------------------------------------------
+// T005: runEnumApollo input validation (--limit < 0, --reveal with --limit 0)
+// ---------------------------------------------------------------------------
+
+// resetApolloFlags resets the package-level apollo flag vars to safe defaults.
+func resetApolloFlags() {
+	flagApolloDomain = "example.com"
+	flagApolloTitles = nil
+	flagApolloReveal = false
+	flagApolloLimit = 100
+	flagApolloAPIKey = ""
+}
+
+// TestRunEnumApollo_RejectsNegativeLimit asserts that --limit < 0 is rejected
+// with an actionable error before any network call is made.
+func TestRunEnumApollo_RejectsNegativeLimit(t *testing.T) {
+	resetApolloFlags()
+	flagApolloLimit = -1
+
+	err := runEnumApollo(enumApolloCmd, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--limit",
+		"error must mention --limit so the operator knows what to fix")
+}
+
+// TestRunEnumApollo_RejectsRevealWithZeroLimit asserts that --reveal combined
+// with --limit 0 (unbounded) is rejected to prevent unbounded credit spend.
+func TestRunEnumApollo_RejectsRevealWithZeroLimit(t *testing.T) {
+	resetApolloFlags()
+	flagApolloReveal = true
+	flagApolloLimit = 0
+
+	err := runEnumApollo(enumApolloCmd, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--reveal",
+		"error must mention --reveal so the operator understands the constraint")
+	assert.Contains(t, err.Error(), "--limit",
+		"error must mention --limit so the operator knows how to fix it")
 }
 
 // ---------------------------------------------------------------------------

@@ -93,11 +93,16 @@ type Contact struct {
 // APIError is returned for any non-2xx HTTP status from Lusha.
 type APIError struct {
 	StatusCode int
-	Details    string
+	// Details holds server-derived text (resp.Status or error-envelope message)
+	// for internal/debug use. It is deliberately EXCLUDED from Error() so a
+	// caller that logs the error cannot leak echoed keys/PII (P0-1).
+	Details string
 }
 
+// Error returns ONLY status-derived text. It does NOT include Details, which
+// could echo vendor response content back into logs (P0-1).
 func (e *APIError) Error() string {
-	return fmt.Sprintf("lusha API error (HTTP %d): %s", e.StatusCode, e.Details)
+	return fmt.Sprintf("lusha API error (HTTP %d)", e.StatusCode)
 }
 
 // Unwrap maps the status code to its sentinel error, nil otherwise.
@@ -205,44 +210,61 @@ func (c *Client) do(ctx context.Context, method, path string, body any) ([]byte,
 	return raw, nil
 }
 
-// buildEnrichRequest maps the identity group + reveal flags to the v3 request
-// shape. The exact v3 field names are UNVERIFIED against a live key
-// (architecture §11) — they are isolated in lushaEnrichRequest below so a
-// single struct edit corrects any mismatch without touching control flow.
+// buildEnrichRequest maps the identity group + reveal flags to the v3 batch
+// request shape: a single contact plus a reveal token list. The reveal token
+// values ("emails"/"phones") are UNVERIFIED against a live key — they are
+// isolated here so a single edit corrects any mismatch without touching control
+// flow.
 func buildEnrichRequest(q ContactQuery, r RevealOptions) lushaEnrichRequest {
+	var reveal []string
+	if r.Email {
+		reveal = append(reveal, "emails")
+	}
+	if r.Phone {
+		reveal = append(reveal, "phones")
+	}
 	return lushaEnrichRequest{
-		FirstName:     q.FirstName,
-		LastName:      q.LastName,
-		CompanyName:   q.CompanyName,
-		CompanyDomain: q.CompanyDomain,
-		Email:         q.Email,
-		LinkedinURL:   q.LinkedinURL,
-		RevealEmails:  r.Email,
-		RevealPhones:  r.Phone,
+		Contacts: []lushaReqContact{{
+			FirstName:     q.FirstName,
+			LastName:      q.LastName,
+			CompanyName:   q.CompanyName,
+			CompanyDomain: q.CompanyDomain,
+			Email:         q.Email,
+			LinkedinURL:   q.LinkedinURL,
+		}},
+		Reveal: reveal,
 	}
 }
 
-// toContact converts the v3 response into the public Contact type, preserving
-// the per-phone DoNotCall flag (P0-DNC).
+// toContact converts the v3 batch response into the public Contact type,
+// reading the single Results[0] entry and preserving the per-phone DoNotCall
+// flag (P0-DNC). An empty Results yields an empty *Contact (no error).
 func toContact(resp *lushaEnrichResponse) *Contact {
+	if len(resp.Results) == 0 {
+		return &Contact{}
+	}
+	r := resp.Results[0]
+
+	name := r.FirstName
+	if r.LastName != "" {
+		if name != "" {
+			name += " "
+		}
+		name += r.LastName
+	}
+
 	c := &Contact{
-		Name:     resp.Name,
-		JobTitle: resp.JobTitle,
-		Company:  resp.Company,
+		Name:     name,
+		JobTitle: r.JobTitle.Title,
+		Company:  r.Company.Name,
 	}
-	for _, e := range resp.EmailAddresses {
-		c.Emails = append(c.Emails, EmailEntry{
-			Address:    e.Address,
-			Type:       e.Type,
-			Confidence: e.Confidence,
-		})
+	// lushaEmail/lushaPhone are field-for-field identical to EmailEntry/PhoneEntry,
+	// so convert directly per element (staticcheck S1016).
+	for _, e := range r.ContactMethods.Emails {
+		c.Emails = append(c.Emails, EmailEntry(e))
 	}
-	for _, p := range resp.PhoneNumbers {
-		c.Phones = append(c.Phones, PhoneEntry{
-			Number:    p.Number,
-			Type:      p.Type,
-			DoNotCall: p.DoNotCall,
-		})
+	for _, p := range r.ContactMethods.Phones {
+		c.Phones = append(c.Phones, PhoneEntry(p))
 	}
 	return c
 }
@@ -254,33 +276,56 @@ func toContact(resp *lushaEnrichResponse) *Contact {
 // pass regardless of live-schema correctness.
 // ---------------------------------------------------------------------------
 
-// lushaEnrichRequest is the v3 search-and-enrich request body.
-// UNVERIFIED field names (firstName/lastName/companyName/companyDomain/email/
-// linkedinUrl + reveal control shape) — flag for live-key verification.
+// lushaEnrichRequest is the v3 search-and-enrich request body. The real v3
+// POST /v3/contacts/search-and-enrich uses a BATCH shape: a contacts array
+// (we send a single contact) plus a reveal token list.
 type lushaEnrichRequest struct {
+	Contacts []lushaReqContact `json:"contacts"`
+	// Reveal is the datapoint-family token list, e.g. ["emails","phones"].
+	// NOTE: the exact reveal token values ("emails"/"phones") remain UNVERIFIED
+	// against a live key (residual live-schema risk flagged in review).
+	Reveal []string `json:"reveal"`
+}
+
+// lushaReqContact is one identity in the batch. Exactly one identity group is
+// set: firstName+lastName+(companyName|companyDomain) | email | linkedinUrl.
+type lushaReqContact struct {
 	FirstName     string `json:"firstName,omitempty"`
 	LastName      string `json:"lastName,omitempty"`
 	CompanyName   string `json:"companyName,omitempty"`
 	CompanyDomain string `json:"companyDomain,omitempty"`
 	Email         string `json:"email,omitempty"`
 	LinkedinURL   string `json:"linkedinUrl,omitempty"`
-	RevealEmails  bool   `json:"revealEmails"`
-	RevealPhones  bool   `json:"revealPhoneNumbers"`
 }
 
-// lushaEnrichResponse is the v3 search-and-enrich response body.
-// UNVERIFIED: emailAddresses[]{address,type,confidence} ("email" vs "address"
-// key uncertain), phoneNumbers[]{number,type,doNotCall}, name, jobTitle,
-// company — flag for live-key verification.
+// lushaEnrichResponse is the v3 search-and-enrich response body. results is a
+// batch parallel to the request contacts; we send one contact so read
+// Results[0].
 type lushaEnrichResponse struct {
-	Name           string       `json:"name"`
-	JobTitle       string       `json:"jobTitle"`
-	Company        string       `json:"company"`
-	EmailAddresses []lushaEmail `json:"emailAddresses"`
-	PhoneNumbers   []lushaPhone `json:"phoneNumbers"`
+	RequestID string        `json:"requestId"`
+	Results   []lushaResult `json:"results"`
+}
+
+// lushaResult is one enriched contact from the batch.
+type lushaResult struct {
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	JobTitle  struct {
+		Title string `json:"title"`
+	} `json:"jobTitle"`
+	Company struct {
+		Name   string `json:"name"`
+		Domain string `json:"domain"`
+	} `json:"company"`
+	ContactMethods struct {
+		Emails []lushaEmail `json:"emails"`
+		Phones []lushaPhone `json:"phones"`
+	} `json:"contactMethods"`
 }
 
 type lushaEmail struct {
+	// NOTE: the email field key ("address" vs "email") remains UNVERIFIED against
+	// a live key — residual live-schema risk flagged in review.
 	Address    string `json:"address"`
 	Type       string `json:"type"`
 	Confidence string `json:"confidence"`

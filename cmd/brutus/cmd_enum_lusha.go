@@ -211,8 +211,10 @@ func resolveLushaAPIKey(flagValue string) (string, error) {
 }
 
 // classifyLushaError converts lusha sentinel errors into actionable, key-free
-// messages. It returns only static, status-derived text and never echoes the
-// vendor's APIError.Details (which could carry the key) (P0-1).
+// messages. For *APIError it returns only status-derived text and never echoes
+// the vendor's APIError.Details (which could carry the key) (P0-1). For non-API
+// errors (network/DNS/timeout — no vendor details) it %w-wraps the cause to
+// preserve debuggability.
 func classifyLushaError(err error) error {
 	switch {
 	case errors.Is(err, lusha.ErrUnauthorized):
@@ -227,12 +229,13 @@ func classifyLushaError(err error) error {
 		return fmt.Errorf("lusha: rate limit exceeded — wait and retry")
 	}
 	// Unknown error. If it carries an *APIError, report only its status code —
-	// never its Details, whose Error() can echo the request body or even the key
-	// back (P0-1). Otherwise report a generic, key-free message (never
-	// %w-wrapping the underlying error, whose Error() embeds Details).
+	// never its Details (P0-1); APIError.Error() is now status-only, but we keep
+	// the explicit status-code text here regardless. Otherwise (network/DNS/
+	// timeout — no vendor details) %w-wrap it to preserve debuggability, matching
+	// classifyHunterError.
 	var apiErr *lusha.APIError
 	if errors.As(err, &apiErr) {
 		return fmt.Errorf("lusha enrichment failed (HTTP %d)", apiErr.StatusCode)
 	}
-	return fmt.Errorf("lusha enrichment failed")
+	return fmt.Errorf("lusha enrichment failed: %w", err)
 }

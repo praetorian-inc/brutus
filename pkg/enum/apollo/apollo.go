@@ -82,11 +82,16 @@ type DomainResult struct {
 // APIError is returned for any non-2xx HTTP status from Apollo.
 type APIError struct {
 	StatusCode int
-	Details    string
+	// Details holds server-derived text (resp.Status or error-envelope message)
+	// for internal/debug use. It is deliberately EXCLUDED from Error() so a
+	// caller that logs the error cannot leak echoed keys/PII (P0-1).
+	Details string
 }
 
+// Error returns ONLY status-derived text. It does NOT include Details, which
+// could echo vendor response content back into logs (P0-1).
 func (e *APIError) Error() string {
-	return fmt.Sprintf("apollo API error (HTTP %d): %s", e.StatusCode, e.Details)
+	return fmt.Sprintf("apollo API error (HTTP %d)", e.StatusCode)
 }
 
 // Unwrap maps status → sentinel (401/403/422/429), nil otherwise. This enables
@@ -142,7 +147,9 @@ func (c *Client) SearchPeople(ctx context.Context, domain string, titles []strin
 	for {
 		people, total, err := c.searchPage(ctx, domain, titles, page)
 		if err != nil {
-			return nil, err
+			// Return the partial result alongside the error so the caller still
+			// has the contacts discovered on earlier pages.
+			return result, err
 		}
 		if page == 1 {
 			result.Total = total
@@ -168,7 +175,7 @@ func (c *Client) SearchPeople(ctx context.Context, domain string, titles []strin
 			break
 		}
 		if err := ctx.Err(); err != nil { // cancellation
-			return nil, err
+			return result, err
 		}
 		page++
 	}
@@ -179,8 +186,10 @@ func (c *Client) SearchPeople(ctx context.Context, domain string, titles []strin
 // RevealEmails enriches the already-discovered people in result with emails via
 // people/match, in place, serially. Consumes credits. Skips people without an
 // id. Sets Email/EmailStatus/Revealed per person (Revealed=true even when the
-// returned email is empty — partial-result honesty) and result.Revealed=true if
-// any reveal ran. Surfaces the first error (no partial swallow).
+// returned email is empty — partial-result honesty) and sets result.Revealed=true
+// on the FIRST successful match so spent credits are reflected even if a later
+// match fails. Surfaces the first error (no partial swallow), leaving
+// already-merged emails intact.
 func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
 	for i := range result.People {
 		p := &result.People[i]
@@ -189,15 +198,18 @@ func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
 		}
 		email, status, err := c.matchPerson(ctx, p.ID)
 		if err != nil {
+			// On error, return it but leave the emails merged so far intact;
+			// result.Revealed is already true if any earlier reveal succeeded.
 			return err
 		}
 		p.Email, p.EmailStatus, p.Revealed = email, status, true
+		// Mark the aggregate as revealed on the FIRST successful match — credits
+		// have been spent, so the partial result must reflect that even if a
+		// later match fails.
+		result.Revealed = true
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-	}
-	if len(result.People) > 0 {
-		result.Revealed = true
 	}
 	return nil
 }

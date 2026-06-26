@@ -84,6 +84,15 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--domain/-d is required")
 	}
 
+	// Bound credit spend: reject a negative cap outright, and reject an unbounded
+	// cap (0 = no cap) combined with --reveal (which spends credits per person).
+	if flagApolloLimit < 0 {
+		return fmt.Errorf("--limit must be >= 0")
+	}
+	if flagApolloReveal && flagApolloLimit == 0 {
+		return fmt.Errorf("--reveal requires a positive --limit to bound credit spend")
+	}
+
 	apiKey, err := resolveApolloAPIKey(flagApolloAPIKey)
 	if err != nil {
 		return err
@@ -106,9 +115,28 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 			dim(useColor, SymbolInfo), flagApolloDomain)
 	}
 
+	emitResult := func(result *apollo.DomainResult) {
+		if result == nil {
+			return
+		}
+		// Verbose: log counts only — never log the key or URL (P0-1 security requirement).
+		logVerbose(flagVerbose, "Apollo returned %d people (total available: %d, revealed: %t)",
+			len(result.People), result.Total, result.Revealed)
+		if flagJSON {
+			outputApolloJSONL(jsonWriter, result)
+		} else {
+			outputApolloHuman(os.Stdout, result, useColor)
+		}
+	}
+
 	client := apollo.NewClient(apiKey, flagTimeout, pageSizeForLimit(flagApolloLimit))
 	result, err := client.SearchPeople(ctx, flagApolloDomain, flagApolloTitles, flagApolloLimit)
 	if err != nil {
+		// Output any partial discovery (SearchPeople returns partial + err) before
+		// surfacing the classified, nonzero-exit error — discovered contacts are free.
+		if result != nil && len(result.People) > 0 {
+			emitResult(result)
+		}
 		return classifyApolloError(err)
 	}
 
@@ -118,19 +146,16 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 				dim(useColor, SymbolInfo), len(result.People))
 		}
 		if err := client.RevealEmails(ctx, result); err != nil {
+			// Output the partial result (emails merged so far are paid for) before
+			// surfacing the classified, nonzero-exit error.
+			if len(result.People) > 0 {
+				emitResult(result)
+			}
 			return classifyApolloError(err)
 		}
 	}
 
-	// Verbose: log counts only — never log the key or URL (P0-1 security requirement).
-	logVerbose(flagVerbose, "Apollo returned %d people (total available: %d, revealed: %t)",
-		len(result.People), result.Total, result.Revealed)
-
-	if flagJSON {
-		outputApolloJSONL(jsonWriter, result)
-	} else {
-		outputApolloHuman(os.Stdout, result, useColor)
-	}
+	emitResult(result)
 	return nil
 }
 
@@ -147,10 +172,10 @@ func resolveApolloAPIKey(flagValue string) (string, error) {
 }
 
 // classifyApolloError converts apollo sentinel errors into actionable, key-free
-// messages. It returns ONLY static, status-derived text and NEVER includes the
-// vendor APIError.Details — which can echo the request body or even the key back
-// (P0-1). The default branch therefore reports the HTTP status code alone (never
-// %w-wrapping the underlying error, whose Error() embeds Details).
+// messages. For *APIError it returns ONLY status-derived text and NEVER includes
+// the vendor APIError.Details — which can echo the request body or even the key
+// back (P0-1). For non-API errors (network/DNS/timeout — no vendor details) it
+// %w-wraps the cause to preserve debuggability.
 func classifyApolloError(err error) error {
 	switch {
 	case errors.Is(err, apollo.ErrUnauthorized):
@@ -163,12 +188,15 @@ func classifyApolloError(err error) error {
 		return fmt.Errorf("apollo: rate limit exceeded — wait and retry, or lower --limit")
 	}
 	// Unknown error. If it carries an *APIError, report only its status code —
-	// never its Details (P0-1). Otherwise report a generic, key-free message.
+	// never its Details (P0-1); APIError.Error() is now status-only, but we keep
+	// the explicit status-code text here regardless. Otherwise (network/DNS/
+	// timeout — no vendor details) %w-wrap it to preserve debuggability, matching
+	// classifyHunterError.
 	var apiErr *apollo.APIError
 	if errors.As(err, &apiErr) {
 		return fmt.Errorf("apollo people search failed (HTTP %d)", apiErr.StatusCode)
 	}
-	return fmt.Errorf("apollo people search failed")
+	return fmt.Errorf("apollo people search failed: %w", err)
 }
 
 // pageSizeForLimit derives the people-search per_page from --limit: min(limit, 100),

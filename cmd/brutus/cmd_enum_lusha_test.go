@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -173,9 +174,9 @@ func resetLushaFlags() {
 
 func TestValidateLushaIdentity(t *testing.T) {
 	tests := []struct {
-		name      string
-		setup     func()
-		wantErr   bool
+		name        string
+		setup       func()
+		wantErr     bool
 		errContains string
 	}{
 		{
@@ -211,9 +212,9 @@ func TestValidateLushaIdentity(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:      "ERROR: no identity set",
-			setup:     func() {},
-			wantErr:   true,
+			name:        "ERROR: no identity set",
+			setup:       func() {},
+			wantErr:     true,
 			errContains: "identity is required",
 		},
 		{
@@ -222,7 +223,7 @@ func TestValidateLushaIdentity(t *testing.T) {
 				flagLushaEmail = "ada@example.com"
 				flagLushaLinkedin = "https://linkedin.com/in/ada"
 			},
-			wantErr:   true,
+			wantErr:     true,
 			errContains: "exactly one identity",
 		},
 		{
@@ -231,7 +232,7 @@ func TestValidateLushaIdentity(t *testing.T) {
 				flagLushaFirstName = "Ada"
 				flagLushaCompany = "AnalyticalCo"
 			},
-			wantErr:   true,
+			wantErr:     true,
 			errContains: "last-name",
 		},
 		{
@@ -240,7 +241,7 @@ func TestValidateLushaIdentity(t *testing.T) {
 				flagLushaFirstName = "Ada"
 				flagLushaLastName = "Lovelace"
 			},
-			wantErr:   true,
+			wantErr:     true,
 			errContains: "--company or --domain",
 		},
 		{
@@ -250,7 +251,7 @@ func TestValidateLushaIdentity(t *testing.T) {
 				flagLushaPhone = true
 				flagLushaEmailOnly = true
 			},
-			wantErr:   true,
+			wantErr:     true,
 			errContains: "mutually exclusive",
 		},
 	}
@@ -364,6 +365,19 @@ func TestClassifyLushaError_NoKeyLeak(t *testing.T) {
 				"classified error must not echo the api_key header name")
 		})
 	}
+}
+
+// TestClassifyLushaError_NetworkWrap verifies that non-*APIError (network/DNS/
+// timeout) errors are %w-wrapped by classifyLushaError so errors.Is chains work.
+func TestClassifyLushaError_NetworkWrap(t *testing.T) {
+	networkErr := errors.New("dial tcp: connection timeout")
+	result := classifyLushaError(networkErr)
+	require.Error(t, result)
+	// The network error must be wrapped (errors.Is unwraps the chain).
+	assert.True(t, errors.Is(result, networkErr),
+		"classifyLushaError must %w-wrap non-*APIError so errors.Is works")
+	// The error message must contain the original cause for debuggability.
+	assert.Contains(t, result.Error(), "timeout")
 }
 
 // ---------------------------------------------------------------------------

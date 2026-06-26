@@ -47,13 +47,13 @@ func newTestClient(baseURL string) *Client {
 
 func TestToPerson(t *testing.T) {
 	src := &apolloPerson{
-		ID:          "abc123",
-		FirstName:   "Alice",
-		LastName:    "Smith",
-		Name:        "Alice Smith",
-		Title:       "VP Engineering",
-		Seniority:   "director",
-		Departments: []string{"Engineering", "Product"},
+		ID:           "abc123",
+		FirstName:    "Alice",
+		LastName:     "Smith",
+		Name:         "Alice Smith",
+		Title:        "VP Engineering",
+		Seniority:    "director",
+		Departments:  []string{"Engineering", "Product"},
 		Organization: apolloOrganization{Name: "Example Corp"},
 	}
 	got := toPerson(src)
@@ -114,10 +114,13 @@ func TestAPIError_Unwrap(t *testing.T) {
 }
 
 func TestAPIError_Error(t *testing.T) {
-	err := &APIError{StatusCode: 401, Details: "No valid API key"}
+	// Error() must include the HTTP status code.
+	err := &APIError{StatusCode: 401, Details: "SECRETKEY-DO-NOT-LEAK"}
 	msg := err.Error()
 	assert.Contains(t, msg, "401")
-	assert.Contains(t, msg, "No valid API key")
+	// P0-1 security fix: Details must NOT appear in Error() output.
+	assert.NotContains(t, msg, "SECRETKEY-DO-NOT-LEAK",
+		"APIError.Error() must not include Details (P0-1 key-leak prevention)")
 }
 
 // ---------------------------------------------------------------------------
@@ -318,9 +321,9 @@ func pagedSearchServer(t *testing.T, allPeople []apolloPerson, total, pageSize, 
 
 func makePerson(id string) apolloPerson {
 	return apolloPerson{
-		ID:    id,
-		Name:  "Person " + id,
-		Title: "Engineer",
+		ID:           id,
+		Name:         "Person " + id,
+		Title:        "Engineer",
 		Organization: apolloOrganization{Name: "Corp"},
 	}
 }
@@ -382,16 +385,17 @@ func TestSearchPeople_Pagination(t *testing.T) {
 			wantRequests: 1,
 		},
 		{
-			name: "mid-pagination 429 → ErrRateLimited",
+			name: "mid-pagination 429 → ErrRateLimited, partial result non-nil",
 			allPeople: []apolloPerson{
 				makePerson("p1"), makePerson("p2"),
 				makePerson("p3"),
 			},
-			total:        3,
-			pageSize:     2,
-			limit:        0,
-			midErrPage:   2,
-			wantErr:      ErrRateLimited,
+			total:      3,
+			pageSize:   2,
+			limit:      0,
+			midErrPage: 2,
+			wantPeople: 2, // first page of 2 fetched before error
+			wantErr:    ErrRateLimited,
 		},
 	}
 
@@ -408,6 +412,10 @@ func TestSearchPeople_Pagination(t *testing.T) {
 			if tc.wantErr != nil {
 				require.Error(t, err)
 				assert.True(t, errors.Is(err, tc.wantErr), "expected %v, got %v", tc.wantErr, err)
+				// SearchPeople returns a non-nil partial result even on mid-pagination error.
+				require.NotNil(t, result, "partial result must be non-nil on mid-pagination error")
+				assert.Equal(t, tc.wantPeople, len(result.People),
+					"partial result must contain pages fetched before error")
 				return
 			}
 
@@ -506,9 +514,9 @@ func TestRevealEmails_SkipsEmptyID(t *testing.T) {
 	result := &DomainResult{
 		Domain: "example.com",
 		People: []Person{
-			{ID: ""},    // must be skipped — no match call
-			{ID: "p2"},  // should be revealed
-			{ID: ""},    // must be skipped
+			{ID: ""},   // must be skipped — no match call
+			{ID: "p2"}, // should be revealed
+			{ID: ""},   // must be skipped
 		},
 	}
 
@@ -543,4 +551,46 @@ func TestRevealEmails_SerialCount(t *testing.T) {
 	err := c.RevealEmails(context.Background(), result)
 	require.NoError(t, err)
 	assert.Equal(t, int32(5), requestCount.Load(), "exactly 5 match requests for 5 people")
+}
+
+// TestRevealEmails_ResultRevealedOnFirstSuccess asserts that result.Revealed is
+// set to true after the FIRST successful match, even if a later match fails.
+// This reflects that credits were spent for the successful reveals.
+func TestRevealEmails_ResultRevealedOnFirstSuccess(t *testing.T) {
+	var callCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := callCount.Add(1)
+		if n == 1 {
+			// First match succeeds.
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(makeMatchResponse("alice@example.com", "verified"))
+			return
+		}
+		// Second match returns a 429 — simulates a failure after the first success.
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":"rate limit exceeded"}`))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	result := &DomainResult{
+		Domain: "example.com",
+		People: []Person{
+			{ID: "p1"},
+			{ID: "p2"},
+		},
+	}
+
+	err := c.RevealEmails(context.Background(), result)
+	// The second match fails — RevealEmails surfaces the error.
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRateLimited))
+
+	// result.Revealed must be true because the FIRST match succeeded (credits spent).
+	assert.True(t, result.Revealed,
+		"result.Revealed must be true once any match succeeds, even if later matches fail")
+	// First person has their email and Revealed=true.
+	assert.Equal(t, "alice@example.com", result.People[0].Email)
+	assert.True(t, result.People[0].Revealed)
 }

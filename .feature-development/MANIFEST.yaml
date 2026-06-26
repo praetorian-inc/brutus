@@ -1,0 +1,160 @@
+feature_name: "Apollo + Lusha HUMINT enum integrations (brutus enum apollo / lusha)"
+feature_slug: "apollo-lusha-enum"
+orchestration_skill: "orchestrating-feature-development"
+created_at: "2026-06-25T00:00:00Z"
+description: |
+  Add two API-key Human Intelligence Source enum subcommands, mirroring the
+  verified Hunter.io pattern (pkg/enum/<svc> client + cmd_enum_<svc> subcommand):
+    - `brutus enum apollo`  : sales-intelligence org/people discovery + enrichment
+    - `brutus enum lusha`   : individual contact enrichment (email/phone)
+  Hunter.io already shipped (PR #160) — out of scope. ZoomInfo (blocked worktree)
+  out of scope; its architecture.md used only as a design template.
+
+status: "in-progress"
+current_phase: 7
+current_phase_name: "architecture_plan"
+work_type: "LARGE"
+
+triage:
+  work_type: "LARGE"
+  design_review: false
+  classification_method: "user_clarification"
+  feature_type: "backend"   # Go CLI; no frontend → Phase 17 Visual QA skipped
+  phases_to_execute: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18]
+  phases_to_skip: [17]
+  checkpoints:
+    - phase: 7
+      type: "human_approval"
+      description: "Architecture plan + scope review"
+    - phase: 8
+      type: "human_approval"
+      description: "Implementation review"
+    - phase: 18
+      type: "human_approval"
+      description: "Completion / PR"
+
+phases:
+  1_setup: { status: "complete" }
+  2_triage: { status: "complete" }
+  3_codebase_discovery: { status: "complete" }
+  4_skill_discovery: { status: "complete" }
+  5_complexity: { status: "complete" }
+  6_brainstorming: { status: "complete", conditional: true }
+  7_architecture_plan: { status: "complete", conditional: true }
+  8_implementation: { status: "pending" }
+  9_design_verification: { status: "pending", conditional: true }
+  10_domain_compliance: { status: "pending" }
+  11_code_quality: { status: "pending", retry_count: 0 }
+  12_architectural_review: { status: "pending", conditional: true }
+  13_test_planning: { status: "pending", conditional: true }
+  14_testing: { status: "pending" }
+  15_coverage_verification: { status: "pending" }
+  16_test_quality: { status: "pending", retry_count: 0 }
+  17_visual_qa: { status: "skipped", reason: "backend-only, no .tsx" }
+  18_completion: { status: "pending" }
+
+feature_type: "backend"
+technologies_detected: ["go", "cobra", "net/http", "testify", "httptest"]
+scope_decisions:
+  hunter: "out_of_scope (already merged PR #160)"
+  zoominfo: "out_of_scope (template only)"
+  apollo: "in_scope"
+  lusha: "in_scope"
+
+worktree:
+  path: ".worktrees/apollo-lusha-enum"
+  branch: "feat/enum-apollo-lusha"
+  base: "main (7d7a28d)"
+  pre_feature_commit: "7d7a28d6338d1aa0dbf0327d95f06ac9494bf419"
+
+agents_contributed:
+  - agent: "security-lead"
+    artifact: "security-assessment.md"
+    timestamp: "2026-06-25T00:00:00Z"
+    status: "complete"
+  - agent: "capability-lead"
+    artifact: "architecture.md"
+    timestamp: "2026-06-25T00:00:00Z"
+    status: "complete"
+  - agent: "capability-lead"
+    artifact: "plan.md"
+    timestamp: "2026-06-25T00:00:00Z"
+    status: "complete"
+  - agent: "integration-developer"
+    artifact: "(none — blocked before any file write)"
+    timestamp: "2026-06-26T00:00:00Z"
+    status: "blocked"
+    blocked_reason: "out_of_scope"
+    note: |
+      Track A (Apollo) implementation could not proceed. The agent-first-enforcement
+      PreToolUse hook (core plugin) denies Edit/Write/Bash file writes from the
+      integration-developer agent_type for the target paths:
+        - pkg/enum/apollo/apollo.go        -> requires backend-developer
+        - pkg/enum/apollo/apollo_test.go   -> requires backend-tester
+        - cmd/brutus/cmd_enum_apollo*.go    -> requires backend-developer/backend-tester
+      These paths route to the BACKEND domain (pkg/, cmd/), not /integrations/, so the
+      hook requires backend-developer / backend-tester rather than integration-developer.
+      This agent has no Agent/Task tool available to delegate to those agents, so it can
+      neither write the files directly nor spawn the required agents. Needs orchestrator
+      to either (a) dispatch backend-developer + backend-tester for these paths, or
+      (b) grant integration-developer write access for this feature's pkg/cmd paths.
+  - agent: "backend-developer"
+    artifact: "Track A (Apollo) production code"
+    timestamp: "2026-06-26T00:00:00Z"
+    status: "complete"
+    note: |
+      Phase 8 Track A production .go files written to the exact signatures/consts
+      required by the T001-T004 test specs (tester implements tests in Phase 14):
+        - pkg/enum/apollo/apollo.go            (Client, NewClient, do, searchPage,
+          matchPerson, SearchPeople, RevealEmails, APIError+Unwrap, sentinels,
+          Person/DomainResult, toPerson, consts)
+        - cmd/brutus/cmd_enum_apollo.go        (flags, enumApolloCmd, runEnumApollo,
+          resolveApolloAPIKey, classifyApolloError, pageSizeForLimit)
+        - cmd/brutus/cmd_enum_apollo_output.go (outputApolloHuman, outputApolloJSONL)
+      --limit default = 100 (ORCHESTRATION DELTA #1). Output formatters in a
+      per-service file, not appended to cmd_enum_output.go (DELTA #2). cmd_enum.go
+      registration left to orchestrator (DELTA #3); no test files written (Phase 14).
+      Verified: go build ./pkg/enum/apollo/ exit 0; go vet ./pkg/enum/apollo/ exit 0;
+      cmd/brutus build+vet clean with Track-B's in-progress cmd_enum_lusha.go isolated;
+      no httputil.Dump*, no raw io.ReadAll, apiKey unexported/no-tag.
+  - agent: "backend-reviewer"
+    artifact: "agents/backend-reviewer.md"
+    timestamp: "2026-06-26T00:00:00Z"
+    status: "complete"
+    verdict: "NEEDS_CHANGES"
+    note: |
+      Phase 11 code-quality review of both tracks (Apollo + Lusha) against
+      architecture.md + plan.md (ORCHESTRATION DELTAS applied). Verified
+      go build/vet/test (incl. -race). Package client tests (52 cases) pass and
+      match T001-T003/T101-T102 specs. cmd/brutus suite is RED:
+        - P0 (real leak): classifyLushaError default branch (cmd_enum_lusha.go:228-230)
+          %w-wraps *lusha.APIError, surfacing vendor-echoed Details (possible api_key)
+          on any unmapped status. Fix = mirror Apollo's errors.As/status-only default.
+        - P1 (buggy test): TestClassifyApolloError_NoKeyLeak asserts NotContains
+          "api-key", forbidding the intended actionable --api-key hint. Fix the test.
+        - P2: apollo help example shows --limit 25 (default now 100);
+          lusha_test request-body capture uses single r.Body.Read.
+      Route P0+P2-help to backend-developer; P1 test fix to backend-tester.
+
+artifacts:
+  - path: "agents/backend-reviewer.md"
+    type: "code-review"
+    agent: "backend-reviewer"
+  - path: "security-assessment.md"
+    type: "security-architecture"
+    agent: "security-lead"
+  - path: "architecture.md"
+    type: "integration-architecture"
+    agent: "capability-lead"
+  - path: "plan.md"
+    type: "integration-architecture"
+    agent: "capability-lead"
+  - path: "pkg/enum/apollo/apollo.go"
+    type: "implementation"
+    agent: "backend-developer"
+  - path: "cmd/brutus/cmd_enum_apollo.go"
+    type: "implementation"
+    agent: "backend-developer"
+  - path: "cmd/brutus/cmd_enum_apollo_output.go"
+    type: "implementation"
+    agent: "backend-developer"

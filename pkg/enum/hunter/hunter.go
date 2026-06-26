@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -34,7 +35,15 @@ var (
 	ErrUnauthorized = errors.New("invalid or missing API key")
 	ErrRateLimited  = errors.New("rate limit exceeded")
 	ErrLegalReasons = errors.New("unavailable for legal reasons")
+	// ErrPlanLimited signals the Hunter plan's result cap was hit mid-pagination.
+	// Search treats this as a soft stop and returns the results collected so far.
+	ErrPlanLimited = errors.New("plan result cap reached")
 )
+
+// planLimitMarker is the stable substring Hunter returns in the 400 error
+// details when the account's plan result cap is exceeded, e.g.:
+// "The search results are limited to 10 email addresses on your current plan."
+const planLimitMarker = "results are limited to"
 
 const (
 	defaultBaseURL  = "https://api.hunter.io/v2/domain-search"
@@ -65,6 +74,9 @@ type DomainResult struct {
 	Organization string
 	People       []Person
 	Total        int
+	// Truncated is true when the plan result cap was hit mid-pagination and the
+	// returned People are a partial set (Total reflects the full count available).
+	Truncated bool
 }
 
 // APIError is returned for any non-200 HTTP status from Hunter.io.
@@ -77,8 +89,9 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("hunter API error (HTTP %d): %s", e.StatusCode, e.Details)
 }
 
-// Unwrap returns the matching sentinel error for 401/429/451, nil otherwise.
-// This enables errors.Is(err, hunter.ErrUnauthorized) in callers.
+// Unwrap returns the matching sentinel error for 401/429/451, or ErrPlanLimited
+// for the specific 400 plan-cap response, nil otherwise. This enables
+// errors.Is(err, hunter.ErrUnauthorized) (and ErrPlanLimited) in callers.
 func (e *APIError) Unwrap() error {
 	switch e.StatusCode {
 	case http.StatusUnauthorized:
@@ -87,6 +100,11 @@ func (e *APIError) Unwrap() error {
 		return ErrRateLimited
 	case http.StatusUnavailableForLegalReasons:
 		return ErrLegalReasons
+	case http.StatusBadRequest:
+		// Only the plan-cap 400 maps to a sentinel; other 400s stay generic.
+		if strings.Contains(e.Details, planLimitMarker) {
+			return ErrPlanLimited
+		}
 	}
 	return nil
 }
@@ -126,6 +144,12 @@ func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, erro
 	for {
 		page, err := c.fetchPage(ctx, domain, offset)
 		if err != nil {
+			// Plan result cap is a soft stop: return what we collected so far.
+			// Other errors (auth, rate limit, etc.) remain fatal.
+			if errors.Is(err, ErrPlanLimited) {
+				result.Truncated = true
+				break
+			}
 			return nil, err
 		}
 

@@ -344,6 +344,119 @@ func TestSearch_Pagination(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Plan-cap pagination regression tests (fix/hunter-plan-cap-pagination)
+// ---------------------------------------------------------------------------
+
+// TestSearch_PlanLimited_ReturnsPartial verifies that when Hunter returns HTTP 400
+// with a plan-cap details message mid-pagination, Search stops cleanly and returns
+// the partial results already collected (nil error, Truncated == true).
+func TestSearch_PlanLimited_ReturnsPartial(t *testing.T) {
+	pageSize := 3
+	page1Emails := []apiEmail{
+		{Value: "a@example.com", Confidence: 80},
+		{Value: "b@example.com", Confidence: 70},
+		{Value: "c@example.com", Confidence: 65},
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		offset := 0
+		_, _ = fmt.Sscanf(q.Get("offset"), "%d", &offset)
+
+		if offset > 0 {
+			// Second page: Hunter plan cap hit — return 400 with plan-limit marker.
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write(makeErrorResponse("The search results are limited to 10 email addresses on your current plan"))
+			return
+		}
+
+		// First page: full page of pageSize results (triggers continued pagination).
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(makeResponse("example.com", "Example Corp", page1Emails, 50, pageSize, 0))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = pageSize
+
+	result, err := c.Search(context.Background(), "example.com")
+
+	require.NoError(t, err, "plan-cap mid-pagination must not return a fatal error")
+	assert.True(t, result.Truncated, "Truncated must be true when plan cap was hit")
+	assert.Len(t, result.People, len(page1Emails), "People must contain only the partial first-page results")
+}
+
+// TestAPIError_PlanLimited_Unwrap verifies the Unwrap sentinel mapping for the
+// plan-cap 400 vs a generic 400 that should NOT map to ErrPlanLimited.
+func TestAPIError_PlanLimited_Unwrap(t *testing.T) {
+	t.Run("plan-cap 400 is ErrPlanLimited", func(t *testing.T) {
+		err := &APIError{
+			StatusCode: http.StatusBadRequest,
+			Details:    "The search results are limited to 10 email addresses on your current plan",
+		}
+		assert.True(t, errors.Is(err, ErrPlanLimited), "plan-cap 400 must satisfy errors.Is(err, ErrPlanLimited)")
+
+		// Must also be recoverable via errors.As as a concrete *APIError.
+		var apiErr *APIError
+		require.True(t, errors.As(err, &apiErr))
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+	})
+
+	t.Run("generic 400 is NOT ErrPlanLimited", func(t *testing.T) {
+		err := &APIError{
+			StatusCode: http.StatusBadRequest,
+			Details:    "bad request",
+		}
+		assert.False(t, errors.Is(err, ErrPlanLimited), "generic 400 must NOT satisfy errors.Is(err, ErrPlanLimited)")
+
+		// The error must still surface as a concrete *APIError (errors.As succeeds).
+		var apiErr *APIError
+		require.True(t, errors.As(err, &apiErr), "generic 400 must be retrievable via errors.As")
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+		assert.Equal(t, "bad request", apiErr.Details)
+	})
+}
+
+// TestSearch_RateLimited_StillFatal confirms that a 429 mid-pagination is a fatal
+// error — Search must not return partial results with Truncated == true.
+// The existing table-driven case in TestSearch_Pagination covers this scenario,
+// but this explicit test makes the regression intent unambiguous.
+func TestSearch_RateLimited_StillFatal(t *testing.T) {
+	pageSize := 2
+	page1Emails := []apiEmail{
+		{Value: "a@example.com", Confidence: 80},
+		{Value: "b@example.com", Confidence: 70},
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		offset := 0
+		_, _ = fmt.Sscanf(q.Get("offset"), "%d", &offset)
+
+		if offset > 0 {
+			// Second page: 429 — this must be fatal, not a soft stop.
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write(makeErrorResponse("rate limit exceeded"))
+			return
+		}
+
+		// First page: full pageSize — triggers continued pagination.
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(makeResponse("example.com", "Example Corp", page1Emails, 50, pageSize, 0))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = pageSize
+
+	result, err := c.Search(context.Background(), "example.com")
+
+	require.Error(t, err, "mid-pagination 429 must return a fatal error")
+	assert.True(t, errors.Is(err, ErrRateLimited), "error must wrap ErrRateLimited")
+	assert.Nil(t, result, "no partial result must be returned for a fatal error")
+}
+
 func TestSearch_ContextCancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		offset := 0

@@ -81,13 +81,29 @@ type PhoneEntry struct {
 	DoNotCall bool
 }
 
+// EmploymentEntry is one role in the contact's employment history. Lusha's
+// previousEmployment carries no dates, so only Organization + Title are
+// populated; Current distinguishes the present employer (top-level
+// company/jobTitle) from prior roles.
+type EmploymentEntry struct {
+	Organization string
+	Title        string
+	Current      bool
+}
+
 // Contact is the enriched result for one identity.
 type Contact struct {
-	Name     string
-	JobTitle string
-	Company  string
-	Emails   []EmailEntry
-	Phones   []PhoneEntry
+	Name          string
+	JobTitle      string
+	Company       string
+	CompanyDomain string
+	LinkedIn      string
+	Departments   []string
+	Seniority     string
+	Location      string // country
+	Emails        []EmailEntry
+	Phones        []PhoneEntry
+	Employment    []EmploymentEntry
 }
 
 // APIError is returned for any non-2xx HTTP status from Lusha.
@@ -254,9 +270,29 @@ func toContact(resp *lushaEnrichResponse) *Contact {
 	}
 
 	c := &Contact{
-		Name:     name,
-		JobTitle: r.JobTitle.Title,
-		Company:  r.Company.Name,
+		Name:          name,
+		JobTitle:      r.JobTitle.Title,
+		Company:       r.Company.Name,
+		CompanyDomain: r.Company.Domain,
+		LinkedIn:      r.SocialLinks.Linkedin,
+		Departments:   r.JobTitle.Departments,
+		Seniority:     r.JobTitle.Seniority,
+		Location:      r.Location.Country,
+	}
+	// Employment = current role (from top-level company/jobTitle) followed by
+	// prior roles. Lusha previousEmployment lacks dates, so Current is the only
+	// temporal signal.
+	c.Employment = append(c.Employment, EmploymentEntry{
+		Organization: r.Company.Name,
+		Title:        r.JobTitle.Title,
+		Current:      true,
+	})
+	for _, pe := range r.PreviousEmployment {
+		c.Employment = append(c.Employment, EmploymentEntry{
+			Organization: pe.Company.Name,
+			Title:        pe.JobTitle.Title,
+			Current:      false,
+		})
 	}
 	// emails/phones are top-level on each result; map explicitly because the
 	// vendor field names differ from the public type (e.g. email -> Address).
@@ -319,15 +355,45 @@ type lushaEnrichResponse struct {
 type lushaResult struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
+	FullName  string `json:"fullName"`
 	JobTitle  struct {
-		Title string `json:"title"`
+		Title       string   `json:"title"`
+		Departments []string `json:"departments"`
+		Seniority   string   `json:"seniority"`
 	} `json:"jobTitle"`
+	Company struct {
+		Name     string `json:"name"`
+		Domain   string `json:"domain"`
+		Industry string `json:"industry"`
+	} `json:"company"`
+	Location           lushaLocation         `json:"location"`
+	SocialLinks        lushaSocialLinks      `json:"socialLinks"`
+	PreviousEmployment []lushaPrevEmployment `json:"previousEmployment"`
+	Emails             []lushaEmail          `json:"emails"`
+	Phones             []lushaPhone          `json:"phones"`
+}
+
+// lushaSocialLinks holds the contact's social profile URLs. Only linkedin is
+// mapped today.
+type lushaSocialLinks struct {
+	Linkedin string `json:"linkedin"`
+}
+
+// lushaLocation holds geographic fields. Only country is mapped today.
+type lushaLocation struct {
+	Country string `json:"country"`
+}
+
+// lushaPrevEmployment is one prior role. The live sample carried no explicit
+// start/end dates, so only organization + title are captured.
+type lushaPrevEmployment struct {
 	Company struct {
 		Name   string `json:"name"`
 		Domain string `json:"domain"`
 	} `json:"company"`
-	Emails []lushaEmail `json:"emails"`
-	Phones []lushaPhone `json:"phones"`
+	JobTitle struct {
+		Title string `json:"title"`
+	} `json:"jobTitle"`
 }
 
 type lushaEmail struct {

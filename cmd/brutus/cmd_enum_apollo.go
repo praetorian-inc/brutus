@@ -30,35 +30,37 @@ import (
 // File-local flag variables for the apollo subcommand.
 // Separate from flagEnumDomain to avoid cross-command state bleed.
 var (
-	flagApolloDomain string
-	flagApolloTitles []string
-	flagApolloReveal bool
-	flagApolloLimit  int
-	flagApolloAPIKey string
+	flagApolloDomain   string
+	flagApolloTitles   []string
+	flagApolloNoReveal bool
+	flagApolloLimit    int
+	flagApolloAPIKey   string
 )
 
 var enumApolloCmd = &cobra.Command{
 	Use:   "apollo",
-	Short: "Discover people for a domain via Apollo.io, optionally revealing emails",
+	Short: "Discover and enrich people for a domain via Apollo.io",
 	Long: `Query the Apollo.io people-search API to discover people associated with a
-company domain: id, name, job title, seniority, department, and organization.
-Discovery is free and returns no email/phone. With --reveal, emails are looked
-up per person via the people/match API — this CONSUMES APOLLO CREDITS, bounded
-by --limit. Standalone — does not feed the saas enumeration pipeline.
+company domain, then enrich each with the full matched record. By DEFAULT this
+reveals per person via the people/match API — un-obfuscated last name, email and
+status, LinkedIn/Twitter, seniority, departments, location, and employment
+history — which CONSUMES APOLLO CREDITS, bounded by --limit. Pass --no-reveal for
+free discovery only (thin records: id, first name, title, organization; no PII).
+Standalone — does not feed the saas enumeration pipeline.
 
 Authorized use only: respect Apollo.io's Terms of Service and only enumerate
 domains you are authorized to assess.
 
 Requires an Apollo.io API key via the APOLLO_API_KEY environment variable
 (or the --api-key flag).`,
-	Example: `  # Discover people for a domain — free, no emails (key from APOLLO_API_KEY)
+	Example: `  # Discover AND enrich people (DEFAULT — CONSUMES CREDITS, bounded by --limit)
   brutus enum apollo --domain example.com
 
   # Filter by job titles
   brutus enum apollo -d example.com --titles "VP Engineering" --titles "CTO"
 
-  # Reveal emails for the discovered people (CONSUMES CREDITS, bounded by --limit)
-  brutus enum apollo -d example.com --reveal --limit 100
+  # Free discovery only — thin records, no emails, no credits
+  brutus enum apollo -d example.com --no-reveal
 
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum apollo -d example.com --api-key abc123`,
@@ -69,8 +71,8 @@ func init() {
 	f := enumApolloCmd.Flags()
 	f.StringVarP(&flagApolloDomain, "domain", "d", "", "Company domain to discover people for (required)")
 	f.StringSliceVar(&flagApolloTitles, "titles", nil, "Optional job-title filter (repeatable or comma-separated)")
-	f.BoolVar(&flagApolloReveal, "reveal", false, "Reveal emails for discovered people via people/match (CONSUMES CREDITS, bounded by --limit)")
-	f.IntVar(&flagApolloLimit, "limit", 100, "Max people to return AND max to reveal (bounds credit spend; 0 = no cap)")
+	f.BoolVar(&flagApolloNoReveal, "no-reveal", false, "Free discovery only — skip people/match enrichment (no PII, no credits)")
+	f.IntVar(&flagApolloLimit, "limit", 100, "Max people to return AND max to reveal (bounds credit spend; 0 = no cap, requires --no-reveal)")
 	f.StringVar(&flagApolloAPIKey, "api-key", "",
 		"Apollo.io API key (overrides APOLLO_API_KEY; WARNING: visible in process list and shell history — prefer APOLLO_API_KEY)")
 	_ = enumApolloCmd.MarkFlagRequired("domain")
@@ -84,13 +86,17 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--domain/-d is required")
 	}
 
+	// Reveal is the default; --no-reveal opts out to free discovery only.
+	reveal := !flagApolloNoReveal
+
 	// Bound credit spend: reject a negative cap outright, and reject an unbounded
-	// cap (0 = no cap) combined with --reveal (which spends credits per person).
+	// cap (0 = no cap) while revealing (the default) since reveal spends credits
+	// per person. An unbounded cap is only allowed with --no-reveal.
 	if flagApolloLimit < 0 {
 		return fmt.Errorf("--limit must be >= 0")
 	}
-	if flagApolloReveal && flagApolloLimit == 0 {
-		return fmt.Errorf("--reveal requires a positive --limit to bound credit spend")
+	if reveal && flagApolloLimit == 0 {
+		return fmt.Errorf("revealing (the default) requires a positive --limit to bound credit spend; pass --no-reveal for unbounded free discovery")
 	}
 
 	apiKey, err := resolveApolloAPIKey(flagApolloAPIKey)
@@ -140,9 +146,9 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 		return classifyApolloError(err)
 	}
 
-	if flagApolloReveal {
+	if reveal {
 		if !flagQuiet && !flagJSON && len(result.People) > 0 {
-			fmt.Fprintf(os.Stderr, "%s --reveal will consume Apollo credits for %d people\n",
+			fmt.Fprintf(os.Stderr, "%s revealing will consume Apollo credits for %d people (pass --no-reveal to skip)\n",
 				dim(useColor, SymbolInfo), len(result.People))
 		}
 		if err := client.RevealEmails(ctx, result); err != nil {

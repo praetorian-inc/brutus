@@ -35,7 +35,8 @@ var (
 	flagDehashedLimit             int
 	flagDehashedAllEmails         bool
 	flagDehashedNoDedup           bool
-	flagDehashedIncludeCombolists bool
+	flagDehashedExcludeCombolists bool
+	flagDehashedNoCredentials     bool
 )
 
 // newEnumDehashedCmd builds the "dehashed" command. A fresh instance is
@@ -54,14 +55,20 @@ feed the saas enumeration pipeline.
 
 Only use this command against domains you are authorized to assess.
 
-Passwords and hashes are intentionally NOT collected by this command. Phone
-numbers ARE surfaced.
+This command collects breach-exposed PLAINTEXT passwords and associates them
+with each contact; phone numbers are also surfaced. (Password hashes are NOT
+collected.) Passwords are shown by default — treat this output as highly
+sensitive and handle it only within the scope of an authorized engagement.
+Use --no-credentials to suppress passwords from the output.
 
 By default the results are refined to cut noise:
   - corporate-only: keep only records whose email is @<domain>
   - dedup: merge records that share an email into one contact
-  - exclude-combolists: drop known aggregator/combolist source databases
-Opt out per filter with --all-emails, --no-dedup, and --include-combolists.
+Combolist/aggregator source databases are INCLUDED by default — this is where
+breach passwords overwhelmingly live, so dropping them hides the passwords this
+command exists to surface. Use --exclude-combolists to drop those recycled
+combolist DBs for clean, identity-only enumeration.
+Opt out of the other filters with --all-emails and --no-dedup.
 
 Requires a DeHashed API key via the DEHASHED_API_KEY environment variable
 (or the --api-key flag).
@@ -71,8 +78,11 @@ to bound the number of results (and therefore credits) per run.`,
 		Example: `  # Collect refined breach contacts for a domain (key from DEHASHED_API_KEY)
   brutus enum passive dehashed --domain example.com
 
-  # Keep every email (not just @example.com), unmerged, including combolists
-  brutus enum passive dehashed -d example.com --all-emails --no-dedup --include-combolists
+  # Same, but suppress the breach-exposed plaintext passwords from output
+  brutus enum passive dehashed --domain example.com --no-credentials
+
+  # Keep every email (not just @example.com), unmerged; drop combolist DBs for clean identity-only enumeration
+  brutus enum passive dehashed -d example.com --all-emails --no-dedup --exclude-combolists
 
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum passive dehashed -d example.com --api-key abc123
@@ -89,7 +99,8 @@ to bound the number of results (and therefore credits) per run.`,
 	f.IntVar(&flagDehashedLimit, "limit", 100, "Maximum number of records to collect (bounds credit spend)")
 	f.BoolVar(&flagDehashedAllEmails, "all-emails", false, "Keep all emails, not just those @<domain> (disables corporate-only filtering)")
 	f.BoolVar(&flagDehashedNoDedup, "no-dedup", false, "Do not merge records that share an email")
-	f.BoolVar(&flagDehashedIncludeCombolists, "include-combolists", false, "Include records from known aggregator/combolist source databases")
+	f.BoolVar(&flagDehashedExcludeCombolists, "exclude-combolists", false, "Drop records from known aggregator/combolist source databases (combolists are included by default)")
+	f.BoolVar(&flagDehashedNoCredentials, "no-credentials", false, "Suppress breach-exposed plaintext passwords from the output")
 	_ = cmd.MarkFlagRequired("domain")
 
 	return cmd
@@ -135,17 +146,19 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 		Domain:            flagDehashedDomain,
 		CorporateOnly:     !flagDehashedAllEmails,
 		Dedup:             !flagDehashedNoDedup,
-		ExcludeCombolists: !flagDehashedIncludeCombolists,
+		ExcludeCombolists: flagDehashedExcludeCombolists,
 	})
 
 	// Verbose: log counts only — never log the key or URL (P0-1 security requirement).
 	logVerbose(flagVerbose, "DeHashed returned %d records → %d contacts (total available: %d, balance: %d)",
 		len(result.Records), len(entries), result.Total, result.Balance)
 
+	showCredentials := !flagDehashedNoCredentials
+
 	if flagJSON {
-		outputDehashedJSONL(jsonWriter, entries)
+		outputDehashedJSONL(jsonWriter, entries, showCredentials)
 	} else {
-		outputDehashedHuman(os.Stdout, flagDehashedDomain, len(result.Records), result.Total, result.Balance, entries, useColor)
+		outputDehashedHuman(os.Stdout, flagDehashedDomain, len(result.Records), result.Total, result.Balance, entries, useColor, showCredentials)
 	}
 	return nil
 }

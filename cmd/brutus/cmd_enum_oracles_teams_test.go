@@ -43,7 +43,7 @@ func TestTeamsOracleAvailable(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "nil result returns false",
+			name:   "nil result returns false",
 			result: nil,
 			want:   false,
 		},

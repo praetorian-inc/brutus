@@ -15,10 +15,10 @@
 // Package dehashed provides a client for the DeHashed v2 search API.
 // It handles pagination, typed errors, and context cancellation.
 //
-// Credentials are intentionally NOT collected: the API "password" and
-// "hashed_password" fields are absent from the unmarshal target and the
-// public Record type, so they are dropped at decode time and can never
-// surface in any struct, human output, or JSONL.
+// Breach-exposed PLAINTEXT passwords (the API "password" field) ARE collected
+// and associated with each record. The "hashed_password" field remains absent
+// from the unmarshal target and the public types, so hashes are dropped at
+// decode time and can never surface in any struct, human output, or JSONL.
 package dehashed
 
 import (
@@ -53,8 +53,9 @@ const (
 // Public types
 // ---------------------------------------------------------------------------
 
-// Record is one breach-exposed identity entry for the domain. It deliberately
-// carries NO password / hashed_password fields (P0-SCOPE: credentials omitted).
+// Record is one breach-exposed identity entry for the domain. It carries the
+// breach-exposed plaintext Passwords for the record; hashed_password remains
+// omitted by design (P0-SCOPE: hashes omitted).
 type Record struct {
 	ID           string
 	Email        []string
@@ -64,6 +65,7 @@ type Record struct {
 	Phone        []string
 	Address      []string
 	DOB          []string
+	Passwords    []string
 	Database     string
 	ObtainedDate string
 }
@@ -92,6 +94,7 @@ type Entry struct {
 	Names     []string
 	Usernames []string
 	Phones    []string
+	Passwords []string // breach-exposed plaintext passwords for this entry
 	Databases []string // distinct source DBs contributing to this entry
 	Count     int      // number of raw breach records merged into this entry
 }
@@ -105,9 +108,9 @@ type Entry struct {
 //     "@"+Domain (case-insensitive); record dropped if none match. Without it,
 //     the first Email entry (records with no email are kept with Email="").
 //  3. Build entries: with Dedup, group by lowercased representative email and
-//     union Names/Usernames/Phones (deduped, empties dropped) plus distinct
-//     Databases, Count = records merged. Without Dedup, one Entry per surviving
-//     record. Input order is preserved (emails in first-seen order).
+//     union Names/Usernames/Phones/Passwords (deduped, empties dropped) plus
+//     distinct Databases, Count = records merged. Without Dedup, one Entry per
+//     surviving record. Input order is preserved (emails in first-seen order).
 func Refine(records []Record, opts RefineOptions) []Entry {
 	domainSuffix := "@" + strings.ToLower(opts.Domain)
 
@@ -136,6 +139,7 @@ func Refine(records []Record, opts RefineOptions) []Entry {
 			Names:     dedupStrings(r.Name),
 			Usernames: dedupStrings(r.Username),
 			Phones:    dedupStrings(r.Phone),
+			Passwords: dedupStrings(r.Passwords),
 			Databases: dedupStrings([]string{r.Database}),
 			Count:     1,
 		})
@@ -350,6 +354,7 @@ func mergeEntry(entries *[]Entry, indexByEmail map[string]int, email string, r *
 	e.Names = dedupStrings(append(e.Names, r.Name...))
 	e.Usernames = dedupStrings(append(e.Usernames, r.Username...))
 	e.Phones = dedupStrings(append(e.Phones, r.Phone...))
+	e.Passwords = dedupStrings(append(e.Passwords, r.Passwords...))
 	e.Databases = dedupStrings(append(e.Databases, r.Database))
 	e.Count++
 }
@@ -371,8 +376,9 @@ func dedupStrings(in []string) []string {
 	return out
 }
 
-// toRecord converts an API entry to the public Record type. Credential fields
-// (password / hashed_password) are absent from apiEntry and Record by design.
+// toRecord converts an API entry to the public Record type. The plaintext
+// password field is mapped through; hashed_password is absent from apiEntry and
+// Record by design.
 func toRecord(e *apiEntry) Record {
 	return Record{
 		ID:           e.ID,
@@ -383,6 +389,7 @@ func toRecord(e *apiEntry) Record {
 		Phone:        e.Phone,
 		Address:      e.Address,
 		DOB:          e.DOB,
+		Passwords:    e.Password,
 		Database:     e.Database,
 		ObtainedDate: e.ObtainedDate,
 	}
@@ -390,8 +397,9 @@ func toRecord(e *apiEntry) Record {
 
 // ---------------------------------------------------------------------------
 // JSON-mapping structs (unexported — map to the DeHashed v2 response shape).
-// password / hashed_password are DELIBERATELY omitted so they are dropped at
-// unmarshal and never enter our data model (P0-SCOPE).
+// The plaintext "password" field IS mapped and flows into our data model.
+// "hashed_password" is DELIBERATELY omitted so hashes are dropped at unmarshal
+// and never enter our data model (P0-SCOPE).
 // ---------------------------------------------------------------------------
 
 type searchRequest struct {
@@ -416,6 +424,7 @@ type apiEntry struct {
 	Phone        []string `json:"phone"`
 	Address      []string `json:"address"`
 	DOB          []string `json:"dob"`
+	Password     []string `json:"password"`
 	Database     string   `json:"database_name"`
 	ObtainedDate string   `json:"obtained_date"`
 }

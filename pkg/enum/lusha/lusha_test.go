@@ -49,12 +49,38 @@ func TestToContact(t *testing.T) {
 				FirstName: "Ada",
 				LastName:  "Lovelace",
 				JobTitle: struct {
-					Title string `json:"title"`
-				}{Title: "Mathematician"},
+					Title       string   `json:"title"`
+					Departments []string `json:"departments"`
+					Seniority   string   `json:"seniority"`
+				}{
+					Title:       "Mathematician",
+					Departments: []string{"Research"},
+					Seniority:   "director",
+				},
 				Company: struct {
-					Name   string `json:"name"`
-					Domain string `json:"domain"`
-				}{Name: "Analytical Engine Co"},
+					Name     string `json:"name"`
+					Domain   string `json:"domain"`
+					Industry string `json:"industry"`
+				}{
+					Name:     "Analytical Engine Co",
+					Domain:   "analytical.example.com",
+					Industry: "Technology",
+				},
+				Location: lushaLocation{Country: "United Kingdom"},
+				SocialLinks: lushaSocialLinks{
+					Linkedin: "https://linkedin.com/in/ada",
+				},
+				PreviousEmployment: []lushaPrevEmployment{
+					{
+						Company: struct {
+							Name   string `json:"name"`
+							Domain string `json:"domain"`
+						}{Name: "Paramount"},
+						JobTitle: struct {
+							Title string `json:"title"`
+						}{Title: "Director"},
+					},
+				},
 				Emails: []lushaEmail{
 					{Email: "ada@example.com", Type: "professional", Confidence: "A+", UpdateDate: "2026-06-26"},
 					{Email: "ada.personal@gmail.com", Type: "personal", Confidence: "B", UpdateDate: "2026-06-26"},
@@ -70,6 +96,20 @@ func TestToContact(t *testing.T) {
 	assert.Equal(t, "Ada Lovelace", got.Name)
 	assert.Equal(t, "Mathematician", got.JobTitle)
 	assert.Equal(t, "Analytical Engine Co", got.Company)
+	assert.Equal(t, "analytical.example.com", got.CompanyDomain)
+	assert.Equal(t, "https://linkedin.com/in/ada", got.LinkedIn)
+	assert.Equal(t, []string{"Research"}, got.Departments)
+	assert.Equal(t, "director", got.Seniority)
+	assert.Equal(t, "United Kingdom", got.Location)
+
+	// Employment: current role first (Current:true), then previous (Current:false).
+	require.Len(t, got.Employment, 2, "expected current + 1 previous employment entry")
+	assert.Equal(t, "Analytical Engine Co", got.Employment[0].Organization)
+	assert.Equal(t, "Mathematician", got.Employment[0].Title)
+	assert.True(t, got.Employment[0].Current)
+	assert.Equal(t, "Paramount", got.Employment[1].Organization)
+	assert.Equal(t, "Director", got.Employment[1].Title)
+	assert.False(t, got.Employment[1].Current)
 
 	require.Len(t, got.Emails, 2)
 	// lushaEmail.Email maps to EmailEntry.Address

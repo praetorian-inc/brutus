@@ -45,9 +45,9 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 	}
 
 	if result.Revealed {
-		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s%s\n",
+		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s %-32s%s\n",
 			colorIf(useColor, ColorBold),
-			"Name", "Title", "Dept", "Org", "Email", "Status",
+			"Name", "Title", "Dept", "Org", "Email", "Status", "LinkedIn",
 			colorIf(useColor, ColorReset))
 	} else {
 		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s%s\n",
@@ -60,7 +60,7 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 		p := &result.People[i]
 		name := personName(p)
 		if result.Revealed {
-			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s\n",
+			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s %-32s\n",
 				truncate(name, 28),
 				truncate(sanitizeTerminal(p.Title), 22),
 				truncate(sanitizeTerminal(p.Department), 12),
@@ -68,7 +68,8 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 				colorIf(useColor, ColorGreen),
 				truncate(sanitizeTerminal(p.Email), 32),
 				colorIf(useColor, ColorReset),
-				truncate(sanitizeTerminal(p.EmailStatus), 10))
+				truncate(sanitizeTerminal(p.EmailStatus), 10),
+				truncate(sanitizeTerminal(p.LinkedinURL), 32))
 		} else {
 			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s\n",
 				truncate(name, 28),
@@ -85,25 +86,50 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 // Preview (un-revealed) people omit email/email_status via omitempty so a
 // consumer never misreads a blank email as confirmed-absent.
 func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
-	type apolloJSON struct {
-		Type         string `json:"type"`
-		Domain       string `json:"domain"`
-		Revealed     bool   `json:"revealed"`
-		ID           string `json:"id"`
-		Name         string `json:"name,omitempty"`
-		FirstName    string `json:"first_name,omitempty"`
-		LastName     string `json:"last_name,omitempty"`
-		Title        string `json:"title,omitempty"`
-		Seniority    string `json:"seniority,omitempty"`
-		Department   string `json:"department,omitempty"`
+	type employmentJSON struct {
 		Organization string `json:"organization,omitempty"`
-		Email        string `json:"email,omitempty"`
-		EmailStatus  string `json:"email_status,omitempty"`
+		Title        string `json:"title,omitempty"`
+		StartDate    string `json:"start_date,omitempty"`
+		EndDate      string `json:"end_date,omitempty"`
+		Current      bool   `json:"current"`
+	}
+	type apolloJSON struct {
+		Type         string           `json:"type"`
+		Domain       string           `json:"domain"`
+		Revealed     bool             `json:"revealed"`
+		ID           string           `json:"id"`
+		Name         string           `json:"name,omitempty"`
+		FirstName    string           `json:"first_name,omitempty"`
+		LastName     string           `json:"last_name,omitempty"`
+		Title        string           `json:"title,omitempty"`
+		Seniority    string           `json:"seniority,omitempty"`
+		Department   string           `json:"department,omitempty"`
+		Departments  []string         `json:"departments,omitempty"`
+		Organization string           `json:"organization,omitempty"`
+		Email        string           `json:"email,omitempty"`
+		EmailStatus  string           `json:"email_status,omitempty"`
+		LinkedinURL  string           `json:"linkedin_url,omitempty"`
+		Twitter      string           `json:"twitter_url,omitempty"`
+		City         string           `json:"city,omitempty"`
+		State        string           `json:"state,omitempty"`
+		Country      string           `json:"country,omitempty"`
+		Employment   []employmentJSON `json:"employment,omitempty"`
 	}
 
 	enc := json.NewEncoder(w)
 	for i := range result.People {
 		p := &result.People[i]
+		var employment []employmentJSON
+		for j := range p.Employment {
+			e := &p.Employment[j]
+			employment = append(employment, employmentJSON{
+				Organization: e.Organization,
+				Title:        e.Title,
+				StartDate:    e.StartDate,
+				EndDate:      e.EndDate,
+				Current:      e.Current,
+			})
+		}
 		jr := apolloJSON{
 			Type:         "apollo",
 			Domain:       result.Domain,
@@ -115,9 +141,16 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 			Title:        p.Title,
 			Seniority:    p.Seniority,
 			Department:   p.Department,
+			Departments:  p.Departments,
 			Organization: p.Organization,
 			Email:        p.Email,
 			EmailStatus:  p.EmailStatus,
+			LinkedinURL:  p.LinkedinURL,
+			Twitter:      p.Twitter,
+			City:         p.City,
+			State:        p.State,
+			Country:      p.Country,
+			Employment:   employment,
 		}
 		if err := enc.Encode(jr); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding apollo JSON: %v\n", err)

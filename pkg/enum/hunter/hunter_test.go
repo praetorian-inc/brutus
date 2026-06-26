@@ -45,6 +45,8 @@ func TestToPerson(t *testing.T) {
 		Seniority:  "senior",
 		Department: "Engineering",
 		Phone:      "+1-555-0100",
+		LinkedIn:   "https://linkedin.com/in/alice",
+		Twitter:    "https://twitter.com/alice",
 		Sources: []apiSource{
 			{URI: "https://example.com/alice"},
 			{URI: "https://linkedin.com/in/alice"},
@@ -60,6 +62,8 @@ func TestToPerson(t *testing.T) {
 	assert.Equal(t, "senior", got.Seniority)
 	assert.Equal(t, "Engineering", got.Department)
 	assert.Equal(t, "+1-555-0100", got.Phone)
+	assert.Equal(t, "https://linkedin.com/in/alice", got.LinkedIn)
+	assert.Equal(t, "https://twitter.com/alice", got.Twitter)
 	assert.Equal(t, []string{"https://example.com/alice", "https://linkedin.com/in/alice"}, got.Sources)
 }
 

@@ -28,40 +28,43 @@ import (
 // DeHashed output functions
 // ---------------------------------------------------------------------------
 
-// outputDehashedHuman renders DeHashed breach records as an aligned table. All
-// strings are breach-sourced and therefore hostile-controlled, so every field
-// is sanitized via sanitizeTerminal and truncated (P0-4). Passwords and hashes
-// are never present in the data model, so they cannot appear here (P0-SCOPE).
-func outputDehashedHuman(w io.Writer, result *dehashed.DomainResult, useColor bool) {
+// outputDehashedHuman renders refined DeHashed contacts as an aligned table.
+// All strings are breach-sourced and therefore hostile-controlled, so every
+// field is sanitized via sanitizeTerminal and truncated (P0-4). Passwords and
+// hashes are never present in the data model, so they cannot appear here
+// (P0-SCOPE). rawFetched is the number of raw breach records fetched; total is
+// the raw API total available.
+func outputDehashedHuman(w io.Writer, domain string, rawFetched, total, balance int, entries []dehashed.Entry, useColor bool) {
 	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
-		heading(useColor, "DeHashed: "+sanitizeTerminal(result.Domain)))
-	_, _ = fmt.Fprintf(w, "  Records found: %d (total: %d)\n", len(result.Records), result.Total)
-	if result.Balance > 0 {
-		_, _ = fmt.Fprintf(w, "  API credits remaining: %d\n", result.Balance)
+		heading(useColor, "DeHashed: "+sanitizeTerminal(domain)))
+	_, _ = fmt.Fprintf(w, "  %d records → %d unique contacts (total available: %d)\n",
+		rawFetched, len(entries), total)
+	if balance > 0 {
+		_, _ = fmt.Fprintf(w, "  API credits remaining: %d\n", balance)
 	}
 
-	if len(result.Records) == 0 {
-		_, _ = fmt.Fprintf(w, "\n  %s No records found for this domain\n", dim(useColor, SymbolInfo))
+	if len(entries) == 0 {
+		_, _ = fmt.Fprintf(w, "\n  %s No matching records for this domain\n", dim(useColor, SymbolInfo))
 		_, _ = fmt.Fprintln(w)
 		return
 	}
 
 	// Header row.
-	_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-20s %-12s%s\n",
+	_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-18s %-20s%s\n",
 		colorIf(useColor, ColorBold),
-		"Email", "Username", "Name", "Database", "Date",
+		"Email", "Name", "Username", "Phone", "Sources",
 		colorIf(useColor, ColorReset))
 
-	for i := range result.Records {
-		r := &result.Records[i]
-		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-20s %-12s\n",
+	for i := range entries {
+		e := &entries[i]
+		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-18s %-20s\n",
 			colorIf(useColor, ColorGreen),
-			truncate(sanitizeTerminal(joinField(r.Email)), 32),
+			truncate(sanitizeTerminal(e.Email), 32),
 			colorIf(useColor, ColorReset),
-			truncate(sanitizeTerminal(joinField(r.Username)), 22),
-			truncate(sanitizeTerminal(joinField(r.Name)), 22),
-			truncate(sanitizeTerminal(r.Database), 20),
-			truncate(sanitizeTerminal(r.ObtainedDate), 12))
+			truncate(sanitizeTerminal(joinField(e.Names)), 22),
+			truncate(sanitizeTerminal(joinField(e.Usernames)), 22),
+			truncate(sanitizeTerminal(joinField(e.Phones)), 18),
+			truncate(sanitizeTerminal(joinSources(e.Databases)), 20))
 	}
 	_, _ = fmt.Fprintln(w)
 }
@@ -71,41 +74,40 @@ func joinField(values []string) string {
 	return strings.Join(values, ", ")
 }
 
-// outputDehashedJSONL writes one JSON object per record. The record shape
+// joinSources renders the distinct source databases, appending "(+N)" when more
+// than two contributed so the column stays scannable.
+func joinSources(databases []string) string {
+	if len(databases) <= 2 {
+		return strings.Join(databases, ", ")
+	}
+	return strings.Join(databases[:2], ", ") + fmt.Sprintf(" (+%d)", len(databases)-2)
+}
+
+// outputDehashedJSONL writes one JSON object per refined entry. The entry shape
 // carries NO password / hashed_password keys (P0-SCOPE). encoding/json escapes
 // control characters, so no sanitization is needed.
-func outputDehashedJSONL(w io.Writer, result *dehashed.DomainResult) {
+func outputDehashedJSONL(w io.Writer, entries []dehashed.Entry) {
 	type dehashedJSON struct {
-		Type         string   `json:"type"`
-		Domain       string   `json:"domain"`
-		ID           string   `json:"id,omitempty"`
-		Email        []string `json:"email,omitempty"`
-		Username     []string `json:"username,omitempty"`
-		Name         []string `json:"name,omitempty"`
-		IPAddress    []string `json:"ip_address,omitempty"`
-		Phone        []string `json:"phone,omitempty"`
-		Address      []string `json:"address,omitempty"`
-		DOB          []string `json:"dob,omitempty"`
-		Database     string   `json:"database,omitempty"`
-		ObtainedDate string   `json:"obtained_date,omitempty"`
+		Type      string   `json:"type"`
+		Email     string   `json:"email"`
+		Names     []string `json:"names,omitempty"`
+		Usernames []string `json:"usernames,omitempty"`
+		Phones    []string `json:"phones,omitempty"`
+		Databases []string `json:"databases"`
+		Count     int      `json:"count"`
 	}
 
 	enc := json.NewEncoder(w)
-	for i := range result.Records {
-		r := &result.Records[i]
+	for i := range entries {
+		e := &entries[i]
 		jr := dehashedJSON{
-			Type:         "dehashed",
-			Domain:       result.Domain,
-			ID:           r.ID,
-			Email:        r.Email,
-			Username:     r.Username,
-			Name:         r.Name,
-			IPAddress:    r.IPAddress,
-			Phone:        r.Phone,
-			Address:      r.Address,
-			DOB:          r.DOB,
-			Database:     r.Database,
-			ObtainedDate: r.ObtainedDate,
+			Type:      "dehashed",
+			Email:     e.Email,
+			Names:     e.Names,
+			Usernames: e.Usernames,
+			Phones:    e.Phones,
+			Databases: e.Databases,
+			Count:     e.Count,
 		}
 		if err := enc.Encode(jr); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding dehashed JSON: %v\n", err)

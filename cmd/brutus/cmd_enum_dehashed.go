@@ -30,9 +30,12 @@ import (
 // File-local flag variables for the dehashed subcommand.
 // Separate from flagEnumDomain to avoid cross-command state bleed.
 var (
-	flagDehashedDomain string
-	flagDehashedAPIKey string
-	flagDehashedLimit  int
+	flagDehashedDomain            string
+	flagDehashedAPIKey            string
+	flagDehashedLimit             int
+	flagDehashedAllEmails         bool
+	flagDehashedNoDedup           bool
+	flagDehashedIncludeCombolists bool
 )
 
 var enumDehashedCmd = &cobra.Command{
@@ -45,15 +48,25 @@ feed the saas enumeration pipeline.
 
 Only use this command against domains you are authorized to assess.
 
-Passwords and hashes are intentionally NOT collected by this command.
+Passwords and hashes are intentionally NOT collected by this command. Phone
+numbers ARE surfaced.
+
+By default the results are refined to cut noise:
+  - corporate-only: keep only records whose email is @<domain>
+  - dedup: merge records that share an email into one contact
+  - exclude-combolists: drop known aggregator/combolist source databases
+Opt out per filter with --all-emails, --no-dedup, and --include-combolists.
 
 Requires a DeHashed API key via the DEHASHED_API_KEY environment variable
 (or the --api-key flag).
 
 This search consumes API credits (~1 credit per page of results); use --limit
 to bound the number of results (and therefore credits) per run.`,
-	Example: `  # Collect breach data for a domain (key from DEHASHED_API_KEY)
+	Example: `  # Collect refined breach contacts for a domain (key from DEHASHED_API_KEY)
   brutus enum dehashed --domain example.com
+
+  # Keep every email (not just @example.com), unmerged, including combolists
+  brutus enum dehashed -d example.com --all-emails --no-dedup --include-combolists
 
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum dehashed -d example.com --api-key abc123
@@ -69,6 +82,9 @@ func init() {
 	f.StringVar(&flagDehashedAPIKey, "api-key", "",
 		"DeHashed API key (overrides DEHASHED_API_KEY; WARNING: visible in process list and shell history — prefer DEHASHED_API_KEY)")
 	f.IntVar(&flagDehashedLimit, "limit", 100, "Maximum number of records to collect (bounds credit spend)")
+	f.BoolVar(&flagDehashedAllEmails, "all-emails", false, "Keep all emails, not just those @<domain> (disables corporate-only filtering)")
+	f.BoolVar(&flagDehashedNoDedup, "no-dedup", false, "Do not merge records that share an email")
+	f.BoolVar(&flagDehashedIncludeCombolists, "include-combolists", false, "Include records from known aggregator/combolist source databases")
 	_ = enumDehashedCmd.MarkFlagRequired("domain")
 }
 
@@ -108,14 +124,21 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 		return classifyDehashedError(err)
 	}
 
+	entries := dehashed.Refine(result.Records, dehashed.RefineOptions{
+		Domain:            flagDehashedDomain,
+		CorporateOnly:     !flagDehashedAllEmails,
+		Dedup:             !flagDehashedNoDedup,
+		ExcludeCombolists: !flagDehashedIncludeCombolists,
+	})
+
 	// Verbose: log counts only — never log the key or URL (P0-1 security requirement).
-	logVerbose(flagVerbose, "DeHashed returned %d records (total available: %d, balance: %d)",
-		len(result.Records), result.Total, result.Balance)
+	logVerbose(flagVerbose, "DeHashed returned %d records → %d contacts (total available: %d, balance: %d)",
+		len(result.Records), len(entries), result.Total, result.Balance)
 
 	if flagJSON {
-		outputDehashedJSONL(jsonWriter, result)
+		outputDehashedJSONL(jsonWriter, entries)
 	} else {
-		outputDehashedHuman(os.Stdout, result, useColor)
+		outputDehashedHuman(os.Stdout, flagDehashedDomain, len(result.Records), result.Total, result.Balance, entries, useColor)
 	}
 	return nil
 }

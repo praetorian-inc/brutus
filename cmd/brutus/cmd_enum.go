@@ -46,6 +46,8 @@ Subcommands:
   hunter     Discover people and emails via Hunter.io Domain Search
   dehashed   Collect breach-exposed identity data for a domain via DeHashed
   teams      Authenticate with Microsoft Entra ID via device code flow
+  apollo     Discover people/emails for a domain via Apollo.io (opt-in --reveal enrichment)
+  lusha      Enrich a single contact (email/phone) via Lusha
 
 See subcommand help for details:
   brutus enum oracles --help
@@ -53,7 +55,9 @@ See subcommand help for details:
   brutus enum generate --help
   brutus enum hunter --help
   brutus enum dehashed --help
-  brutus enum teams --help`,
+  brutus enum teams --help
+  brutus enum apollo --help
+  brutus enum lusha --help`,
 	Example: `  # Account-existence oracle enumeration
   brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com
 
@@ -68,6 +72,12 @@ See subcommand help for details:
 
   # Collect breach-exposed identity data via DeHashed
   brutus enum dehashed --domain example.com
+
+  # Discover people via Apollo.io
+  brutus enum apollo --domain example.com
+
+  # Enrich a contact via Lusha
+  brutus enum lusha --first-name Jane --last-name Doe --company "Example Inc"
 
   # Authenticate with Microsoft Entra ID via device code
   brutus enum teams auth --tenant contoso.com`,
@@ -124,6 +134,8 @@ func init() {
 	enumCmd.AddCommand(enumDehashedCmd)
 	enumCmd.AddCommand(enumCustomCmd)
 	enumCmd.AddCommand(enumTeamsCmd)
+	enumCmd.AddCommand(enumApolloCmd)
+	enumCmd.AddCommand(enumLushaCmd)
 }
 
 // runEnumGenerate handles the "enum generate" subcommand.

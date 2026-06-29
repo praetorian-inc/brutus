@@ -30,6 +30,22 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+// countingFailWriter is an io.Writer that always returns an error from Write
+// and counts how many times Write was called. Used to test early-exit behavior
+// in JSONL output functions (broken-pipe / stream-closed scenario).
+type countingFailWriter struct {
+	writes int
+}
+
+func (f *countingFailWriter) Write(_ []byte) (int, error) {
+	f.writes++
+	return 0, errors.New("simulated write failure")
+}
+
+// ---------------------------------------------------------------------------
 // T103: outputLushaJSONL + outputLushaHuman
 // ---------------------------------------------------------------------------
 
@@ -542,6 +558,40 @@ func TestOutputLushaDomainJSONL(t *testing.T) {
 		assert.Equal(t, float64(0), summary["returned"])
 		assert.Equal(t, float64(0), summary["credits_charged"])
 	})
+
+	// Regression: loop stops after first encode error (broken-pipe / early stream close).
+	// outputLushaDomainJSONL now breaks on the first enc.Encode error so an early-closed
+	// consumer produces only ONE stderr error line instead of one per remaining contact.
+	t.Run("broken writer stops encoding after first contact (no further write attempts)", func(t *testing.T) {
+		// Build a roster with 5 contacts. With the break-on-error fix, the encoder
+		// must stop after the first failed Write — it must NOT attempt to encode all
+		// 5 contacts.
+		contacts := make([]lusha.Contact, 5)
+		for i := range contacts {
+			contacts[i] = lusha.Contact{
+				Name:    fmt.Sprintf("Contact %d", i+1),
+				Company: "TestCo",
+			}
+		}
+		r := &lusha.DomainResult{
+			Domain:   "broken.com",
+			Total:    5,
+			Contacts: contacts,
+		}
+
+		fw := &countingFailWriter{}
+		outputLushaDomainJSONL(fw, r)
+
+		// json.Encoder.Encode calls Write at least once per Encode call.
+		// After the first Write fails, the loop must break — subsequent contacts
+		// must NOT be encoded. We allow for at most 2 Write calls (the encoder
+		// may call Write once for the JSON body and once for the newline), but
+		// must see strictly fewer than 5*2=10 writes that a full loop would cause.
+		assert.Less(t, fw.writes, 10,
+			"loop must stop after first encode error: expected far fewer than 10 writes (5 contacts × 2), got %d", fw.writes)
+		assert.GreaterOrEqual(t, fw.writes, 1,
+			"at least one Write must have been attempted before the error")
+	})
 }
 
 func TestOutputLushaDomainHuman(t *testing.T) {
@@ -632,6 +682,44 @@ func TestOutputLushaDomainHuman(t *testing.T) {
 			"[DNC] marker must appear in output with 26-wide phone column")
 		assert.Contains(t, out, "+44 20 7946 01234",
 			"full international phone number must appear in output")
+	})
+
+	// Regression: phone number >20 runes must have DNC marker fully visible.
+	// outputLushaDomainHuman truncates the number to 20 runes BEFORE appending
+	// " [DNC]" so the compliance marker is never cut (P0-DNC fix).
+	t.Run("DNC marker survives long phone number (>20 rune truncation path)", func(t *testing.T) {
+		// "+1 (555) 0100-2003-4005-6007" = 28 runes (well over the 20-rune truncation
+		// threshold). The old bug would have rendered the marker as part of the
+		// truncated number, producing artifacts like " [D…" or " [DN…".
+		longPhone := "+1 (555) 0100-2003-4005-6007"
+		r := &lusha.DomainResult{
+			Domain: "test-dnc.com",
+			Total:  1,
+			Contacts: []lusha.Contact{
+				{
+					Name: "DNC Test User",
+					Phones: []lusha.PhoneEntry{
+						{Number: longPhone, Type: "direct", DoNotCall: true},
+					},
+				},
+			},
+			CreditsCharged: 1,
+		}
+		var buf bytes.Buffer
+		outputLushaDomainHuman(&buf, r, false)
+		out := buf.String()
+
+		// The full " [DNC]" compliance marker must always appear intact.
+		assert.Contains(t, out, " [DNC]",
+			"full ' [DNC]' marker must be present even when number is truncated to 20 runes")
+
+		// Truncated-marker artifacts must never appear (prove marker is not cut).
+		assert.NotContains(t, out, "[D…",
+			"truncated marker artifact '[D…' must not appear")
+		assert.NotContains(t, out, "[DN…",
+			"truncated marker artifact '[DN…' must not appear")
+		assert.NotContains(t, out, "[DNC…",
+			"truncated marker artifact '[DNC…' must not appear")
 	})
 }
 

@@ -24,18 +24,22 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/apollo"
 )
 
-// outputApolloHuman renders Apollo people-search results as an aligned table.
+// outputApolloHuman renders Apollo people results as an aligned table.
 // All attacker-controlled strings are sanitized via sanitizeTerminal (P0-4).
-// Columns adapt: preview (no emails) shows Name|Title|Dept|Org; revealed adds
-// Email|Status.
+// Columns adapt on result.Revealed: discovery (free) shows
+// Name|Title|Dept|Org|Email?|Phone? where Email?/Phone? render AVAILABILITY
+// (✓/–) — not actual values; enriched shows Email|Status|LinkedIn and keeps a
+// trailing Phone? AVAILABILITY column (✓/–), since phone is never revealed.
 func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) {
 	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
 		heading(useColor, "Apollo: "+sanitizeTerminal(result.Domain)))
-	_, _ = fmt.Fprintf(w, "  People found: %d (total: %d)\n", len(result.People), result.Total)
-
-	if !result.Revealed {
+	if result.Revealed {
+		_, _ = fmt.Fprintf(w, "  People found: %d (total: %d) · credits charged: %d\n",
+			len(result.People), result.Total, result.CreditsCharged)
+	} else {
+		_, _ = fmt.Fprintf(w, "  People found: %d (total: %d)\n", len(result.People), result.Total)
 		_, _ = fmt.Fprintf(w, "  %s\n",
-			dim(useColor, "(preview — run with --reveal for emails; consumes credits)"))
+			dim(useColor, "(discovery — Email?/Phone? show availability; run with --enrich to reveal emails, consumes credits)"))
 	}
 
 	if len(result.People) == 0 {
@@ -45,14 +49,14 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 	}
 
 	if result.Revealed {
-		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s %-32s%s\n",
+		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s %-32s %-7s%s\n",
 			colorIf(useColor, ColorBold),
-			"Name", "Title", "Dept", "Org", "Email", "Status", "LinkedIn",
+			"Name", "Title", "Dept", "Org", "Email", "Status", "LinkedIn", "Phone?",
 			colorIf(useColor, ColorReset))
 	} else {
-		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s%s\n",
+		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-7s %-7s%s\n",
 			colorIf(useColor, ColorBold),
-			"Name", "Title", "Dept", "Org",
+			"Name", "Title", "Dept", "Org", "Email?", "Phone?",
 			colorIf(useColor, ColorReset))
 	}
 
@@ -60,7 +64,7 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 		p := &result.People[i]
 		name := personName(p)
 		if result.Revealed {
-			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s %-32s\n",
+			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s %-32s %-7s\n",
 				truncate(name, 28),
 				truncate(sanitizeTerminal(p.Title), 22),
 				truncate(sanitizeTerminal(p.Department), 12),
@@ -69,23 +73,40 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 				truncate(sanitizeTerminal(p.Email), 32),
 				colorIf(useColor, ColorReset),
 				truncate(sanitizeTerminal(p.EmailStatus), 10),
-				truncate(sanitizeTerminal(p.LinkedinURL), 32))
+				truncate(sanitizeTerminal(p.LinkedinURL), 32),
+				availabilityMark(p.HasPhone))
 		} else {
-			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s\n",
+			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %-7s %-7s\n",
 				truncate(name, 28),
 				truncate(sanitizeTerminal(p.Title), 22),
 				truncate(sanitizeTerminal(p.Department), 12),
-				truncate(sanitizeTerminal(p.Organization), 22))
+				truncate(sanitizeTerminal(p.Organization), 22),
+				availabilityMark(p.HasEmail),
+				availabilityMark(p.HasPhone))
 		}
 	}
 	_, _ = fmt.Fprintln(w)
 }
 
-// outputApolloJSONL writes one JSON object per discovered person.
-// encoding/json already escapes control characters, so no sanitization needed.
-// Preview (un-revealed) people omit email/email_status via omitempty so a
-// consumer never misreads a blank email as confirmed-absent.
+// availabilityMark renders a discovery-tier availability flag as a check or dash.
+// These reflect whether enrichment COULD reveal a value — never an actual value.
+func availabilityMark(available bool) string {
+	if available {
+		return "✓"
+	}
+	return "–"
+}
+
+// outputApolloJSONL writes one JSON object per person. encoding/json already
+// escapes control characters, so no sanitization needed. It branches on
+// result.Revealed: discovery emits slim candidate objects carrying only the free
+// fields plus has_email/has_phone availability (NO email/phone values); enriched
+// emits the full record including the revealed fields.
 func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
+	if !result.Revealed {
+		outputApolloDiscoverJSONL(w, result)
+		return
+	}
 	type employmentJSON struct {
 		Organization string `json:"organization,omitempty"`
 		Title        string `json:"title,omitempty"`
@@ -97,6 +118,8 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 		Type         string           `json:"type"`
 		Domain       string           `json:"domain"`
 		Revealed     bool             `json:"revealed"`
+		HasEmail     bool             `json:"has_email"`
+		HasPhone     bool             `json:"has_phone"`
 		ID           string           `json:"id"`
 		Name         string           `json:"name,omitempty"`
 		FirstName    string           `json:"first_name,omitempty"`
@@ -134,6 +157,8 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 			Type:         "apollo",
 			Domain:       result.Domain,
 			Revealed:     p.Revealed,
+			HasEmail:     p.HasEmail,
+			HasPhone:     p.HasPhone,
 			ID:           p.ID,
 			Name:         p.Name,
 			FirstName:    p.FirstName,
@@ -151,6 +176,45 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 			State:        p.State,
 			Country:      p.Country,
 			Employment:   employment,
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding apollo JSON: %v\n", err)
+		}
+	}
+}
+
+// outputApolloDiscoverJSONL writes one slim candidate object per discovered
+// person for the FREE discovery tier: identity fields plus has_email/has_phone
+// availability (always present so a consumer can read availability=false), and
+// deliberately NO email/phone values (none were revealed). type is "apollo".
+func outputApolloDiscoverJSONL(w io.Writer, result *apollo.DomainResult) {
+	type apolloCandidateJSON struct {
+		Type         string `json:"type"`
+		Domain       string `json:"domain"`
+		Revealed     bool   `json:"revealed"`
+		ID           string `json:"id"`
+		Name         string `json:"name,omitempty"`
+		FirstName    string `json:"first_name,omitempty"`
+		Title        string `json:"title,omitempty"`
+		Organization string `json:"organization,omitempty"`
+		HasEmail     bool   `json:"has_email"`
+		HasPhone     bool   `json:"has_phone"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range result.People {
+		p := &result.People[i]
+		jr := apolloCandidateJSON{
+			Type:         "apollo",
+			Domain:       result.Domain,
+			Revealed:     false,
+			ID:           p.ID,
+			Name:         p.Name,
+			FirstName:    p.FirstName,
+			Title:        p.Title,
+			Organization: p.Organization,
+			HasEmail:     p.HasEmail,
+			HasPhone:     p.HasPhone,
 		}
 		if err := enc.Encode(jr); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding apollo JSON: %v\n", err)

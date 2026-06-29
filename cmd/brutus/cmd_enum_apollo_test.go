@@ -143,11 +143,11 @@ func TestClassifyApolloError_NetworkWrap(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // resetApolloFlags resets the package-level apollo flag vars to safe defaults.
-// Reveal is DEFAULT-ON: flagApolloNoReveal=false means reveal is active.
+// Discover is the default (flagApolloEnrich=false). --enrich opts in to enrichment.
 func resetApolloFlags() {
 	flagApolloDomain = "example.com"
 	flagApolloTitles = nil
-	flagApolloNoReveal = false
+	flagApolloEnrich = false
 	flagApolloLimit = 100
 	flagApolloAPIKey = ""
 }
@@ -164,37 +164,57 @@ func TestRunEnumApollo_RejectsNegativeLimit(t *testing.T) {
 		"error must mention --limit so the operator knows what to fix")
 }
 
-// TestRunEnumApollo_RejectsRevealWithZeroLimit asserts that reveal (the DEFAULT)
-// combined with --limit 0 (unbounded) is rejected to prevent unbounded credit
-// spend. With reveal as default, --limit 0 alone must be rejected; passing
-// --no-reveal (flagApolloNoReveal=true) with --limit 0 is allowed.
-func TestRunEnumApollo_RejectsRevealWithZeroLimit(t *testing.T) {
+// TestRunEnumApollo_DiscoverWithZeroLimitAllowed asserts that discover-only
+// (default, flagApolloEnrich=false) with --limit 0 (unbounded) is accepted.
+// Free discovery is safe to run without a limit cap.
+func TestRunEnumApollo_DiscoverWithZeroLimitAllowed(t *testing.T) {
 	resetApolloFlags()
-	// reveal is default (flagApolloNoReveal=false), so --limit 0 alone must fail.
-	flagApolloLimit = 0
-
-	err := runEnumApollo(nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--limit",
-		"error must mention --limit so the operator knows how to fix it")
-}
-
-// TestRunEnumApollo_AllowsNoRevealWithZeroLimit asserts that --no-reveal with
-// --limit 0 (unbounded free discovery) is accepted.
-func TestRunEnumApollo_AllowsNoRevealWithZeroLimit(t *testing.T) {
-	resetApolloFlags()
-	flagApolloNoReveal = true
+	flagApolloEnrich = false
 	flagApolloLimit = 0
 
 	// No API key set — runEnumApollo will fail on resolveApolloAPIKey, which is
-	// expected; the important thing is it does NOT fail on the limit guard.
+	// expected; the important thing is it does NOT fail on a limit guard.
 	t.Setenv("APOLLO_API_KEY", "")
 	err := runEnumApollo(nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "APOLLO_API_KEY",
-		"error must be about missing API key, not the limit guard")
+		"error must be about missing API key, not a limit guard")
 	assert.NotContains(t, err.Error(), "--limit",
-		"--no-reveal with --limit 0 must not be rejected by the limit guard")
+		"discover with --limit 0 must not be rejected")
+}
+
+// TestRunEnumApollo_EnrichWithZeroLimitRejected asserts that --enrich with the
+// default/unbounded --limit 0 is rejected up front: enrichment spends one credit
+// per person, so an unbounded reveal must be refused before any network call.
+func TestRunEnumApollo_EnrichWithZeroLimitRejected(t *testing.T) {
+	resetApolloFlags()
+	flagApolloEnrich = true
+	flagApolloLimit = 0
+
+	t.Setenv("APOLLO_API_KEY", "test-key")
+	err := runEnumApollo(nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--enrich",
+		"error must mention --enrich")
+	assert.Contains(t, err.Error(), "--limit",
+		"error must tell the operator to set a positive --limit")
+}
+
+// TestRunEnumApollo_EnrichWithPositiveLimitPassesGuard asserts that --enrich with
+// a positive --limit clears the credit-bound guard (it then fails later on the
+// missing API key, NOT on the limit guard).
+func TestRunEnumApollo_EnrichWithPositiveLimitPassesGuard(t *testing.T) {
+	resetApolloFlags()
+	flagApolloEnrich = true
+	flagApolloLimit = 50
+
+	t.Setenv("APOLLO_API_KEY", "")
+	err := runEnumApollo(nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "APOLLO_API_KEY",
+		"with a positive --limit the guard must pass; failure should be the missing key")
+	assert.NotContains(t, err.Error(), "--enrich requires",
+		"positive --limit must clear the --enrich credit guard")
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +222,7 @@ func TestRunEnumApollo_AllowsNoRevealWithZeroLimit(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestOutputApolloJSONL(t *testing.T) {
-	t.Run("preview person omits email field", func(t *testing.T) {
+	t.Run("discovery person emits has_email/has_phone availability, no email values", func(t *testing.T) {
 		result := &apollo.DomainResult{
 			Domain:   "example.com",
 			Revealed: false,
@@ -211,12 +231,11 @@ func TestOutputApolloJSONL(t *testing.T) {
 					ID:           "p1",
 					Name:         "Alice Smith",
 					FirstName:    "Alice",
-					LastName:     "Smith",
 					Title:        "Engineer",
-					Seniority:    "senior",
-					Department:   "Engineering",
 					Organization: "ACME Corp",
-					// Email is empty — preview mode (no --reveal)
+					HasEmail:     true,
+					HasPhone:     false,
+					// Email is empty — discovery mode (no --enrich)
 					Revealed: false,
 				},
 			},
@@ -236,11 +255,15 @@ func TestOutputApolloJSONL(t *testing.T) {
 		assert.Equal(t, "p1", obj["id"])
 		assert.Equal(t, false, obj["revealed"])
 
-		// Preview mode: email must be omitted (omitempty) — not present as empty string.
+		// Discovery mode: availability flags must be present.
+		assert.Equal(t, true, obj["has_email"], "has_email must be present in discovery JSONL")
+		assert.Equal(t, false, obj["has_phone"], "has_phone must be present in discovery JSONL")
+
+		// Discovery mode: email must be omitted (omitempty) — no PII revealed.
 		_, hasEmail := obj["email"]
-		assert.False(t, hasEmail, "email must be omitted in preview JSONL (omitempty)")
+		assert.False(t, hasEmail, "email must be omitted in discovery JSONL (no PII)")
 		_, hasEmailStatus := obj["email_status"]
-		assert.False(t, hasEmailStatus, "email_status must be omitted in preview JSONL (omitempty)")
+		assert.False(t, hasEmailStatus, "email_status must be omitted in discovery JSONL")
 	})
 
 	t.Run("revealed person includes email", func(t *testing.T) {
@@ -269,6 +292,31 @@ func TestOutputApolloJSONL(t *testing.T) {
 		assert.Equal(t, true, obj["revealed"])
 	})
 
+	t.Run("revealed person retains has_email/has_phone availability", func(t *testing.T) {
+		result := &apollo.DomainResult{
+			Domain:   "example.com",
+			Revealed: true,
+			People: []apollo.Person{
+				{
+					ID:       "p1",
+					Name:     "Alice Smith",
+					Email:    "alice@example.com",
+					HasEmail: true,
+					HasPhone: true,
+					Revealed: true,
+				},
+			},
+			Total: 1,
+		}
+		var buf bytes.Buffer
+		outputApolloJSONL(&buf, result)
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &obj))
+		assert.Equal(t, true, obj["has_email"], "enriched JSONL must retain has_email availability")
+		assert.Equal(t, true, obj["has_phone"], "enriched JSONL must retain has_phone availability (phone is never revealed)")
+	})
+
 	t.Run("empty result emits zero lines", func(t *testing.T) {
 		result := &apollo.DomainResult{Domain: "empty.com"}
 		var buf bytes.Buffer
@@ -278,7 +326,7 @@ func TestOutputApolloJSONL(t *testing.T) {
 }
 
 func TestOutputApolloHuman(t *testing.T) {
-	t.Run("renders header and person row in preview mode", func(t *testing.T) {
+	t.Run("renders header and person row in discovery mode", func(t *testing.T) {
 		result := &apollo.DomainResult{
 			Domain:   "example.com",
 			Revealed: false,
@@ -289,6 +337,8 @@ func TestOutputApolloHuman(t *testing.T) {
 					Title:        "VP Engineering",
 					Department:   "Engineering",
 					Organization: "ACME Corp",
+					HasEmail:     true,
+					HasPhone:     false,
 				},
 			},
 			Total: 1,
@@ -301,20 +351,25 @@ func TestOutputApolloHuman(t *testing.T) {
 		assert.Contains(t, out, "example.com")
 		assert.Contains(t, out, "Alice Smith")
 		assert.Contains(t, out, "VP Engineering")
-		// Preview note must appear when not revealed.
-		assert.Contains(t, out, "--reveal", "preview note must mention --reveal")
+		// Discovery table must show availability columns, not email values.
+		assert.Contains(t, out, "Email?", "discovery header must show Email? availability column")
+		assert.Contains(t, out, "Phone?", "discovery header must show Phone? availability column")
+		// Discovery note must mention --enrich (not --reveal).
+		assert.Contains(t, out, "--enrich", "discovery note must mention --enrich")
 	})
 
-	t.Run("revealed shows Email column and values", func(t *testing.T) {
+	t.Run("enriched shows Email column, values, and credits charged", func(t *testing.T) {
 		result := &apollo.DomainResult{
-			Domain:   "example.com",
-			Revealed: true,
+			Domain:         "example.com",
+			Revealed:       true,
+			CreditsCharged: 1,
 			People: []apollo.Person{
 				{
 					ID:          "p1",
 					Name:        "Alice Smith",
 					Email:       "alice@example.com",
 					EmailStatus: "verified",
+					HasPhone:    true,
 					Revealed:    true,
 				},
 			},
@@ -327,6 +382,9 @@ func TestOutputApolloHuman(t *testing.T) {
 		assert.Contains(t, out, "Email")
 		assert.Contains(t, out, "alice@example.com")
 		assert.Contains(t, out, "verified")
+		// Enriched output must report credits charged.
+		assert.Contains(t, out, "credits charged", "enriched output must mention credits charged")
+		assert.Contains(t, out, "Phone?", "enriched table must retain Phone? availability column (phone is not revealed)")
 	})
 
 	t.Run("empty result shows no-people message", func(t *testing.T) {
@@ -363,11 +421,15 @@ func TestEnumApolloRegistered(t *testing.T) {
 	}
 	require.NotNil(t, canonicalApollo, `"apollo" must be a subcommand of enumPassiveCmd`)
 
-	// Verify expected flags on the canonical command.
-	for _, flagName := range []string{"domain", "titles", "no-reveal", "limit", "api-key"} {
+	// Verify expected flags on the canonical command: --enrich replaces --no-reveal.
+	for _, flagName := range []string{"domain", "titles", "enrich", "limit", "api-key"} {
 		require.NotNilf(t, canonicalApollo.Flags().Lookup(flagName),
 			"--%s flag must exist on canonical apollo", flagName)
 	}
+
+	// --no-reveal must NOT exist (it was removed in the discover→enrich split).
+	assert.Nilf(t, canonicalApollo.Flags().Lookup("no-reveal"),
+		"--no-reveal must not exist on the apollo command (replaced by --enrich)")
 
 	domainShort := canonicalApollo.Flags().ShorthandLookup("d")
 	require.NotNil(t, domainShort, "-d shorthand for --domain must exist")

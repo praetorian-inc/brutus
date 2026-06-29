@@ -222,12 +222,23 @@ func runEnumLushaRoster(ctx context.Context, client *lusha.Client, jsonWriter io
 // (2) --email, or (3) --linkedin. --phone and --email-only are mutually exclusive.
 // Pure function over the flag values — no network, trivially testable.
 func validateLushaIdentity() error {
+	if flagLushaLimit < 0 {
+		return fmt.Errorf("--limit must be >= 0")
+	}
 	if flagLushaPhone && flagLushaEmailOnly {
 		return fmt.Errorf("--phone and --email-only are mutually exclusive")
 	}
 
-	// Roster mode: only --domain set → valid whole-company enumeration.
+	// Roster mode: only --domain set → valid whole-company enumeration. The
+	// reveal flags (--phone/--email-only) have no effect on the prospecting API,
+	// so reject them here rather than silently ignoring them.
 	if isLushaRosterMode() {
+		if flagLushaPhone {
+			return fmt.Errorf("--phone is not valid in roster mode (--domain only); the prospecting API returns all available datapoints")
+		}
+		if flagLushaEmailOnly {
+			return fmt.Errorf("--email-only is not valid in roster mode (--domain only); the prospecting API returns all available datapoints")
+		}
 		return nil
 	}
 

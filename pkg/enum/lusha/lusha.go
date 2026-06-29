@@ -48,14 +48,11 @@ const (
 	// own request/response structs below.
 	prospectSearchPath = "/prospecting/contact/search"
 	prospectEnrichPath = "/prospecting/contact/enrich"
-	// prospectPageSize is the per-page result count for prospecting search
-	// (API accepts 10-50; we use the max to minimize search-page credits).
+	// prospectPageSize is the per-page result count for prospecting search. It is
+	// held CONSTANT across all pages (API offset = page*size, so a changing size
+	// corrupts pagination). The value is within the API's accepted 10-50 range;
+	// we use the max to minimize search-page credits.
 	prospectPageSize = 50
-	// prospectMinPageSize is the API's minimum search page size; requesting
-	// fewer is rejected ("pages.size must not be less than 10"). A small --limit
-	// still over-fetches the search page to this floor (search is ~1 credit/page
-	// regardless), but only the needed contactIds are enriched.
-	prospectMinPageSize = 10
 	// prospectMaxPages bounds collect-all (limit<=0) so a huge org cannot spin
 	// indefinitely; 40 pages * 50 = up to 2000 contacts.
 	prospectMaxPages = 40
@@ -223,24 +220,21 @@ func (c *Client) SearchDomain(ctx context.Context, domain string, limit int) (*D
 			return nil, err
 		}
 
+		// The search page size MUST stay constant across pages: the API offset is
+		// page*size, so shrinking size on a later page corrupts the offset and
+		// duplicates/skips contacts. Spend is bounded on the enrich side below by
+		// only enriching `remaining` contactIds per page (search is ~1 credit/page
+		// regardless of size). prospectPageSize is already within the API's 10-50
+		// range, so no clamping is needed.
 		remaining := 0
-		size := prospectPageSize
 		if limit > 0 {
 			remaining = limit - len(result.Contacts)
 			if remaining <= 0 {
 				break
 			}
-			// Shrink the page toward the limit, but never below the API minimum
-			// (a sub-minimum size is rejected with HTTP 400).
-			if remaining < size {
-				size = remaining
-				if size < prospectMinPageSize {
-					size = prospectMinPageSize
-				}
-			}
 		}
 
-		search, err := c.searchProspectPage(ctx, domain, page, size)
+		search, err := c.searchProspectPage(ctx, domain, page, prospectPageSize)
 		if err != nil {
 			return nil, err
 		}

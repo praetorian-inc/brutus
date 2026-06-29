@@ -197,7 +197,10 @@ func outputLushaDomainHuman(w io.Writer, r *lusha.DomainResult, useColor bool) {
 		return
 	}
 
-	_, _ = fmt.Fprintf(w, "\n  %s%-24s %-24s %-32s %-20s %-30s %-18s%s\n",
+	// Phone column is 26 wide. When DNC is set the number is truncated to 20
+	// runes before the " [DNC]" suffix (6 runes) is appended, so the marker is
+	// always fully visible and never truncated mid-marker.
+	_, _ = fmt.Fprintf(w, "\n  %s%-24s %-24s %-32s %-26s %-30s %-18s%s\n",
 		colorIf(useColor, ColorBold),
 		"Name", "Title", "Email", "Phone", "LinkedIn", "Dept",
 		colorIf(useColor, ColorReset))
@@ -210,33 +213,58 @@ func outputLushaDomainHuman(w io.Writer, r *lusha.DomainResult, useColor bool) {
 		}
 		phone := ""
 		if len(c.Phones) > 0 {
-			phone = c.Phones[0].Number
 			if c.Phones[0].DoNotCall {
-				phone += " [DNC]"
+				// Reserve the 6 runes for " [DNC]" by truncating the number to
+				// 20 runes first, so the compliance marker is never the thing
+				// that gets cut (P0-DNC).
+				phone = truncate(sanitizeTerminal(c.Phones[0].Number), 20) + " [DNC]"
+			} else {
+				phone = truncate(sanitizeTerminal(c.Phones[0].Number), 26)
 			}
 		}
-		_, _ = fmt.Fprintf(w, "  %-24s %-24s %s%-32s%s %-20s %-30s %-18s\n",
+		_, _ = fmt.Fprintf(w, "  %-24s %-24s %s%-32s%s %-26s %-30s %-18s\n",
 			truncate(sanitizeTerminal(c.Name), 24),
 			truncate(sanitizeTerminal(c.JobTitle), 24),
 			colorIf(useColor, ColorGreen),
 			truncate(sanitizeTerminal(email), 32),
 			colorIf(useColor, ColorReset),
-			truncate(sanitizeTerminal(phone), 20),
+			phone,
 			truncate(sanitizeTerminal(c.LinkedIn), 30),
 			truncate(sanitizeTerminal(strings.Join(c.Departments, ", ")), 18))
 	}
 	_, _ = fmt.Fprintln(w)
 }
 
-// outputLushaDomainJSONL writes one JSON object per roster contact, reusing the
-// single-identity per-contact rendering (DRY). No envelope object is emitted;
-// each line is a standalone type:"lusha" contact.
+// lushaSummaryJSON is the trailing envelope emitted after the per-contact roster
+// lines so pipeline/JSON consumers can track credit spend and detect truncation
+// (returned < total). It is distinguished from per-contact lines by type.
+type lushaSummaryJSON struct {
+	Type           string `json:"type"`
+	Domain         string `json:"domain"`
+	Total          int    `json:"total"`
+	Returned       int    `json:"returned"`
+	CreditsCharged int    `json:"credits_charged"`
+}
+
+// outputLushaDomainJSONL writes one JSON object per roster contact (type:"lusha"),
+// reusing the single-identity per-contact rendering (DRY), then a trailing
+// type:"lusha_summary" envelope carrying domain/total/returned/credits_charged.
 func outputLushaDomainJSONL(w io.Writer, r *lusha.DomainResult) {
 	enc := json.NewEncoder(w)
 	for i := range r.Contacts {
 		if err := enc.Encode(toLushaContactJSON(&r.Contacts[i])); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding lusha JSON: %v\n", err)
+			break
 		}
+	}
+	if err := enc.Encode(lushaSummaryJSON{
+		Type:           "lusha_summary",
+		Domain:         r.Domain,
+		Total:          r.Total,
+		Returned:       len(r.Contacts),
+		CreditsCharged: r.CreditsCharged,
+	}); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error encoding lusha summary JSON: %v\n", err)
 	}
 }
 

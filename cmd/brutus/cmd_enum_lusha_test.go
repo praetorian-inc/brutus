@@ -30,6 +30,22 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
+
+// countingFailWriter is an io.Writer that always returns an error from Write
+// and counts how many times Write was called. Used to test early-exit behavior
+// in JSONL output functions (broken-pipe / stream-closed scenario).
+type countingFailWriter struct {
+	writes int
+}
+
+func (f *countingFailWriter) Write(_ []byte) (int, error) {
+	f.writes++
+	return 0, errors.New("simulated write failure")
+}
+
+// ---------------------------------------------------------------------------
 // T103: outputLushaJSONL + outputLushaHuman
 // ---------------------------------------------------------------------------
 
@@ -171,6 +187,7 @@ func resetLushaFlags() {
 	flagLushaLinkedin = ""
 	flagLushaPhone = false
 	flagLushaEmailOnly = false
+	flagLushaLimit = 0
 }
 
 func TestValidateLushaIdentity(t *testing.T) {
@@ -280,6 +297,44 @@ func TestValidateLushaIdentity(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "exactly one identity",
+		},
+		// Bug fix: negative --limit must be rejected.
+		{
+			name: "ERROR: --limit -1 rejected",
+			setup: func() {
+				flagLushaDomain = "fox.com"
+				flagLushaLimit = -1
+			},
+			wantErr:     true,
+			errContains: ">= 0",
+		},
+		// Bug fix: roster mode must reject --phone and --email-only.
+		{
+			name: "ERROR ROSTER+PHONE: domain only + --phone → rejected",
+			setup: func() {
+				flagLushaDomain = "fox.com"
+				flagLushaPhone = true
+			},
+			wantErr:     true,
+			errContains: "--phone is not valid in roster mode",
+		},
+		{
+			name: "ERROR ROSTER+EMAIL-ONLY: domain only + --email-only → rejected",
+			setup: func() {
+				flagLushaDomain = "fox.com"
+				flagLushaEmailOnly = true
+			},
+			wantErr:     true,
+			errContains: "--email-only is not valid in roster mode",
+		},
+		// Single-contact mode: --phone is still valid.
+		{
+			name: "valid single contact + --phone (not roster mode)",
+			setup: func() {
+				flagLushaEmail = "ada@example.com"
+				flagLushaPhone = true
+			},
+			wantErr: false,
 		},
 	}
 
@@ -412,7 +467,7 @@ func TestClassifyLushaError_NetworkWrap(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestOutputLushaDomainJSONL(t *testing.T) {
-	t.Run("one JSON object per contact, type lusha, DNC preserved", func(t *testing.T) {
+	t.Run("one JSON object per contact plus trailing lusha_summary", func(t *testing.T) {
 		r := &lusha.DomainResult{
 			Domain: "fox.com",
 			Total:  2,
@@ -440,12 +495,13 @@ func TestOutputLushaDomainJSONL(t *testing.T) {
 		var buf bytes.Buffer
 		outputLushaDomainJSONL(&buf, r)
 
+		// 2 contacts + 1 trailing lusha_summary envelope = 3 lines total.
 		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
-		require.Len(t, lines, 2, "must emit exactly one JSON object per contact")
+		require.Len(t, lines, 3, "must emit one JSON object per contact PLUS a trailing lusha_summary line")
 
 		var obj0 map[string]interface{}
 		require.NoError(t, json.Unmarshal([]byte(lines[0]), &obj0))
-		assert.Equal(t, "lusha", obj0["type"], "type must be 'lusha'")
+		assert.Equal(t, "lusha", obj0["type"], "per-contact type must be 'lusha'")
 		assert.Equal(t, "Bruna White", obj0["name"])
 
 		phones, ok := obj0["phones"].([]interface{})
@@ -461,6 +517,20 @@ func TestOutputLushaDomainJSONL(t *testing.T) {
 		assert.Equal(t, "lusha", obj1["type"])
 		assert.Equal(t, "Steve R", obj1["name"])
 
+		// Line 3: trailing lusha_summary envelope (new in #192 fix).
+		var summary map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[2]), &summary))
+		assert.Equal(t, "lusha_summary", summary["type"],
+			"trailing envelope must have type lusha_summary")
+		assert.Equal(t, "fox.com", summary["domain"],
+			"summary domain must match the queried domain")
+		assert.Equal(t, float64(2), summary["total"],
+			"summary total must equal DomainResult.Total")
+		assert.Equal(t, float64(2), summary["returned"],
+			"summary returned must equal len(contacts)")
+		assert.Equal(t, float64(3), summary["credits_charged"],
+			"summary credits_charged must equal DomainResult.CreditsCharged")
+
 		// No password or credential keys must appear.
 		for _, line := range lines {
 			assert.NotContains(t, line, "password",
@@ -470,12 +540,57 @@ func TestOutputLushaDomainJSONL(t *testing.T) {
 		}
 	})
 
-	t.Run("empty roster emits no lines", func(t *testing.T) {
-		r := &lusha.DomainResult{Domain: "empty.com"}
+	t.Run("empty roster emits only the lusha_summary envelope", func(t *testing.T) {
+		r := &lusha.DomainResult{Domain: "empty.com", Total: 0, CreditsCharged: 0}
 		var buf bytes.Buffer
 		outputLushaDomainJSONL(&buf, r)
-		assert.Empty(t, strings.TrimSpace(buf.String()),
-			"empty roster must produce no JSONL output")
+		out := strings.TrimSpace(buf.String())
+		// Production always emits the trailing summary, even for empty rosters.
+		require.NotEmpty(t, out, "empty roster must still emit the lusha_summary line")
+
+		lines := strings.Split(out, "\n")
+		require.Len(t, lines, 1, "empty roster must emit exactly one line (the lusha_summary)")
+
+		var summary map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &summary))
+		assert.Equal(t, "lusha_summary", summary["type"])
+		assert.Equal(t, "empty.com", summary["domain"])
+		assert.Equal(t, float64(0), summary["returned"])
+		assert.Equal(t, float64(0), summary["credits_charged"])
+	})
+
+	// Regression: loop stops after first encode error (broken-pipe / early stream close).
+	// outputLushaDomainJSONL now breaks on the first enc.Encode error so an early-closed
+	// consumer produces only ONE stderr error line instead of one per remaining contact.
+	t.Run("broken writer stops encoding after first contact (no further write attempts)", func(t *testing.T) {
+		// Build a roster with 5 contacts. With the break-on-error fix, the encoder
+		// must stop after the first failed Write — it must NOT attempt to encode all
+		// 5 contacts.
+		contacts := make([]lusha.Contact, 5)
+		for i := range contacts {
+			contacts[i] = lusha.Contact{
+				Name:    fmt.Sprintf("Contact %d", i+1),
+				Company: "TestCo",
+			}
+		}
+		r := &lusha.DomainResult{
+			Domain:   "broken.com",
+			Total:    5,
+			Contacts: contacts,
+		}
+
+		fw := &countingFailWriter{}
+		outputLushaDomainJSONL(fw, r)
+
+		// json.Encoder.Encode calls Write at least once per Encode call.
+		// After the first Write fails, the loop must break — subsequent contacts
+		// must NOT be encoded. We allow for at most 2 Write calls (the encoder
+		// may call Write once for the JSON body and once for the newline), but
+		// must see strictly fewer than 5*2=10 writes that a full loop would cause.
+		assert.Less(t, fw.writes, 10,
+			"loop must stop after first encode error: expected far fewer than 10 writes (5 contacts × 2), got %d", fw.writes)
+		assert.GreaterOrEqual(t, fw.writes, 1,
+			"at least one Write must have been attempted before the error")
 	})
 }
 
@@ -537,6 +652,74 @@ func TestOutputLushaDomainHuman(t *testing.T) {
 		out := buf.String()
 		assert.Contains(t, out, "No contacts returned",
 			"empty roster must show graceful message")
+	})
+
+	t.Run("long international phone with DNC marker not truncated (26-char column)", func(t *testing.T) {
+		// Phone column is 26 wide so e.g. "+44 20 7946 0123 [DNC]" (22 chars) fits.
+		// The bug was a 24-wide column that cut " [DNC]" off a 20-char number.
+		// We use a 19-char international number so "number + ' [DNC]'" = 25 chars,
+		// which fits in 26 but would have been truncated in the old 24-wide column.
+		r := &lusha.DomainResult{
+			Domain: "intl.com",
+			Total:  1,
+			Contacts: []lusha.Contact{
+				{
+					Name: "Intl User",
+					Phones: []lusha.PhoneEntry{
+						// "+44 20 7946 01234" = 17 chars; with " [DNC]" = 23 chars
+						// (fits in 26, would have been truncated at 24).
+						{Number: "+44 20 7946 01234", Type: "direct", DoNotCall: true},
+					},
+				},
+			},
+			CreditsCharged: 1,
+		}
+		var buf bytes.Buffer
+		outputLushaDomainHuman(&buf, r, false)
+		out := buf.String()
+		// The [DNC] marker must appear intact (not truncated mid-marker).
+		assert.Contains(t, out, "[DNC]",
+			"[DNC] marker must appear in output with 26-wide phone column")
+		assert.Contains(t, out, "+44 20 7946 01234",
+			"full international phone number must appear in output")
+	})
+
+	// Regression: phone number >20 runes must have DNC marker fully visible.
+	// outputLushaDomainHuman truncates the number to 20 runes BEFORE appending
+	// " [DNC]" so the compliance marker is never cut (P0-DNC fix).
+	t.Run("DNC marker survives long phone number (>20 rune truncation path)", func(t *testing.T) {
+		// "+1 (555) 0100-2003-4005-6007" = 28 runes (well over the 20-rune truncation
+		// threshold). The old bug would have rendered the marker as part of the
+		// truncated number, producing artifacts like " [D…" or " [DN…".
+		longPhone := "+1 (555) 0100-2003-4005-6007"
+		r := &lusha.DomainResult{
+			Domain: "test-dnc.com",
+			Total:  1,
+			Contacts: []lusha.Contact{
+				{
+					Name: "DNC Test User",
+					Phones: []lusha.PhoneEntry{
+						{Number: longPhone, Type: "direct", DoNotCall: true},
+					},
+				},
+			},
+			CreditsCharged: 1,
+		}
+		var buf bytes.Buffer
+		outputLushaDomainHuman(&buf, r, false)
+		out := buf.String()
+
+		// The full " [DNC]" compliance marker must always appear intact.
+		assert.Contains(t, out, " [DNC]",
+			"full ' [DNC]' marker must be present even when number is truncated to 20 runes")
+
+		// Truncated-marker artifacts must never appear (prove marker is not cut).
+		assert.NotContains(t, out, "[D…",
+			"truncated marker artifact '[D…' must not appear")
+		assert.NotContains(t, out, "[DN…",
+			"truncated marker artifact '[DN…' must not appear")
+		assert.NotContains(t, out, "[DNC…",
+			"truncated marker artifact '[DNC…' must not appear")
 	})
 }
 

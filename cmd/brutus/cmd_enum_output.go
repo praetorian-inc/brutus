@@ -380,6 +380,31 @@ func truncate(s string, n int) string {
 	return string(r[:n-1]) + "\u2026"
 }
 
+// tenureJSON is the shared JSONL shape for a derived enum.Tenure, used by every
+// enum integration's JSONL output so the structured tenure object is identical
+// across sources. It carries provenance (source) and date granularity
+// (precision) rather than a confidence rollup, and a reason when unavailable.
+type tenureJSON struct {
+	Available bool   `json:"available"`
+	Months    int    `json:"months"`
+	Current   bool   `json:"current"`
+	Source    string `json:"source,omitempty"`
+	Precision string `json:"precision,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// toTenureJSON maps a library enum.Tenure to its JSONL shape.
+func toTenureJSON(t enum.Tenure) tenureJSON {
+	return tenureJSON{
+		Available: t.Available,
+		Months:    t.Months,
+		Current:   t.Current,
+		Source:    t.Source,
+		Precision: t.Precision,
+		Reason:    t.Reason,
+	}
+}
+
 // outputHunterHuman renders Hunter.io domain search results as an aligned table.
 // All attacker-controlled strings are sanitized via sanitizeTerminal (P0-4).
 func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) {
@@ -397,15 +422,15 @@ func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) 
 	}
 
 	// Header row.
-	_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-18s %-14s %-12s %-20s %-5s%s\n",
+	_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-18s %-14s %-12s %-20s %-5s %-28s%s\n",
 		colorIf(useColor, ColorBold),
-		"Email", "Name", "Title", "Phone", "Dept", "LinkedIn", "Conf",
+		"Email", "Name", "Title", "Phone", "Dept", "LinkedIn", "Conf", "Tenure",
 		colorIf(useColor, ColorReset))
 
 	for i := range result.People {
 		p := &result.People[i]
 		name := strings.TrimSpace(sanitizeTerminal(p.FirstName) + " " + sanitizeTerminal(p.LastName))
-		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-18s %-14s %-12s %-20s %s%3d%s\n",
+		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-18s %-14s %-12s %-20s %s%3d%s %-28s\n",
 			colorIf(useColor, ColorGreen),
 			truncate(sanitizeTerminal(p.Email), 32),
 			colorIf(useColor, ColorReset),
@@ -414,7 +439,8 @@ func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) 
 			truncate(sanitizeTerminal(p.Phone), 14),
 			truncate(sanitizeTerminal(p.Department), 12),
 			truncate(sanitizeTerminal(p.LinkedIn), 20),
-			colorIf(useColor, ColorCyan), p.Confidence, colorIf(useColor, ColorReset))
+			colorIf(useColor, ColorCyan), p.Confidence, colorIf(useColor, ColorReset),
+			truncate(sanitizeTerminal(p.Tenure.String()), 28))
 	}
 	_, _ = fmt.Fprintln(w)
 }
@@ -423,21 +449,22 @@ func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) 
 // encoding/json already escapes control characters, so no sanitization needed.
 func outputHunterJSONL(w io.Writer, result *hunter.DomainResult) {
 	type hunterJSON struct {
-		Type         string   `json:"type"`
-		Domain       string   `json:"domain"`
-		Organization string   `json:"organization,omitempty"`
-		Email        string   `json:"email"`
-		FirstName    string   `json:"first_name,omitempty"`
-		LastName     string   `json:"last_name,omitempty"`
-		Position     string   `json:"position,omitempty"`
-		Seniority    string   `json:"seniority,omitempty"`
-		Department   string   `json:"department,omitempty"`
-		Phone        string   `json:"phone_number,omitempty"`
-		LinkedIn     string   `json:"linkedin,omitempty"`
-		Twitter      string   `json:"twitter,omitempty"`
-		Confidence   int      `json:"confidence"`
-		EmailType    string   `json:"email_type,omitempty"`
-		Sources      []string `json:"sources,omitempty"`
+		Type         string     `json:"type"`
+		Domain       string     `json:"domain"`
+		Organization string     `json:"organization,omitempty"`
+		Email        string     `json:"email"`
+		FirstName    string     `json:"first_name,omitempty"`
+		LastName     string     `json:"last_name,omitempty"`
+		Position     string     `json:"position,omitempty"`
+		Seniority    string     `json:"seniority,omitempty"`
+		Department   string     `json:"department,omitempty"`
+		Phone        string     `json:"phone_number,omitempty"`
+		LinkedIn     string     `json:"linkedin,omitempty"`
+		Twitter      string     `json:"twitter,omitempty"`
+		Confidence   int        `json:"confidence"`
+		EmailType    string     `json:"email_type,omitempty"`
+		Sources      []string   `json:"sources,omitempty"`
+		Tenure       tenureJSON `json:"tenure"`
 	}
 
 	enc := json.NewEncoder(w)
@@ -459,6 +486,7 @@ func outputHunterJSONL(w io.Writer, result *hunter.DomainResult) {
 			Confidence:   p.Confidence,
 			EmailType:    p.Type,
 			Sources:      p.Sources,
+			Tenure:       toTenureJSON(p.Tenure),
 		}
 		if err := enc.Encode(jr); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding hunter JSON: %v\n", err)

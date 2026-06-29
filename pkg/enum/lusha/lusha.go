@@ -119,6 +119,9 @@ type Contact struct {
 	Emails        []EmailEntry
 	Phones        []PhoneEntry
 	Employment    []EmploymentEntry
+	// Tenure is always unavailable for Lusha: the source carries no employment
+	// start/end dates, so current-role tenure cannot be derived (no fabrication).
+	Tenure enum.Tenure
 }
 
 // DomainResult is the roster returned by SearchDomain for one company domain.
@@ -376,6 +379,7 @@ func toContact(resp *lushaEnrichResponse) *Contact {
 		Departments:   r.JobTitle.Departments,
 		Seniority:     r.JobTitle.Seniority,
 		Location:      r.Location.Country,
+		Tenure:        enum.UnavailableTenure("lusha", "no employment dates from source"),
 	}
 	// Employment = current role (from top-level company/jobTitle) followed by
 	// prior roles. Lusha previousEmployment lacks dates, so Current is the only
@@ -492,6 +496,7 @@ func toProspectContact(d *prospectEnrichData) Contact {
 		Departments: d.Departments,
 		Seniority:   strings.Join(seniority, ", "),
 		Location:    d.Location.Country,
+		Tenure:      enum.UnavailableTenure("lusha", "no employment dates from source"),
 	}
 	for _, e := range d.EmailAddresses {
 		c.Emails = append(c.Emails, EmailEntry{

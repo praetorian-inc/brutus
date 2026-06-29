@@ -49,9 +49,9 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 	}
 
 	if result.Revealed {
-		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s %-32s %-7s%s\n",
+		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s %-32s %-7s %-28s%s\n",
 			colorIf(useColor, ColorBold),
-			"Name", "Title", "Dept", "Org", "Email", "Status", "LinkedIn", "Phone?",
+			"Name", "Title", "Dept", "Org", "Email", "Status", "LinkedIn", "Phone?", "Tenure",
 			colorIf(useColor, ColorReset))
 	} else {
 		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-7s %-7s%s\n",
@@ -64,7 +64,7 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 		p := &result.People[i]
 		name := personName(p)
 		if result.Revealed {
-			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s %-32s %-7s\n",
+			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s %-32s %-7s %-28s\n",
 				truncate(name, 28),
 				truncate(sanitizeTerminal(p.Title), 22),
 				truncate(sanitizeTerminal(p.Department), 12),
@@ -74,7 +74,8 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 				colorIf(useColor, ColorReset),
 				truncate(sanitizeTerminal(p.EmailStatus), 10),
 				truncate(sanitizeTerminal(p.LinkedinURL), 32),
-				availabilityMark(p.HasPhone))
+				availabilityMark(p.HasPhone),
+				truncate(sanitizeTerminal(p.Tenure.String()), 28))
 		} else {
 			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %-7s %-7s\n",
 				truncate(name, 28),
@@ -137,6 +138,7 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 		State        string           `json:"state,omitempty"`
 		Country      string           `json:"country,omitempty"`
 		Employment   []employmentJSON `json:"employment,omitempty"`
+		Tenure       tenureJSON       `json:"tenure"`
 	}
 
 	enc := json.NewEncoder(w)
@@ -176,6 +178,7 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 			State:        p.State,
 			Country:      p.Country,
 			Employment:   employment,
+			Tenure:       toTenureJSON(p.Tenure),
 		}
 		if err := enc.Encode(jr); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding apollo JSON: %v\n", err)

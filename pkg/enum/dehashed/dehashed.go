@@ -68,6 +68,9 @@ type Record struct {
 	Passwords    []string
 	Database     string
 	ObtainedDate string
+	// Tenure is always unavailable for DeHashed: breach data carries no
+	// employment dates, so current-role tenure cannot be derived (no fabrication).
+	Tenure enum.Tenure
 }
 
 // DomainResult is the aggregated, de-paginated result for a domain.
@@ -97,6 +100,9 @@ type Entry struct {
 	Passwords []string // breach-exposed plaintext passwords for this entry
 	Databases []string // distinct source DBs contributing to this entry
 	Count     int      // number of raw breach records merged into this entry
+	// Tenure is always unavailable for DeHashed: breach data carries no
+	// employment dates, so current-role tenure cannot be derived (no fabrication).
+	Tenure enum.Tenure
 }
 
 // Refine applies the filtering/merging pipeline to raw breach records and
@@ -142,6 +148,7 @@ func Refine(records []Record, opts RefineOptions) []Entry {
 			Passwords: dedupStrings(r.Passwords),
 			Databases: dedupStrings([]string{r.Database}),
 			Count:     1,
+			Tenure:    unavailableTenure(),
 		})
 	}
 
@@ -345,7 +352,7 @@ func mergeEntry(entries *[]Entry, indexByEmail map[string]int, email string, r *
 	key := strings.ToLower(email)
 	idx, seen := indexByEmail[key]
 	if !seen {
-		*entries = append(*entries, Entry{Email: email})
+		*entries = append(*entries, Entry{Email: email, Tenure: unavailableTenure()})
 		idx = len(*entries) - 1
 		indexByEmail[key] = idx
 	}
@@ -392,7 +399,15 @@ func toRecord(e *apiEntry) Record {
 		Passwords:    e.Password,
 		Database:     e.Database,
 		ObtainedDate: e.ObtainedDate,
+		Tenure:       unavailableTenure(),
 	}
+}
+
+// unavailableTenure is the single source of the DeHashed tenure provenance and
+// reason, shared by Record construction and Entry building (breach data carries
+// no employment dates).
+func unavailableTenure() enum.Tenure {
+	return enum.UnavailableTenure("dehashed", "breach data, no employment dates")
 }
 
 // ---------------------------------------------------------------------------

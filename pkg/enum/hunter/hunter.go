@@ -68,6 +68,9 @@ type Person struct {
 	Confidence int
 	Type       string
 	Sources    []string
+	// Tenure is always unavailable for Hunter: the source carries no employment
+	// dates, so current-role tenure cannot be derived (no fabrication).
+	Tenure enum.Tenure
 }
 
 // DomainResult is the aggregated, de-paginated result for a domain.
@@ -260,6 +263,7 @@ func toPerson(e *apiEmail) Person {
 		Confidence: e.Confidence,
 		Type:       e.Type,
 		Sources:    sources,
+		Tenure:     enum.UnavailableTenure("hunter", "no employment dates from source"),
 	}
 }
 

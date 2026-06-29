@@ -54,6 +54,7 @@ func outputLushaHuman(w io.Writer, c *lusha.Contact, useColor bool) {
 	if line := lushaEmploymentSummary(c); line != "" {
 		_, _ = fmt.Fprintf(w, "  History:  %s\n", line)
 	}
+	_, _ = fmt.Fprintf(w, "  Tenure:   %s\n", sanitizeTerminal(c.Tenure.String()))
 
 	if len(c.Emails) == 0 && len(c.Phones) == 0 {
 		_, _ = fmt.Fprintf(w, "\n  %s No contact data returned\n", dim(useColor, SymbolInfo))
@@ -132,6 +133,7 @@ type lushaContactJSON struct {
 	Emails        []lushaEmailJSON      `json:"emails,omitempty"`
 	Phones        []lushaPhoneJSON      `json:"phones,omitempty"`
 	Employment    []lushaEmploymentJSON `json:"employment,omitempty"`
+	Tenure        tenureJSON            `json:"tenure"`
 }
 
 // toLushaContactJSON maps a public Contact to its JSONL shape (type:"lusha").
@@ -146,6 +148,7 @@ func toLushaContactJSON(c *lusha.Contact) lushaContactJSON {
 		Departments:   c.Departments,
 		Seniority:     c.Seniority,
 		Location:      c.Location,
+		Tenure:        toTenureJSON(c.Tenure),
 	}
 	for i := range c.Emails {
 		e := &c.Emails[i]
@@ -200,9 +203,9 @@ func outputLushaDomainHuman(w io.Writer, r *lusha.DomainResult, useColor bool) {
 	// Phone column is 26 wide. When DNC is set the number is truncated to 20
 	// runes before the " [DNC]" suffix (6 runes) is appended, so the marker is
 	// always fully visible and never truncated mid-marker.
-	_, _ = fmt.Fprintf(w, "\n  %s%-24s %-24s %-32s %-26s %-30s %-18s%s\n",
+	_, _ = fmt.Fprintf(w, "\n  %s%-24s %-24s %-32s %-26s %-30s %-18s %-28s%s\n",
 		colorIf(useColor, ColorBold),
-		"Name", "Title", "Email", "Phone", "LinkedIn", "Dept",
+		"Name", "Title", "Email", "Phone", "LinkedIn", "Dept", "Tenure",
 		colorIf(useColor, ColorReset))
 
 	for i := range r.Contacts {
@@ -222,7 +225,7 @@ func outputLushaDomainHuman(w io.Writer, r *lusha.DomainResult, useColor bool) {
 				phone = truncate(sanitizeTerminal(c.Phones[0].Number), 26)
 			}
 		}
-		_, _ = fmt.Fprintf(w, "  %-24s %-24s %s%-32s%s %-26s %-30s %-18s\n",
+		_, _ = fmt.Fprintf(w, "  %-24s %-24s %s%-32s%s %-26s %-30s %-18s %-28s\n",
 			truncate(sanitizeTerminal(c.Name), 24),
 			truncate(sanitizeTerminal(c.JobTitle), 24),
 			colorIf(useColor, ColorGreen),
@@ -230,7 +233,8 @@ func outputLushaDomainHuman(w io.Writer, r *lusha.DomainResult, useColor bool) {
 			colorIf(useColor, ColorReset),
 			phone,
 			truncate(sanitizeTerminal(c.LinkedIn), 30),
-			truncate(sanitizeTerminal(strings.Join(c.Departments, ", ")), 18))
+			truncate(sanitizeTerminal(strings.Join(c.Departments, ", ")), 18),
+			truncate(sanitizeTerminal(c.Tenure.String()), 28))
 	}
 	_, _ = fmt.Fprintln(w)
 }

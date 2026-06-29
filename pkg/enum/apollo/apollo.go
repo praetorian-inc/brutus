@@ -82,7 +82,11 @@ type Person struct {
 	State       string
 	Country     string
 	Employment  []EmploymentEntry
-	Revealed    bool
+	// Tenure is the derived length of the person's CURRENT role, computed from
+	// the employment_history start dates. It is Available only after a reveal
+	// (the dates are populated by people/match); pre-reveal it is unavailable.
+	Tenure   enum.Tenure
+	Revealed bool
 }
 
 // EmploymentEntry is one raw entry from a person's employment_history. Raw
@@ -420,6 +424,57 @@ func (p apolloPerson) toPerson() Person {
 		State:        p.State,
 		Country:      p.Country,
 		Employment:   employment,
+		Tenure:       computeTenure(employment, time.Now()),
+	}
+}
+
+// computeTenure derives the current-role tenure from a person's employment
+// history. It selects the entry with Current==true (the one with the latest
+// parseable StartDate when several are current) and measures from its StartDate
+// to now (the current role has an open EndDate). When there is no usable data it
+// returns an unavailable Tenure with a reason — it never fabricates dates.
+func computeTenure(employment []EmploymentEntry, now time.Time) enum.Tenure {
+	const source = "apollo:employment_history"
+
+	if len(employment) == 0 {
+		return enum.UnavailableTenure(source, "employment history not revealed")
+	}
+
+	var current *EmploymentEntry
+	var currentStart time.Time
+	for i := range employment {
+		e := &employment[i]
+		if !e.Current {
+			continue
+		}
+		start, _, ok := enum.ParseFlexibleDate(e.StartDate)
+		switch {
+		case current == nil:
+			current = e
+			if ok {
+				currentStart = start
+			}
+		case ok && (currentStart.IsZero() || start.After(currentStart)):
+			current = e
+			currentStart = start
+		}
+	}
+
+	if current == nil {
+		return enum.UnavailableTenure(source, "no current role with dates")
+	}
+
+	start, precision, ok := enum.ParseFlexibleDate(current.StartDate)
+	if !ok {
+		return enum.UnavailableTenure(source, "current role has no start date")
+	}
+
+	return enum.Tenure{
+		Available: true,
+		Months:    enum.MonthsBetween(start, now),
+		Current:   true,
+		Source:    source,
+		Precision: precision,
 	}
 }
 
@@ -439,6 +494,7 @@ func mergeReveal(p *Person, m Person) {
 	p.State = m.State
 	p.Country = m.Country
 	p.Employment = m.Employment
+	p.Tenure = m.Tenure
 	p.Revealed = true
 }
 

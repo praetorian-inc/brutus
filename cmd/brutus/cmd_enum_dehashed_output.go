@@ -52,21 +52,21 @@ func outputDehashedHuman(w io.Writer, domain string, rawFetched, total, balance 
 
 	// Header row. The Password(s) column is only present with showCredentials.
 	if showCredentials {
-		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-18s %-20s %-24s%s\n",
+		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-18s %-20s %-24s %-28s%s\n",
 			colorIf(useColor, ColorBold),
-			"Email", "Name", "Username", "Phone", "Sources", "Password(s)",
+			"Email", "Name", "Username", "Phone", "Sources", "Password(s)", "Tenure",
 			colorIf(useColor, ColorReset))
 	} else {
-		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-18s %-20s%s\n",
+		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-18s %-20s %-28s%s\n",
 			colorIf(useColor, ColorBold),
-			"Email", "Name", "Username", "Phone", "Sources",
+			"Email", "Name", "Username", "Phone", "Sources", "Tenure",
 			colorIf(useColor, ColorReset))
 	}
 
 	for i := range entries {
 		e := &entries[i]
 		if showCredentials {
-			_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-18s %-20s %-24s\n",
+			_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-18s %-20s %-24s %-28s\n",
 				colorIf(useColor, ColorGreen),
 				truncate(sanitizeTerminal(e.Email), 32),
 				colorIf(useColor, ColorReset),
@@ -74,17 +74,19 @@ func outputDehashedHuman(w io.Writer, domain string, rawFetched, total, balance 
 				truncate(sanitizeTerminal(joinField(e.Usernames)), 22),
 				truncate(sanitizeTerminal(joinField(e.Phones)), 18),
 				truncate(sanitizeTerminal(joinSources(e.Databases)), 20),
-				truncate(sanitizeTerminal(joinField(e.Passwords)), 24))
+				truncate(sanitizeTerminal(joinField(e.Passwords)), 24),
+				truncate(sanitizeTerminal(e.Tenure.String()), 28))
 			continue
 		}
-		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-18s %-20s\n",
+		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-18s %-20s %-28s\n",
 			colorIf(useColor, ColorGreen),
 			truncate(sanitizeTerminal(e.Email), 32),
 			colorIf(useColor, ColorReset),
 			truncate(sanitizeTerminal(joinField(e.Names)), 22),
 			truncate(sanitizeTerminal(joinField(e.Usernames)), 22),
 			truncate(sanitizeTerminal(joinField(e.Phones)), 18),
-			truncate(sanitizeTerminal(joinSources(e.Databases)), 20))
+			truncate(sanitizeTerminal(joinSources(e.Databases)), 20),
+			truncate(sanitizeTerminal(e.Tenure.String()), 28))
 	}
 	_, _ = fmt.Fprintln(w)
 }
@@ -110,14 +112,15 @@ func joinSources(databases []string) string {
 // control characters, so no sanitization is needed.
 func outputDehashedJSONL(w io.Writer, entries []dehashed.Entry, showCredentials bool) {
 	type dehashedJSON struct {
-		Type      string   `json:"type"`
-		Email     string   `json:"email"`
-		Names     []string `json:"names,omitempty"`
-		Usernames []string `json:"usernames,omitempty"`
-		Phones    []string `json:"phones,omitempty"`
-		Passwords []string `json:"passwords,omitempty"`
-		Databases []string `json:"databases"`
-		Count     int      `json:"count"`
+		Type      string     `json:"type"`
+		Email     string     `json:"email"`
+		Names     []string   `json:"names,omitempty"`
+		Usernames []string   `json:"usernames,omitempty"`
+		Phones    []string   `json:"phones,omitempty"`
+		Passwords []string   `json:"passwords,omitempty"`
+		Databases []string   `json:"databases"`
+		Count     int        `json:"count"`
+		Tenure    tenureJSON `json:"tenure"`
 	}
 
 	enc := json.NewEncoder(w)
@@ -131,6 +134,7 @@ func outputDehashedJSONL(w io.Writer, entries []dehashed.Entry, showCredentials 
 			Phones:    e.Phones,
 			Databases: e.Databases,
 			Count:     e.Count,
+			Tenure:    toTenureJSON(e.Tenure),
 		}
 		if showCredentials {
 			jr.Passwords = e.Passwords

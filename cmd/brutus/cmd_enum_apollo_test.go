@@ -183,6 +183,40 @@ func TestRunEnumApollo_DiscoverWithZeroLimitAllowed(t *testing.T) {
 		"discover with --limit 0 must not be rejected")
 }
 
+// TestRunEnumApollo_EnrichWithZeroLimitRejected asserts that --enrich with the
+// default/unbounded --limit 0 is rejected up front: enrichment spends one credit
+// per person, so an unbounded reveal must be refused before any network call.
+func TestRunEnumApollo_EnrichWithZeroLimitRejected(t *testing.T) {
+	resetApolloFlags()
+	flagApolloEnrich = true
+	flagApolloLimit = 0
+
+	t.Setenv("APOLLO_API_KEY", "test-key")
+	err := runEnumApollo(nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--enrich",
+		"error must mention --enrich")
+	assert.Contains(t, err.Error(), "--limit",
+		"error must tell the operator to set a positive --limit")
+}
+
+// TestRunEnumApollo_EnrichWithPositiveLimitPassesGuard asserts that --enrich with
+// a positive --limit clears the credit-bound guard (it then fails later on the
+// missing API key, NOT on the limit guard).
+func TestRunEnumApollo_EnrichWithPositiveLimitPassesGuard(t *testing.T) {
+	resetApolloFlags()
+	flagApolloEnrich = true
+	flagApolloLimit = 50
+
+	t.Setenv("APOLLO_API_KEY", "")
+	err := runEnumApollo(nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "APOLLO_API_KEY",
+		"with a positive --limit the guard must pass; failure should be the missing key")
+	assert.NotContains(t, err.Error(), "--enrich requires",
+		"positive --limit must clear the --enrich credit guard")
+}
+
 // ---------------------------------------------------------------------------
 // T003 cmd: outputApolloJSONL + outputApolloHuman
 // ---------------------------------------------------------------------------
@@ -258,6 +292,31 @@ func TestOutputApolloJSONL(t *testing.T) {
 		assert.Equal(t, true, obj["revealed"])
 	})
 
+	t.Run("revealed person retains has_email/has_phone availability", func(t *testing.T) {
+		result := &apollo.DomainResult{
+			Domain:   "example.com",
+			Revealed: true,
+			People: []apollo.Person{
+				{
+					ID:       "p1",
+					Name:     "Alice Smith",
+					Email:    "alice@example.com",
+					HasEmail: true,
+					HasPhone: true,
+					Revealed: true,
+				},
+			},
+			Total: 1,
+		}
+		var buf bytes.Buffer
+		outputApolloJSONL(&buf, result)
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &obj))
+		assert.Equal(t, true, obj["has_email"], "enriched JSONL must retain has_email availability")
+		assert.Equal(t, true, obj["has_phone"], "enriched JSONL must retain has_phone availability (phone is never revealed)")
+	})
+
 	t.Run("empty result emits zero lines", func(t *testing.T) {
 		result := &apollo.DomainResult{Domain: "empty.com"}
 		var buf bytes.Buffer
@@ -310,6 +369,7 @@ func TestOutputApolloHuman(t *testing.T) {
 					Name:        "Alice Smith",
 					Email:       "alice@example.com",
 					EmailStatus: "verified",
+					HasPhone:    true,
 					Revealed:    true,
 				},
 			},
@@ -324,6 +384,7 @@ func TestOutputApolloHuman(t *testing.T) {
 		assert.Contains(t, out, "verified")
 		// Enriched output must report credits charged.
 		assert.Contains(t, out, "credits charged", "enriched output must mention credits charged")
+		assert.Contains(t, out, "Phone?", "enriched table must retain Phone? availability column (phone is not revealed)")
 	})
 
 	t.Run("empty result shows no-people message", func(t *testing.T) {

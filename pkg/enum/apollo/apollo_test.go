@@ -766,6 +766,42 @@ func TestRevealEmails_SkipsEmptyID(t *testing.T) {
 	assert.False(t, result.People[2].Revealed, "empty-ID person should not be revealed")
 }
 
+// TestRevealEmails_DeduplicatesIDs asserts that a duplicate person id (which
+// pagination can surface) triggers only ONE /people/match call — enriching the
+// same id twice would burn a credit for an already-revealed record.
+func TestRevealEmails_DeduplicatesIDs(t *testing.T) {
+	var requestCount atomic.Int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(makeMatchResponse("alice@example.com", "verified"))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	result := &DomainResult{
+		Domain: "example.com",
+		People: []Person{
+			{ID: "p1"},
+			{ID: "p1"}, // duplicate — must NOT trigger a second match call
+			{ID: "p2"},
+		},
+	}
+
+	err := c.RevealEmails(context.Background(), result)
+	require.NoError(t, err)
+
+	// Two unique ids -> exactly two match calls (not three).
+	assert.Equal(t, int32(2), requestCount.Load(), "duplicate id must not trigger a second match call")
+	// CreditsCharged counts unique enriched ids, not raw rows.
+	assert.Equal(t, 2, result.CreditsCharged, "CreditsCharged must count unique ids only")
+	// Both duplicate rows still get the merged email.
+	assert.Equal(t, "alice@example.com", result.People[0].Email)
+	assert.Equal(t, "alice@example.com", result.People[1].Email)
+	assert.Equal(t, "alice@example.com", result.People[2].Email)
+}
+
 func TestRevealEmails_SerialCount(t *testing.T) {
 	var requestCount atomic.Int32
 

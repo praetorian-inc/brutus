@@ -110,6 +110,15 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--limit must be >= 0")
 	}
 
+	// --enrich consumes one Apollo credit per discovered person, so it must be
+	// bounded. Without a positive --limit, "--enrich" against a large org would
+	// reveal the entire directory and silently burn ~one credit/person — the exact
+	// cost blowout this discover→enrich split exists to prevent. Free discovery may
+	// still run uncapped (--limit 0); only credit-spending enrichment requires a cap.
+	if enrich && flagApolloLimit <= 0 {
+		return fmt.Errorf("--enrich requires a positive --limit to bound credit spend (e.g. --limit 50)")
+	}
+
 	apiKey, err := resolveApolloAPIKey(flagApolloAPIKey)
 	if err != nil {
 		return err
@@ -160,7 +169,10 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 	if enrich {
 		// Discovery is free, so the only credit-spending action is --enrich. Warn
 		// once, on stderr, with the exact count that will be charged.
-		if !flagQuiet && !flagJSON && len(result.People) > 0 {
+		// Emit the credit-spend notice on stderr regardless of --json: stderr does
+		// not corrupt stdout JSON, and --enrich is the only credit-spending path, so
+		// the operator must always see the spend (unless they explicitly --quiet).
+		if !flagQuiet && len(result.People) > 0 {
 			fmt.Fprintf(os.Stderr, "%s --enrich will reveal emails for %d people (consumes ~%d Apollo credits)\n",
 				dim(useColor, SymbolInfo), len(result.People), len(result.People))
 		}

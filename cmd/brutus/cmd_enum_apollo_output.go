@@ -28,7 +28,8 @@ import (
 // All attacker-controlled strings are sanitized via sanitizeTerminal (P0-4).
 // Columns adapt on result.Revealed: discovery (free) shows
 // Name|Title|Dept|Org|Email?|Phone? where Email?/Phone? render AVAILABILITY
-// (✓/–) — not actual values; enriched adds Email|Status|LinkedIn.
+// (✓/–) — not actual values; enriched shows Email|Status|LinkedIn and keeps a
+// trailing Phone? AVAILABILITY column (✓/–), since phone is never revealed.
 func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) {
 	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
 		heading(useColor, "Apollo: "+sanitizeTerminal(result.Domain)))
@@ -48,9 +49,9 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 	}
 
 	if result.Revealed {
-		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s %-32s%s\n",
+		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-32s %-10s %-32s %-7s%s\n",
 			colorIf(useColor, ColorBold),
-			"Name", "Title", "Dept", "Org", "Email", "Status", "LinkedIn",
+			"Name", "Title", "Dept", "Org", "Email", "Status", "LinkedIn", "Phone?",
 			colorIf(useColor, ColorReset))
 	} else {
 		_, _ = fmt.Fprintf(w, "\n  %s%-28s %-22s %-12s %-22s %-7s %-7s%s\n",
@@ -63,7 +64,7 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 		p := &result.People[i]
 		name := personName(p)
 		if result.Revealed {
-			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s %-32s\n",
+			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %s%-32s%s %-10s %-32s %-7s\n",
 				truncate(name, 28),
 				truncate(sanitizeTerminal(p.Title), 22),
 				truncate(sanitizeTerminal(p.Department), 12),
@@ -72,7 +73,8 @@ func outputApolloHuman(w io.Writer, result *apollo.DomainResult, useColor bool) 
 				truncate(sanitizeTerminal(p.Email), 32),
 				colorIf(useColor, ColorReset),
 				truncate(sanitizeTerminal(p.EmailStatus), 10),
-				truncate(sanitizeTerminal(p.LinkedinURL), 32))
+				truncate(sanitizeTerminal(p.LinkedinURL), 32),
+				availabilityMark(p.HasPhone))
 		} else {
 			_, _ = fmt.Fprintf(w, "  %-28s %-22s %-12s %-22s %-7s %-7s\n",
 				truncate(name, 28),
@@ -116,6 +118,8 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 		Type         string           `json:"type"`
 		Domain       string           `json:"domain"`
 		Revealed     bool             `json:"revealed"`
+		HasEmail     bool             `json:"has_email"`
+		HasPhone     bool             `json:"has_phone"`
 		ID           string           `json:"id"`
 		Name         string           `json:"name,omitempty"`
 		FirstName    string           `json:"first_name,omitempty"`
@@ -153,6 +157,8 @@ func outputApolloJSONL(w io.Writer, result *apollo.DomainResult) {
 			Type:         "apollo",
 			Domain:       result.Domain,
 			Revealed:     p.Revealed,
+			HasEmail:     p.HasEmail,
+			HasPhone:     p.HasPhone,
 			ID:           p.ID,
 			Name:         p.Name,
 			FirstName:    p.FirstName,

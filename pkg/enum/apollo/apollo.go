@@ -250,9 +250,23 @@ func (c *Client) EnrichByIDs(ctx context.Context, ids []string) ([]Person, error
 // reflected even if a later match fails). Surfaces the first error (no partial
 // swallow), leaving already-merged records intact.
 func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
-	ids := make([]string, len(result.People))
+	// Deduplicate ids before enriching: pagination can surface the same person
+	// twice, and EnrichByIDs spends one credit per id — enriching a duplicate would
+	// burn a credit for a record already revealed. Empty ids are dropped here too
+	// (EnrichByIDs also skips them). The merge-by-id loop below still fans a single
+	// enriched record back onto every row sharing that id.
+	ids := make([]string, 0, len(result.People))
+	seen := make(map[string]struct{}, len(result.People))
 	for i := range result.People {
-		ids[i] = result.People[i].ID
+		id := result.People[i].ID
+		if id == "" {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
 	}
 
 	enriched, err := c.EnrichByIDs(ctx, ids)

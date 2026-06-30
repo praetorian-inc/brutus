@@ -214,25 +214,37 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 // and --email-file, plus any --domain-generated candidates. It errors when no
 // targets are supplied.
 func githubEnumTargets() ([]string, error) {
-	var raw []string
-	if flagGithubEnumEmails != "" {
-		raw = append(raw, strings.Split(flagGithubEnumEmails, ",")...)
+	var generated []string
+	if flagGithubEnumDomain != "" {
+		g, err := githubEnumGenerate()
+		if err != nil {
+			return nil, err
+		}
+		generated = g
 	}
-	if flagGithubEnumEmailFile != "" {
-		lines, err := loadLinesFromFile(flagGithubEnumEmailFile)
+
+	return collectGithubEmails(flagGithubEnumEmails, flagGithubEnumEmailFile, generated,
+		fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain"))
+}
+
+// collectGithubEmails parses, trims, and dedups email targets from an --emails
+// CSV and an --email-file (preserving first-seen order), then appends any
+// pre-generated candidates. noSourceErr is returned verbatim when no targets
+// resolve, letting each subcommand phrase its own guidance (the parent allows
+// --domain; the map subcommand does not).
+func collectGithubEmails(emailsCSV, emailFile string, generated []string, noSourceErr error) ([]string, error) {
+	var raw []string
+	if emailsCSV != "" {
+		raw = append(raw, strings.Split(emailsCSV, ",")...)
+	}
+	if emailFile != "" {
+		lines, err := loadLinesFromFile(emailFile)
 		if err != nil {
 			return nil, fmt.Errorf("reading --email-file: %w", err)
 		}
 		raw = append(raw, lines...)
 	}
-
-	if flagGithubEnumDomain != "" {
-		generated, err := githubEnumGenerate()
-		if err != nil {
-			return nil, err
-		}
-		raw = append(raw, generated...)
-	}
+	raw = append(raw, generated...)
 
 	seen := make(map[string]struct{})
 	var emails []string
@@ -249,7 +261,7 @@ func githubEnumTargets() ([]string, error) {
 	}
 
 	if len(emails) == 0 {
-		return nil, fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain")
+		return nil, noSourceErr
 	}
 	return emails, nil
 }

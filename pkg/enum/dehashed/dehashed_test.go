@@ -34,7 +34,7 @@ import (
 // ---------------------------------------------------------------------------
 
 func newTestClient(baseURL string) *Client {
-	c := NewClient("testkey", 5*time.Second, 10)
+	c, _ := NewClient("testkey", 5*time.Second, 10, "") // Empty proxy never errors.
 	c.baseURL = baseURL
 	return c
 }
@@ -678,7 +678,8 @@ func TestDo_SetsAuthHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(testKey, 5*time.Second, 10)
+	c, err := NewClient(testKey, 5*time.Second, 10, "")
+	require.NoError(t, err)
 	c.baseURL = srv.URL
 
 	_, _ = c.do(context.Background(), searchRequest{Query: "domain:example.com", Size: 10, Page: 1})

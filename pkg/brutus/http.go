@@ -32,26 +32,52 @@ func NewHTTPClient(timeout time.Duration, tlsConfig *tls.Config) *http.Client {
 }
 
 // NewHTTPClientWithProxy creates an *http.Client that routes requests through a
-// SOCKS5 proxy when proxyURL is non-empty. Returns an error if the proxy URL is
-// invalid or uses an unsupported scheme, rather than silently falling back to a
-// direct connection.
+// proxy when proxyURL is non-empty. Supports socks5/socks5h (raw TCP dialing)
+// and http/https (HTTP CONNECT / absolute-form, with Proxy-Authorization
+// derived from URL userinfo). Returns an error if the proxy URL is invalid or
+// uses an unsupported scheme, rather than silently falling back to a direct
+// connection.
 func NewHTTPClientWithProxy(timeout time.Duration, tlsConfig *tls.Config, proxyURL string) (*http.Client, error) {
-	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+	transport, err := ProxyTransport(proxyURL, timeout, tlsConfig)
+	if err != nil {
+		return nil, err
 	}
-
-	if proxyURL != "" {
-		dialFunc, err := NewProxyDialFunc(proxyURL, timeout)
-		if err != nil {
-			return nil, fmt.Errorf("configuring proxy: %w", err)
-		}
-		transport.DialContext = dialFunc
-	}
-
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: transport,
 	}, nil
+}
+
+// ProxyTransport builds an *http.Transport configured to route requests through
+// proxyURL. An empty proxyURL yields a direct transport. socks5/socks5h proxies
+// are wired via DialContext; http/https proxies via Transport.Proxy (Go injects
+// Proxy-Authorization from the URL userinfo automatically). tlsConfig may be nil.
+func ProxyTransport(proxyURL string, timeout time.Duration, tlsConfig *tls.Config) (*http.Transport, error) {
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	if proxyURL == "" {
+		return transport, nil
+	}
+
+	u, err := parseProxyURL(proxyURL)
+	if err != nil {
+		return nil, err
+	}
+
+	switch u.Scheme {
+	case proxySchemeSOCKS5, proxySchemeSOCKS5H:
+		dialFunc, err := socksDialFunc(u, timeout)
+		if err != nil {
+			return nil, fmt.Errorf("configuring proxy: %w", err)
+		}
+		transport.DialContext = dialFunc
+	case proxySchemeHTTP, proxySchemeHTTPS:
+		transport.Proxy = http.ProxyURL(u)
+	}
+
+	return transport, nil
 }
 
 // SchemeFromTLSMode returns "https" if TLS is enabled, "http" otherwise.

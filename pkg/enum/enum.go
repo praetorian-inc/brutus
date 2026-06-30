@@ -18,6 +18,7 @@ package enum
 import (
 	"context"
 	"errors"
+	"net/http"
 	"time"
 )
 
@@ -30,6 +31,41 @@ type Config struct {
 	RateLimit float64       // max requests per second (0 = unlimited)
 	Jitter    time.Duration // random delay variance for rate limiting
 	Verbose   bool          // verbose logging to stderr
+	ProxyURL  string        // proxy URL for HTTP enum sources (empty = direct)
+}
+
+// httpClientCtxKey is the context key under which the shared per-run enum HTTP
+// client is stored. Plugin oracles retrieve it via HTTPClientFromContext so a
+// single pooled (and possibly proxied) client is reused across all checks.
+type httpClientCtxKey struct{}
+
+// WithHTTPClient returns a context carrying client for plugin oracles to reuse.
+func WithHTTPClient(ctx context.Context, client *http.Client) context.Context {
+	return context.WithValue(ctx, httpClientCtxKey{}, client)
+}
+
+// HTTPClientFromContext returns the shared enum HTTP client stored in ctx, or
+// nil if none was set.
+func HTTPClientFromContext(ctx context.Context) *http.Client {
+	client, _ := ctx.Value(httpClientCtxKey{}).(*http.Client)
+	return client
+}
+
+// proxyURLCtxKey is the context key under which the per-run proxy URL is stored.
+// Plugin oracles that build a specialized client (e.g. the google enumerator)
+// read it via ProxyURLFromContext to honor --proxy.
+type proxyURLCtxKey struct{}
+
+// WithProxyURL returns a context carrying the proxy URL for plugin oracles that
+// construct their own HTTP client.
+func WithProxyURL(ctx context.Context, proxyURL string) context.Context {
+	return context.WithValue(ctx, proxyURLCtxKey{}, proxyURL)
+}
+
+// ProxyURLFromContext returns the proxy URL stored in ctx, or "" if none was set.
+func ProxyURLFromContext(ctx context.Context) string {
+	proxyURL, _ := ctx.Value(proxyURLCtxKey{}).(string)
+	return proxyURL
 }
 
 // validate checks the configuration and applies defaults.

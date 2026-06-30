@@ -56,7 +56,10 @@ func init() {
 }
 
 func runBadkeys(cmd *cobra.Command, args []string) error {
-	base := buildBaseConfig(cmd)
+	base, err := buildBaseConfig(cmd)
+	if err != nil {
+		return err
+	}
 
 	// Badkeys mode: SSH-only, embedded bad keys only
 	base.protocolOverride = "ssh"

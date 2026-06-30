@@ -233,10 +233,10 @@ func (e *Enumerator) postValidity(ctx context.Context, sess *session, email stri
 		case http.StatusOK: // 200 — available (no account)
 			return false, nil
 		case http.StatusTooManyRequests: // 429 — rate limited
-			if attempt >= maxRateLimitRetries {
+			if attempt >= e.existenceMaxRetries {
 				return false, fmt.Errorf("rate limited (HTTP 429) after %d retries", attempt)
 			}
-			if err := e.sleep(ctx, rateLimitBackoff); err != nil {
+			if err := e.sleep(ctx, e.existenceBackoff); err != nil {
 				return false, err
 			}
 			continue

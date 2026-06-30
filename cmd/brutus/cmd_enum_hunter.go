@@ -101,7 +101,14 @@ func runEnumHunter(cmd *cobra.Command, args []string) error {
 			dim(useColor, SymbolInfo), flagHunterDomain)
 	}
 
-	client := hunter.NewClient(apiKey, flagTimeout, flagHunterLimit)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+	client, err := hunter.NewClient(apiKey, flagTimeout, flagHunterLimit, proxyURL)
+	if err != nil {
+		return err
+	}
 	result, err := client.Search(ctx, flagHunterDomain)
 	if err != nil {
 		return classifyHunterError(err)

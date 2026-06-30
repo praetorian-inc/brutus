@@ -50,7 +50,10 @@ func (p *Plugin) Check(ctx context.Context, subject string, timeout time.Duratio
 		return result
 	}
 
-	client := enum.NewEnumHTTPClient(timeout)
+	client := enum.HTTPClientFromContext(ctx)
+	if client == nil {
+		client = enum.NewEnumHTTPClient(timeout)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = err

@@ -65,7 +65,10 @@ func init() {
 }
 
 func runCreds(cmd *cobra.Command, args []string) error {
-	base := buildBaseConfig(cmd)
+	base, err := buildBaseConfig(cmd)
+	if err != nil {
+		return err
+	}
 
 	// Load credentials (creds-specific)
 	usernames, passwords, credPairs, err := loadCredentialInputs(cmd)

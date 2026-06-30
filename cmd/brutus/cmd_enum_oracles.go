@@ -164,6 +164,11 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+
 	// Phase 1: DNS TXT recon — supporting context, not the headline. Surfaces
 	// the candidate oracles so the oracle check below has something to validate.
 	// Full TXT detail stays under --verbose and in JSON; the human path leads
@@ -283,6 +288,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
 			Verbose:  flagVerbose,
+			ProxyURL: proxyURL,
 		}
 		validResults, validErr := enum.EnumerateWithContext(ctx, validCfg)
 		if validErr != nil {
@@ -366,6 +372,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		RateLimit: flagRateLimit,
 		Jitter:    flagJitter,
 		Verbose:   flagVerbose,
+		ProxyURL:  proxyURL,
 	}
 
 	results, err := enum.EnumerateWithContext(ctx, cfg)
@@ -392,6 +399,11 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
 
 	// Phase 1: Determine oracles to test
 	var services []string
@@ -455,6 +467,7 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
 			Verbose:  flagVerbose,
+			ProxyURL: proxyURL,
 		}
 		var enumErr error
 		results, enumErr = enum.EnumerateWithContext(ctx, cfg)
@@ -529,7 +542,12 @@ func confirmTeamsOracle(ctx context.Context, knownValid string, useColor bool) s
 		return "teams: available (unconfirmed) — run `brutus enum active teams auth` then re-run to confirm"
 	}
 
-	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, false)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return fmt.Sprintf("teams: proxy misconfigured: %v", err)
+	}
+
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, proxyURL, flagTimeout, false)
 	if err != nil {
 		return fmt.Sprintf("teams: unconfirmed (enumerator setup failed: %v)", err)
 	}
@@ -537,7 +555,7 @@ func confirmTeamsOracle(ctx context.Context, knownValid string, useColor bool) s
 	// Wire a refresh callback only when a refresh token is available, mirroring
 	// runEnumTeamsUsers so an expired access token is renewed once.
 	if refreshToken != "" {
-		client, cerr := teams.NewClient("organizations", teams.DefaultClientID, teams.DefaultScope, flagProxy, flagTimeout)
+		client, cerr := teams.NewClient("organizations", teams.DefaultClientID, teams.DefaultScope, proxyURL, flagTimeout)
 		if cerr == nil {
 			enumerator.SetRefreshFunc(func(ctx context.Context) (string, error) {
 				tok, rerr := client.RefreshAccessToken(ctx, refreshToken)

@@ -125,16 +125,20 @@ type Client struct {
 
 // NewClient builds a Hunter client. timeout is the per-request HTTP budget.
 // pageSize <= 0 falls back to defaultPageSize.
-func NewClient(apiKey string, timeout time.Duration, pageSize int) *Client {
+func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL string) (*Client, error) {
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
 	}
+	httpClient, err := enum.NewEnumHTTPClientWithProxy(timeout, proxyURL)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
 		apiKey:     apiKey,
-		httpClient: enum.NewEnumHTTPClient(timeout),
+		httpClient: httpClient,
 		baseURL:    defaultBaseURL,
 		pageSize:   pageSize,
-	}
+	}, nil
 }
 
 // Search runs Domain Search for domain, following pagination until exhausted,

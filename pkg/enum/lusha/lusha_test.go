@@ -32,7 +32,7 @@ import (
 
 // newTestClient overrides baseURL for httptest usage.
 func newTestClient(baseURL string) *Client {
-	c := NewClient("testkey", 5*time.Second)
+	c, _ := NewClient("testkey", 5*time.Second, "") // Empty proxy never errors.
 	c.baseURL = baseURL
 	return c
 }

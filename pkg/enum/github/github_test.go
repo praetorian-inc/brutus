@@ -212,7 +212,7 @@ func newAPIServer(t *testing.T, token string, emailToLogin map[string]*string, d
 // repeatable.
 func newTestEnumerator(t *testing.T, webSrv, apiSrv *httptest.Server, token string) *Enumerator {
 	t.Helper()
-	e, err := NewEnumerator("", 5*time.Second, token)
+	e, err := NewEnumerator("", 5*time.Second, token, false)
 	require.NoError(t, err, "NewEnumerator must succeed")
 	if webSrv != nil {
 		e.webBaseURL = webSrv.URL
@@ -305,7 +305,7 @@ func TestExistence_429_RetryThenSucceed(t *testing.T) {
 	webSrv := httptest.NewServer(mux)
 	t.Cleanup(webSrv.Close)
 
-	e, err := NewEnumerator("", 5*time.Second, "")
+	e, err := NewEnumerator("", 5*time.Second, "", false)
 	require.NoError(t, err)
 	e.webBaseURL = webSrv.URL
 	e.sleep = noopSleep
@@ -338,7 +338,7 @@ func TestSessionParseFail_JoinPageMissingAutoCheck(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	e, err := NewEnumerator("", 5*time.Second, "")
+	e, err := NewEnumerator("", 5*time.Second, "", false)
 	require.NoError(t, err)
 	e.webBaseURL = srv.URL
 	e.sleep = noopSleep
@@ -488,7 +488,7 @@ func TestReveal_DeleteAlwaysAttempted(t *testing.T) {
 	apiSrv := httptest.NewServer(mux)
 	t.Cleanup(apiSrv.Close)
 
-	e, err := NewEnumerator("", 5*time.Second, token)
+	e, err := NewEnumerator("", 5*time.Second, token, false)
 	require.NoError(t, err)
 	e.apiBaseURL = apiSrv.URL
 	e.settleDelay = 0
@@ -553,7 +553,7 @@ func TestReveal_BearerTokenSentToAPI(t *testing.T) {
 	apiSrv := httptest.NewServer(mux)
 	t.Cleanup(apiSrv.Close)
 
-	e, err := NewEnumerator("", 5*time.Second, token)
+	e, err := NewEnumerator("", 5*time.Second, token, false)
 	require.NoError(t, err)
 	e.apiBaseURL = apiSrv.URL
 	e.settleDelay = 0
@@ -594,7 +594,7 @@ func TestReveal_TokenNotLeakedInError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	e, err := NewEnumerator("", 5*time.Second, token)
+	e, err := NewEnumerator("", 5*time.Second, token, false)
 	require.NoError(t, err)
 	e.apiBaseURL = srv.URL
 	e.settleDelay = 0
@@ -706,7 +706,7 @@ func TestReveal_MidFlowErrorAndDeleteFailure_OriginalErrorJoined(t *testing.T) {
 	apiSrv := httptest.NewServer(mux)
 	t.Cleanup(apiSrv.Close)
 
-	e, err := NewEnumerator("", 5*time.Second, token)
+	e, err := NewEnumerator("", 5*time.Second, token, false)
 	require.NoError(t, err)
 	e.apiBaseURL = apiSrv.URL
 	e.settleDelay = 0
@@ -867,4 +867,36 @@ func TestEnumerateWith_CallbackSerializationAndOrder(t *testing.T) {
 	assert.False(t, results[1].Exists, "b@ (200) must be Exists=false")
 	assert.True(t, results[2].Exists, "c@ (422) must be Exists=true")
 	assert.False(t, results[3].Exists, "d@ (200) must be Exists=false")
+}
+
+// ---------------------------------------------------------------------------
+// NewEnumerator: rotatingProxy flag wires correct backoff / retry constants
+// ---------------------------------------------------------------------------
+
+// TestNewEnumerator_RotatingProxy verifies that the rotatingProxy parameter
+// controls which 429-retry constants are stored on the Enumerator.
+// When false the defaults (rateLimitBackoff / maxRateLimitRetries) are used;
+// when true the faster rotating-proxy constants are used.
+func TestNewEnumerator_RotatingProxy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rotatingProxy=false uses default throttle", func(t *testing.T) {
+		t.Parallel()
+		e, err := NewEnumerator("", time.Second, "", false)
+		require.NoError(t, err)
+		assert.Equal(t, rateLimitBackoff, e.existenceBackoff,
+			"existenceBackoff must equal rateLimitBackoff when rotatingProxy=false")
+		assert.Equal(t, maxRateLimitRetries, e.existenceMaxRetries,
+			"existenceMaxRetries must equal maxRateLimitRetries when rotatingProxy=false")
+	})
+
+	t.Run("rotatingProxy=true uses rotating-proxy throttle", func(t *testing.T) {
+		t.Parallel()
+		e, err := NewEnumerator("", time.Second, "", true)
+		require.NoError(t, err)
+		assert.Equal(t, rotatingProxyBackoff, e.existenceBackoff,
+			"existenceBackoff must equal rotatingProxyBackoff when rotatingProxy=true")
+		assert.Equal(t, rotatingProxyMaxRetries, e.existenceMaxRetries,
+			"existenceMaxRetries must equal rotatingProxyMaxRetries when rotatingProxy=true")
+	})
 }

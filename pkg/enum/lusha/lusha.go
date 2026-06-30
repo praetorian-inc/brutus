@@ -179,12 +179,16 @@ type Client struct {
 
 // NewClient builds a Lusha client. timeout is the per-request HTTP budget.
 // There is no page size: one identity in, one contact out.
-func NewClient(apiKey string, timeout time.Duration) *Client {
+func NewClient(apiKey string, timeout time.Duration, proxyURL string) (*Client, error) {
+	httpClient, err := enum.NewEnumHTTPClientWithProxy(timeout, proxyURL)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
 		apiKey:     apiKey,
-		httpClient: enum.NewEnumHTTPClient(timeout),
+		httpClient: httpClient,
 		baseURL:    defaultBaseURL,
-	}
+	}, nil
 }
 
 // Enrich resolves one identity to an enriched contact via v3 search-and-enrich.

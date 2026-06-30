@@ -108,6 +108,11 @@ func runEnumCustom(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+
 	cfg := &enum.Config{
 		Emails:    subjects,
 		Threads:   flagThreads,
@@ -115,6 +120,7 @@ func runEnumCustom(cmd *cobra.Command, args []string) error {
 		RateLimit: flagRateLimit,
 		Jitter:    flagJitter,
 		Verbose:   flagVerbose,
+		ProxyURL:  proxyURL,
 	}
 	// Apply the spec's rate-limit hint as a default only when the operator did
 	// not explicitly set --rate-limit (operator overrides).

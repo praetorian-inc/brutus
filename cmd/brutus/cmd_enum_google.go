@@ -109,7 +109,12 @@ func runEnumGoogle(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	enumerator, err := google.NewEnumerator(flagProxy, flagTimeout)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+
+	enumerator, err := google.NewEnumerator(proxyURL, flagTimeout)
 	if err != nil {
 		return fmt.Errorf("google: %w", err)
 	}

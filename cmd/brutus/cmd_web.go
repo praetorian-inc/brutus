@@ -62,7 +62,10 @@ func init() {
 }
 
 func runWeb(cmd *cobra.Command, args []string) error {
-	base := buildBaseConfig(cmd)
+	base, err := buildBaseConfig(cmd)
+	if err != nil {
+		return err
+	}
 
 	// Load credential pairs (-c/-C)
 	credPairs, err := loadCredentials(flagCredentials, flagCredentialsFile)

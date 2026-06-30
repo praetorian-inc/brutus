@@ -136,7 +136,14 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 			dim(useColor, SymbolInfo), flagDehashedDomain)
 	}
 
-	client := dehashed.NewClient(apiKey, flagTimeout, min(flagDehashedLimit, 100))
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+	client, err := dehashed.NewClient(apiKey, flagTimeout, min(flagDehashedLimit, 100), proxyURL)
+	if err != nil {
+		return err
+	}
 	result, err := client.Search(ctx, flagDehashedDomain, flagDehashedLimit)
 	if err != nil {
 		return classifyDehashedError(err)

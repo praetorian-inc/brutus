@@ -58,7 +58,10 @@ func init() {
 }
 
 func runSNMP(cmd *cobra.Command, args []string) error {
-	base := buildBaseConfig(cmd)
+	base, err := buildBaseConfig(cmd)
+	if err != nil {
+		return err
+	}
 
 	// Load custom community strings from -c/-C
 	communityFlagSet := isFlagChanged(cmd, "community")

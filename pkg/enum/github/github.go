@@ -64,14 +64,16 @@ type Result struct {
 }
 
 const (
-	webBaseURLDefault    = "https://github.com"
-	apiBaseURLDefault    = "https://api.github.com"
-	settleDelayDefault   = 10 * time.Second
-	validityCheckPath    = "/email_validity_checks"
-	joinPath             = "/join"
-	maxRateLimitRetries  = 5
-	rateLimitBackoff     = 2 * time.Second
-	defaultBranchDefault = "main"
+	webBaseURLDefault       = "https://github.com"
+	apiBaseURLDefault       = "https://api.github.com"
+	settleDelayDefault      = 10 * time.Second
+	validityCheckPath       = "/email_validity_checks"
+	joinPath                = "/join"
+	maxRateLimitRetries     = 5
+	rateLimitBackoff        = 2 * time.Second
+	rotatingProxyBackoff    = 100 * time.Millisecond
+	rotatingProxyMaxRetries = 15
+	defaultBranchDefault    = "main"
 	// commitContent is a tiny constant base64 blob ("Haxor"), matching the
 	// reference implementation's per-commit file content.
 	commitContent = "SGF4b3I="
@@ -94,6 +96,13 @@ type Enumerator struct {
 	// shared with httpClient. Mirrors pkg/enum/google/google.go.
 	apiClient *http.Client
 	token     string
+
+	// existenceBackoff / existenceMaxRetries control 429 retry pacing on the
+	// unauthenticated, IP-rate-limited existence endpoint. With a rotating proxy
+	// (--rotating-proxy) each retry uses a fresh exit IP, so a short backoff and
+	// higher ceiling are used instead of the conservative defaults.
+	existenceBackoff    time.Duration
+	existenceMaxRetries int
 
 	// Base URLs default to the real GitHub hosts and are overridable by tests.
 	webBaseURL string
@@ -124,11 +133,21 @@ type session struct {
 
 // NewEnumerator builds an Enumerator. The HTTP client is built via
 // brutus.NewHTTPClientWithProxy so the SOCKS5 --proxy flag works. token may be
-// empty (existence-only mode); Reveal requires a non-empty token.
-func NewEnumerator(proxyURL string, timeout time.Duration, token string) (*Enumerator, error) {
+// empty (existence-only mode); Reveal requires a non-empty token. When
+// rotatingProxy is true, the existence path uses a short 429 backoff and a
+// higher retry ceiling, since each retry egresses from a fresh exit IP; this
+// does not affect the token-rate-limited reveal path.
+func NewEnumerator(proxyURL string, timeout time.Duration, token string, rotatingProxy bool) (*Enumerator, error) {
 	httpClient, err := brutus.NewHTTPClientWithProxy(timeout, nil, proxyURL)
 	if err != nil {
 		return nil, fmt.Errorf("github enum: configuring HTTP client: %w", err)
+	}
+
+	existenceBackoff := rateLimitBackoff
+	existenceMaxRetries := maxRateLimitRetries
+	if rotatingProxy {
+		existenceBackoff = rotatingProxyBackoff
+		existenceMaxRetries = rotatingProxyMaxRetries
 	}
 
 	// httpClient FOLLOWS redirects (the default): the existence flow's join-page
@@ -148,14 +167,16 @@ func NewEnumerator(proxyURL string, timeout time.Duration, token string) (*Enume
 	}
 
 	return &Enumerator{
-		httpClient:  httpClient,
-		apiClient:   &apiClient,
-		token:       token,
-		webBaseURL:  webBaseURLDefault,
-		apiBaseURL:  apiBaseURLDefault,
-		settleDelay: settleDelayDefault,
-		sleep:       sleepCtx,
-		newName:     randomHexName,
+		httpClient:          httpClient,
+		apiClient:           &apiClient,
+		token:               token,
+		existenceBackoff:    existenceBackoff,
+		existenceMaxRetries: existenceMaxRetries,
+		webBaseURL:          webBaseURLDefault,
+		apiBaseURL:          apiBaseURLDefault,
+		settleDelay:         settleDelayDefault,
+		sleep:               sleepCtx,
+		newName:             randomHexName,
 	}, nil
 }
 

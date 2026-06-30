@@ -170,7 +170,10 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 		return fmt.Errorf("--open requires --web (starts a web terminal and opens the browser)")
 	}
 
-	base := buildBaseConfig(cmd)
+	base, err := buildBaseConfig(cmd)
+	if err != nil {
+		return err
+	}
 	base.checks = checks
 
 	// AI config (logon-specific)

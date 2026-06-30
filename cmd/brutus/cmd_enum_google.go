@@ -123,9 +123,12 @@ func runEnumGoogle(cmd *cobra.Command, args []string) error {
 	// Stream each completed result live (the callback is invoked serialized under
 	// the enumerator's results mutex, so output never interleaves and never races
 	// the results slice). Human mode prints only EXISTS rows unless --verbose;
-	// JSON mode streams a JSONL line per result. A periodic progress counter goes
-	// to stderr (suppressed under --quiet/--json).
+	// JSON mode streams a JSONL line per result. A live progress bar goes to
+	// stderr (suppressed under --quiet/--json); on a TTY it redraws in place with
+	// percent/rate/elapsed/ETA, off-TTY it emits throttled newline lines.
 	total := len(emails)
+	progress := newProgressReporter(os.Stderr, total, !flagQuiet && !flagJSON, useColor)
+	progress.Start()
 	var processed, found int
 	onResult := func(res google.Result) {
 		processed++
@@ -136,16 +139,17 @@ func runEnumGoogle(cmd *cobra.Command, args []string) error {
 		if flagJSON {
 			outputGoogleEnumJSONL(jsonWriter, []google.Result{res})
 		} else if res.Exists || flagVerbose {
+			// Clear the in-place bar before printing a result row so the bar's
+			// partial line doesn't corrupt it; the bar redraws on the next tick.
+			progress.Clear()
 			outputGoogleEnumResultLine(os.Stdout, res, useColor)
 		}
 
-		if !flagQuiet && !flagJSON && processed%500 == 0 {
-			fmt.Fprintf(os.Stderr, "%s processed %d/%d — %d found\n",
-				dim(useColor, SymbolInfo), processed, total, found)
-		}
+		progress.Update(processed, fmt.Sprintf("%d found", found))
 	}
 
 	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
+	progress.Stop()
 
 	if !flagJSON {
 		outputGoogleEnumSummary(os.Stdout, results, useColor)

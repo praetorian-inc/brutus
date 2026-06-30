@@ -50,30 +50,37 @@ func DialWithProxy(ctx context.Context, network, address string, timeout time.Du
 // or http.Transport.DialContext.
 type ProxyDialFunc func(ctx context.Context, network, address string) (net.Conn, error)
 
-// NewProxyDialFunc returns a context-aware dial function that routes connections
-// through the given SOCKS5 proxy. Returns nil and no error if proxyURL is empty.
+// NewProxyDialFunc returns a context-aware dial function that routes raw TCP
+// connections through the given SOCKS5 proxy. Returns nil and no error if
+// proxyURL is empty. Only socks5/socks5h are supported here; HTTP(S) proxies
+// cannot tunnel arbitrary TCP and are rejected (use them via the HTTP client
+// path instead).
 func NewProxyDialFunc(proxyURL string, timeout time.Duration) (ProxyDialFunc, error) {
 	if proxyURL == "" {
 		return nil, nil
 	}
 
-	u, err := url.Parse(proxyURL)
+	u, err := parseProxyURL(proxyURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
+		return nil, err
 	}
 
 	switch u.Scheme {
-	case "socks5", "socks5h":
-		// OK
+	case proxySchemeSOCKS5, proxySchemeSOCKS5H:
+		return socksDialFunc(u, timeout)
 	default:
-		return nil, fmt.Errorf("unsupported proxy scheme %q (supported: socks5, socks5h)", u.Scheme)
+		return nil, fmt.Errorf("unsupported proxy scheme %q for raw TCP dialing (supported: socks5, socks5h)", u.Scheme)
 	}
+}
 
+// socksDialFunc builds a context-aware dial function from an already-parsed
+// socks5/socks5h proxy URL.
+func socksDialFunc(u *url.URL, timeout time.Duration) (ProxyDialFunc, error) {
 	baseDialer := &net.Dialer{Timeout: timeout}
 
 	socksDialer, err := proxy.FromURL(u, baseDialer)
 	if err != nil {
-		return nil, fmt.Errorf("creating SOCKS5 dialer from %q: %w", proxyURL, err)
+		return nil, fmt.Errorf("creating SOCKS5 dialer from %q: %w", u.Redacted(), err)
 	}
 
 	// Prefer DialContext for proper cancellation support.

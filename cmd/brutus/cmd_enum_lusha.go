@@ -136,7 +136,14 @@ func runEnumLusha(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client := lusha.NewClient(apiKey, flagTimeout)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+	client, err := lusha.NewClient(apiKey, flagTimeout, proxyURL)
+	if err != nil {
+		return err
+	}
 
 	// Roster mode: enumerate a whole company by domain via the prospecting API.
 	if isLushaRosterMode() {

@@ -124,7 +124,7 @@ func makeErrorResponse(details string) []byte {
 }
 
 func newTestClient(baseURL string) *Client {
-	c := NewClient("testkey", 5*time.Second, 10)
+	c, _ := NewClient("testkey", 5*time.Second, 10, "") // Empty proxy never errors.
 	c.baseURL = baseURL
 	return c
 }

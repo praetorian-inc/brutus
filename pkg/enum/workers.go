@@ -72,6 +72,16 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// Build one shared enum HTTP client for the whole run so plugin oracles
+	// reuse a single pooled (and possibly proxied) transport. Surfaces proxy
+	// configuration errors once, before any checks run.
+	httpClient, err := NewEnumHTTPClientWithProxy(cfg.Timeout, cfg.ProxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("configuring enum HTTP client: %w", err)
+	}
+	ctx = WithHTTPClient(ctx, httpClient)
+	ctx = WithProxyURL(ctx, cfg.ProxyURL)
+
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(cfg.Threads)
 

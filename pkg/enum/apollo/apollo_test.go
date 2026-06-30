@@ -36,7 +36,7 @@ import (
 // newTestClient creates a Client pointed at baseURL, overriding the default
 // base URL set by NewClient. Mirrors hunter_test.go:122-126.
 func newTestClient(baseURL string) *Client {
-	c := NewClient("testkey", 5*time.Second, 10)
+	c, _ := NewClient("testkey", 5*time.Second, 10, "") // Empty proxy never errors.
 	c.baseURL = baseURL
 	return c
 }

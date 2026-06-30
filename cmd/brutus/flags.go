@@ -75,7 +75,10 @@ var (
 var flagVerifyTLS bool
 
 // Proxy flags
-var flagProxy string
+var (
+	flagProxy     string
+	flagProxyUser string
+)
 
 // Mode flag (global)
 var flagMode string
@@ -134,7 +137,8 @@ func registerSharedFlags(cmd *cobra.Command) {
 	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, aggressive")
 
 	// Proxy
-	pf.StringVar(&flagProxy, "proxy", "", "SOCKS5 proxy URL (e.g., socks5://127.0.0.1:1080 or socks5://user:pass@host:port)")
+	pf.StringVar(&flagProxy, "proxy", "", "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080")
+	pf.StringVar(&flagProxyUser, "proxy-user", "", "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.")
 
 	// Output
 	pf.BoolVar(&flagJSON, "json", false, "JSON output format")
@@ -207,13 +211,22 @@ func registerRootFlags(cmd *cobra.Command) {
 // Config builder
 // ---------------------------------------------------------------------------
 
+// resolveProxyURL merges the --proxy and --proxy-user flags into a single
+// canonical proxy URL. Returns "" when no proxy is configured.
+func resolveProxyURL() (string, error) {
+	return brutus.BuildProxyURL(flagProxy, flagProxyUser)
+}
+
 // buildBaseConfig constructs a baseConfigOptions with only the shared fields.
 // Subcommand-specific loading (credentials, keys, AI config) is handled by
 // each subcommand's runXxx function.
 //
 // Mode presets supply defaults for threads, timeout, rate-limit, jitter,
 // max-attempts, and retries. Explicit CLI flags override presets.
-func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
+//
+// Proxy resolution fails closed: when --proxy/--proxy-user are misconfigured,
+// it returns an error rather than silently degrading to a direct connection.
+func buildBaseConfig(cmd *cobra.Command) (*baseConfigOptions, error) {
 	mode := brutus.NormalizeMode(flagMode)
 	presets := mode.Presets()
 
@@ -248,6 +261,11 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 		maxRetries = flagRetries
 	}
 
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return nil, err
+	}
+
 	return &baseConfigOptions{
 		threads:          threads,
 		timeout:          timeout,
@@ -265,10 +283,10 @@ func buildBaseConfig(cmd *cobra.Command) *baseConfigOptions {
 		mode:             flagMode,
 		anthropicKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		perplexityKey:    os.Getenv("PERPLEXITY_API_KEY"),
-		proxyURL:         flagProxy,
+		proxyURL:         proxyURL,
 		noNLAProbe:       flagNoNLAProbe,
 		fast:             flagFast,
-	}
+	}, nil
 }
 
 // loadCredentialInputs loads usernames, passwords, and pre-paired credentials

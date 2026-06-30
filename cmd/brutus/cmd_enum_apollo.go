@@ -155,7 +155,14 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	client := apollo.NewClient(apiKey, flagTimeout, pageSizeForLimit(flagApolloLimit))
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+	client, err := apollo.NewClient(apiKey, flagTimeout, pageSizeForLimit(flagApolloLimit), proxyURL)
+	if err != nil {
+		return err
+	}
 	result, err := client.Discover(ctx, flagApolloDomain, flagApolloTitles, flagApolloLimit)
 	if err != nil {
 		// Output any partial discovery (Discover returns partial + err) before

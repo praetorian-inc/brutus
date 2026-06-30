@@ -264,7 +264,12 @@ func runEnumTeamsAuth(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client, err := teams.NewClient(flagTeamsTenant, flagTeamsClientID, flagTeamsScope, flagProxy, flagTimeout)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+
+	client, err := teams.NewClient(flagTeamsTenant, flagTeamsClientID, flagTeamsScope, proxyURL, flagTimeout)
 	if err != nil {
 		return fmt.Errorf("teams auth: %w", err)
 	}
@@ -376,7 +381,12 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, !flagTeamsEnumNoPresence)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, proxyURL, flagTimeout, !flagTeamsEnumNoPresence)
 	if err != nil {
 		return fmt.Errorf("teams users: %w", err)
 	}
@@ -384,7 +394,7 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 
 	// Only wire a refresh callback when a refresh token is available.
 	if refreshToken != "" {
-		client, cerr := teams.NewClient(flagTeamsEnumTenant, flagTeamsEnumClientID, flagTeamsEnumScope, flagProxy, flagTimeout)
+		client, cerr := teams.NewClient(flagTeamsEnumTenant, flagTeamsEnumClientID, flagTeamsEnumScope, proxyURL, flagTimeout)
 		if cerr != nil {
 			return fmt.Errorf("teams users: %w", cerr)
 		}
@@ -494,7 +504,12 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 
 	presenceChecked := !flagTeamsAuditNoPresence
 
-	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, presenceChecked)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, proxyURL, flagTimeout, presenceChecked)
 	if err != nil {
 		return fmt.Errorf("teams audit: %w", err)
 	}
@@ -502,7 +517,7 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 
 	// Only wire a refresh callback when a refresh token is available.
 	if refreshToken != "" {
-		client, cerr := teams.NewClient(flagTeamsAuditTenant, flagTeamsAuditClientID, flagTeamsAuditScope, flagProxy, flagTimeout)
+		client, cerr := teams.NewClient(flagTeamsAuditTenant, flagTeamsAuditClientID, flagTeamsAuditScope, proxyURL, flagTimeout)
 		if cerr != nil {
 			return fmt.Errorf("teams audit: %w", cerr)
 		}
@@ -735,7 +750,12 @@ func teamsEnumReadTokenFile(path string) (accessToken, refreshToken string, err 
 // teamsEnumDeviceCodeTokens runs the interactive device-code flow inline and
 // returns the resulting access and refresh tokens.
 func teamsEnumDeviceCodeTokens(ctx context.Context, src teamsTokenSource, useColor bool) (accessToken, refreshToken string, err error) {
-	client, err := teams.NewClient(src.tenant, src.clientID, src.scope, flagProxy, flagTimeout)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return "", "", err
+	}
+
+	client, err := teams.NewClient(src.tenant, src.clientID, src.scope, proxyURL, flagTimeout)
 	if err != nil {
 		return "", "", fmt.Errorf("teams enum: %w", err)
 	}

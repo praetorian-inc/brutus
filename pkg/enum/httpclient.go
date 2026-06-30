@@ -19,6 +19,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // defaultUserAgent is a common browser UA to avoid fingerprinting.
@@ -45,14 +47,32 @@ func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 //   - No redirect following (returns last response)
 //   - Default User-Agent header
 //   - Specified timeout
+//
+// It never routes through a proxy; use NewEnumHTTPClientWithProxy to honor the
+// --proxy flag.
 func NewEnumHTTPClient(timeout time.Duration) *http.Client {
+	// Empty proxy never errors.
+	client, _ := NewEnumHTTPClientWithProxy(timeout, "")
+	return client
+}
+
+// NewEnumHTTPClientWithProxy returns an enum HTTP client (same safe defaults as
+// NewEnumHTTPClient) that routes requests through proxyURL when it is non-empty.
+// Supports http/https proxies (with authenticated credentials via URL userinfo)
+// and socks5/socks5h. Returns an error if the proxy URL is invalid or uses an
+// unsupported scheme.
+func NewEnumHTTPClientWithProxy(timeout time.Duration, proxyURL string) (*http.Client, error) {
+	transport, err := brutus.ProxyTransport(proxyURL, timeout, nil)
+	if err != nil {
+		return nil, err
+	}
 	return &http.Client{
 		Timeout: timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: &uaTransport{base: http.DefaultTransport},
-	}
+		Transport: &uaTransport{base: transport},
+	}, nil
 }
 
 // ReadResponseBody reads a response body with a size limit to prevent OOM from hostile endpoints.

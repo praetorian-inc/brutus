@@ -40,29 +40,28 @@ work for an organization and enumerate emails against them, or enumerate Active
 Directory usernames via Kerberos AS-REQ.
 
 Subcommands:
-  oracles    Enumerate which account-existence oracles work for an organization
-  kerberos   Enumerate Active Directory users via Kerberos AS-REQ
+  active     Active enumeration against live oracles & directories (oracles, google, kerberos, teams, github, custom)
   generate   Generate email addresses or usernames from embedded name lists
-  teams      Authenticate with Microsoft Entra ID via device code flow
   passive    API-key OSINT/HUMINT sources (Hunter, Apollo, Lusha, DeHashed)
 
 See subcommand help for details:
-  brutus enum oracles --help
-  brutus enum kerberos --help
+  brutus enum active --help
   brutus enum generate --help
-  brutus enum teams --help
   brutus enum passive --help`,
 	Example: `  # Account-existence oracle enumeration
-  brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com
+  brutus enum active oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com
 
   # Kerberos user enumeration
-  brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator
+  brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator
+
+  # Authenticate with Microsoft Entra ID via device code
+  brutus enum active teams auth --tenant contoso.com
+
+  # GitHub account enumeration by email
+  brutus enum active github -e alice@example.com,bob@example.com
 
   # Generate emails for enumeration
   brutus enum generate --domain example.com --format flast
-
-  # Authenticate with Microsoft Entra ID via device code
-  brutus enum teams auth --tenant contoso.com
 
   # API-key OSINT/HUMINT sources (employee email/contact discovery)
   brutus enum passive hunter --domain example.com
@@ -103,7 +102,7 @@ Available formats:
   brutus enum generate --domain example.com --limit 1000
 
   # Pipe the 500 most-likely usernames to Kerberos enum
-  brutus enum generate --format flast --limit 500 | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -`,
+  brutus enum generate --format flast --limit 500 | brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -`,
 	RunE: runEnumGenerate,
 }
 
@@ -114,12 +113,17 @@ func init() {
 	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
 	f.IntVar(&flagEnumGenerateLimit, "limit", 0, "Emit only the first N (most-likely) results (0 = no limit, emit all)")
 
-	// Wire direct children of enum (unchanged commands).
+	// generate stays a direct child of enum.
 	enumCmd.AddCommand(enumGenerateCmd)
-	enumCmd.AddCommand(enumOraclesCmd)
-	enumCmd.AddCommand(enumKerberosCmd)
-	enumCmd.AddCommand(enumCustomCmd)
-	enumCmd.AddCommand(enumTeamsCmd)
+
+	// Canonical path: the active enumeration sources live under "active".
+	// (enum active google is wired in cmd_enum_google.go init(); enum active
+	// github in cmd_enum_github.go init().)
+	enumActiveCmd.AddCommand(enumOraclesCmd)
+	enumActiveCmd.AddCommand(enumKerberosCmd)
+	enumActiveCmd.AddCommand(enumCustomCmd)
+	enumActiveCmd.AddCommand(enumTeamsCmd)
+	enumCmd.AddCommand(enumActiveCmd)
 
 	// Canonical path: the passive API-key OSINT/HUMINT sources live under "passive".
 	enumPassiveCmd.AddCommand(newEnumHunterCmd(), newEnumApolloCmd(), newEnumLushaCmd(), newEnumDehashedCmd())

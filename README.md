@@ -820,19 +820,19 @@ Identify which unauthenticated account-existence oracles (microsoft365, google, 
 
 ```bash
 # Discover candidate oracles via DNS and report which ones work
-brutus enum oracles --domain example.com --known-valid admin@example.com
+brutus enum active oracles --domain example.com --known-valid admin@example.com
 
 # Enumerate specific emails against the working oracles
-brutus enum oracles --domain example.com -e user@example.com,admin@example.com --known-valid admin@example.com
+brutus enum active oracles --domain example.com -e user@example.com,admin@example.com --known-valid admin@example.com
 
 # Enumerate emails from file
-brutus enum oracles --domain example.com -E emails.txt --known-valid admin@example.com
+brutus enum active oracles --domain example.com -E emails.txt --known-valid admin@example.com
 
 # Generate emails from embedded name lists and enumerate against working oracles
-brutus enum oracles --domain example.com --generate --format flast --known-valid admin@example.com
+brutus enum active oracles --domain example.com --generate --format flast --known-valid admin@example.com
 
 # Discover working oracles with a known-valid email before large-scale enumeration
-brutus enum oracles discover --domain example.com --known-valid admin@example.com
+brutus enum active oracles discover --domain example.com --known-valid admin@example.com
 ```
 
 ### Kerberos User Enumeration
@@ -841,13 +841,13 @@ Enumerate Active Directory usernames via Kerberos AS-REQ (no passwords sent, no 
 
 ```bash
 # Enumerate specific users
-brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator,guest,krbtgt
+brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator,guest,krbtgt
 
 # Enumerate from file
-brutus enum kerberos --dc dc01.corp.local --domain CORP.LOCAL -U users.txt
+brutus enum active kerberos --dc dc01.corp.local --domain CORP.LOCAL -U users.txt
 
 # Generate usernames and pipe to Kerberos enum
-brutus enum generate --format flast | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -
+brutus enum generate --format flast | brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -
 ```
 
 ### Email/Username Generation
@@ -896,23 +896,23 @@ Obtain an OAuth2 access token, refresh token, and ID token from Microsoft Entra 
 
 ```bash
 # Authenticate against the common endpoint (any Microsoft tenant)
-brutus enum teams auth
+brutus enum active teams auth
 
 # Authenticate against a specific tenant by domain or GUID
-brutus enum teams auth --tenant contoso.com
-brutus enum teams auth --tenant 00000000-0000-0000-0000-000000000000
+brutus enum active teams auth --tenant contoso.com
+brutus enum active teams auth --tenant 00000000-0000-0000-0000-000000000000
 
 # Request a different resource scope (space-separated). The default targets the
 # Skype/Teams resource (api.spaces.skype.com); the Teams client is NOT
 # authorized for Microsoft Graph (Graph yields AADSTS65002).
-brutus enum teams auth --scope "offline_access https://api.spaces.skype.com/.default"
+brutus enum active teams auth --scope "offline_access https://api.spaces.skype.com/.default"
 
 # Use a custom app registration (your own Azure app client ID)
-brutus enum teams auth --client-id 00000000-0000-0000-0000-000000000000
+brutus enum active teams auth --client-id 00000000-0000-0000-0000-000000000000
 
 # Capture the full token set as JSONL for piping to other tools
-brutus enum teams auth -o tokens.jsonl
-brutus enum teams auth --json
+brutus enum active teams auth -o tokens.jsonl
+brutus enum active teams auth --json
 ```
 
 **How it works:**
@@ -927,7 +927,7 @@ brutus enum teams auth --json
 **Default client ID:** The Microsoft Teams desktop application (`1fec8e78-bce4-4aaf-ab1b-5451cc387264`), a first-party public client that supports device code flow. Override with `--client-id` to use your own app registration.
 
 ```
-$ brutus enum teams auth --tenant contoso.com
+$ brutus enum active teams auth --tenant contoso.com
 [*] Starting Microsoft device code authentication...
 
 [*] Microsoft device code authentication
@@ -955,21 +955,21 @@ accounts are not supported — corporate tenants only.
 
 ```bash
 # Device-code auth inline, then enumerate a couple of emails
-brutus enum teams users -e alice@contoso.com,bob@contoso.com
+brutus enum active teams users -e alice@contoso.com,bob@contoso.com
 
 # Generate candidate emails for a domain and enumerate the most-likely 5000
 # (presence and out-of-office are gathered by default; use --no-presence to skip)
-brutus enum teams users --domain target.com --format first.last --limit 5000
+brutus enum active teams users --domain target.com --format first.last --limit 5000
 
 # Enumerate emails from a file
-brutus enum teams users -E emails.txt
+brutus enum active teams users -E emails.txt
 
 # Reuse a token captured earlier and route through a SOCKS5 proxy
-brutus enum teams auth -o token.jsonl
-brutus enum teams users -E emails.txt --token-file token.jsonl --proxy socks5://127.0.0.1:1080
+brutus enum active teams auth -o token.jsonl
+brutus enum active teams users -E emails.txt --token-file token.jsonl --proxy socks5://127.0.0.1:1080
 
 # Provide an access token directly
-brutus enum teams users -e alice@contoso.com --access-token "$TOKEN"
+brutus enum active teams users -e alice@contoso.com --access-token "$TOKEN"
 ```
 
 When a refresh token is available (via `--token-file` or `--refresh-token`), an
@@ -993,16 +993,16 @@ or `not found`.
 
 ```bash
 # Enumerate a couple of emails
-brutus enum google -e alice@example.com,bob@example.com
+brutus enum active google -e alice@example.com,bob@example.com
 
 # Generate candidate emails for a domain and enumerate the most-likely 5000
-brutus enum google --domain target.com --format first.last --limit 5000
+brutus enum active google --domain target.com --format first.last --limit 5000
 
 # Enumerate emails from a file
-brutus enum google -E emails.txt
+brutus enum active google -E emails.txt
 
 # Route through a SOCKS5 proxy and raise concurrency
-brutus enum google -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20
+brutus enum active google -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20
 ```
 
 `--domain` reuses the same frequency-ranked first/last name generator as

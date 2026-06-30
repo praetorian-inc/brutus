@@ -53,16 +53,16 @@ Detection is based on KDC error codes:
   AS-REP success    → user exists, no preauth required (AS-REP roastable)
   PRINCIPAL_UNKNOWN → user does not exist`,
 	Example: `  # Enumerate specific users
-  brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator,guest,krbtgt
+  brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator,guest,krbtgt
 
   # Enumerate from file
-  brutus enum kerberos --dc dc01.corp.local --domain CORP.LOCAL -U users.txt
+  brutus enum active kerberos --dc dc01.corp.local --domain CORP.LOCAL -U users.txt
 
   # Generate usernames and enumerate
-  brutus enum generate --format flast | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -
+  brutus enum generate --format flast | brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -
 
   # JSON output
-  brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator --json`,
+  brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator --json`,
 	RunE: runEnumKerberos,
 }
 

@@ -75,20 +75,21 @@ func TestEnumGoogleCmd_Flags(t *testing.T) {
 		"enumGoogleCmd must not define a local -s shorthand (reserved)")
 }
 
-// TestEnumGoogleCmd_RegisteredUnderEnumCmd verifies that enumGoogleCmd has
-// Use=="google" and is a child of enumCmd.
-func TestEnumGoogleCmd_RegisteredUnderEnumCmd(t *testing.T) {
+// TestEnumGoogleCmd_RegisteredUnderActiveCmd verifies that enumGoogleCmd has
+// Use=="google" and is a child of enumActiveCmd (hard move — it is no longer
+// a direct child of enumCmd).
+func TestEnumGoogleCmd_RegisteredUnderActiveCmd(t *testing.T) {
 	assert.Equal(t, "google", enumGoogleCmd.Use,
 		"enumGoogleCmd.Use must be \"google\"")
 
 	var found bool
-	for _, cmd := range enumCmd.Commands() {
+	for _, cmd := range enumActiveCmd.Commands() {
 		if cmd.Use == "google" {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "enumGoogleCmd must be registered as a subcommand of enumCmd")
+	assert.True(t, found, "enumGoogleCmd must be registered as a subcommand of enumActiveCmd (hard move)")
 }
 
 // ---------------------------------------------------------------------------

@@ -30,17 +30,29 @@ import (
 // Username reveal (authenticated)
 // ---------------------------------------------------------------------------
 
-// Reveal resolves GitHub usernames for the given (existing) emails. It requires
-// a non-empty token. A throwaway private repo is created, one commit per email
-// is pushed with that email as author/committer, the commits are listed after a
-// settle delay, and email -> login pairs are collected. The repo is ALWAYS
-// deleted before returning (even on mid-flow error). If deletion fails, the
-// returned error is annotated with the full owner/repo so the operator can
-// remove it manually. The token is never logged.
+// Reveal resolves GitHub usernames for the given (existing) emails. It is a
+// thin wrapper over RevealWith with no progress callback, preserving the
+// original signature for existing callers and tests.
+func (e *Enumerator) Reveal(ctx context.Context, emails []string) (mapping map[string]string, err error) {
+	return e.RevealWith(ctx, emails, nil)
+}
+
+// RevealWith resolves GitHub usernames for the given (existing) emails. It
+// requires a non-empty token. A throwaway private repo is created, one commit
+// per email is pushed with that email as author/committer, the commits are
+// listed after a settle delay, and email -> login pairs are collected. The repo
+// is ALWAYS deleted before returning (even on mid-flow error). If deletion
+// fails, the returned error is annotated with the full owner/repo so the
+// operator can remove it manually. The token is never logged.
+//
+// onProgress, when non-nil, is invoked after each successful commit push with
+// (done, total) where done is 1-based and total is len(emails). The push loop
+// is the long, blind phase of reveal, so this lets callers render live
+// progress. It is never called for the settle delay or the commit listing.
 //
 // Logins are omitted from the map when GitHub did not link an account to the
 // commit author email (author absent/null).
-func (e *Enumerator) Reveal(ctx context.Context, emails []string) (mapping map[string]string, err error) {
+func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress func(done, total int)) (mapping map[string]string, err error) {
 	if e.token == "" {
 		return nil, fmt.Errorf("github reveal: token required (set GITHUB_TOKEN or --token)")
 	}
@@ -57,7 +69,7 @@ func (e *Enumerator) Reveal(ctx context.Context, emails []string) (mapping map[s
 		return nil, err
 	}
 
-	// ALWAYS delete the repo, even if a later step fails. Reveal uses NAMED
+	// ALWAYS delete the repo, even if a later step fails. RevealWith uses NAMED
 	// returns so this deferred reassignment of err actually propagates to the
 	// caller — with unnamed returns the `return mapping, err` value is captured
 	// before the defer runs and a delete failure would be silently lost
@@ -76,9 +88,12 @@ func (e *Enumerator) Reveal(ctx context.Context, emails []string) (mapping map[s
 		}
 	}()
 
-	for _, email := range emails {
+	for i, email := range emails {
 		if err = e.pushCommit(ctx, login, repo, email); err != nil {
 			return nil, err
+		}
+		if onProgress != nil {
+			onProgress(i+1, len(emails))
 		}
 	}
 

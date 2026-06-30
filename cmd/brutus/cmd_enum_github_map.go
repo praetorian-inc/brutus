@@ -100,7 +100,12 @@ func runEnumGithubMap(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	enumerator, err := githubenum.NewEnumerator(flagProxy, flagTimeout, token)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+
+	enumerator, err := githubenum.NewEnumerator(proxyURL, flagTimeout, token, flagRotatingProxy)
 	if err != nil {
 		return fmt.Errorf("github: %w", err)
 	}

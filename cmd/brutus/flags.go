@@ -76,8 +76,9 @@ var flagVerifyTLS bool
 
 // Proxy flags
 var (
-	flagProxy     string
-	flagProxyUser string
+	flagProxy         string
+	flagProxyUser     string
+	flagRotatingProxy bool
 )
 
 // Mode flag (global)
@@ -139,6 +140,7 @@ func registerSharedFlags(cmd *cobra.Command) {
 	// Proxy
 	pf.StringVar(&flagProxy, "proxy", "", "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080")
 	pf.StringVar(&flagProxyUser, "proxy-user", "", "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.")
+	pf.BoolVar(&flagRotatingProxy, "rotating-proxy", false, "Signal that --proxy rotates exit IPs (e.g. Bright Data): reduces per-IP rate-limit backoff during GitHub existence enumeration (short retry delay, higher retry ceiling). No effect on token-rate-limited reveal.")
 
 	// Output
 	pf.BoolVar(&flagJSON, "json", false, "JSON output format")

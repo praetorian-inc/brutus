@@ -131,7 +131,7 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	enumerator, err := githubenum.NewEnumerator(proxyURL, flagTimeout, token)
+	enumerator, err := githubenum.NewEnumerator(proxyURL, flagTimeout, token, flagRotatingProxy)
 	if err != nil {
 		return fmt.Errorf("github: %w", err)
 	}

@@ -816,7 +816,7 @@ The `enum` subcommand enumerates which account-existence oracles work for an org
 
 ### Account-Existence Oracle Enumeration
 
-Identify which unauthenticated account-existence oracles (microsoft365, google, plus the Microsoft Teams oracle) work for an organization, validate them against a known-valid user, then enumerate candidate emails against the working oracles. DNS TXT recon surfaces the candidate oracles; the validation against `--known-valid` is the headline. `--known-valid` is required, and enumeration runs only against the oracles that confirm it:
+Identify which unauthenticated account-existence oracles (microsoft365, google, github, plus the Microsoft Teams oracle) work for an organization, validate them against a known-valid user, then enumerate candidate emails against the working oracles. DNS TXT recon surfaces the candidate oracles; the validation against `--known-valid` is the headline. `--known-valid` is required, and enumeration runs only against the oracles that confirm it:
 
 ```bash
 # Discover candidate oracles via DNS and report which ones work

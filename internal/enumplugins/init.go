@@ -16,6 +16,7 @@
 package enumplugins
 
 import (
+	_ "github.com/praetorian-inc/brutus/internal/enumplugins/github"
 	_ "github.com/praetorian-inc/brutus/internal/enumplugins/google"
 	_ "github.com/praetorian-inc/brutus/internal/enumplugins/microsoft365"
 )

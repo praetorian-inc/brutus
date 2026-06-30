@@ -406,9 +406,13 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	// Stream each completed result live (the callback is invoked serialized under
 	// the enumerator's results mutex, so output never interleaves and never races
 	// the results slice). Human mode prints only the positive signals (EXISTS /
-	// BLOCKED) unless --verbose; JSON mode streams a JSONL line per result. A
-	// periodic progress counter goes to stderr (suppressed under --quiet/--json).
+	// BLOCKED) unless --verbose; JSON mode streams a JSONL line per result. A live
+	// progress bar goes to stderr (suppressed under --quiet/--json); on a TTY it
+	// redraws in place with percent/rate/elapsed/ETA, off-TTY it emits throttled
+	// newline lines.
 	total := len(emails)
+	progress := newProgressReporter(os.Stderr, total, !flagQuiet && !flagJSON, useColor)
+	progress.Start()
 	var processed, found, blocked int
 	onResult := func(res teams.EnumResult) {
 		processed++
@@ -424,23 +428,24 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 		} else {
 			switch res.Exists {
 			case teams.ExistenceYes, teams.ExistenceBlocked:
-				// Positive signals always print.
+				// Positive signals always print. Clear the in-place bar first so
+				// its partial line doesn't corrupt the row; it redraws next tick.
+				progress.Clear()
 				outputTeamsEnumResultLine(os.Stdout, res, useColor)
 			default:
 				// ExistenceNo / ExistenceUnknown are suppressed unless --verbose.
 				if flagVerbose {
+					progress.Clear()
 					outputTeamsEnumResultLine(os.Stdout, res, useColor)
 				}
 			}
 		}
 
-		if !flagQuiet && !flagJSON && processed%500 == 0 {
-			fmt.Fprintf(os.Stderr, "%s processed %d/%d — %d found, %d blocked\n",
-				dim(useColor, SymbolInfo), processed, total, found, blocked)
-		}
+		progress.Update(processed, fmt.Sprintf("%d found · %d blocked", found, blocked))
 	}
 
 	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
+	progress.Stop()
 
 	posture := teams.DerivePosture(teamsEnumDomain(emails), results)
 

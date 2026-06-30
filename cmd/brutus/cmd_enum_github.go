@@ -135,9 +135,13 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 	}
 
 	// Stream each completed result live. Human mode prints only EXISTS rows
-	// unless --verbose; JSON mode streams a JSONL line per result. A periodic
-	// progress counter goes to stderr (suppressed under --quiet/--json).
+	// unless --verbose; JSON mode streams a JSONL line per result. A live
+	// progress bar goes to stderr (suppressed under --quiet/--json); on a TTY it
+	// redraws in place with percent/rate/elapsed/ETA, off-TTY it emits throttled
+	// newline lines.
 	total := len(emails)
+	progress := newProgressReporter(os.Stderr, total, !flagQuiet && !flagJSON, useColor)
+	progress.Start()
 	var processed, found int
 	onResult := func(res githubenum.Result) {
 		processed++
@@ -152,16 +156,17 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 			// should treat the later record as authoritative — this is not a bug.
 			outputGithubEnumJSONL(jsonWriter, []githubenum.Result{res})
 		} else if res.Exists || flagVerbose {
+			// Clear the in-place bar before printing a result row so the bar's
+			// partial line doesn't corrupt it; the bar redraws on the next tick.
+			progress.Clear()
 			outputGithubEnumResultLine(os.Stdout, res, useColor)
 		}
 
-		if !flagQuiet && !flagJSON && processed%500 == 0 {
-			fmt.Fprintf(os.Stderr, "%s processed %d/%d — %d found\n",
-				dim(useColor, SymbolInfo), processed, total, found)
-		}
+		progress.Update(processed, fmt.Sprintf("%d found", found))
 	}
 
 	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
+	progress.Stop()
 
 	// Username reveal: only when a token is set and at least one account exists.
 	existing := existingEmails(results)
@@ -171,7 +176,12 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 				dim(useColor, SymbolInfo), len(existing))
 		}
 
-		mapping, revErr := enumerator.Reveal(ctx, existing)
+		revealProgress := newProgressReporter(os.Stderr, len(existing), !flagQuiet && !flagJSON, useColor)
+		revealProgress.Start()
+		mapping, revErr := enumerator.RevealWith(ctx, existing, func(done, total int) {
+			revealProgress.Update(done, "commits pushed")
+		})
+		revealProgress.Stop()
 		if revErr != nil {
 			// Reveal failures are non-fatal to existence results; warn and continue.
 			fmt.Fprintf(os.Stderr, "%s github username reveal failed: %v\n",

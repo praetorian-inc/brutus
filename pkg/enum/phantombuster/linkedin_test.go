@@ -159,3 +159,96 @@ func TestParseSalesNavCSV_QuotedFields(t *testing.T) {
 		t.Errorf("unexpected company: %q", p.Company)
 	}
 }
+
+func TestParseSalesNavCSV_DeptSeniorityFromCSV(t *testing.T) {
+	csv := `fullName,firstName,lastName,jobTitle,department,seniority,companyName
+Jane Doe,Jane,Doe,VP Engineering,Engineering,VP,Acme Corp
+`
+	result, err := ParseSalesNavCSV([]byte(csv))
+	if err != nil {
+		t.Fatalf("ParseSalesNavCSV: %v", err)
+	}
+	p := result.Profiles[0]
+	if p.Department != "Engineering" {
+		t.Errorf("expected department Engineering from CSV column, got %q", p.Department)
+	}
+	if p.Seniority != "VP" {
+		t.Errorf("expected seniority VP from CSV column, got %q", p.Seniority)
+	}
+}
+
+func TestParseSalesNavCSV_DeptSeniorityInferred(t *testing.T) {
+	csv := `fullName,firstName,lastName,jobTitle,companyName,headline
+Jane Doe,Jane,Doe,VP Engineering,Acme Corp,VP Engineering at Acme
+John Smith,John,Smith,CTO,Widgets Inc,CTO at Widgets
+`
+	result, err := ParseSalesNavCSV([]byte(csv))
+	if err != nil {
+		t.Fatalf("ParseSalesNavCSV: %v", err)
+	}
+
+	p0 := result.Profiles[0]
+	if p0.Seniority != "vp" {
+		t.Errorf("expected inferred seniority 'vp' for VP Engineering, got %q", p0.Seniority)
+	}
+	if p0.Department != "engineering" {
+		t.Errorf("expected inferred department 'engineering' for VP Engineering, got %q", p0.Department)
+	}
+
+	p1 := result.Profiles[1]
+	if p1.Seniority != "c-suite" {
+		t.Errorf("expected inferred seniority 'c-suite' for CTO, got %q", p1.Seniority)
+	}
+}
+
+func TestParseSalesNavCSV_CSVOverridesInference(t *testing.T) {
+	csv := `fullName,jobTitle,department,seniority,headline
+Jane Doe,VP Engineering,Ops,Executive,VP Engineering at Acme
+`
+	result, err := ParseSalesNavCSV([]byte(csv))
+	if err != nil {
+		t.Fatalf("ParseSalesNavCSV: %v", err)
+	}
+	p := result.Profiles[0]
+	if p.Department != "Ops" {
+		t.Errorf("CSV-provided department should take priority, got %q", p.Department)
+	}
+	if p.Seniority != "Executive" {
+		t.Errorf("CSV-provided seniority should take priority, got %q", p.Seniority)
+	}
+}
+
+func TestInferDeptSeniority(t *testing.T) {
+	tests := []struct {
+		title     string
+		headline  string
+		wantDept  string
+		wantSen   string
+	}{
+		{"VP Engineering", "", "engineering", "vp"},
+		{"CTO", "CTO at Acme", "", "c-suite"},
+		{"Senior Security Engineer", "", "security", "senior"},
+		{"Junior Analyst", "", "", "entry"},
+		{"Marketing Manager", "", "marketing", "manager"},
+		{"Co-Founder & CEO", "", "", "c-suite"},
+		{"", "Head of Product at Widgets", "product", "director"},
+		{"Intern", "Summer Engineering Intern", "engineering", "training"},
+		{"", "", "", ""},
+		{"Account Executive", "Account Executive at BigCo", "sales", ""},
+		{"Principal Data Scientist", "", "data", "senior"},
+		{"Staff Software Engineer", "Platform Engineering", "engineering", "senior"},
+		{"CISO", "Chief Information Security Officer", "security", "c-suite"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.title+"/"+tc.headline, func(t *testing.T) {
+			dept, sen := inferDeptSeniority(tc.title, tc.headline)
+			if dept != tc.wantDept {
+				t.Errorf("department: got %q, want %q", dept, tc.wantDept)
+			}
+			if sen != tc.wantSen {
+				t.Errorf("seniority: got %q, want %q", sen, tc.wantSen)
+			}
+		})
+	}
+}

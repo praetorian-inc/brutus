@@ -94,6 +94,8 @@ func ParseSalesNavCSV(data []byte) (*ScrapeResult, error) {
 			Title:              coalesce(getField(record, colIndex, "jobtitle"), getField(record, colIndex, "job"), getField(record, colIndex, "title")),
 			Company:            coalesce(getField(record, colIndex, "companyname"), getField(record, colIndex, "company")),
 			CompanyURL:         coalesce(getField(record, colIndex, "companylinkedinurl"), getField(record, colIndex, "companyurl")),
+			Department:         coalesce(getField(record, colIndex, "department"), getField(record, colIndex, "industry")),
+			Seniority:          getField(record, colIndex, "seniority"),
 			Location:           coalesce(getField(record, colIndex, "location"), getField(record, colIndex, "region")),
 			LinkedinURL:        coalesce(getField(record, colIndex, "linkedinprofileurl"), getField(record, colIndex, "profileurl")),
 			SalesNavURL:        getField(record, colIndex, "salesnavigatorurl"),
@@ -102,6 +104,16 @@ func ParseSalesNavCSV(data []byte) (*ScrapeResult, error) {
 			ConnectionDegree:   getField(record, colIndex, "connectiondegree"),
 			Sources:            []string{"linkedin-salesnav"},
 			VerificationStatus: "unverified",
+		}
+
+		if p.Department == "" || p.Seniority == "" {
+			dept, sen := inferDeptSeniority(p.Title, p.Headline)
+			if p.Department == "" {
+				p.Department = dept
+			}
+			if p.Seniority == "" {
+				p.Seniority = sen
+			}
 		}
 
 		if p.FullName == "" && p.FirstName != "" {
@@ -134,4 +146,123 @@ func coalesce(values ...string) string {
 		}
 	}
 	return ""
+}
+
+var seniorityKeywords = []struct {
+	keyword  string
+	seniority string
+}{
+	{"chief", "c-suite"},
+	{"ceo", "c-suite"},
+	{"cto", "c-suite"},
+	{"cfo", "c-suite"},
+	{"coo", "c-suite"},
+	{"ciso", "c-suite"},
+	{"cio", "c-suite"},
+	{"cmo", "c-suite"},
+	{"cpo", "c-suite"},
+	{"cro", "c-suite"},
+	{"partner", "partner"},
+	{"founder", "founder"},
+	{"co-founder", "founder"},
+	{"cofounder", "founder"},
+	{"owner", "owner"},
+	{"president", "vp"},
+	{"vice president", "vp"},
+	{"vp ", "vp"},
+	{"svp", "vp"},
+	{"evp", "vp"},
+	{"avp", "vp"},
+	{"head of", "director"},
+	{"director", "director"},
+	{"senior manager", "senior"},
+	{"sr. manager", "senior"},
+	{"sr manager", "senior"},
+	{"manager", "manager"},
+	{"principal", "senior"},
+	{"staff", "senior"},
+	{"senior", "senior"},
+	{"sr.", "senior"},
+	{"sr ", "senior"},
+	{"lead", "senior"},
+	{"junior", "entry"},
+	{"jr.", "entry"},
+	{"jr ", "entry"},
+	{"intern", "training"},
+	{"associate", "entry"},
+	{"analyst", "entry"},
+}
+
+var departmentKeywords = []struct {
+	keyword    string
+	department string
+}{
+	{"information security", "security"},
+	{"infosec", "security"},
+	{"cybersecurity", "security"},
+	{"cyber security", "security"},
+	{"security", "security"},
+	{"information technology", "it"},
+	{"software engineer", "engineering"},
+	{"software develop", "engineering"},
+	{"engineering", "engineering"},
+	{"devops", "engineering"},
+	{"sre", "engineering"},
+	{"platform", "engineering"},
+	{"infrastructure", "engineering"},
+	{"data scien", "data"},
+	{"data engineer", "data"},
+	{"machine learning", "data"},
+	{"analytics", "data"},
+	{"product manag", "product"},
+	{"product design", "product"},
+	{"product", "product"},
+	{"design", "design"},
+	{"ux", "design"},
+	{"ui", "design"},
+	{"marketing", "marketing"},
+	{"growth", "marketing"},
+	{"brand", "marketing"},
+	{"communications", "marketing"},
+	{"sales", "sales"},
+	{"account executive", "sales"},
+	{"business develop", "sales"},
+	{"customer success", "customer_success"},
+	{"support", "support"},
+	{"human resource", "hr"},
+	{"people ops", "hr"},
+	{"talent", "hr"},
+	{"recruiting", "hr"},
+	{"finance", "finance"},
+	{"accounting", "finance"},
+	{"legal", "legal"},
+	{"compliance", "legal"},
+	{"operations", "operations"},
+	{"supply chain", "operations"},
+	{"logistics", "operations"},
+	{"research", "research"},
+	{"r&d", "research"},
+}
+
+// inferDeptSeniority attempts best-effort extraction of department and
+// seniority from a LinkedIn title or headline. Returns empty strings when
+// no keywords match — callers should treat empty as "unknown".
+func inferDeptSeniority(title, headline string) (department, seniority string) {
+	combined := strings.ToLower(title + " " + headline)
+
+	for _, s := range seniorityKeywords {
+		if strings.Contains(combined, s.keyword) {
+			seniority = s.seniority
+			break
+		}
+	}
+
+	for _, d := range departmentKeywords {
+		if strings.Contains(combined, d.keyword) {
+			department = d.department
+			break
+		}
+	}
+
+	return department, seniority
 }

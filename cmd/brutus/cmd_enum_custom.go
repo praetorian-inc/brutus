@@ -54,16 +54,16 @@ Subjects come from --emails/-e, --email-file/-E, or --generate. Only http/https
 URLs are allowed; placeholder substitution is encoding-aware and redirects are
 not followed.`,
 	Example: `  # Run an oracle against inline subjects
-  brutus enum custom -f oracle.json -e jsmith,asmith
+  brutus enum active custom -f oracle.json -e jsmith,asmith
 
   # Run against a subject file
-  brutus enum custom -f oracle.yaml -E users.txt
+  brutus enum active custom -f oracle.yaml -E users.txt
 
   # Generate usernames and run
-  brutus enum custom -f oracle.json --generate --format flast
+  brutus enum active custom -f oracle.json --generate --format flast
 
   # JSON output to a file
-  brutus enum custom -f oracle.json -e jsmith -o results.jsonl`,
+  brutus enum active custom -f oracle.json -e jsmith -o results.jsonl`,
 	RunE: runEnumCustom,
 }
 
@@ -78,7 +78,7 @@ func init() {
 	_ = enumCustomCmd.MarkFlagRequired("file")
 }
 
-// runEnumCustom implements the "enum custom" subcommand.
+// runEnumCustom implements the "enum active custom" subcommand.
 func runEnumCustom(cmd *cobra.Command, args []string) error {
 	useColor := isColorEnabled(flagNoColor)
 

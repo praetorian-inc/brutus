@@ -40,7 +40,7 @@ func TestEnumOracles_RequiresKnownValid(t *testing.T) {
 	rootCmd.SetOut(io.Discard)
 	rootCmd.SetErr(io.Discard)
 	// Provide --domain so the only missing required flag is --known-valid.
-	rootCmd.SetArgs([]string{"enum", "oracles", "--domain", "example.com"})
+	rootCmd.SetArgs([]string{"enum", "active", "oracles", "--domain", "example.com"})
 
 	// Restore global rootCmd state after the test.
 	t.Cleanup(func() {

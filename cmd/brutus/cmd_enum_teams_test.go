@@ -34,15 +34,25 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestTeamsCommandRegistered(t *testing.T) {
-	// Verify enumTeamsCmd is registered with enumCmd.
-	var teamsFound bool
+	// Verify enumActiveCmd is a direct child of enumCmd (hard move).
+	var activeFound bool
 	for _, cmd := range enumCmd.Commands() {
+		if cmd.Use == "active" {
+			activeFound = true
+			break
+		}
+	}
+	require.True(t, activeFound, "active subcommand must be registered with enumCmd")
+
+	// Verify enumTeamsCmd is registered with enumActiveCmd (not enumCmd directly).
+	var teamsFound bool
+	for _, cmd := range enumActiveCmd.Commands() {
 		if cmd.Use == "teams" {
 			teamsFound = true
 			break
 		}
 	}
-	require.True(t, teamsFound, "teams subcommand must be registered with enumCmd")
+	require.True(t, teamsFound, "teams subcommand must be registered with enumActiveCmd (hard move)")
 
 	// Verify enumTeamsAuthCmd is registered with enumTeamsCmd.
 	var authFound bool
@@ -134,7 +144,7 @@ func TestEnumTeamsAuth_NoFlagCollisionPanic(t *testing.T) {
 	// Redirect cobra output so --help text doesn't pollute test output.
 	rootCmd.SetOut(io.Discard)
 	rootCmd.SetErr(io.Discard)
-	rootCmd.SetArgs([]string{"enum", "teams", "auth", "--help"})
+	rootCmd.SetArgs([]string{"enum", "active", "teams", "auth", "--help"})
 
 	// Restore global rootCmd state after the test so subsequent tests in the
 	// package are not affected by the mutated args/output writers.

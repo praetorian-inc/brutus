@@ -51,7 +51,7 @@ func outputDNSReconHuman(result *enum.DNSReconResult, teamsAvailable, useColor b
 	if teamsAvailable {
 		fmt.Printf("    %s%-16s%s %s\n",
 			colorIf(useColor, ColorGreen), "teams", colorIf(useColor, ColorReset),
-			dim(useColor, "(available: Microsoft 365 tenant — run `brutus enum teams users` / `audit`)"))
+			dim(useColor, "(available: Microsoft 365 tenant — run `brutus enum active teams users` / `audit`)"))
 	}
 	fmt.Println()
 }

@@ -54,26 +54,26 @@ against the oracles that confirm it (including the Microsoft Teams oracle when
 applicable).
 
 Modes:
-  Oracle check only:  brutus enum oracles --domain example.com --known-valid admin@example.com
-  Enumerate emails:   brutus enum oracles --domain example.com -e user@example.com --known-valid admin@example.com
-  Generate + enum:    brutus enum oracles --domain example.com --generate --format flast --known-valid admin@example.com`,
+  Oracle check only:  brutus enum active oracles --domain example.com --known-valid admin@example.com
+  Enumerate emails:   brutus enum active oracles --domain example.com -e user@example.com --known-valid admin@example.com
+  Generate + enum:    brutus enum active oracles --domain example.com --generate --format flast --known-valid admin@example.com`,
 	Example: `  # Discover candidate oracles via DNS and report which ones work (validated against --known-valid)
-  brutus enum oracles --domain praetorian.com --known-valid admin@praetorian.com
+  brutus enum active oracles --domain praetorian.com --known-valid admin@praetorian.com
 
   # Enumerate specific emails against the working oracles
-  brutus enum oracles --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com
+  brutus enum active oracles --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com
 
   # Enumerate emails from file
-  brutus enum oracles --domain praetorian.com -E emails.txt --known-valid admin@praetorian.com
+  brutus enum active oracles --domain praetorian.com -E emails.txt --known-valid admin@praetorian.com
 
   # Generate emails and enumerate against working oracles
-  brutus enum oracles --domain target.com --generate --format first.last --known-valid admin@target.com
+  brutus enum active oracles --domain target.com --generate --format first.last --known-valid admin@target.com
 
   # Check / enumerate against specific oracles only
-  brutus enum oracles -e user@example.com -s microsoft365,google --known-valid admin@example.com
+  brutus enum active oracles -e user@example.com -s microsoft365,google --known-valid admin@example.com
 
   # JSON output
-  brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com --json`,
+  brutus enum active oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com --json`,
 	RunE: runEnumOracles,
 }
 
@@ -86,10 +86,10 @@ to avoid wasting time on broken or rate-limited oracles.
 
 Optionally combine with --domain to auto-discover candidate oracles from DNS TXT records.`,
 	Example: `  # Test oracles for a domain (auto-discovers candidate oracles from DNS)
-  brutus enum oracles discover --domain praetorian.com --known-valid admin@praetorian.com
+  brutus enum active oracles discover --domain praetorian.com --known-valid admin@praetorian.com
 
   # Test specific oracles only
-  brutus enum oracles discover --known-valid admin@example.com -s microsoft365,google`,
+  brutus enum active oracles discover --known-valid admin@example.com -s microsoft365,google`,
 	RunE: runEnumDiscover,
 }
 
@@ -526,7 +526,7 @@ func maybeConfirmTeamsOracle(ctx context.Context, dnsResult *enum.DNSReconResult
 func confirmTeamsOracle(ctx context.Context, knownValid string, useColor bool) string {
 	accessToken, refreshToken, ok := resolveTeamsConfirmToken(useColor)
 	if !ok {
-		return "teams: available (unconfirmed) — run `brutus enum teams auth` then re-run to confirm"
+		return "teams: available (unconfirmed) — run `brutus enum active teams auth` then re-run to confirm"
 	}
 
 	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, false)

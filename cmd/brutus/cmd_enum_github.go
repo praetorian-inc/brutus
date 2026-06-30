@@ -38,6 +38,7 @@ var (
 	flagGithubEnumFormat    string
 	flagGithubEnumLimit     int
 	flagGithubEnumToken     string
+	flagGithubEnumNoReveal  bool
 )
 
 var enumGithubCmd = &cobra.Command{
@@ -59,7 +60,8 @@ repository is created, one commit per existing email is pushed with that email
 as the commit author, GitHub resolves the author's login (even when email
 privacy is enabled), and the temporary repository is then ALWAYS deleted. If the
 cleanup delete ever fails, the repository name is printed so you can remove it
-manually.
+manually. Pass --no-reveal to skip this step and run existence-only even when a
+token is present.
 
 Provide targets directly with --emails/-e or --email-file/-E, or pass --domain
 to generate the candidate wordlist internally from a bundled, frequency-ranked
@@ -93,6 +95,7 @@ func init() {
 	f.StringVar(&flagGithubEnumFormat, "format", "first.last", "Username format for --domain generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
 	f.IntVar(&flagGithubEnumLimit, "limit", 0, "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)")
 	f.StringVar(&flagGithubEnumToken, "token", "", "GitHub PAT for username reveal (overrides GITHUB_TOKEN; visible in process list — prefer the env var)")
+	f.BoolVar(&flagGithubEnumNoReveal, "no-reveal", false, "Skip username reveal after existence enumeration (existence-only; no token used, no temp repo created)")
 	// NOTE: no -t shorthand: it collides with the global persistent --threads/-t
 	// flag, which cobra merges into this subcommand at execute time.
 	enumActiveCmd.AddCommand(enumGithubCmd)
@@ -168,9 +171,10 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
 	progress.Stop()
 
-	// Username reveal: only when a token is set and at least one account exists.
+	// Username reveal: only when not disabled, a token is set, and at least one
+	// account exists.
 	existing := existingEmails(results)
-	if token != "" && len(existing) > 0 {
+	if !flagGithubEnumNoReveal && token != "" && len(existing) > 0 {
 		if !flagQuiet && !flagJSON {
 			fmt.Fprintf(os.Stderr, "%s Revealing usernames for %d existing account(s) via a temporary private repo (deleted afterward)...\n",
 				dim(useColor, SymbolInfo), len(existing))

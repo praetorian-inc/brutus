@@ -127,6 +127,24 @@ func TestEnumGithubCmd_WiredUnderActiveCmd(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// --no-reveal flag contract
+// ---------------------------------------------------------------------------
+
+// TestEnumGithubCmd_NoRevealFlag asserts the flag-level contract for the
+// boolean --no-reveal flag registered on enumGithubCmd:
+//  1. The flag exists on the command.
+//  2. Its default value is "false".
+//  3. It is typed as a bool flag.
+//  4. It has no shorthand (empty string).
+func TestEnumGithubCmd_NoRevealFlag(t *testing.T) {
+	f := enumGithubCmd.Flags().Lookup("no-reveal")
+	require.NotNil(t, f, "--no-reveal flag must exist on enumGithubCmd")
+	assert.Equal(t, "false", f.DefValue, "--no-reveal default must be \"false\"")
+	assert.Equal(t, "bool", f.Value.Type(), "--no-reveal must be a bool flag")
+	assert.Equal(t, "", f.Shorthand, "--no-reveal must have no shorthand")
+}
+
+// ---------------------------------------------------------------------------
 // githubEnumTargets
 // ---------------------------------------------------------------------------
 

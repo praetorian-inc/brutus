@@ -59,16 +59,16 @@ may be combined with -e/-E.
 This enumeration is unauthenticated: no token, credential store, or sign-in is
 required.`,
 	Example: `  # Enumerate a couple of emails
-  brutus enum google -e alice@example.com,bob@example.com
+  brutus enum active google -e alice@example.com,bob@example.com
 
   # Generate candidate emails for a domain and enumerate the 5000 most likely
-  brutus enum google --domain target.com --format first.last --limit 5000
+  brutus enum active google --domain target.com --format first.last --limit 5000
 
   # Enumerate emails from a file
-  brutus enum google -E emails.txt
+  brutus enum active google -E emails.txt
 
   # Route through a SOCKS5 proxy and raise concurrency
-  brutus enum google -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20`,
+  brutus enum active google -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20`,
 	RunE: runEnumGoogle,
 }
 
@@ -81,7 +81,11 @@ func init() {
 	f.IntVar(&flagGoogleEnumLimit, "limit", 0, "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)")
 	// NOTE: no -t shorthand: it collides with the global persistent --threads/-t
 	// flag, which cobra merges into this subcommand at execute time.
-	enumCmd.AddCommand(enumGoogleCmd)
+	//
+	// google lives under "active". init() runs after all package-level command
+	// vars are initialized and AddCommand only needs the vars to exist, so it is
+	// safe to reference enumActiveCmd (defined in cmd_enum_active.go) here.
+	enumActiveCmd.AddCommand(enumGoogleCmd)
 }
 
 // runEnumGoogle implements the "enum google" subcommand.

@@ -146,7 +146,7 @@ func TestFetchPage_200Decode(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	page, err := c.fetchPage(context.Background(), "example.com", 0)
+	page, err := c.fetchPage(context.Background(), "example.com", 0, 10)
 	require.NoError(t, err)
 	assert.Equal(t, "Example Corp", page.Data.Organization)
 	assert.Len(t, page.Data.Emails, 2)
@@ -163,7 +163,7 @@ func TestFetchPage_401_Unauthorized(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.fetchPage(context.Background(), "example.com", 0)
+	_, err := c.fetchPage(context.Background(), "example.com", 0, 10)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrUnauthorized), "expected ErrUnauthorized, got %v", err)
 
@@ -181,7 +181,7 @@ func TestFetchPage_429_RateLimited(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.fetchPage(context.Background(), "example.com", 0)
+	_, err := c.fetchPage(context.Background(), "example.com", 0, 10)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrRateLimited))
 }
@@ -194,7 +194,7 @@ func TestFetchPage_451_LegalReasons(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.fetchPage(context.Background(), "example.com", 0)
+	_, err := c.fetchPage(context.Background(), "example.com", 0, 10)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrLegalReasons))
 }
@@ -207,7 +207,7 @@ func TestFetchPage_MalformedJSON(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.fetchPage(context.Background(), "example.com", 0)
+	_, err := c.fetchPage(context.Background(), "example.com", 0, 10)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decoding hunter response")
 }
@@ -222,7 +222,7 @@ func TestFetchPage_QueryParams(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.fetchPage(context.Background(), "test.io", 5)
+	_, err := c.fetchPage(context.Background(), "test.io", 5, 10)
 	require.NoError(t, err)
 
 	q := capturedURL.Query()
@@ -329,7 +329,7 @@ func TestSearch_Pagination(t *testing.T) {
 			c := newTestClient(srv.URL)
 			c.pageSize = tc.pageSize
 
-			result, err := c.Search(context.Background(), "example.com")
+			result, err := c.Search(context.Background(), "example.com", 0)
 
 			if tc.wantErr != nil {
 				require.Error(t, err)
@@ -346,6 +346,70 @@ func TestSearch_Pagination(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSearch_LimitCapsResults verifies --limit is honored as a total result cap
+// (consistent with dehashed/apollo/lusha) rather than a raw page size: a small
+// limit returns exactly that many people AND stops after a single request, so it
+// never paginates into Hunter's free-plan result cap.
+func TestSearch_LimitCapsResults(t *testing.T) {
+	allEmails := []apiEmail{
+		{Value: "a@example.com", Confidence: 90},
+		{Value: "b@example.com", Confidence: 80},
+		{Value: "c@example.com", Confidence: 70},
+	}
+	// total=50 (server claims many more available), pageSize=1 mirrors pageSizeForLimit(1).
+	srv, reqCount := pagedServer(t, allEmails, 50, 1, 0)
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = 1
+
+	result, err := c.Search(context.Background(), "example.com", 1)
+	require.NoError(t, err)
+	assert.Len(t, result.People, 1, "limit=1 must return exactly one person")
+	assert.Equal(t, int32(1), reqCount.Load(), "limit=1 must stop after one request (never reaching the plan cap)")
+	assert.False(t, result.Truncated, "a user-requested --limit cap is not a plan-cap truncation")
+}
+
+// TestSearch_LimitReducesFinalPageRequest verifies that when --limit is not a
+// multiple of the page size, Search asks the API for only the remaining number of
+// results on the final page instead of a full page it would discard (Hunter bills
+// per email returned). With pageSize=100 and limit=150 over a large domain, the
+// two requests must ask for limit=100 then limit=50.
+func TestSearch_LimitReducesFinalPageRequest(t *testing.T) {
+	// Large pool so the domain is never exhausted before the cap is hit.
+	pool := make([]apiEmail, 300)
+	for i := range pool {
+		pool[i] = apiEmail{Value: fmt.Sprintf("u%d@example.com", i), Confidence: 50}
+	}
+
+	var reqLimits []int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		offset, perPage := 0, 0
+		_, _ = fmt.Sscanf(q.Get("offset"), "%d", &offset)
+		_, _ = fmt.Sscanf(q.Get("limit"), "%d", &perPage)
+		reqLimits = append(reqLimits, perPage)
+
+		end := offset + perPage
+		if end > len(pool) {
+			end = len(pool)
+		}
+		page := pool[offset:end]
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(makeResponse("example.com", "Example Corp", page, len(pool), perPage, offset))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = 100
+
+	result, err := c.Search(context.Background(), "example.com", 150)
+	require.NoError(t, err)
+	assert.Len(t, result.People, 150, "must return exactly the requested cap")
+	assert.Equal(t, []int{100, 50}, reqLimits, "final page must request only the remaining 50, not a full 100")
+	assert.False(t, result.Truncated, "a user-requested --limit cap is not a plan-cap truncation")
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +448,7 @@ func TestSearch_PlanLimited_ReturnsPartial(t *testing.T) {
 	c := newTestClient(srv.URL)
 	c.pageSize = pageSize
 
-	result, err := c.Search(context.Background(), "example.com")
+	result, err := c.Search(context.Background(), "example.com", 0)
 
 	require.NoError(t, err, "plan-cap mid-pagination must not return a fatal error")
 	assert.True(t, result.Truncated, "Truncated must be true when plan cap was hit")
@@ -454,7 +518,7 @@ func TestSearch_RateLimited_StillFatal(t *testing.T) {
 	c := newTestClient(srv.URL)
 	c.pageSize = pageSize
 
-	result, err := c.Search(context.Background(), "example.com")
+	result, err := c.Search(context.Background(), "example.com", 0)
 
 	require.Error(t, err, "mid-pagination 429 must return a fatal error")
 	assert.True(t, errors.Is(err, ErrRateLimited), "error must wrap ErrRateLimited")
@@ -479,6 +543,6 @@ func TestSearch_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	_, err := c.Search(ctx, "example.com")
+	_, err := c.Search(ctx, "example.com", 0)
 	require.Error(t, err)
 }

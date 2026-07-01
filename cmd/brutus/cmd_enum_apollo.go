@@ -236,17 +236,3 @@ func classifyApolloError(err error) error {
 	}
 	return fmt.Errorf("apollo people search failed: %w", err)
 }
-
-// pageSizeForLimit derives the people-search per_page from --limit: min(limit, 100),
-// or defaultPageSize (100) when limit is unbounded (0). This never requests a
-// per_page above Apollo's 100 max while --limit separately bounds the accumulated
-// total inside SearchPeople.
-func pageSizeForLimit(limit int) int {
-	if limit <= 0 {
-		return 100
-	}
-	if limit > 100 {
-		return 100
-	}
-	return limit
-}

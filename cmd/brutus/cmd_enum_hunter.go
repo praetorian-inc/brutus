@@ -65,7 +65,7 @@ Requires a Hunter.io API key via the HUNTER_API_KEY environment variable
 	f.StringVarP(&flagHunterDomain, "domain", "d", "", "Domain to search (required)")
 	f.StringVar(&flagHunterAPIKey, "api-key", "",
 		"Hunter.io API key (overrides HUNTER_API_KEY; WARNING: visible in process list and shell history — prefer HUNTER_API_KEY)")
-	f.IntVar(&flagHunterLimit, "limit", 100, "Results per API page (pagination page size)")
+	f.IntVar(&flagHunterLimit, "limit", 0, "Maximum number of people to return (0 = no cap, return all)")
 	_ = cmd.MarkFlagRequired("domain")
 
 	return cmd
@@ -105,11 +105,11 @@ func runEnumHunter(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	client, err := hunter.NewClient(apiKey, flagTimeout, flagHunterLimit, proxyURL)
+	client, err := hunter.NewClient(apiKey, flagTimeout, pageSizeForLimit(flagHunterLimit), proxyURL)
 	if err != nil {
 		return err
 	}
-	result, err := client.Search(ctx, flagHunterDomain)
+	result, err := client.Search(ctx, flagHunterDomain, flagHunterLimit)
 	if err != nil {
 		return classifyHunterError(err)
 	}

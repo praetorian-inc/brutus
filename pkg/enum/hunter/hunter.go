@@ -143,12 +143,20 @@ func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL stri
 
 // Search runs Domain Search for domain, following pagination until exhausted,
 // and returns the aggregated DomainResult. Honors ctx cancellation between pages.
-func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, error) {
+// limit caps the total number of People returned (consistent with the other enum
+// subcommands); limit <= 0 means no cap (fetch all pages).
+func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainResult, error) {
 	offset := 0
 	result := &DomainResult{Domain: domain}
 
 	for {
-		page, err := c.fetchPage(ctx, domain, offset)
+		perPage := c.pageSize
+		if limit > 0 {
+			if remaining := limit - len(result.People); remaining < perPage {
+				perPage = remaining
+			}
+		}
+		page, err := c.fetchPage(ctx, domain, offset, perPage)
 		if err != nil {
 			// Plan result cap is a soft stop: return what we collected so far.
 			// Other errors (auth, rate limit, etc.) remain fatal.
@@ -171,11 +179,17 @@ func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, erro
 		fetched := len(page.Data.Emails)
 		offset += fetched
 
+		// Reached the caller-requested cap: truncate and stop (no further requests).
+		if limit > 0 && len(result.People) >= limit {
+			result.People = result.People[:limit]
+			break
+		}
+
 		// Termination: empty page, short final page, or reached known total.
 		if fetched == 0 {
 			break
 		}
-		if fetched < c.pageSize {
+		if fetched < perPage {
 			break
 		}
 		if result.Total > 0 && offset >= result.Total {
@@ -196,14 +210,16 @@ func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, erro
 // ---------------------------------------------------------------------------
 
 // fetchPage performs a single paginated GET request to the Hunter.io API.
+// perPage is the requested page size for this request (sent as the "limit" query
+// param), letting the caller shrink the final page to only what's still needed.
 // The api_key is embedded in the query string per the Hunter API contract.
 // The full URL is never logged to prevent key leakage (P0-1 security requirement).
-func (c *Client) fetchPage(ctx context.Context, domain string, offset int) (*apiResponse, error) {
+func (c *Client) fetchPage(ctx context.Context, domain string, offset, perPage int) (*apiResponse, error) {
 	// Build query string — api_key goes here per Hunter's spec.
 	q := url.Values{
 		"domain":  {domain},
 		"api_key": {c.apiKey},
-		"limit":   {strconv.Itoa(c.pageSize)},
+		"limit":   {strconv.Itoa(perPage)},
 		"offset":  {strconv.Itoa(offset)},
 	}
 	rawURL := c.baseURL + "?" + q.Encode()

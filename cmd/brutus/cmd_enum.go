@@ -159,7 +159,7 @@ func runEnumGenerateRanked() error {
 			return fmt.Errorf("generating ranked usernames: %w", err)
 		}
 		for _, r := range capRankedResults(ranked, flagEnumGenerateLimit) {
-			fmt.Fprintf(os.Stdout, "%s\t%.4f\n", r.Value, r.Confidence)
+			_, _ = fmt.Fprintf(os.Stdout, "%s\t%.4f\n", r.Value, r.Confidence)
 		}
 		return nil
 	}
@@ -169,7 +169,7 @@ func runEnumGenerateRanked() error {
 		return fmt.Errorf("generating ranked emails: %w", err)
 	}
 	for _, r := range capRankedResults(ranked, flagEnumGenerateLimit) {
-		fmt.Fprintf(os.Stdout, "%s\t%.4f\n", r.Value, r.Confidence)
+		_, _ = fmt.Fprintf(os.Stdout, "%s\t%.4f\n", r.Value, r.Confidence)
 	}
 	return nil
 }

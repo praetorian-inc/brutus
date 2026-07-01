@@ -200,7 +200,9 @@ const (
 	errAccountLocked = "E0000002"
 )
 
-const canaryPassword = "C4n4ry!Pr0b3#2026xQ"
+// Deliberately invalid — exists only to trigger an auth failure so we can
+// compare error responses between valid and invalid usernames.
+const enumProbePassword = "C4n4ry!Pr0b3#2026xQ"
 
 // authnRequest is the body for POST /api/v1/authn.
 type authnRequest struct {
@@ -305,7 +307,7 @@ func (c *Checker) CheckAccount(ctx context.Context, tenantURL string, email stri
 func (c *Checker) probeAuthn(ctx context.Context, tenantURL, email string) authnProbeResult {
 	body, err := json.Marshal(authnRequest{
 		Username: email,
-		Password: canaryPassword,
+		Password: enumProbePassword,
 	})
 	if err != nil {
 		return authnProbeResult{err: fmt.Errorf("marshaling request: %w", err)}

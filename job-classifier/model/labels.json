@@ -1,0 +1,17 @@
+{
+  "classes": [
+    "Executive",
+    "Executive Assistant",
+    "Finance",
+    "HR",
+    "Helpdesk",
+    "IT",
+    "Legal",
+    "Marketing",
+    "Sales",
+    "Security",
+    "Software Engineer"
+  ],
+  "embedding_model": "all-MiniLM-L6-v2",
+  "unknown_label": "Unknown"
+}

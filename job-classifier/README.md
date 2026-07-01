@@ -1,0 +1,170 @@
+# Job Title → Department Classifier
+
+Classifies scraped job titles (LinkedIn, Lusha, Apollo, Hunter, etc.) into a
+fixed set of department buckets for **red-team target prioritization** in
+brutus enum. Given a title like `Director of Information Technology`, it returns
+a department (`IT`) and a confidence score.
+
+It is a small, self-contained Python tool: LLM-generated synthetic training data
+→ `all-MiniLM-L6-v2` sentence embeddings → a `LogisticRegression` classifier.
+
+## Departments
+
+Eleven trainable buckets, plus a post-hoc `Unknown`:
+
+| Department            | Examples |
+| --------------------- | -------- |
+| `Executive`           | CEO, CTO, CFO, President, Managing Director, Partner |
+| `Executive Assistant` | EA, PA, Chief of Staff, Admin Assistant to the CEO |
+| `IT`                  | SysAdmin, IT Manager, Network Engineer, Infra Engineer |
+| `Helpdesk`            | IT Support, Help Desk, Desktop Support, Service Desk |
+| `Software Engineer`   | SWE, Developer, Architect, DevOps, SRE, Data Engineer |
+| `Security`            | CISO, Security Engineer, SOC Analyst, Pentest, GRC, IAM |
+| `Finance`             | CFO, Controller, FP&A, Accountant, Treasurer, Auditor |
+| `HR`                  | CHRO, Recruiter, HRBP, Talent, L&D, Payroll |
+| `Sales`               | AE, SDR, BDR, VP Sales, Account Manager |
+| `Marketing`           | CMO, Growth, Brand, Demand Gen, Content, Product Marketing |
+| `Legal`               | GC, Counsel, Compliance, Privacy |
+| `Unknown`             | catch-all for low-confidence predictions |
+
+**`Unknown` is not a trained class.** It is assigned at inference time whenever
+the top softmax probability falls below `--threshold`. This keeps the model
+honest about titles it hasn't really learned, without polluting training.
+
+## Layout
+
+```
+job-classifier/
+├── categories.py      # shared taxonomy + title normalization (imported everywhere)
+├── generate_data.py   # synthetic data via the Anthropic API  -> data/titles.csv
+├── train.py           # embed + train + evaluate               -> model/*
+├── classify.py        # inference CLI (single + batch)
+├── refine.py          # bootstrap loop: relabel hard cases, retrain
+├── data/titles.csv    # 1,785 synthetic labeled titles (committed)
+├── model/
+│   ├── classifier.pkl # trained LogisticRegression (committed)
+│   └── labels.json    # class order + embedding-model name (committed)
+├── requirements.txt
+└── Dockerfile
+```
+
+## Quick start (Docker — recommended)
+
+The classifier pulls in `torch` + `sentence-transformers` (a large install), so
+everything runs in an isolated container; nothing lands on your host except the
+mounted `data/`, `model/`, and `.hf-cache/` directories. Run all commands from
+the **repository root**.
+
+```bash
+# 1. Build once (~5.5 GB image)
+docker build -t brutus-job-classifier job-classifier/
+
+# 2. Classify a single title
+docker run --rm \
+  -v "$PWD/job-classifier/model:/app/model" \
+  -v "$PWD/job-classifier/.hf-cache:/root/.cache/huggingface" \
+  brutus-job-classifier python classify.py --title "Director of Information Technology" --verbose
+
+# 3. Batch classify a file (one title per line)
+docker run --rm \
+  -v "$PWD/job-classifier/data:/app/data" \
+  -v "$PWD/job-classifier/model:/app/model" \
+  -v "$PWD/job-classifier/.hf-cache:/root/.cache/huggingface" \
+  brutus-job-classifier python classify.py --input data/titles.txt --output data/results.csv --threshold 0.5
+```
+
+The committed model works out of the box — you only need to retrain if you
+regenerate or extend the dataset.
+
+## Quick start (local venv)
+
+```bash
+cd job-classifier
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+python classify.py --title "SOC Analyst II" --verbose
+```
+
+## Usage
+
+### Inference — `classify.py`
+
+```bash
+# Single title
+python classify.py --title "Director of Information Technology"
+
+# Full probability distribution (debug ambiguous titles)
+python classify.py --title "VP of Demand Gen" --verbose
+
+# Batch: CSV out with columns title,department,confidence
+python classify.py --input titles.txt --output results.csv --threshold 0.6
+```
+
+- `--threshold` (default `0.6`): titles whose top probability is below this are
+  labeled `Unknown`.
+- `--verbose`: prints the full per-class probability distribution.
+
+### Retraining — `train.py`
+
+```bash
+python train.py                     # reads data/titles.csv, writes model/*
+python train.py --test-size 0.2 --seed 42
+```
+
+Normalizes titles, embeds with `all-MiniLM-L6-v2`, trains
+`LogisticRegression(max_iter=1000, class_weight='balanced')`, prints a
+classification report on a stratified 80/20 split, and serializes the model.
+
+### Regenerating the corpus — `generate_data.py`
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+python generate_data.py --per-category 150
+```
+
+Asks `claude-sonnet-4-6` for ~150 varied titles per department, dedupes,
+shuffles, and writes `data/titles.csv`.
+
+> The committed `data/titles.csv` was generated by delegating to Claude Code
+> sub-agents (one per department, no API key needed). `generate_data.py` is the
+> reproducible, key-based equivalent for standalone / CI regeneration.
+
+### Bootstrap loop — `refine.py`
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+python refine.py --results results.csv --min-confidence 0.75
+```
+
+Takes a batch `results.csv`, sends the low-confidence titles back to Claude for
+labeling (batches of 50), appends the new labels to `data/titles.csv`, and
+re-runs `train.py`. Lets the model tighten on hard cases without manual
+annotation.
+
+## Model quality
+
+Trained on 1,785 synthetic titles (1,730 after normalization dedup). Held-out
+20% test split:
+
+```
+accuracy                          0.922
+macro avg      0.926     0.922     0.922
+```
+
+Per-class F1 ranges from ~0.83 (Security) to ~0.99 (Finance/Helpdesk).
+
+### A note on the confidence threshold
+
+With 11 balanced classes over short-text embeddings, a **correct** prediction's
+top probability is often in the 0.45–0.65 range even when the argmax is clearly
+right (e.g. `Director of Information Technology` → `IT` at 0.457, with the runner
+-up at 0.130 — a 3.5× margin). The spec's default `--threshold 0.6` is therefore
+aggressive: it sends many correct-but-moderate predictions to `Unknown`.
+
+Guidance:
+- For **coverage** (label as much as possible, tolerate some noise): use
+  `--threshold 0.35`–`0.45`.
+- For **precision** (only high-confidence buckets, more `Unknown`): keep `0.6`+.
+- Use `--verbose` to inspect the margin between the top two classes — that gap is
+  usually a better signal of correctness than the absolute top probability.

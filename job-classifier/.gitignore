@@ -1,0 +1,17 @@
+# HuggingFace / sentence-transformers model cache (downloaded at runtime)
+.hf-cache/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Batch classification outputs
+results.csv
+*_results.csv
+
+# Local scratch inputs
+_*.txt
+
+# The trained artifacts (model/classifier.pkl, model/labels.json) and the
+# synthetic corpus (data/titles.csv) ARE committed so the tool works out of the
+# box. Regenerate with generate_data.py + train.py.

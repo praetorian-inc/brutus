@@ -1,0 +1,327 @@
+{
+  "samples": [
+    {
+      "raw": "Director of Information Technology",
+      "normalized": "director of information technology",
+      "argmax": "IT",
+      "confidence": 0.6008338004466748,
+      "probabilities": {
+        "Executive": 0.05950916460530215,
+        "Executive Assistant": 0.010861235134679329,
+        "Finance": 0.03520849534987254,
+        "HR": 0.03660901191981274,
+        "Helpdesk": 0.11906249496478216,
+        "IT": 0.6008338004466748,
+        "Legal": 0.024822779748610736,
+        "Marketing": 0.04027998096675714,
+        "Sales": 0.024735609961083083,
+        "Security": 0.03344538594928838,
+        "Software Engineer": 0.014632040953136973
+      }
+    },
+    {
+      "raw": "Sr. Staff Software Engineer, Platform",
+      "normalized": "senior staff software engineer platform",
+      "argmax": "Software Engineer",
+      "confidence": 0.881052572288851,
+      "probabilities": {
+        "Executive": 0.007904898010438702,
+        "Executive Assistant": 0.008397050806610176,
+        "Finance": 0.0118262879444855,
+        "HR": 0.009733024886877772,
+        "Helpdesk": 0.007608694970048342,
+        "IT": 0.025332111022497775,
+        "Legal": 0.012191228685970524,
+        "Marketing": 0.007753630508309683,
+        "Sales": 0.0075974035064400635,
+        "Security": 0.02060309736947052,
+        "Software Engineer": 0.881052572288851
+      }
+    },
+    {
+      "raw": "SOC Analyst II",
+      "normalized": "security operations center analyst ii",
+      "argmax": "Security",
+      "confidence": 0.8532115984665565,
+      "probabilities": {
+        "Executive": 0.013592284365637095,
+        "Executive Assistant": 0.005137196171966597,
+        "Finance": 0.02066056606988922,
+        "HR": 0.02403503559273742,
+        "Helpdesk": 0.008142122510250743,
+        "IT": 0.02794203984469128,
+        "Legal": 0.013848462059208281,
+        "Marketing": 0.014481588267236938,
+        "Sales": 0.012638791915098091,
+        "Security": 0.8532115984665565,
+        "Software Engineer": 0.006310314736727825
+      }
+    },
+    {
+      "raw": "VP of Demand Gen",
+      "normalized": "vice president of demand gen",
+      "argmax": "Marketing",
+      "confidence": 0.362256643898026,
+      "probabilities": {
+        "Executive": 0.20633257278181094,
+        "Executive Assistant": 0.025262502672993924,
+        "Finance": 0.07171901596088232,
+        "HR": 0.0789866743733938,
+        "Helpdesk": 0.025139843305094146,
+        "IT": 0.03668636298233081,
+        "Legal": 0.05952433568702739,
+        "Marketing": 0.362256643898026,
+        "Sales": 0.06622993878357748,
+        "Security": 0.03931461200344049,
+        "Software Engineer": 0.028547497551422725
+      }
+    },
+    {
+      "raw": "Chief of Staff to the CEO",
+      "normalized": "chief of staff to the chief executive officer",
+      "argmax": "Executive Assistant",
+      "confidence": 0.6037558012487214,
+      "probabilities": {
+        "Executive": 0.33622974614581114,
+        "Executive Assistant": 0.6037558012487214,
+        "Finance": 0.008218647561297107,
+        "HR": 0.006904344090068096,
+        "Helpdesk": 0.003317935541254581,
+        "IT": 0.003270015121964819,
+        "Legal": 0.00959975160938328,
+        "Marketing": 0.006932627708406132,
+        "Sales": 0.00866563689719747,
+        "Security": 0.005662868267853312,
+        "Software Engineer": 0.007442625808042727
+      }
+    },
+    {
+      "raw": "Chartered Accountant",
+      "normalized": "chartered accountant",
+      "argmax": "Finance",
+      "confidence": 0.6869564830855364,
+      "probabilities": {
+        "Executive": 0.04174997376300754,
+        "Executive Assistant": 0.014490172209635116,
+        "Finance": 0.6869564830855364,
+        "HR": 0.026573959393905076,
+        "Helpdesk": 0.015019496267506063,
+        "IT": 0.01935724046136954,
+        "Legal": 0.034147265100176884,
+        "Marketing": 0.02334777883085784,
+        "Sales": 0.08152073925666418,
+        "Security": 0.03549112491703719,
+        "Software Engineer": 0.021345766714304455
+      }
+    },
+    {
+      "raw": "CISO",
+      "normalized": "chief information security officer",
+      "argmax": "Security",
+      "confidence": 0.6527825810365958,
+      "probabilities": {
+        "Executive": 0.22549229750693908,
+        "Executive Assistant": 0.014863689476349097,
+        "Finance": 0.01248528287002981,
+        "HR": 0.009856523604064922,
+        "Helpdesk": 0.01485720221811743,
+        "IT": 0.02705762967113969,
+        "Legal": 0.015819374545911064,
+        "Marketing": 0.013811412255941706,
+        "Sales": 0.005868524980917792,
+        "Security": 0.6527825810365958,
+        "Software Engineer": 0.007105481833993555
+      }
+    },
+    {
+      "raw": "Help Desk Technician (Tier 1)",
+      "normalized": "help desk technician tier 1",
+      "argmax": "Helpdesk",
+      "confidence": 0.9148369044473457,
+      "probabilities": {
+        "Executive": 0.0110794122735559,
+        "Executive Assistant": 0.0036871136199789732,
+        "Finance": 0.007995768771948839,
+        "HR": 0.009443163027438866,
+        "Helpdesk": 0.9148369044473457,
+        "IT": 0.01280658450836911,
+        "Legal": 0.010258473672254523,
+        "Marketing": 0.007584933410692392,
+        "Sales": 0.007170145457834072,
+        "Security": 0.008306121124747894,
+        "Software Engineer": 0.006831379685833714
+      }
+    },
+    {
+      "raw": "General Counsel & Corporate Secretary",
+      "normalized": "general counsel and corporate secretary",
+      "argmax": "Legal",
+      "confidence": 0.7624701955327968,
+      "probabilities": {
+        "Executive": 0.06302628502634862,
+        "Executive Assistant": 0.019376130624581153,
+        "Finance": 0.04063231156220691,
+        "HR": 0.02152988743730353,
+        "Helpdesk": 0.010951528721487936,
+        "IT": 0.012360320413798401,
+        "Legal": 0.7624701955327968,
+        "Marketing": 0.026239867684618598,
+        "Sales": 0.01153316728588472,
+        "Security": 0.020810437973421782,
+        "Software Engineer": 0.011069867737551507
+      }
+    },
+    {
+      "raw": "Talent Acquisition Partner, EMEA",
+      "normalized": "talent acquisition partner emea",
+      "argmax": "HR",
+      "confidence": 0.6647010801655399,
+      "probabilities": {
+        "Executive": 0.06521107376860144,
+        "Executive Assistant": 0.025160598356220473,
+        "Finance": 0.041012208726806824,
+        "HR": 0.6647010801655399,
+        "Helpdesk": 0.017255752421585956,
+        "IT": 0.024411504016241124,
+        "Legal": 0.040145208608753105,
+        "Marketing": 0.0252783734646223,
+        "Sales": 0.03785592241476266,
+        "Security": 0.03433352318114495,
+        "Software Engineer": 0.024634754875721365
+      }
+    },
+    {
+      "raw": "Regional Sales Director",
+      "normalized": "regional sales director",
+      "argmax": "Sales",
+      "confidence": 0.7699270509135596,
+      "probabilities": {
+        "Executive": 0.05795927388267157,
+        "Executive Assistant": 0.009473634222040945,
+        "Finance": 0.02875421154391266,
+        "HR": 0.037432212109038555,
+        "Helpdesk": 0.007539794542395501,
+        "IT": 0.014768665265896415,
+        "Legal": 0.02606536764836523,
+        "Marketing": 0.02447891043469181,
+        "Sales": 0.7699270509135596,
+        "Security": 0.014524226192180198,
+        "Software Engineer": 0.009076653245247366
+      }
+    },
+    {
+      "raw": "Head of Growth",
+      "normalized": "head of growth",
+      "argmax": "Marketing",
+      "confidence": 0.41527172136260615,
+      "probabilities": {
+        "Executive": 0.0985993235357433,
+        "Executive Assistant": 0.02081276462788153,
+        "Finance": 0.06931863768887923,
+        "HR": 0.09083492107253197,
+        "Helpdesk": 0.029018651258136796,
+        "IT": 0.03848615833135065,
+        "Legal": 0.0808464723935035,
+        "Marketing": 0.41527172136260615,
+        "Sales": 0.0695280533228154,
+        "Security": 0.05079128484960891,
+        "Software Engineer": 0.036492011556942525
+      }
+    },
+    {
+      "raw": "Managing Director",
+      "normalized": "managing director",
+      "argmax": "Executive",
+      "confidence": 0.5408267975357164,
+      "probabilities": {
+        "Executive": 0.5408267975357164,
+        "Executive Assistant": 0.036695655426672476,
+        "Finance": 0.055268481526227015,
+        "HR": 0.07539165279005106,
+        "Helpdesk": 0.010918605075032487,
+        "IT": 0.036457623822403154,
+        "Legal": 0.03490139160539484,
+        "Marketing": 0.1124624721360717,
+        "Sales": 0.05370299696394518,
+        "Security": 0.025091916927554126,
+        "Software Engineer": 0.018282406190931622
+      }
+    },
+    {
+      "raw": "Network Engineer III",
+      "normalized": "network engineer iii",
+      "argmax": "IT",
+      "confidence": 0.6990999998839899,
+      "probabilities": {
+        "Executive": 0.019284996254238976,
+        "Executive Assistant": 0.008874674613985386,
+        "Finance": 0.016232062509166974,
+        "HR": 0.01813389463705883,
+        "Helpdesk": 0.017673115818528345,
+        "IT": 0.6990999998839899,
+        "Legal": 0.018530355989473238,
+        "Marketing": 0.013646483379951647,
+        "Sales": 0.01855782874113338,
+        "Security": 0.03890036056361158,
+        "Software Engineer": 0.13106622760886172
+      }
+    },
+    {
+      "raw": "Data Protection Officer",
+      "normalized": "data protection officer",
+      "argmax": "Legal",
+      "confidence": 0.3787043051393973,
+      "probabilities": {
+        "Executive": 0.18999576901861284,
+        "Executive Assistant": 0.02949592179272518,
+        "Finance": 0.05273431939346686,
+        "HR": 0.05258246600515785,
+        "Helpdesk": 0.025095813965077353,
+        "IT": 0.04626588162517557,
+        "Legal": 0.3787043051393973,
+        "Marketing": 0.06338008954861242,
+        "Sales": 0.028720905311296254,
+        "Security": 0.07318673415276826,
+        "Software Engineer": 0.05983779404771022
+      }
+    },
+    {
+      "raw": "Penguin Wrangler",
+      "normalized": "penguin wrangler",
+      "argmax": "HR",
+      "confidence": 0.13012469929303003,
+      "probabilities": {
+        "Executive": 0.11114709954782005,
+        "Executive Assistant": 0.032279493365289375,
+        "Finance": 0.1221141189732976,
+        "HR": 0.13012469929303003,
+        "Helpdesk": 0.04390865541932358,
+        "IT": 0.07022972868400724,
+        "Legal": 0.1056351214781616,
+        "Marketing": 0.08911015503603553,
+        "Sales": 0.0637015355033006,
+        "Security": 0.1251112326397293,
+        "Software Engineer": 0.10663816006000512
+      }
+    },
+    {
+      "raw": "asdf qwerty zxcv",
+      "normalized": "asdf qwerty zxcv",
+      "argmax": "Legal",
+      "confidence": 0.15805043221255968,
+      "probabilities": {
+        "Executive": 0.1183696409202295,
+        "Executive Assistant": 0.03832186178525316,
+        "Finance": 0.12354793388714554,
+        "HR": 0.10481616001209772,
+        "Helpdesk": 0.04499254778065796,
+        "IT": 0.06131859624081884,
+        "Legal": 0.15805043221255968,
+        "Marketing": 0.07858553753371356,
+        "Sales": 0.06314883963320686,
+        "Security": 0.1335770006512592,
+        "Software Engineer": 0.07527144934305804
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+anthropic
+sentence-transformers
+scikit-learn
+joblib
+pandas
+numpy
+tqdm

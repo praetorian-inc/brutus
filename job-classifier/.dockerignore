@@ -1,0 +1,8 @@
+data/
+model/
+.hf-cache/
+__pycache__/
+*.pyc
+results.csv
+*.txt
+!requirements.txt

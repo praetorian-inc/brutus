@@ -66,6 +66,7 @@ type Result struct {
 type Checker struct {
 	baseURL string
 	timeout time.Duration
+	client  *http.Client
 }
 
 // NewChecker creates a Checker with the given timeout. Pass "" for baseURL to
@@ -74,7 +75,11 @@ func NewChecker(baseURL string, timeout time.Duration) *Checker {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
 	}
-	return &Checker{baseURL: baseURL, timeout: timeout}
+	return &Checker{
+		baseURL: baseURL,
+		timeout: timeout,
+		client:  enum.NewEnumHTTPClient(timeout),
+	}
 }
 
 // CheckAccount tests if an email account exists on Microsoft 365 via the
@@ -83,11 +88,11 @@ func NewChecker(baseURL string, timeout time.Duration) *Checker {
 func (c *Checker) CheckAccount(ctx context.Context, email string) *Result {
 	start := time.Now()
 	result := &Result{Email: email}
+	defer func() { result.Duration = time.Since(start) }()
 
 	body, err := json.Marshal(credTypeRequest{Username: email})
 	if err != nil {
 		result.Error = fmt.Errorf("marshaling request: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -95,42 +100,35 @@ func (c *Checker) CheckAccount(ctx context.Context, email string) *Result {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		result.Error = fmt.Errorf("creating request: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := enum.NewEnumHTTPClient(c.timeout)
-	resp, err := client.Do(req)
+	resp, err := c.client.Do(req)
 	if err != nil {
 		result.Error = fmt.Errorf("request failed: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		result.Error = fmt.Errorf("unexpected status: %d", resp.StatusCode)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	raw, err := enum.ReadResponseBody(resp, 0)
 	if err != nil {
 		result.Error = fmt.Errorf("reading response: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 	var credResp credTypeResponse
 	if err := json.Unmarshal(raw, &credResp); err != nil {
 		result.Error = fmt.Errorf("decoding response: %w", err)
-		result.Duration = time.Since(start)
 		return result
 	}
 
 	if credResp.ThrottleStatus != 0 {
 		result.Error = fmt.Errorf("throttled by Microsoft 365")
-		result.Duration = time.Since(start)
 		return result
 	}
 
@@ -146,6 +144,5 @@ func (c *Checker) CheckAccount(ctx context.Context, email string) *Result {
 		result.FederationURL = credResp.FederationRedirectUrl
 	}
 
-	result.Duration = time.Since(start)
 	return result
 }

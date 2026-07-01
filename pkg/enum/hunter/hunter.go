@@ -143,7 +143,9 @@ func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL stri
 
 // Search runs Domain Search for domain, following pagination until exhausted,
 // and returns the aggregated DomainResult. Honors ctx cancellation between pages.
-func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, error) {
+// limit caps the total number of People returned (consistent with the other enum
+// subcommands); limit <= 0 means no cap (fetch all pages).
+func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainResult, error) {
 	offset := 0
 	result := &DomainResult{Domain: domain}
 
@@ -170,6 +172,12 @@ func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, erro
 
 		fetched := len(page.Data.Emails)
 		offset += fetched
+
+		// Reached the caller-requested cap: truncate and stop (no further requests).
+		if limit > 0 && len(result.People) >= limit {
+			result.People = result.People[:limit]
+			break
+		}
 
 		// Termination: empty page, short final page, or reached known total.
 		if fetched == 0 {

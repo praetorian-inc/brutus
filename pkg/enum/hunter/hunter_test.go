@@ -329,7 +329,7 @@ func TestSearch_Pagination(t *testing.T) {
 			c := newTestClient(srv.URL)
 			c.pageSize = tc.pageSize
 
-			result, err := c.Search(context.Background(), "example.com")
+			result, err := c.Search(context.Background(), "example.com", 0)
 
 			if tc.wantErr != nil {
 				require.Error(t, err)
@@ -346,6 +346,30 @@ func TestSearch_Pagination(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSearch_LimitCapsResults verifies --limit is honored as a total result cap
+// (consistent with dehashed/apollo/lusha) rather than a raw page size: a small
+// limit returns exactly that many people AND stops after a single request, so it
+// never paginates into Hunter's free-plan result cap.
+func TestSearch_LimitCapsResults(t *testing.T) {
+	allEmails := []apiEmail{
+		{Value: "a@example.com", Confidence: 90},
+		{Value: "b@example.com", Confidence: 80},
+		{Value: "c@example.com", Confidence: 70},
+	}
+	// total=50 (server claims many more available), pageSize=1 mirrors pageSizeForLimit(1).
+	srv, reqCount := pagedServer(t, allEmails, 50, 1, 0)
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = 1
+
+	result, err := c.Search(context.Background(), "example.com", 1)
+	require.NoError(t, err)
+	assert.Len(t, result.People, 1, "limit=1 must return exactly one person")
+	assert.Equal(t, int32(1), reqCount.Load(), "limit=1 must stop after one request (never reaching the plan cap)")
+	assert.False(t, result.Truncated, "a user-requested --limit cap is not a plan-cap truncation")
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +408,7 @@ func TestSearch_PlanLimited_ReturnsPartial(t *testing.T) {
 	c := newTestClient(srv.URL)
 	c.pageSize = pageSize
 
-	result, err := c.Search(context.Background(), "example.com")
+	result, err := c.Search(context.Background(), "example.com", 0)
 
 	require.NoError(t, err, "plan-cap mid-pagination must not return a fatal error")
 	assert.True(t, result.Truncated, "Truncated must be true when plan cap was hit")
@@ -454,7 +478,7 @@ func TestSearch_RateLimited_StillFatal(t *testing.T) {
 	c := newTestClient(srv.URL)
 	c.pageSize = pageSize
 
-	result, err := c.Search(context.Background(), "example.com")
+	result, err := c.Search(context.Background(), "example.com", 0)
 
 	require.Error(t, err, "mid-pagination 429 must return a fatal error")
 	assert.True(t, errors.Is(err, ErrRateLimited), "error must wrap ErrRateLimited")
@@ -479,6 +503,6 @@ func TestSearch_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	_, err := c.Search(ctx, "example.com")
+	_, err := c.Search(ctx, "example.com", 0)
 	require.Error(t, err)
 }

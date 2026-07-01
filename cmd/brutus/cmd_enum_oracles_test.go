@@ -78,3 +78,107 @@ func TestEnumOraclesCmd_KnownValidMarkedRequired(t *testing.T) {
 	assert.True(t, required,
 		"--known-valid flag must carry cobra.BashCompOneRequiredFlag annotation (set by MarkFlagRequired)")
 }
+
+// ---------------------------------------------------------------------------
+// TestAddDomainIndependentOracles
+// ---------------------------------------------------------------------------
+
+// TestAddDomainIndependentOracles covers the helper that unions registered
+// domain-independent oracles (currently just "github") into the auto-discovered
+// oracle slice without duplicating entries that are already present and without
+// adding oracles whose plugin is not registered.
+func TestAddDomainIndependentOracles(t *testing.T) {
+	allRegistered := map[string]bool{
+		"microsoft365": true,
+		"google":       true,
+		"github":       true,
+	}
+	noGitHub := map[string]bool{
+		"microsoft365": true,
+		"google":       true,
+	}
+
+	tests := []struct {
+		name          string
+		services      []string
+		registeredSet map[string]bool
+		// wantContains lists entries that must appear in the result.
+		wantContains []string
+		// wantGitHubCount is the exact number of times "github" must appear.
+		wantGitHubCount int
+		// wantLen, when > 0, asserts the exact result length.
+		wantLen int
+	}{
+		{
+			name:            "github registered and absent – appended once",
+			services:        []string{"microsoft365", "google"},
+			registeredSet:   allRegistered,
+			wantContains:    []string{"microsoft365", "google", "github"},
+			wantGitHubCount: 1,
+			wantLen:         3,
+		},
+		{
+			name:            "github registered and already present – not duplicated",
+			services:        []string{"github", "google"},
+			registeredSet:   allRegistered,
+			wantContains:    []string{"github", "google"},
+			wantGitHubCount: 1,
+			wantLen:         2,
+		},
+		{
+			name:            "github not registered – not added",
+			services:        []string{"google"},
+			registeredSet:   noGitHub,
+			wantContains:    []string{"google"},
+			wantGitHubCount: 0,
+			wantLen:         1,
+		},
+		{
+			name:            "empty services and github registered – returns [github]",
+			services:        []string{},
+			registeredSet:   allRegistered,
+			wantContains:    []string{"github"},
+			wantGitHubCount: 1,
+			wantLen:         1,
+		},
+		{
+			name:            "empty services and github not registered – returns empty",
+			services:        []string{},
+			registeredSet:   noGitHub,
+			wantContains:    []string{},
+			wantGitHubCount: 0,
+			wantLen:         0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Make a copy so the original slice is not mutated between sub-tests.
+			input := make([]string, len(tc.services))
+			copy(input, tc.services)
+
+			got := addDomainIndependentOracles(input, tc.registeredSet)
+
+			// Assert exact length.
+			assert.Len(t, got, tc.wantLen,
+				"result length mismatch: got %v", got)
+
+			// Assert all expected entries are present.
+			for _, want := range tc.wantContains {
+				assert.Contains(t, got, want,
+					"result must contain %q; got %v", want, got)
+			}
+
+			// Assert "github" appears exactly the expected number of times.
+			githubCount := 0
+			for _, s := range got {
+				if s == "github" {
+					githubCount++
+				}
+			}
+			assert.Equal(t, tc.wantGitHubCount, githubCount,
+				"\"github\" must appear exactly %d time(s) in result %v",
+				tc.wantGitHubCount, got)
+		})
+	}
+}

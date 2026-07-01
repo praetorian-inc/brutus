@@ -408,6 +408,110 @@ func TestGenerateEmails_FirstUnderLast(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestGenerateRankedUsernames
+// ---------------------------------------------------------------------------
+
+// TestGenerateRankedUsernames_ConfidenceOrdering verifies that confidence
+// scores are monotonically non-increasing and bounded within (0.0, 1.0].
+func TestGenerateRankedUsernames_ConfidenceOrdering(t *testing.T) {
+	t.Parallel()
+
+	ranked, err := GenerateRankedUsernames(FormatFirstDotLast)
+	require.NoError(t, err)
+	require.NotEmpty(t, ranked)
+
+	// First entry must have the highest confidence (1.0).
+	assert.InDelta(t, 1.0, ranked[0].Confidence, 1e-9,
+		"rank-0 entry must have confidence ~1.0")
+
+	// Last entry must have confidence > 0.
+	assert.Greater(t, ranked[len(ranked)-1].Confidence, 0.0,
+		"last entry must have confidence > 0")
+
+	// Monotonically non-increasing.
+	for i := 1; i < len(ranked); i++ {
+		assert.LessOrEqual(t, ranked[i].Confidence, ranked[i-1].Confidence,
+			"confidence must be monotonically non-increasing at index %d", i)
+	}
+}
+
+// TestGenerateRankedUsernames_ValuesMatchPlain verifies that the Value fields
+// of ranked entries match the plain GenerateUsernames output exactly.
+func TestGenerateRankedUsernames_ValuesMatchPlain(t *testing.T) {
+	t.Parallel()
+
+	plain, err := GenerateUsernames(FormatFLast)
+	require.NoError(t, err)
+
+	ranked, err := GenerateRankedUsernames(FormatFLast)
+	require.NoError(t, err)
+
+	require.Equal(t, len(plain), len(ranked),
+		"ranked and plain must produce the same count")
+
+	for i := range plain {
+		assert.Equal(t, plain[i], ranked[i].Value,
+			"Value at index %d must match plain output", i)
+	}
+}
+
+// TestGenerateRankedUsernames_HeadEntry verifies the top-ranked entry.
+func TestGenerateRankedUsernames_HeadEntry(t *testing.T) {
+	t.Parallel()
+
+	ranked, err := GenerateRankedUsernames(FormatFirstDotLast)
+	require.NoError(t, err)
+	require.NotEmpty(t, ranked)
+
+	assert.Equal(t, "john.smith", ranked[0].Value)
+	assert.InDelta(t, 1.0, ranked[0].Confidence, 1e-9)
+}
+
+// ---------------------------------------------------------------------------
+// TestGenerateRankedEmails
+// ---------------------------------------------------------------------------
+
+// TestGenerateRankedEmails_ConfidenceAndDomain verifies ranked emails have
+// the domain appended and confidence scores match the username ranking.
+func TestGenerateRankedEmails_ConfidenceAndDomain(t *testing.T) {
+	t.Parallel()
+
+	const domain = "corp.com"
+	ranked, err := GenerateRankedEmails(FormatFirstDotLast, domain)
+	require.NoError(t, err)
+	require.NotEmpty(t, ranked)
+
+	assert.Equal(t, "john.smith@corp.com", ranked[0].Value)
+	assert.InDelta(t, 1.0, ranked[0].Confidence, 1e-9)
+
+	suffix := "@" + domain
+	for i, r := range ranked {
+		assert.True(t, strings.HasSuffix(r.Value, suffix),
+			"email at index %d (%q) must end with %q", i, r.Value, suffix)
+	}
+
+	// Confidence must match the corresponding ranked usernames.
+	rankedU, err := GenerateRankedUsernames(FormatFirstDotLast)
+	require.NoError(t, err)
+	require.Equal(t, len(rankedU), len(ranked))
+
+	for i := range ranked {
+		assert.InDelta(t, rankedU[i].Confidence, ranked[i].Confidence, 1e-9,
+			"confidence at index %d must match between usernames and emails", i)
+	}
+}
+
+// TestGenerateRankedEmails_UnknownFormat verifies that an unknown format
+// returns an empty result with no error, same as the plain version.
+func TestGenerateRankedEmails_UnknownFormat(t *testing.T) {
+	t.Parallel()
+
+	ranked, err := GenerateRankedEmails("bogus", "example.com")
+	require.NoError(t, err)
+	assert.Empty(t, ranked)
+}
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 

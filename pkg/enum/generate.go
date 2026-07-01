@@ -113,6 +113,51 @@ func GenerateEmails(format, domain string) ([]string, error) {
 	return emails, nil
 }
 
+// RankedEntry pairs a generated value (username or email) with a confidence
+// score derived from its frequency rank in the wordlist. Confidence ranges
+// from 1.0 (most likely, rank 0) to just above 0.0 (least likely, last rank).
+type RankedEntry struct {
+	Value      string  `json:"value"`
+	Confidence float64 `json:"confidence"`
+}
+
+// GenerateRankedUsernames derives usernames like GenerateUsernames but returns
+// each entry paired with a confidence score. Confidence decays linearly from
+// 1.0 (rank 0) to just above 0.0 (last rank): 1.0 - rank/total.
+func GenerateRankedUsernames(format string) ([]RankedEntry, error) {
+	usernames, err := GenerateUsernames(format)
+	if err != nil {
+		return nil, err
+	}
+	return assignConfidence(usernames), nil
+}
+
+// GenerateRankedEmails generates emails like GenerateEmails but returns each
+// entry paired with a confidence score derived from its frequency rank.
+func GenerateRankedEmails(format, domain string) ([]RankedEntry, error) {
+	emails, err := GenerateEmails(format, domain)
+	if err != nil {
+		return nil, err
+	}
+	return assignConfidence(emails), nil
+}
+
+func assignConfidence(values []string) []RankedEntry {
+	n := len(values)
+	if n == 0 {
+		return nil
+	}
+	ranked := make([]RankedEntry, n)
+	total := float64(n)
+	for i, v := range values {
+		ranked[i] = RankedEntry{
+			Value:      v,
+			Confidence: 1.0 - float64(i)/total,
+		}
+	}
+	return ranked
+}
+
 // LoadServiceAccounts returns embedded service account names.
 func LoadServiceAccounts() ([]string, error) {
 	data, err := wordlistFS.ReadFile("wordlists/service-accounts.txt")

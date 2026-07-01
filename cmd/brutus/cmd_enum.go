@@ -30,6 +30,7 @@ var (
 	flagEnumDomain        string
 	flagEnumFormat        string
 	flagEnumGenerateLimit int
+	flagEnumConfidence    bool
 )
 
 var enumCmd = &cobra.Command{
@@ -100,7 +101,10 @@ Available formats:
   brutus enum generate --domain example.com --limit 1000
 
   # Pipe the 500 most-likely usernames to Kerberos enum
-  brutus enum generate --format flast --limit 500 | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -`,
+  brutus enum generate --format flast --limit 500 | brutus enum kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -
+
+  # Generate emails with confidence scores (TSV: value\tconfidence)
+  brutus enum generate --domain example.com --confidence`,
 	RunE: runEnumGenerate,
 }
 
@@ -110,6 +114,7 @@ func init() {
 	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to append to generated usernames (omit to generate usernames only)")
 	f.StringVar(&flagEnumFormat, "format", "first.last", "Username format (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)")
 	f.IntVar(&flagEnumGenerateLimit, "limit", 0, "Emit only the first N (most-likely) results (0 = no limit, emit all)")
+	f.BoolVar(&flagEnumConfidence, "confidence", false, "Include confidence score per entry (TSV: value\\tconfidence)")
 
 	// Wire commands
 	enumCmd.AddCommand(enumGenerateCmd)
@@ -122,8 +127,11 @@ func init() {
 
 // runEnumGenerate handles the "enum generate" subcommand.
 func runEnumGenerate(cmd *cobra.Command, args []string) error {
+	if flagEnumConfidence {
+		return runEnumGenerateRanked()
+	}
+
 	if flagEnumDomain == "" {
-		// Generate usernames only (no domain)
 		usernames, err := enum.GenerateUsernames(flagEnumFormat)
 		if err != nil {
 			return fmt.Errorf("generating usernames: %w", err)
@@ -134,7 +142,6 @@ func runEnumGenerate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Generate emails with domain
 	emails, err := enum.GenerateEmails(flagEnumFormat, flagEnumDomain)
 	if err != nil {
 		return fmt.Errorf("generating emails: %w", err)
@@ -143,6 +150,35 @@ func runEnumGenerate(cmd *cobra.Command, args []string) error {
 		fmt.Println(e)
 	}
 	return nil
+}
+
+func runEnumGenerateRanked() error {
+	if flagEnumDomain == "" {
+		ranked, err := enum.GenerateRankedUsernames(flagEnumFormat)
+		if err != nil {
+			return fmt.Errorf("generating ranked usernames: %w", err)
+		}
+		for _, r := range capRankedResults(ranked, flagEnumGenerateLimit) {
+			fmt.Fprintf(os.Stdout, "%s\t%.4f\n", r.Value, r.Confidence)
+		}
+		return nil
+	}
+
+	ranked, err := enum.GenerateRankedEmails(flagEnumFormat, flagEnumDomain)
+	if err != nil {
+		return fmt.Errorf("generating ranked emails: %w", err)
+	}
+	for _, r := range capRankedResults(ranked, flagEnumGenerateLimit) {
+		fmt.Fprintf(os.Stdout, "%s\t%.4f\n", r.Value, r.Confidence)
+	}
+	return nil
+}
+
+func capRankedResults(results []enum.RankedEntry, limit int) []enum.RankedEntry {
+	if limit <= 0 || limit >= len(results) {
+		return results
+	}
+	return results[:limit]
 }
 
 // capResults returns the first limit elements of results (the most likely,

@@ -14,12 +14,18 @@
 
 // Package okta registers the Okta org-aware probe oracle. The detection logic
 // lives in pkg/enum/okta (the single source of truth, also consumable via the
-// Brutus API); this plugin is a thin adapter that maps an okta.Result to an
+// Brutus API); this plugin is a thin adapter that maps okta results to
 // enum.Result.
+//
+// When a tenant is found, the plugin probes /api/v1/authn for username
+// enumeration. If the tenant is misconfigured and leaks existence, the per-
+// email check upgrades from low to high confidence.
 package okta
 
 import (
 	"context"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -32,12 +38,14 @@ func init() {
 	})
 }
 
-// Plugin checks Okta tenant existence via the shared pkg/enum/okta checker
-// (.well-known/openid-configuration probe).
+// Plugin checks Okta tenant existence and, when the tenant is misconfigured,
+// performs per-email account enumeration via /api/v1/authn.
 type Plugin struct {
-	// baseURLFmt overrides the Okta base URL pattern for testing.
-	// Leave empty to use the default production endpoint.
 	baseURLFmt string
+
+	enumOnce    sync.Once
+	enumSupport *oktaenum.EnumSupport
+	tenantURL   string
 }
 
 func (p *Plugin) Name() string { return "okta" }
@@ -60,15 +68,48 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	}
 
 	if !res.HasTenant {
-		// The slug heuristic is unreliable (e.g. subdomain emails yield
-		// wrong slugs), so absence of a tenant is not definitive.
 		result.Confidence = enum.ConfidenceLow
 		return result
 	}
 
-	// Tenant found — the account is plausible but not individually confirmed.
 	result.Exists = true
 	result.Confidence = enum.ConfidenceLow
 
+	domain := domainFromEmail(email)
+	if domain == "" {
+		return result
+	}
+
+	p.enumOnce.Do(func() {
+		p.tenantURL = res.TenantURL
+		p.enumSupport = checker.DetectEnumeration(ctx, res.TenantURL, domain)
+	})
+
+	if p.enumSupport == nil || p.enumSupport.Error != nil || !p.enumSupport.Enumerable {
+		return result
+	}
+
+	enumRes := checker.CheckAccount(ctx, p.tenantURL, email, p.enumSupport.BaselineError)
+	if enumRes.Error != nil {
+		return result
+	}
+
+	if enumRes.Exists {
+		result.Exists = true
+		result.Confidence = enum.ConfidenceHigh
+	} else {
+		result.Exists = false
+		result.Confidence = enum.ConfidenceHigh
+	}
+
+	result.Duration = time.Since(start)
 	return result
+}
+
+func domainFromEmail(email string) string {
+	parts := strings.SplitN(email, "@", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	return parts[1]
 }

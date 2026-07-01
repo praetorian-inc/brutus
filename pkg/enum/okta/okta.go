@@ -12,19 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package okta provides passive Okta tenant discovery for a given email domain.
-// It probes the well-known OpenID configuration endpoint on the candidate
-// <slug>.okta.com subdomain to determine whether the target organization has an
-// Okta tenant. No authentication attempts are made.
+// Package okta provides Okta tenant discovery and account enumeration.
+//
+// Tenant discovery: probes <slug>.okta.com/.well-known/openid-configuration
+// or validates a tenant URL discovered via M365/Google federation redirects.
+//
+// Account enumeration: when an Okta tenant is misconfigured, /api/v1/authn
+// may return distinguishable responses for valid vs. invalid usernames.
+// DetectEnumeration checks for this; CheckAccount exploits it per-email.
 package okta
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -34,17 +40,47 @@ import (
 
 const DefaultBaseURL = "https://%s.okta.com"
 
+// DiscoveryMethod describes how an Okta tenant was found.
+type DiscoveryMethod string
+
+const (
+	DiscoveryDirect          DiscoveryMethod = "direct"
+	DiscoveryFederationM365  DiscoveryMethod = "federation-m365"
+	DiscoveryFederationGoogle DiscoveryMethod = "federation-google"
+)
+
 // Result is the outcome of probing for an Okta tenant associated with an
 // email's domain.
 type Result struct {
-	Email     string
-	HasTenant bool
-	TenantURL string
-	Error     error
-	Duration  time.Duration
+	Email           string
+	HasTenant       bool
+	TenantURL       string
+	DiscoveryMethod DiscoveryMethod
+	Error           error
+	Duration        time.Duration
 }
 
-// Checker probes for Okta tenant existence. It is safe for concurrent use.
+// EnumSupport describes whether a tenant allows username enumeration via
+// /api/v1/authn response differentiation.
+type EnumSupport struct {
+	Enumerable    bool
+	TenantURL     string
+	BaselineError string
+	Error         error
+}
+
+// EnumResult is the outcome of checking a single email for existence via
+// /api/v1/authn.
+type EnumResult struct {
+	Email    string
+	Exists   bool
+	Locked   bool
+	Error    error
+	Duration time.Duration
+}
+
+// Checker probes for Okta tenant existence and account enumeration. It is
+// safe for concurrent use.
 type Checker struct {
 	baseURLFmt string
 	timeout    time.Duration
@@ -65,6 +101,10 @@ func NewChecker(baseURLFmt string, timeout time.Duration) *Checker {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Tenant discovery
+// ---------------------------------------------------------------------------
+
 // oidcConfig is the subset of the OpenID Connect discovery document we inspect.
 type oidcConfig struct {
 	Issuer string `json:"issuer"`
@@ -75,7 +115,7 @@ type oidcConfig struct {
 // derived from the domain's first label (e.g. "acme" from "acme.co.uk").
 func (c *Checker) CheckTenant(ctx context.Context, email string) *Result {
 	start := time.Now()
-	result := &Result{Email: email}
+	result := &Result{Email: email, DiscoveryMethod: DiscoveryDirect}
 	defer func() { result.Duration = time.Since(start) }()
 
 	slug := slugFromEmail(email)
@@ -85,9 +125,27 @@ func (c *Checker) CheckTenant(ctx context.Context, email string) *Result {
 	}
 
 	base := fmt.Sprintf(c.baseURLFmt, slug)
-	url := base + "/.well-known/openid-configuration"
+	return c.probeTenantURL(ctx, result, base)
+}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+// CheckTenantByURL validates that tenantURL hosts an Okta tenant. Use this
+// when the URL was discovered via federation redirect (M365/Google) rather
+// than the slug heuristic.
+func (c *Checker) CheckTenantByURL(ctx context.Context, tenantURL string, method DiscoveryMethod) *Result {
+	start := time.Now()
+	result := &Result{DiscoveryMethod: method}
+	defer func() { result.Duration = time.Since(start) }()
+
+	base := strings.TrimRight(tenantURL, "/")
+	return c.probeTenantURL(ctx, result, base)
+}
+
+// probeTenantURL hits the .well-known/openid-configuration endpoint at the
+// given base URL and populates the result.
+func (c *Checker) probeTenantURL(ctx context.Context, result *Result, base string) *Result {
+	oidcURL := base + "/.well-known/openid-configuration"
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, oidcURL, http.NoBody)
 	if err != nil {
 		result.Error = fmt.Errorf("creating request: %w", err)
 		return result
@@ -97,7 +155,6 @@ func (c *Checker) CheckTenant(ctx context.Context, email string) *Result {
 	if err != nil {
 		var dnsErr *net.DNSError
 		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
-			// NXDOMAIN — no such subdomain, so no tenant.
 			return result
 		}
 		result.Error = fmt.Errorf("request failed: %w", err)
@@ -134,6 +191,200 @@ func (c *Checker) CheckTenant(ctx context.Context, email string) *Result {
 	return result
 }
 
+// ---------------------------------------------------------------------------
+// Account enumeration
+// ---------------------------------------------------------------------------
+
+const (
+	errAuthnFailed  = "E0000004"
+	errAccountLocked = "E0000002"
+)
+
+const canaryPassword = "C4n4ry!Pr0b3#2026xQ"
+
+// authnRequest is the body for POST /api/v1/authn.
+type authnRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// authnResponse covers both error and status-flow responses from /api/v1/authn.
+type authnResponse struct {
+	Status       string `json:"status,omitempty"`
+	ErrorCode    string `json:"errorCode,omitempty"`
+	ErrorSummary string `json:"errorSummary,omitempty"`
+}
+
+type authnProbeResult struct {
+	statusCode int
+	response   authnResponse
+	err        error
+}
+
+// indicatesExistence returns true when the authn response is a definitive
+// signal that the user account exists, independent of baseline comparison.
+func (r *authnProbeResult) indicatesExistence() bool {
+	// Any non-error status (MFA_REQUIRED, LOCKED_OUT, PASSWORD_EXPIRED, etc.)
+	// means the user was found in the directory.
+	if r.response.Status != "" {
+		return true
+	}
+	if r.response.ErrorCode == errAccountLocked {
+		return true
+	}
+	return false
+}
+
+// DetectEnumeration probes whether the Okta tenant at tenantURL leaks username
+// validity through /api/v1/authn response differentiation. It sends two canary
+// requests with emails in the target domain that should not exist; if the
+// endpoint returns consistent error responses, it is worth checking real
+// emails against the baseline.
+func (c *Checker) DetectEnumeration(ctx context.Context, tenantURL string, domain string) *EnumSupport {
+	support := &EnumSupport{TenantURL: tenantURL}
+
+	canary1 := fmt.Sprintf("nonexistent-canary-alpha-x7q9@%s", domain)
+	canary2 := fmt.Sprintf("nonexistent-canary-bravo-m3k8@%s", domain)
+
+	probe1 := c.probeAuthn(ctx, tenantURL, canary1)
+	if probe1.err != nil {
+		support.Error = probe1.err
+		return support
+	}
+
+	probe2 := c.probeAuthn(ctx, tenantURL, canary2)
+	if probe2.err != nil {
+		support.Error = probe2.err
+		return support
+	}
+
+	if probe1.response.ErrorCode != probe2.response.ErrorCode {
+		return support
+	}
+
+	if probe1.response.ErrorCode == "" {
+		return support
+	}
+
+	support.Enumerable = true
+	support.BaselineError = probe1.response.ErrorCode
+	return support
+}
+
+// CheckAccount checks whether email exists on the Okta tenant by sending a
+// deliberately invalid password to /api/v1/authn and comparing the response
+// against the baseline error code from DetectEnumeration. Responses that
+// differ from the baseline (different error code, MFA challenge, lockout
+// status) indicate the account exists.
+func (c *Checker) CheckAccount(ctx context.Context, tenantURL string, email string, baselineError string) *EnumResult {
+	start := time.Now()
+	result := &EnumResult{Email: email}
+	defer func() { result.Duration = time.Since(start) }()
+
+	probe := c.probeAuthn(ctx, tenantURL, email)
+	if probe.err != nil {
+		result.Error = probe.err
+		return result
+	}
+
+	if probe.indicatesExistence() {
+		result.Exists = true
+		if probe.response.ErrorCode == errAccountLocked || probe.response.Status == "LOCKED_OUT" {
+			result.Locked = true
+		}
+		return result
+	}
+
+	if probe.response.ErrorCode != baselineError {
+		result.Exists = true
+	}
+
+	return result
+}
+
+func (c *Checker) probeAuthn(ctx context.Context, tenantURL, email string) authnProbeResult {
+	body, err := json.Marshal(authnRequest{
+		Username: email,
+		Password: canaryPassword,
+	})
+	if err != nil {
+		return authnProbeResult{err: fmt.Errorf("marshaling request: %w", err)}
+	}
+
+	authnURL := strings.TrimRight(tenantURL, "/") + "/api/v1/authn"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authnURL, bytes.NewReader(body))
+	if err != nil {
+		return authnProbeResult{err: fmt.Errorf("creating request: %w", err)}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return authnProbeResult{err: fmt.Errorf("request failed: %w", err)}
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	raw, err := enum.ReadResponseBody(resp, 0)
+	if err != nil {
+		return authnProbeResult{err: fmt.Errorf("reading response: %w", err)}
+	}
+
+	var authnResp authnResponse
+	if err := json.Unmarshal(raw, &authnResp); err != nil {
+		return authnProbeResult{
+			statusCode: resp.StatusCode,
+			err:        fmt.Errorf("decoding response: %w", err),
+		}
+	}
+
+	return authnProbeResult{
+		statusCode: resp.StatusCode,
+		response:   authnResp,
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Federation cross-correlation
+// ---------------------------------------------------------------------------
+
+// ParseOktaTenantURL extracts the base Okta tenant URL from a federation
+// redirect URL or bare IdP hostname. Returns "" if the input doesn't point
+// to an Okta host.
+func ParseOktaTenantURL(federationInput string) string {
+	if federationInput == "" {
+		return ""
+	}
+
+	if !strings.Contains(federationInput, "://") {
+		if isOktaHost(federationInput) {
+			return "https://" + federationInput
+		}
+		return ""
+	}
+
+	u, err := url.Parse(federationInput)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+
+	if !isOktaHost(u.Host) {
+		return ""
+	}
+
+	return u.Scheme + "://" + u.Host
+}
+
+func isOktaHost(host string) bool {
+	host = strings.ToLower(host)
+	return strings.HasSuffix(host, ".okta.com") ||
+		strings.HasSuffix(host, ".oktapreview.com")
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 // slugFromEmail extracts the organization name from an email domain using
 // the public suffix list. For "user@mail.acme.com" it returns "acme" (the
 // registrable domain minus its public suffix). Falls back to the first domain
@@ -145,19 +396,14 @@ func slugFromEmail(email string) string {
 	}
 	domain := strings.ToLower(parts[1])
 
-	// Try to extract the registrable domain (e.g. "acme.co.uk" from
-	// "mail.acme.co.uk"). This strips subdomains and keeps only the
-	// organization-level label plus the public suffix.
 	reg, err := publicsuffix.EffectiveTLDPlusOne(domain)
 	if err == nil {
-		// reg is e.g. "acme.co.uk"; the org name is the first label.
 		dot := strings.IndexByte(reg, '.')
 		if dot > 0 {
 			return reg[:dot]
 		}
 	}
 
-	// Fallback: domain is itself a suffix or unparseable — use the first label.
 	dot := strings.IndexByte(domain, '.')
 	if dot <= 0 {
 		return ""

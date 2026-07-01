@@ -176,6 +176,19 @@ func capResults(results []string, limit int) []string {
 	return results[:limit]
 }
 
+// pageSizeForLimit derives an API page size from a --limit total cap: min(limit,100),
+// or 100 (defaultPageSize) when limit is unbounded (0). Callers pass --limit separately
+// as the accumulated-total bound.
+func pageSizeForLimit(limit int) int {
+	if limit <= 0 {
+		return 100
+	}
+	if limit > 100 {
+		return 100
+	}
+	return limit
+}
+
 // loadLinesFromFile reads lines from a file (one per line).
 // If path is "-", reads from stdin. Used for both emails and usernames.
 func loadLinesFromFile(path string) ([]string, error) {

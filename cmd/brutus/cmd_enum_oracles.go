@@ -139,6 +139,33 @@ func teamsOracleAvailable(result *enum.DNSReconResult) bool {
 	return false
 }
 
+// domainIndependentOracles lists registered oracles that apply to any email
+// regardless of the org's DNS/SaaS footprint, so DNS recon never surfaces them
+// (GitHub account existence is checkable for any address; there is no per-tenant
+// DNS TXT record to discover). They are unioned into the auto-discovered oracle
+// set in runEnumOracles so the oracle check covers them.
+var domainIndependentOracles = []string{"github"}
+
+// addDomainIndependentOracles appends any registered domain-independent oracles
+// (see domainIndependentOracles) to services that are not already present. It is
+// used only in the DNS auto-discovery path; an explicit --services list is
+// honored verbatim and never has oracles added to it. registeredSet is the set
+// of currently-registered plugin names, so an oracle is added only when its
+// plugin is actually registered.
+func addDomainIndependentOracles(services []string, registeredSet map[string]bool) []string {
+	present := make(map[string]bool, len(services))
+	for _, s := range services {
+		present[s] = true
+	}
+	for _, name := range domainIndependentOracles {
+		if registeredSet[name] && !present[name] {
+			services = append(services, name)
+			present[name] = true
+		}
+	}
+	return services
+}
+
 // runEnumOracles handles the main oracles enum command. Its output leads with
 // the oracle check — which oracles were validated against --known-valid and
 // whether each WORKED or NOT — and treats the DNS recon merely as a one-line
@@ -264,6 +291,12 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 				services = append(services, s)
 			}
 		}
+		// Domain-independent oracles (e.g. github) have no DNS TXT footprint, so
+		// DNS recon never surfaces them — yet they apply to any corporate email
+		// regardless of the org's SaaS tenancy. Union them in so the oracle check
+		// covers them alongside the DNS-discovered tenant oracles. Only done in the
+		// auto-discovery path; an explicit --services list is respected verbatim.
+		services = addDomainIndependentOracles(services, registeredSet)
 	}
 	// If still empty, enum.Config.Services=nil means "all registered"
 

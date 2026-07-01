@@ -157,6 +157,8 @@ func Test_slugFromEmail(t *testing.T) {
 		{"user@acme.com", "acme"},
 		{"user@some-corp.co.uk", "some-corp"},
 		{"user@UPPER.org", "upper"},
+		{"user@mail.acme.com", "acme"},
+		{"user@sub.domain.acme.co.uk", "acme"},
 		{"user@single", ""},
 		{"no-at-sign", ""},
 		{"", ""},

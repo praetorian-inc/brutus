@@ -34,7 +34,11 @@ func init() {
 
 // Plugin checks Okta tenant existence via the shared pkg/enum/okta checker
 // (.well-known/openid-configuration probe).
-type Plugin struct{}
+type Plugin struct {
+	// baseURLFmt overrides the Okta base URL pattern for testing.
+	// Leave empty to use the default production endpoint.
+	baseURLFmt string
+}
 
 func (p *Plugin) Name() string { return "okta" }
 
@@ -45,7 +49,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 		Email:   email,
 	}
 
-	checker := oktaenum.NewChecker("", timeout)
+	checker := oktaenum.NewChecker(p.baseURLFmt, timeout)
 	res := checker.CheckTenant(ctx, email)
 
 	result.Error = res.Error
@@ -56,7 +60,9 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 	}
 
 	if !res.HasTenant {
-		result.Confidence = enum.ConfidenceHigh
+		// The slug heuristic is unreliable (e.g. subdomain emails yield
+		// wrong slugs), so absence of a tenant is not definitive.
+		result.Confidence = enum.ConfidenceLow
 		return result
 	}
 

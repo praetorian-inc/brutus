@@ -94,7 +94,7 @@ func ParseSalesNavCSV(data []byte) (*ScrapeResult, error) {
 			Title:              coalesce(getField(record, colIndex, "jobtitle"), getField(record, colIndex, "job"), getField(record, colIndex, "title")),
 			Company:            coalesce(getField(record, colIndex, "companyname"), getField(record, colIndex, "company")),
 			CompanyURL:         coalesce(getField(record, colIndex, "companylinkedinurl"), getField(record, colIndex, "companyurl")),
-			Department:         coalesce(getField(record, colIndex, "department"), getField(record, colIndex, "industry")),
+			Department:         getField(record, colIndex, "department"),
 			Seniority:          getField(record, colIndex, "seniority"),
 			Location:           coalesce(getField(record, colIndex, "location"), getField(record, colIndex, "region")),
 			LinkedinURL:        coalesce(getField(record, colIndex, "linkedinprofileurl"), getField(record, colIndex, "profileurl")),

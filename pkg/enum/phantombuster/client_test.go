@@ -115,7 +115,7 @@ func TestPollUntilDone_ImmediateSuccess(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/agent/agent-123/output.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, `{"containerStatus":"not running","exitCode":0,"exitMessage":"finished"}`)
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"containerStatus":"not running","exitCode":0,"exitMessage":"finished"}}`)
 	})
 
 	c := newTestClient(t, mux)
@@ -135,9 +135,9 @@ func TestPollUntilDone_TransitionsToComplete(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		n := calls.Add(1)
 		if n <= 2 {
-			_, _ = fmt.Fprint(w, `{"containerStatus":"running","progress":{"value":0.5,"label":"scraping"}}`)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"containerStatus":"running","progress":{"value":"0.5","label":"scraping"}}}`)
 		} else {
-			_, _ = fmt.Fprint(w, `{"containerStatus":"not running","exitCode":0,"exitMessage":"finished"}`)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"containerStatus":"not running","exitCode":0,"exitMessage":"finished"}}`)
 		}
 	})
 
@@ -161,7 +161,7 @@ func TestPollUntilDone_AgentFailed(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/agent/agent-123/output.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, `{"containerStatus":"not running","exitCode":1,"exitMessage":"agent timeout"}`)
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"containerStatus":"not running","exitCode":1,"exitMessage":"agent timeout"}}`)
 	})
 
 	c := newTestClient(t, mux)
@@ -175,7 +175,7 @@ func TestPollUntilDone_ContextCancelled(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/agent/agent-123/output.json", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, `{"containerStatus":"running"}`)
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"containerStatus":"running"}}`)
 	})
 
 	c := newTestClient(t, mux)

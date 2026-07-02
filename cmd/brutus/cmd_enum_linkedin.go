@@ -128,9 +128,10 @@ func runEnumLinkedin(cmd *cobra.Command, args []string) error {
 				return
 			}
 			if status.Progress != nil {
+				pct, _ := status.Progress.Value.Float64()
 				fmt.Fprintf(os.Stderr, "\r%s Progress: %.0f%% %s",
 					dim(useColor, SymbolInfo),
-					status.Progress.Value*100,
+					pct*100,
 					status.Progress.Label)
 			}
 		}

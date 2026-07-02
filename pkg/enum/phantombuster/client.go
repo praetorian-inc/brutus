@@ -106,14 +106,21 @@ func (c *Client) Launch(ctx context.Context, agentID string) (*LaunchResult, err
 	return &result, nil
 }
 
+// outputV1Response wraps the v1 output endpoint's envelope format:
+// {"status":"success","data":{...actual fields...}}
+type outputV1Response struct {
+	Status string       `json:"status"`
+	Data   OutputStatus `json:"data"`
+}
+
 // OutputStatus is the parsed polling response from the output endpoint.
 type OutputStatus struct {
 	ContainerStatus string `json:"containerStatus"`
 	ExitCode        int    `json:"exitCode"`
 	ExitMessage     string `json:"exitMessage"`
 	Progress        *struct {
-		Value float64 `json:"value"`
-		Label string  `json:"label"`
+		Value json.Number `json:"value"`
+		Label string      `json:"label"`
 	} `json:"progress"`
 	ResultObject json.RawMessage `json:"resultObject"`
 }
@@ -136,7 +143,13 @@ func (c *Client) PollUntilDone(ctx context.Context, agentID, containerID string,
 		}
 
 		var status OutputStatus
-		if err := json.Unmarshal(respBody, &status); err != nil {
+		var envelope outputV1Response
+		if err := json.Unmarshal(respBody, &envelope); err != nil {
+			return nil, fmt.Errorf("decoding output response: %w", err)
+		}
+		if envelope.Data.ContainerStatus != "" {
+			status = envelope.Data
+		} else if err := json.Unmarshal(respBody, &status); err != nil {
 			return nil, fmt.Errorf("decoding output response: %w", err)
 		}
 

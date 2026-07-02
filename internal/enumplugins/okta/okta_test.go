@@ -78,7 +78,7 @@ func TestCheck_TenantNotFound(t *testing.T) {
 
 	require.NoError(t, result.Error)
 	assert.False(t, result.Exists, "no tenant should set Exists=false")
-	assert.Equal(t, enum.ConfidenceLow, result.Confidence)
+	assert.Equal(t, enum.ConfidenceLow, result.Confidence, "slug heuristic is unreliable, so no-tenant should be low confidence")
 }
 
 func TestCheck_ServerError(t *testing.T) {
@@ -107,77 +107,4 @@ func TestCheck_ContextCancelled(t *testing.T) {
 
 	require.Error(t, result.Error)
 	assert.False(t, result.Exists)
-}
-
-// ---------------------------------------------------------------------------
-// Enumeration-aware plugin tests
-// ---------------------------------------------------------------------------
-
-// newEnumOktaServer simulates a misconfigured Okta tenant that leaks user
-// existence via different /api/v1/authn error codes.
-func newEnumOktaServer(t *testing.T, validUsers map[string]bool) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/acme/.well-known/openid-configuration" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"issuer": "https://acme.okta.com",
-			})
-			return
-		}
-
-		if r.URL.Path == "/acme/api/v1/authn" && r.Method == http.MethodPost {
-			var req struct {
-				Username string `json:"username"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-
-			if validUsers[req.Username] {
-				w.WriteHeader(http.StatusUnauthorized)
-				_ = json.NewEncoder(w).Encode(map[string]string{
-					"errorCode":    "E0000004",
-					"errorSummary": "Authentication failed",
-				})
-				return
-			}
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"errorCode":    "E0000001",
-				"errorSummary": "Api validation failed: login",
-			})
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-}
-
-func TestCheck_EnumerableUserExists(t *testing.T) {
-	t.Parallel()
-	srv := newEnumOktaServer(t, map[string]bool{"jane@acme.com": true})
-	t.Cleanup(srv.Close)
-
-	p := &Plugin{baseURLFmt: srv.URL + "/%s"}
-	result := p.Check(context.Background(), "jane@acme.com", 5*time.Second)
-
-	require.NoError(t, result.Error)
-	assert.True(t, result.Exists)
-	assert.Equal(t, enum.ConfidenceHigh, result.Confidence)
-}
-
-func TestCheck_EnumerableUserNotExists(t *testing.T) {
-	t.Parallel()
-	srv := newEnumOktaServer(t, map[string]bool{})
-	t.Cleanup(srv.Close)
-
-	p := &Plugin{baseURLFmt: srv.URL + "/%s"}
-	result := p.Check(context.Background(), "nobody@acme.com", 5*time.Second)
-
-	require.NoError(t, result.Error)
-	assert.False(t, result.Exists)
-	assert.Equal(t, enum.ConfidenceHigh, result.Confidence)
 }

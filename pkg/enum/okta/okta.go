@@ -12,18 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package okta provides Okta tenant discovery and account enumeration.
+// Package okta provides Okta tenant discovery for a given email domain.
 //
 // Tenant discovery: probes <slug>.okta.com/.well-known/openid-configuration
 // or validates a tenant URL discovered via M365/Google federation redirects.
-//
-// Account enumeration: when an Okta tenant is misconfigured, /api/v1/authn
-// may return distinguishable responses for valid vs. invalid usernames.
-// DetectEnumeration checks for this; CheckAccount exploits it per-email.
 package okta
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -44,8 +39,8 @@ const DefaultBaseURL = "https://%s.okta.com"
 type DiscoveryMethod string
 
 const (
-	DiscoveryDirect          DiscoveryMethod = "direct"
-	DiscoveryFederationM365  DiscoveryMethod = "federation-m365"
+	DiscoveryDirect           DiscoveryMethod = "direct"
+	DiscoveryFederationM365   DiscoveryMethod = "federation-m365"
 	DiscoveryFederationGoogle DiscoveryMethod = "federation-google"
 )
 
@@ -60,27 +55,7 @@ type Result struct {
 	Duration        time.Duration
 }
 
-// EnumSupport describes whether a tenant allows username enumeration via
-// /api/v1/authn response differentiation.
-type EnumSupport struct {
-	Enumerable    bool
-	TenantURL     string
-	BaselineError string
-	Error         error
-}
-
-// EnumResult is the outcome of checking a single email for existence via
-// /api/v1/authn.
-type EnumResult struct {
-	Email    string
-	Exists   bool
-	Locked   bool
-	Error    error
-	Duration time.Duration
-}
-
-// Checker probes for Okta tenant existence and account enumeration. It is
-// safe for concurrent use.
+// Checker probes for Okta tenant existence. It is safe for concurrent use.
 type Checker struct {
 	baseURLFmt string
 	timeout    time.Duration
@@ -189,161 +164,6 @@ func (c *Checker) probeTenantURL(ctx context.Context, result *Result, base strin
 	}
 
 	return result
-}
-
-// ---------------------------------------------------------------------------
-// Account enumeration
-// ---------------------------------------------------------------------------
-
-const (
-	errAuthnFailed  = "E0000004"
-	errAccountLocked = "E0000002"
-)
-
-// Deliberately invalid — exists only to trigger an auth failure so we can
-// compare error responses between valid and invalid usernames.
-const enumProbePassword = "C4n4ry!Pr0b3#2026xQ"
-
-// authnRequest is the body for POST /api/v1/authn.
-type authnRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// authnResponse covers both error and status-flow responses from /api/v1/authn.
-type authnResponse struct {
-	Status       string `json:"status,omitempty"`
-	ErrorCode    string `json:"errorCode,omitempty"`
-	ErrorSummary string `json:"errorSummary,omitempty"`
-}
-
-type authnProbeResult struct {
-	statusCode int
-	response   authnResponse
-	err        error
-}
-
-// indicatesExistence returns true when the authn response is a definitive
-// signal that the user account exists, independent of baseline comparison.
-func (r *authnProbeResult) indicatesExistence() bool {
-	// Any non-error status (MFA_REQUIRED, LOCKED_OUT, PASSWORD_EXPIRED, etc.)
-	// means the user was found in the directory.
-	if r.response.Status != "" {
-		return true
-	}
-	if r.response.ErrorCode == errAccountLocked {
-		return true
-	}
-	return false
-}
-
-// DetectEnumeration probes whether the Okta tenant at tenantURL leaks username
-// validity through /api/v1/authn response differentiation. It sends two canary
-// requests with emails in the target domain that should not exist; if the
-// endpoint returns consistent error responses, it is worth checking real
-// emails against the baseline.
-func (c *Checker) DetectEnumeration(ctx context.Context, tenantURL string, domain string) *EnumSupport {
-	support := &EnumSupport{TenantURL: tenantURL}
-
-	canary1 := fmt.Sprintf("nonexistent-canary-alpha-x7q9@%s", domain)
-	canary2 := fmt.Sprintf("nonexistent-canary-bravo-m3k8@%s", domain)
-
-	probe1 := c.probeAuthn(ctx, tenantURL, canary1)
-	if probe1.err != nil {
-		support.Error = probe1.err
-		return support
-	}
-
-	probe2 := c.probeAuthn(ctx, tenantURL, canary2)
-	if probe2.err != nil {
-		support.Error = probe2.err
-		return support
-	}
-
-	if probe1.response.ErrorCode != probe2.response.ErrorCode {
-		return support
-	}
-
-	if probe1.response.ErrorCode == "" {
-		return support
-	}
-
-	support.Enumerable = true
-	support.BaselineError = probe1.response.ErrorCode
-	return support
-}
-
-// CheckAccount checks whether email exists on the Okta tenant by sending a
-// deliberately invalid password to /api/v1/authn and comparing the response
-// against the baseline error code from DetectEnumeration. Responses that
-// differ from the baseline (different error code, MFA challenge, lockout
-// status) indicate the account exists.
-func (c *Checker) CheckAccount(ctx context.Context, tenantURL string, email string, baselineError string) *EnumResult {
-	start := time.Now()
-	result := &EnumResult{Email: email}
-	defer func() { result.Duration = time.Since(start) }()
-
-	probe := c.probeAuthn(ctx, tenantURL, email)
-	if probe.err != nil {
-		result.Error = probe.err
-		return result
-	}
-
-	if probe.indicatesExistence() {
-		result.Exists = true
-		if probe.response.ErrorCode == errAccountLocked || probe.response.Status == "LOCKED_OUT" {
-			result.Locked = true
-		}
-		return result
-	}
-
-	if probe.response.ErrorCode != baselineError {
-		result.Exists = true
-	}
-
-	return result
-}
-
-func (c *Checker) probeAuthn(ctx context.Context, tenantURL, email string) authnProbeResult {
-	body, err := json.Marshal(authnRequest{
-		Username: email,
-		Password: enumProbePassword,
-	})
-	if err != nil {
-		return authnProbeResult{err: fmt.Errorf("marshaling request: %w", err)}
-	}
-
-	authnURL := strings.TrimRight(tenantURL, "/") + "/api/v1/authn"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, authnURL, bytes.NewReader(body))
-	if err != nil {
-		return authnProbeResult{err: fmt.Errorf("creating request: %w", err)}
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return authnProbeResult{err: fmt.Errorf("request failed: %w", err)}
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	raw, err := enum.ReadResponseBody(resp, 0)
-	if err != nil {
-		return authnProbeResult{err: fmt.Errorf("reading response: %w", err)}
-	}
-
-	var authnResp authnResponse
-	if err := json.Unmarshal(raw, &authnResp); err != nil {
-		return authnProbeResult{
-			statusCode: resp.StatusCode,
-			err:        fmt.Errorf("decoding response: %w", err),
-		}
-	}
-
-	return authnProbeResult{
-		statusCode: resp.StatusCode,
-		response:   authnResp,
-	}
 }
 
 // ---------------------------------------------------------------------------

@@ -75,6 +75,20 @@ func TestCheckTenant_NotFound(t *testing.T) {
 	assert.Empty(t, result.TenantURL)
 }
 
+func TestCheckTenant_Forbidden(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(srv.Close)
+
+	c := NewChecker(srv.URL+"/%s", 5*time.Second)
+	result := c.CheckTenant(context.Background(), "user@blocked.com")
+
+	require.NoError(t, result.Error)
+	assert.False(t, result.HasTenant)
+}
+
 func TestCheckTenant_ServerError(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -219,205 +233,6 @@ func TestCheckTenantByURL_TrailingSlash(t *testing.T) {
 	require.NoError(t, result.Error)
 	assert.True(t, result.HasTenant)
 	assert.False(t, strings.HasSuffix(result.TenantURL, "/"))
-}
-
-// ---------------------------------------------------------------------------
-// Account enumeration tests
-// ---------------------------------------------------------------------------
-
-// newEnumMockServer simulates a misconfigured Okta tenant that returns
-// different error codes for valid vs. invalid users.
-func newEnumMockServer(t *testing.T, validUsers map[string]string) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/.well-known/openid-configuration") {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(oidcConfig{Issuer: "https://acme.okta.com"})
-			return
-		}
-
-		if r.URL.Path == "/api/v1/authn" && r.Method == http.MethodPost {
-			var req authnRequest
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-
-			if status, ok := validUsers[req.Username]; ok {
-				switch status {
-				case "locked":
-					w.WriteHeader(http.StatusForbidden)
-					_ = json.NewEncoder(w).Encode(authnResponse{
-						ErrorCode:    errAccountLocked,
-						ErrorSummary: "The user account is locked.",
-					})
-				case "mfa":
-					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(authnResponse{
-						Status: "MFA_REQUIRED",
-					})
-				default:
-					w.WriteHeader(http.StatusUnauthorized)
-					_ = json.NewEncoder(w).Encode(authnResponse{
-						ErrorCode:    errAuthnFailed,
-						ErrorSummary: "Authentication failed",
-					})
-				}
-				return
-			}
-
-			// Non-existent user — misconfigured tenant leaks a different error.
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(authnResponse{
-				ErrorCode:    "E0000001",
-				ErrorSummary: "Api validation failed: login",
-			})
-			return
-		}
-
-		http.NotFound(w, r)
-	}))
-}
-
-func TestDetectEnumeration_Enumerable(t *testing.T) {
-	t.Parallel()
-	srv := newEnumMockServer(t, map[string]string{})
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	support := c.DetectEnumeration(context.Background(), srv.URL, "acme.com")
-
-	require.NoError(t, support.Error)
-	assert.True(t, support.Enumerable)
-	assert.Equal(t, "E0000001", support.BaselineError)
-}
-
-func TestDetectEnumeration_ConsistentBaseline(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(authnResponse{
-			ErrorCode:    errAuthnFailed,
-			ErrorSummary: "Authentication failed",
-		})
-	}))
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	support := c.DetectEnumeration(context.Background(), srv.URL, "acme.com")
-
-	require.NoError(t, support.Error)
-	assert.True(t, support.Enumerable)
-	assert.Equal(t, errAuthnFailed, support.BaselineError)
-}
-
-func TestDetectEnumeration_InconsistentResponses(t *testing.T) {
-	t.Parallel()
-	calls := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		calls++
-		code := errAuthnFailed
-		if calls > 1 {
-			code = "E0000001"
-		}
-		_ = json.NewEncoder(w).Encode(authnResponse{ErrorCode: code})
-	}))
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	support := c.DetectEnumeration(context.Background(), srv.URL, "acme.com")
-
-	require.NoError(t, support.Error)
-	assert.False(t, support.Enumerable)
-}
-
-func TestDetectEnumeration_EndpointError(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("internal error"))
-	}))
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	support := c.DetectEnumeration(context.Background(), srv.URL, "acme.com")
-
-	require.Error(t, support.Error)
-	assert.False(t, support.Enumerable)
-}
-
-func TestCheckAccount_ExistsByErrorDiff(t *testing.T) {
-	t.Parallel()
-	validUsers := map[string]string{"jane@acme.com": "valid"}
-	srv := newEnumMockServer(t, validUsers)
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	result := c.CheckAccount(context.Background(), srv.URL, "jane@acme.com", "E0000001")
-
-	require.NoError(t, result.Error)
-	assert.True(t, result.Exists)
-	assert.False(t, result.Locked)
-}
-
-func TestCheckAccount_NotExists(t *testing.T) {
-	t.Parallel()
-	srv := newEnumMockServer(t, map[string]string{})
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	result := c.CheckAccount(context.Background(), srv.URL, "nobody@acme.com", "E0000001")
-
-	require.NoError(t, result.Error)
-	assert.False(t, result.Exists)
-}
-
-func TestCheckAccount_LockedAccount(t *testing.T) {
-	t.Parallel()
-	validUsers := map[string]string{"locked@acme.com": "locked"}
-	srv := newEnumMockServer(t, validUsers)
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	result := c.CheckAccount(context.Background(), srv.URL, "locked@acme.com", "E0000001")
-
-	require.NoError(t, result.Error)
-	assert.True(t, result.Exists)
-	assert.True(t, result.Locked)
-}
-
-func TestCheckAccount_MFAChallenge(t *testing.T) {
-	t.Parallel()
-	validUsers := map[string]string{"mfa@acme.com": "mfa"}
-	srv := newEnumMockServer(t, validUsers)
-	t.Cleanup(srv.Close)
-
-	c := NewChecker("", 5*time.Second)
-	result := c.CheckAccount(context.Background(), srv.URL, "mfa@acme.com", "E0000001")
-
-	require.NoError(t, result.Error)
-	assert.True(t, result.Exists)
-	assert.False(t, result.Locked)
-}
-
-func TestCheckAccount_ContextCancelled(t *testing.T) {
-	t.Parallel()
-	srv := newEnumMockServer(t, map[string]string{})
-	t.Cleanup(srv.Close)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	c := NewChecker("", 5*time.Second)
-	result := c.CheckAccount(ctx, srv.URL, "user@acme.com", "E0000001")
-
-	require.Error(t, result.Error)
-	assert.False(t, result.Exists)
 }
 
 // ---------------------------------------------------------------------------

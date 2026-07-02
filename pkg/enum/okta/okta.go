@@ -162,7 +162,7 @@ func (c *Checker) probeTenantURL(ctx context.Context, result *Result, base strin
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
 		return result
 	}
 

@@ -27,9 +27,15 @@ Thumbs.db
 
 # Local development artifacts
 .claude/
+# Agent / feature-workflow scaffolding (design notes, plans, reviews — never committed)
+.feature-development/
 
 # Git worktrees
 .worktrees/
+
+# Local scratch & operator recon output (machine/engagement-specific, keep out of VCS)
+/demos/
+*-users.txt
 
 # Terraform
 *.tfstate

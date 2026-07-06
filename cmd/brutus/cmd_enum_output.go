@@ -51,7 +51,7 @@ func outputDNSReconHuman(result *enum.DNSReconResult, teamsAvailable, useColor b
 	if teamsAvailable {
 		fmt.Printf("    %s%-16s%s %s\n",
 			colorIf(useColor, ColorGreen), "teams", colorIf(useColor, ColorReset),
-			dim(useColor, "(available: Microsoft 365 tenant — run `brutus enum teams users` / `audit`)"))
+			dim(useColor, "(available: Microsoft 365 tenant — run `brutus enum active teams users` / `audit`)"))
 	}
 	fmt.Println()
 }
@@ -397,22 +397,23 @@ func outputHunterHuman(w io.Writer, result *hunter.DomainResult, useColor bool) 
 	}
 
 	// Header row.
-	_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-22s %-16s %-12s %-5s%s\n",
+	_, _ = fmt.Fprintf(w, "\n  %s%-32s %-22s %-18s %-14s %-12s %-20s %-5s%s\n",
 		colorIf(useColor, ColorBold),
-		"Email", "Name", "Title", "Phone", "Dept", "Conf",
+		"Email", "Name", "Title", "Phone", "Dept", "LinkedIn", "Conf",
 		colorIf(useColor, ColorReset))
 
 	for i := range result.People {
 		p := &result.People[i]
 		name := strings.TrimSpace(sanitizeTerminal(p.FirstName) + " " + sanitizeTerminal(p.LastName))
-		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-22s %-16s %-12s %s%3d%s\n",
+		_, _ = fmt.Fprintf(w, "  %s%-32s%s %-22s %-18s %-14s %-12s %-20s %s%3d%s\n",
 			colorIf(useColor, ColorGreen),
 			truncate(sanitizeTerminal(p.Email), 32),
 			colorIf(useColor, ColorReset),
 			truncate(name, 22),
-			truncate(sanitizeTerminal(p.Position), 22),
-			truncate(sanitizeTerminal(p.Phone), 16),
+			truncate(sanitizeTerminal(p.Position), 18),
+			truncate(sanitizeTerminal(p.Phone), 14),
 			truncate(sanitizeTerminal(p.Department), 12),
+			truncate(sanitizeTerminal(p.LinkedIn), 20),
 			colorIf(useColor, ColorCyan), p.Confidence, colorIf(useColor, ColorReset))
 	}
 	_, _ = fmt.Fprintln(w)
@@ -432,6 +433,8 @@ func outputHunterJSONL(w io.Writer, result *hunter.DomainResult) {
 		Seniority    string   `json:"seniority,omitempty"`
 		Department   string   `json:"department,omitempty"`
 		Phone        string   `json:"phone_number,omitempty"`
+		LinkedIn     string   `json:"linkedin,omitempty"`
+		Twitter      string   `json:"twitter,omitempty"`
 		Confidence   int      `json:"confidence"`
 		EmailType    string   `json:"email_type,omitempty"`
 		Sources      []string `json:"sources,omitempty"`
@@ -451,6 +454,8 @@ func outputHunterJSONL(w io.Writer, result *hunter.DomainResult) {
 			Seniority:    p.Seniority,
 			Department:   p.Department,
 			Phone:        p.Phone,
+			LinkedIn:     p.LinkedIn,
+			Twitter:      p.Twitter,
 			Confidence:   p.Confidence,
 			EmailType:    p.Type,
 			Sources:      p.Sources,

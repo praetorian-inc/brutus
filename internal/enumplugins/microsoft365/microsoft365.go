@@ -33,7 +33,8 @@ func init() {
 }
 
 // Plugin checks Microsoft 365 account existence via the shared
-// pkg/enum/microsoft365 checker (GetCredentialType API).
+// pkg/enum/microsoft365 checker (GetCredentialType API). Proxy support is
+// preserved: the checker honors the per-run enum HTTP client carried on ctx.
 type Plugin struct{}
 
 func (p *Plugin) Name() string { return "microsoft365" }

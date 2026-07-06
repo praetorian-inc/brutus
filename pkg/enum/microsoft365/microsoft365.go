@@ -44,8 +44,8 @@ type credTypeRequest struct {
 }
 
 type credTypeResponse struct {
-	IfExistsResult       int    `json:"IfExistsResult"`
-	ThrottleStatus       int    `json:"ThrottleStatus"`
+	IfExistsResult        int    `json:"IfExistsResult"`
+	ThrottleStatus        int    `json:"ThrottleStatus"`
 	FederationRedirectUrl string `json:"FederationRedirectUrl,omitempty"`
 }
 
@@ -85,6 +85,10 @@ func NewChecker(baseURL string, timeout time.Duration) *Checker {
 // CheckAccount tests if an email account exists on Microsoft 365 via the
 // GetCredentialType API. It handles IfExistsResult codes 0/1/5/6, throttle
 // detection, and federation redirect URL extraction.
+//
+// If ctx carries a shared enum HTTP client (via enum.WithHTTPClient — set for a
+// run to honor --proxy and connection pooling), that client is used; otherwise
+// the Checker's own client is used.
 func (c *Checker) CheckAccount(ctx context.Context, email string) *Result {
 	start := time.Now()
 	result := &Result{Email: email}
@@ -104,7 +108,11 @@ func (c *Checker) CheckAccount(ctx context.Context, email string) *Result {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.client.Do(req)
+	client := enum.HTTPClientFromContext(ctx)
+	if client == nil {
+		client = c.client
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = fmt.Errorf("request failed: %w", err)
 		return result

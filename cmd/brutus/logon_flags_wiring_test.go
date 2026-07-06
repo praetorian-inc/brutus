@@ -54,7 +54,8 @@ func TestLogonFlagsWiring(t *testing.T) {
 		resetLogonFlags()
 		require.NoError(t, logonCmd.ParseFlags([]string{}))
 
-		base := buildBaseConfig(logonCmd)
+		base, err := buildBaseConfig(logonCmd)
+		require.NoError(t, err)
 		assert.False(t, base.noNLAProbe,
 			"base.noNLAProbe must default to false (--no-nla-probe not passed)")
 	})
@@ -63,7 +64,8 @@ func TestLogonFlagsWiring(t *testing.T) {
 		resetLogonFlags()
 		require.NoError(t, logonCmd.ParseFlags([]string{"--no-nla-probe"}))
 
-		base := buildBaseConfig(logonCmd)
+		base, err := buildBaseConfig(logonCmd)
+		require.NoError(t, err)
 		assert.True(t, base.noNLAProbe,
 			"base.noNLAProbe must be true after parsing --no-nla-probe")
 	})
@@ -74,21 +76,25 @@ func TestLogonFlagsWiring(t *testing.T) {
 // buildBaseConfig, and that the help text states the never-clean semantics.
 //
 // RED until the developer:
-//   1. Adds `flagFast bool` to flags.go in the Logon flags block.
-//   2. Adds `cmd.Flags().BoolVar(&flagFast, "fast", false, "...")` in registerLogonFlags.
-//   3. Adds `fast bool` field to baseConfigOptions (config.go).
-//   4. Adds `fast: flagFast` to buildBaseConfig return.
+//  1. Adds `flagFast bool` to flags.go in the Logon flags block.
+//  2. Adds `cmd.Flags().BoolVar(&flagFast, "fast", false, "...")` in registerLogonFlags.
+//  3. Adds `fast bool` field to baseConfigOptions (config.go).
+//  4. Adds `fast: flagFast` to buildBaseConfig return.
 func TestFastFlagWiring(t *testing.T) {
 	t.Cleanup(resetLogonFlags)
 	t.Run("default_false", func(t *testing.T) {
 		resetLogonFlags()
 		require.NoError(t, logonCmd.ParseFlags([]string{}))
-		assert.False(t, buildBaseConfig(logonCmd).fast, "fast defaults false")
+		base, err := buildBaseConfig(logonCmd)
+		require.NoError(t, err)
+		assert.False(t, base.fast, "fast defaults false")
 	})
 	t.Run("set_true", func(t *testing.T) {
 		resetLogonFlags()
 		require.NoError(t, logonCmd.ParseFlags([]string{"--fast"}))
-		assert.True(t, buildBaseConfig(logonCmd).fast, "--fast sets base.fast")
+		base, err := buildBaseConfig(logonCmd)
+		require.NoError(t, err)
+		assert.True(t, base.fast, "--fast sets base.fast")
 	})
 	t.Run("registered_on_all_three", func(t *testing.T) {
 		for _, c := range []*cobra.Command{logonCmd, stickykeysCmd, utilmanCmd} {
@@ -114,7 +120,8 @@ func TestConnectTimeoutFlagWiring(t *testing.T) {
 	t.Run("default_is_3s", func(t *testing.T) {
 		resetLogonFlags()
 		require.NoError(t, logonCmd.ParseFlags([]string{}))
-		base := buildBaseConfig(logonCmd)
+		base, err := buildBaseConfig(logonCmd)
+		require.NoError(t, err)
 		assert.Equal(t, 3*time.Second, base.connectTimeout,
 			"connect-timeout must default to 3s")
 	})
@@ -122,7 +129,8 @@ func TestConnectTimeoutFlagWiring(t *testing.T) {
 	t.Run("override_applies", func(t *testing.T) {
 		resetLogonFlags()
 		require.NoError(t, logonCmd.ParseFlags([]string{"--connect-timeout", "7s"}))
-		base := buildBaseConfig(logonCmd)
+		base, err := buildBaseConfig(logonCmd)
+		require.NoError(t, err)
 		assert.Equal(t, 7*time.Second, base.connectTimeout,
 			"connect-timeout must reflect the parsed flag")
 	})
@@ -198,7 +206,8 @@ func TestScanTimeoutFlagWiring(t *testing.T) {
 			resetLogonFlags()
 			require.NoError(t, tc.cmd.ParseFlags(tc.args))
 
-			base := buildBaseConfig(tc.cmd)
+			base, err := buildBaseConfig(tc.cmd)
+			require.NoError(t, err)
 			assert.Equal(t, tc.want, base.timeout, tc.wantMsg)
 		})
 	}
@@ -256,7 +265,8 @@ func TestTimeoutNotRejectedOnNonLogonCommands(t *testing.T) {
 		require.NoError(t, credsCmd.ParseFlags([]string{"--timeout", "5s"}),
 			"--timeout must still be accepted on credsCmd without error")
 
-		base := buildBaseConfig(credsCmd)
+		base, err := buildBaseConfig(credsCmd)
+		require.NoError(t, err)
 		assert.Equal(t, 5*time.Second, base.timeout,
 			"creds base.timeout must reflect --timeout 5s (non-logon command keeps --timeout)")
 	})

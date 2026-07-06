@@ -15,6 +15,7 @@
 package microsoft365
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -25,7 +26,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/enum"
 )
+
+// roundTripFunc adapts a function to http.RoundTripper so tests can stub the
+// GetCredentialType response without a real network call.
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
 func newMockServer(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -45,14 +54,14 @@ func newMockServer(t *testing.T) *httptest.Server {
 			return
 		}
 
-		var req credTypeRequest
-		if err := json.Unmarshal(body, &req); err != nil {
+		var req2 credTypeRequest
+		if err := json.Unmarshal(body, &req2); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		var resp credTypeResponse
-		switch req.Username {
+		switch req2.Username {
 		case "exists@example.com":
 			resp = credTypeResponse{IfExistsResult: 0}
 		case "notexists@example.com":
@@ -67,7 +76,7 @@ func newMockServer(t *testing.T) *httptest.Server {
 			resp = credTypeResponse{IfExistsResult: 0, ThrottleStatus: 1}
 		case "federated@example.com":
 			resp = credTypeResponse{
-				IfExistsResult:       0,
+				IfExistsResult:        0,
 				FederationRedirectUrl: "https://adfs.example.com/adfs/ls/",
 			}
 		default:
@@ -221,4 +230,61 @@ func TestNewChecker_DefaultBaseURL(t *testing.T) {
 	t.Parallel()
 	c := NewChecker("", 5*time.Second)
 	assert.Equal(t, DefaultBaseURL, c.baseURL)
+}
+
+// ---------------------------------------------------------------------------
+// enum.HTTPClientFromContext proxy support (dev): CheckAccount must prefer a
+// shared enum HTTP client carried on ctx (set for a run via
+// enum.WithHTTPClient to honor --proxy and connection pooling) over the
+// Checker's own client, and fall back to its own client when ctx carries
+// none.
+// ---------------------------------------------------------------------------
+
+func TestCheckAccount_UsesHTTPClientFromContext(t *testing.T) {
+	t.Parallel()
+
+	// baseURL points at a server that always 500s. If the request reaches
+	// this server, the test fails via "unexpected status" — proving the
+	// context-carried client (which never dials this server at all) was
+	// used instead.
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(failing.Close)
+
+	c := NewChecker(failing.URL, 5*time.Second)
+
+	body, err := json.Marshal(credTypeResponse{IfExistsResult: IfExistsResultExists})
+	require.NoError(t, err)
+	contextClient := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(body)),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	}
+	ctx := enum.WithHTTPClient(context.Background(), contextClient)
+
+	result := c.CheckAccount(ctx, "exists@example.com")
+
+	require.NoError(t, result.Error)
+	assert.True(t, result.Exists, "the context-carried client's response must be used, not the failing server's")
+	assert.Equal(t, IfExistsResultExists, result.IfExistsResult)
+}
+
+func TestCheckAccount_FallsBackToOwnClientWithoutContextClient(t *testing.T) {
+	t.Parallel()
+	srv := newMockServer(t)
+	t.Cleanup(srv.Close)
+
+	c := NewChecker(srv.URL, 5*time.Second)
+
+	// No enum.WithHTTPClient on this context — CheckAccount must fall back
+	// to the Checker's own client and still reach srv successfully.
+	result := c.CheckAccount(context.Background(), "exists@example.com")
+
+	require.NoError(t, result.Error)
+	assert.True(t, result.Exists)
 }

@@ -39,7 +39,7 @@ type Plugin struct{}
 func (p *Plugin) Name() string { return "google" }
 
 // Check tests if an email account exists on Google Workspace, building a fresh
-// (unauthenticated, no-proxy) enumerator per call and delegating to
+// (unauthenticated, honoring --proxy from context) enumerator per call and delegating to
 // google.CheckAccount. Confidence is high when the account is confirmed,
 // medium otherwise — preserving the previous plugin behavior.
 func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration) *enum.Result {
@@ -49,7 +49,7 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 		Email:   email,
 	}
 
-	enumerator, err := googleenum.NewEnumerator("", timeout)
+	enumerator, err := googleenum.NewEnumerator(enum.ProxyURLFromContext(ctx), timeout)
 	if err != nil {
 		result.Confidence = enum.ConfidenceMedium
 		result.Error = err

@@ -12,19 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !windows
+//go:build windows
 
 package main
 
-import (
-	"os"
-	"syscall"
-)
-
-// openCredStoreFile opens the credential store for writing on Unix platforms
-// (linux/darwin/freebsd). It passes O_NOFOLLOW so a pre-existing symlink at
-// path is not followed: an attacker could otherwise plant a symlink to redirect
-// the token write elsewhere (P0-1).
-func openCredStoreFile(path string, perm os.FileMode) (*os.File, error) {
-	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|syscall.O_NOFOLLOW, perm)
-}
+// Windows has no O_NOFOLLOW; creating a file symlink on Windows requires special
+// privilege, and Go's os layer does not follow them here, so 0 is the safe
+// portable fallback (the symlink-redirect concern from the Unix path does not
+// apply the same way).
+const oNoFollow = 0

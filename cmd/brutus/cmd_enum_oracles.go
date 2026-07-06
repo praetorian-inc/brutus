@@ -54,26 +54,26 @@ against the oracles that confirm it (including the Microsoft Teams oracle when
 applicable).
 
 Modes:
-  Oracle check only:  brutus enum oracles --domain example.com --known-valid admin@example.com
-  Enumerate emails:   brutus enum oracles --domain example.com -e user@example.com --known-valid admin@example.com
-  Generate + enum:    brutus enum oracles --domain example.com --generate --format flast --known-valid admin@example.com`,
+  Oracle check only:  brutus enum active oracles --domain example.com --known-valid admin@example.com
+  Enumerate emails:   brutus enum active oracles --domain example.com -e user@example.com --known-valid admin@example.com
+  Generate + enum:    brutus enum active oracles --domain example.com --generate --format flast --known-valid admin@example.com`,
 	Example: `  # Discover candidate oracles via DNS and report which ones work (validated against --known-valid)
-  brutus enum oracles --domain praetorian.com --known-valid admin@praetorian.com
+  brutus enum active oracles --domain praetorian.com --known-valid admin@praetorian.com
 
   # Enumerate specific emails against the working oracles
-  brutus enum oracles --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com
+  brutus enum active oracles --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com
 
   # Enumerate emails from file
-  brutus enum oracles --domain praetorian.com -E emails.txt --known-valid admin@praetorian.com
+  brutus enum active oracles --domain praetorian.com -E emails.txt --known-valid admin@praetorian.com
 
   # Generate emails and enumerate against working oracles
-  brutus enum oracles --domain target.com --generate --format first.last --known-valid admin@target.com
+  brutus enum active oracles --domain target.com --generate --format first.last --known-valid admin@target.com
 
   # Check / enumerate against specific oracles only
-  brutus enum oracles -e user@example.com -s microsoft365,google --known-valid admin@example.com
+  brutus enum active oracles -e user@example.com -s microsoft365,google --known-valid admin@example.com
 
   # JSON output
-  brutus enum oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com --json`,
+  brutus enum active oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com --json`,
 	RunE: runEnumOracles,
 }
 
@@ -86,10 +86,10 @@ to avoid wasting time on broken or rate-limited oracles.
 
 Optionally combine with --domain to auto-discover candidate oracles from DNS TXT records.`,
 	Example: `  # Test oracles for a domain (auto-discovers candidate oracles from DNS)
-  brutus enum oracles discover --domain praetorian.com --known-valid admin@praetorian.com
+  brutus enum active oracles discover --domain praetorian.com --known-valid admin@praetorian.com
 
   # Test specific oracles only
-  brutus enum oracles discover --known-valid admin@example.com -s microsoft365,google`,
+  brutus enum active oracles discover --known-valid admin@example.com -s microsoft365,google`,
 	RunE: runEnumDiscover,
 }
 
@@ -139,6 +139,33 @@ func teamsOracleAvailable(result *enum.DNSReconResult) bool {
 	return false
 }
 
+// domainIndependentOracles lists registered oracles that apply to any email
+// regardless of the org's DNS/SaaS footprint, so DNS recon never surfaces them
+// (GitHub account existence is checkable for any address; there is no per-tenant
+// DNS TXT record to discover). They are unioned into the auto-discovered oracle
+// set in runEnumOracles so the oracle check covers them.
+var domainIndependentOracles = []string{"github"}
+
+// addDomainIndependentOracles appends any registered domain-independent oracles
+// (see domainIndependentOracles) to services that are not already present. It is
+// used only in the DNS auto-discovery path; an explicit --services list is
+// honored verbatim and never has oracles added to it. registeredSet is the set
+// of currently-registered plugin names, so an oracle is added only when its
+// plugin is actually registered.
+func addDomainIndependentOracles(services []string, registeredSet map[string]bool) []string {
+	present := make(map[string]bool, len(services))
+	for _, s := range services {
+		present[s] = true
+	}
+	for _, name := range domainIndependentOracles {
+		if registeredSet[name] && !present[name] {
+			services = append(services, name)
+			present[name] = true
+		}
+	}
+	return services
+}
+
 // runEnumOracles handles the main oracles enum command. Its output leads with
 // the oracle check — which oracles were validated against --known-valid and
 // whether each WORKED or NOT — and treats the DNS recon merely as a one-line
@@ -163,6 +190,11 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
 
 	// Phase 1: DNS TXT recon — supporting context, not the headline. Surfaces
 	// the candidate oracles so the oracle check below has something to validate.
@@ -259,6 +291,12 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 				services = append(services, s)
 			}
 		}
+		// Domain-independent oracles (e.g. github) have no DNS TXT footprint, so
+		// DNS recon never surfaces them — yet they apply to any corporate email
+		// regardless of the org's SaaS tenancy. Union them in so the oracle check
+		// covers them alongside the DNS-discovered tenant oracles. Only done in the
+		// auto-discovery path; an explicit --services list is respected verbatim.
+		services = addDomainIndependentOracles(services, registeredSet)
 	}
 	// If still empty, enum.Config.Services=nil means "all registered"
 
@@ -283,6 +321,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
 			Verbose:  flagVerbose,
+			ProxyURL: proxyURL,
 		}
 		validResults, validErr := enum.EnumerateWithContext(ctx, validCfg)
 		if validErr != nil {
@@ -366,6 +405,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		RateLimit: flagRateLimit,
 		Jitter:    flagJitter,
 		Verbose:   flagVerbose,
+		ProxyURL:  proxyURL,
 	}
 
 	results, err := enum.EnumerateWithContext(ctx, cfg)
@@ -392,6 +432,11 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
 
 	// Phase 1: Determine oracles to test
 	var services []string
@@ -455,6 +500,7 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
 			Verbose:  flagVerbose,
+			ProxyURL: proxyURL,
 		}
 		var enumErr error
 		results, enumErr = enum.EnumerateWithContext(ctx, cfg)
@@ -526,10 +572,15 @@ func maybeConfirmTeamsOracle(ctx context.Context, dnsResult *enum.DNSReconResult
 func confirmTeamsOracle(ctx context.Context, knownValid string, useColor bool) string {
 	accessToken, refreshToken, ok := resolveTeamsConfirmToken(useColor)
 	if !ok {
-		return "teams: available (unconfirmed) — run `brutus enum teams auth` then re-run to confirm"
+		return "teams: available (unconfirmed) — run `brutus enum active teams auth` then re-run to confirm"
 	}
 
-	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, flagProxy, flagTimeout, false)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return fmt.Sprintf("teams: proxy misconfigured: %v", err)
+	}
+
+	enumerator, err := teams.NewEnumerator(accessToken, refreshToken, proxyURL, flagTimeout, false)
 	if err != nil {
 		return fmt.Sprintf("teams: unconfirmed (enumerator setup failed: %v)", err)
 	}
@@ -537,7 +588,7 @@ func confirmTeamsOracle(ctx context.Context, knownValid string, useColor bool) s
 	// Wire a refresh callback only when a refresh token is available, mirroring
 	// runEnumTeamsUsers so an expired access token is renewed once.
 	if refreshToken != "" {
-		client, cerr := teams.NewClient("organizations", teams.DefaultClientID, teams.DefaultScope, flagProxy, flagTimeout)
+		client, cerr := teams.NewClient("organizations", teams.DefaultClientID, teams.DefaultScope, proxyURL, flagTimeout)
 		if cerr == nil {
 			enumerator.SetRefreshFunc(func(ctx context.Context) (string, error) {
 				tok, rerr := client.RefreshAccessToken(ctx, refreshToken)

@@ -39,7 +39,7 @@ import (
 // annotation — mirrors cmd_enum_hunter_test.go::TestEnumHunterRegistered.
 func TestEnumCustomRegistered(t *testing.T) {
 	var found bool
-	for _, cmd := range enumCmd.Commands() {
+	for _, cmd := range enumActiveCmd.Commands() {
 		if cmd.Use != "custom" {
 			continue
 		}
@@ -90,7 +90,7 @@ func TestEnumCustomRegistered(t *testing.T) {
 
 		break
 	}
-	require.True(t, found, "custom subcommand must be registered with enumCmd")
+	require.True(t, found, "custom subcommand must be registered with enumActiveCmd")
 }
 
 // ---------------------------------------------------------------------------

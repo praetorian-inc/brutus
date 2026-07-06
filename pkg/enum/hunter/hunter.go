@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -34,7 +35,15 @@ var (
 	ErrUnauthorized = errors.New("invalid or missing API key")
 	ErrRateLimited  = errors.New("rate limit exceeded")
 	ErrLegalReasons = errors.New("unavailable for legal reasons")
+	// ErrPlanLimited signals the Hunter plan's result cap was hit mid-pagination.
+	// Search treats this as a soft stop and returns the results collected so far.
+	ErrPlanLimited = errors.New("plan result cap reached")
 )
+
+// planLimitMarker is the stable substring Hunter returns in the 400 error
+// details when the account's plan result cap is exceeded, e.g.:
+// "The search results are limited to 10 email addresses on your current plan."
+const planLimitMarker = "results are limited to"
 
 const (
 	defaultBaseURL  = "https://api.hunter.io/v2/domain-search"
@@ -54,6 +63,8 @@ type Person struct {
 	Seniority  string
 	Department string
 	Phone      string
+	LinkedIn   string
+	Twitter    string
 	Confidence int
 	Type       string
 	Sources    []string
@@ -65,6 +76,9 @@ type DomainResult struct {
 	Organization string
 	People       []Person
 	Total        int
+	// Truncated is true when the plan result cap was hit mid-pagination and the
+	// returned People are a partial set (Total reflects the full count available).
+	Truncated bool
 }
 
 // APIError is returned for any non-200 HTTP status from Hunter.io.
@@ -77,8 +91,9 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("hunter API error (HTTP %d): %s", e.StatusCode, e.Details)
 }
 
-// Unwrap returns the matching sentinel error for 401/429/451, nil otherwise.
-// This enables errors.Is(err, hunter.ErrUnauthorized) in callers.
+// Unwrap returns the matching sentinel error for 401/429/451, or ErrPlanLimited
+// for the specific 400 plan-cap response, nil otherwise. This enables
+// errors.Is(err, hunter.ErrUnauthorized) (and ErrPlanLimited) in callers.
 func (e *APIError) Unwrap() error {
 	switch e.StatusCode {
 	case http.StatusUnauthorized:
@@ -87,6 +102,11 @@ func (e *APIError) Unwrap() error {
 		return ErrRateLimited
 	case http.StatusUnavailableForLegalReasons:
 		return ErrLegalReasons
+	case http.StatusBadRequest:
+		// Only the plan-cap 400 maps to a sentinel; other 400s stay generic.
+		if strings.Contains(e.Details, planLimitMarker) {
+			return ErrPlanLimited
+		}
 	}
 	return nil
 }
@@ -105,27 +125,45 @@ type Client struct {
 
 // NewClient builds a Hunter client. timeout is the per-request HTTP budget.
 // pageSize <= 0 falls back to defaultPageSize.
-func NewClient(apiKey string, timeout time.Duration, pageSize int) *Client {
+func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL string) (*Client, error) {
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
 	}
+	httpClient, err := enum.NewEnumHTTPClientWithProxy(timeout, proxyURL)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
 		apiKey:     apiKey,
-		httpClient: enum.NewEnumHTTPClient(timeout),
+		httpClient: httpClient,
 		baseURL:    defaultBaseURL,
 		pageSize:   pageSize,
-	}
+	}, nil
 }
 
 // Search runs Domain Search for domain, following pagination until exhausted,
 // and returns the aggregated DomainResult. Honors ctx cancellation between pages.
-func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, error) {
+// limit caps the total number of People returned (consistent with the other enum
+// subcommands); limit <= 0 means no cap (fetch all pages).
+func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainResult, error) {
 	offset := 0
 	result := &DomainResult{Domain: domain}
 
 	for {
-		page, err := c.fetchPage(ctx, domain, offset)
+		perPage := c.pageSize
+		if limit > 0 {
+			if remaining := limit - len(result.People); remaining < perPage {
+				perPage = remaining
+			}
+		}
+		page, err := c.fetchPage(ctx, domain, offset, perPage)
 		if err != nil {
+			// Plan result cap is a soft stop: return what we collected so far.
+			// Other errors (auth, rate limit, etc.) remain fatal.
+			if errors.Is(err, ErrPlanLimited) {
+				result.Truncated = true
+				break
+			}
 			return nil, err
 		}
 
@@ -141,11 +179,17 @@ func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, erro
 		fetched := len(page.Data.Emails)
 		offset += fetched
 
+		// Reached the caller-requested cap: truncate and stop (no further requests).
+		if limit > 0 && len(result.People) >= limit {
+			result.People = result.People[:limit]
+			break
+		}
+
 		// Termination: empty page, short final page, or reached known total.
 		if fetched == 0 {
 			break
 		}
-		if fetched < c.pageSize {
+		if fetched < perPage {
 			break
 		}
 		if result.Total > 0 && offset >= result.Total {
@@ -166,14 +210,16 @@ func (c *Client) Search(ctx context.Context, domain string) (*DomainResult, erro
 // ---------------------------------------------------------------------------
 
 // fetchPage performs a single paginated GET request to the Hunter.io API.
+// perPage is the requested page size for this request (sent as the "limit" query
+// param), letting the caller shrink the final page to only what's still needed.
 // The api_key is embedded in the query string per the Hunter API contract.
 // The full URL is never logged to prevent key leakage (P0-1 security requirement).
-func (c *Client) fetchPage(ctx context.Context, domain string, offset int) (*apiResponse, error) {
+func (c *Client) fetchPage(ctx context.Context, domain string, offset, perPage int) (*apiResponse, error) {
 	// Build query string — api_key goes here per Hunter's spec.
 	q := url.Values{
 		"domain":  {domain},
 		"api_key": {c.apiKey},
-		"limit":   {strconv.Itoa(c.pageSize)},
+		"limit":   {strconv.Itoa(perPage)},
 		"offset":  {strconv.Itoa(offset)},
 	}
 	rawURL := c.baseURL + "?" + q.Encode()
@@ -229,6 +275,8 @@ func toPerson(e *apiEmail) Person {
 		Seniority:  e.Seniority,
 		Department: e.Department,
 		Phone:      e.Phone,
+		LinkedIn:   e.LinkedIn,
+		Twitter:    e.Twitter,
 		Confidence: e.Confidence,
 		Type:       e.Type,
 		Sources:    sources,
@@ -261,6 +309,8 @@ type apiEmail struct {
 	Seniority  string      `json:"seniority"`
 	Department string      `json:"department"`
 	Phone      string      `json:"phone_number"`
+	LinkedIn   string      `json:"linkedin"`
+	Twitter    string      `json:"twitter"`
 	Sources    []apiSource `json:"sources"`
 }
 

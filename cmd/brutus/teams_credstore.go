@@ -78,12 +78,10 @@ func saveTeamsTokenFile(path string, tok *teams.TokenSet) error {
 		return fmt.Errorf("encoding token for %q: %w", path, err)
 	}
 
-	// Open via the platform-specific helper (teams_credstore_unix.go /
-	// teams_credstore_windows.go). On Unix it passes O_NOFOLLOW so a
-	// pre-existing symlink at path is not followed (an attacker could otherwise
-	// redirect the token write elsewhere); Windows lacks O_NOFOLLOW. Token
+	// Open with O_NOFOLLOW so a pre-existing symlink at path is not followed
+	// (an attacker could otherwise redirect the token write elsewhere). Token
 	// values are never included in returned errors; only path may appear (P0-1).
-	f, err := openCredStoreFile(path, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|oNoFollow, 0o600)
 	if err != nil {
 		return fmt.Errorf("opening credential store %q: %w", path, err)
 	}

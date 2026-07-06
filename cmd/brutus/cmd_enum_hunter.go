@@ -35,33 +35,40 @@ var (
 	flagHunterLimit  int
 )
 
-var enumHunterCmd = &cobra.Command{
-	Use:   "hunter",
-	Short: "Discover people and emails for a domain via Hunter.io Domain Search",
-	Long: `Query the Hunter.io Domain Search API to discover people associated with a
+// newEnumHunterCmd builds the "hunter" command. A fresh instance is constructed
+// per call so the same command can be mounted under two parents (the canonical
+// "enum passive hunter" path and the hidden back-compat "enum hunter" alias)
+// without sharing one *cobra.Command. All instances bind the same package-level
+// flag vars, which is fine since only one runs per invocation.
+func newEnumHunterCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "hunter",
+		Short: "Discover people and emails for a domain via Hunter.io Domain Search",
+		Long: `Query the Hunter.io Domain Search API to discover people associated with a
 domain: email, name, job title, phone, department, seniority, confidence, and
 sources. Standalone — does not feed the saas enumeration pipeline.
 
 Requires a Hunter.io API key via the HUNTER_API_KEY environment variable
 (or the --api-key flag).`,
-	Example: `  # Discover people for a domain (key from HUNTER_API_KEY)
-  brutus enum hunter --domain example.com
+		Example: `  # Discover people for a domain (key from HUNTER_API_KEY)
+  brutus enum passive hunter --domain example.com
 
   # Provide the key explicitly (note: visible in process list / shell history)
-  brutus enum hunter -d example.com --api-key abc123
+  brutus enum passive hunter -d example.com --api-key abc123
 
   # JSONL output to a file
-  brutus enum hunter -d example.com -o people.jsonl`,
-	RunE: runEnumHunter,
-}
+  brutus enum passive hunter -d example.com -o people.jsonl`,
+		RunE: runEnumHunter,
+	}
 
-func init() {
-	f := enumHunterCmd.Flags()
+	f := cmd.Flags()
 	f.StringVarP(&flagHunterDomain, "domain", "d", "", "Domain to search (required)")
 	f.StringVar(&flagHunterAPIKey, "api-key", "",
 		"Hunter.io API key (overrides HUNTER_API_KEY; WARNING: visible in process list and shell history — prefer HUNTER_API_KEY)")
-	f.IntVar(&flagHunterLimit, "limit", 100, "Results per API page (pagination page size)")
-	_ = enumHunterCmd.MarkFlagRequired("domain")
+	f.IntVar(&flagHunterLimit, "limit", 0, "Maximum number of people to return (0 = no cap, return all)")
+	_ = cmd.MarkFlagRequired("domain")
+
+	return cmd
 }
 
 // runEnumHunter implements the "enum hunter" subcommand.
@@ -94,8 +101,15 @@ func runEnumHunter(cmd *cobra.Command, args []string) error {
 			dim(useColor, SymbolInfo), flagHunterDomain)
 	}
 
-	client := hunter.NewClient(apiKey, flagTimeout, flagHunterLimit)
-	result, err := client.Search(ctx, flagHunterDomain)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+	client, err := hunter.NewClient(apiKey, flagTimeout, pageSizeForLimit(flagHunterLimit), proxyURL)
+	if err != nil {
+		return err
+	}
+	result, err := client.Search(ctx, flagHunterDomain, flagHunterLimit)
 	if err != nil {
 		return classifyHunterError(err)
 	}
@@ -103,6 +117,12 @@ func runEnumHunter(cmd *cobra.Command, args []string) error {
 	// Verbose: log counts only — never log the key or URL (P0-1 security requirement).
 	logVerbose(flagVerbose, "Hunter returned %d people (total available: %d)",
 		len(result.People), result.Total)
+
+	// Plan cap hit: results were truncated. Notify on stderr (not in JSON mode).
+	if result.Truncated && !flagQuiet && !flagJSON {
+		fmt.Fprintf(os.Stderr, "%s hunter: plan result cap reached — returning first %d of %d (more available)\n",
+			dim(useColor, SymbolInfo), len(result.People), result.Total)
+	}
 
 	if flagJSON {
 		outputHunterJSONL(jsonWriter, result)

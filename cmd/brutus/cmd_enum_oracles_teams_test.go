@@ -43,7 +43,7 @@ func TestTeamsOracleAvailable(t *testing.T) {
 		want   bool
 	}{
 		{
-			name: "nil result returns false",
+			name:   "nil result returns false",
 			result: nil,
 			want:   false,
 		},
@@ -405,7 +405,7 @@ func TestConfirmTeamsOracle_NoToken(t *testing.T) {
 	}
 
 	// The returned line must reference how to authenticate (the auth hint).
-	assert.Contains(t, line, "brutus enum teams auth",
+	assert.Contains(t, line, "brutus enum active teams auth",
 		"no-token line must include the auth hint for the user")
 }
 

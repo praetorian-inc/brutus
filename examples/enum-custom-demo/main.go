@@ -134,7 +134,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprint(w, indexText)
+	_, _ = fmt.Fprint(w, indexText)
 }
 
 // =============================================================================

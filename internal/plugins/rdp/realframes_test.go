@@ -40,7 +40,7 @@ func loadFrameRGBA(t *testing.T, name string) (pix []byte, width, height uint32)
 	path := filepath.Join("testdata", "realframes", name)
 	f, err := os.Open(path)
 	require.NoError(t, err, "open fixture %s", path)
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	img, format, err := image.Decode(f)
 	require.NoError(t, err, "decode fixture %s", path)

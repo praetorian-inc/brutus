@@ -122,7 +122,7 @@ func runEnumGoogle(cmd *cobra.Command, args []string) error {
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s Enumerating %d email(s) against Google Workspace...\n",
 			dim(useColor, SymbolInfo), len(emails))
-		fmt.Fprintf(os.Stdout, "\n%s %s\n\n", dim(useColor, SymbolInfo), heading(useColor, "Google Workspace Account Enumeration"))
+		_, _ = fmt.Fprintf(os.Stdout, "\n%s %s\n\n", dim(useColor, SymbolInfo), heading(useColor, "Google Workspace Account Enumeration"))
 	}
 
 	// Stream each completed result live (the callback is invoked serialized under

@@ -70,7 +70,7 @@ func webMux(t *testing.T, csrfToken string, statusFor map[string]int) *http.Serv
 	// /join returns a minimal HTML page with the auto-check block.
 	mux.HandleFunc("/join", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, `<!DOCTYPE html><html><body>
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html><html><body>
 <auto-check src="/email_validity_checks">
   <input type="hidden" value="%s">
 </auto-check>
@@ -281,7 +281,7 @@ func TestExistence_429_RetryThenSucceed(t *testing.T) {
 	var callCount atomic.Int32
 	mux := http.NewServeMux()
 	mux.HandleFunc("/join", func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprintf(w, `<!DOCTYPE html><html><body>
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html><html><body>
 <auto-check src="/email_validity_checks">
   <input type="hidden" value="csrf-abc">
 </auto-check>
@@ -333,7 +333,7 @@ func TestSessionParseFail_JoinPageMissingAutoCheck(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == joinPath {
 			// HTML without the auto-check element.
-			fmt.Fprint(w, `<!DOCTYPE html><html><body><p>no auto-check here</p></body></html>`)
+			_, _ = fmt.Fprint(w, `<!DOCTYPE html><html><body><p>no auto-check here</p></body></html>`)
 		}
 	}))
 	t.Cleanup(srv.Close)
@@ -778,7 +778,7 @@ func TestExistence_FollowsJoinRedirectForCSRF(t *testing.T) {
 	// must land on after following the redirect.
 	mux.HandleFunc("/signup", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, signupHTML)
+		_, _ = fmt.Fprint(w, signupHTML)
 	})
 
 	// /email_validity_checks returns 422 for the target email (account exists)

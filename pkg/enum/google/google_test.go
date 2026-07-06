@@ -196,7 +196,7 @@ func TestCheckAccount_TransportError(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	closedAddr := "http://" + ln.Addr().String()
-	ln.Close()
+	_ = ln.Close()
 
 	e, err := NewEnumerator("", 2*time.Second)
 	require.NoError(t, err)

@@ -160,7 +160,7 @@ func (p *progressReporter) Clear() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.onScreen {
-		fmt.Fprint(p.w, "\r\033[K")
+		_, _ = fmt.Fprint(p.w, "\r\033[K")
 		p.onScreen = false
 	}
 }
@@ -199,15 +199,15 @@ func (p *progressReporter) flush(final bool) {
 	line := dim(p.useColor, progressLine(p.processed, p.total, elapsed, p.metrics))
 
 	if p.isTTY {
-		fmt.Fprint(p.w, "\r\033[K"+line)
+		_, _ = fmt.Fprint(p.w, "\r\033[K"+line)
 		p.onScreen = true
 		if final {
-			fmt.Fprint(p.w, "\n")
+			_, _ = fmt.Fprint(p.w, "\n")
 			p.onScreen = false
 		}
 		return
 	}
-	fmt.Fprint(p.w, line+"\n")
+	_, _ = fmt.Fprint(p.w, line+"\n")
 }
 
 // progressLine builds the human-readable progress content (no color, no

@@ -78,13 +78,15 @@ func TestOutputLushaJSONL(t *testing.T) {
 		emails, ok := obj["emails"].([]interface{})
 		require.True(t, ok, "emails must be a JSON array")
 		require.Len(t, emails, 1)
-		email := emails[0].(map[string]interface{})
+		email, ok := emails[0].(map[string]interface{})
+		require.True(t, ok)
 		assert.Equal(t, "ada@example.com", email["address"])
 
 		phones, ok := obj["phones"].([]interface{})
 		require.True(t, ok, "phones must be a JSON array")
 		require.Len(t, phones, 1)
-		phone := phones[0].(map[string]interface{})
+		phone, ok := phones[0].(map[string]interface{})
+		require.True(t, ok)
 		// do_not_call bool must always be emitted (P0-DNC).
 		doNotCall, exists := phone["do_not_call"]
 		require.True(t, exists, "do_not_call field must always be present")
@@ -119,8 +121,10 @@ func TestOutputLushaJSONL(t *testing.T) {
 
 		var obj map[string]interface{}
 		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &obj))
-		phones := obj["phones"].([]interface{})
-		phone := phones[0].(map[string]interface{})
+		phones, ok := obj["phones"].([]interface{})
+		require.True(t, ok)
+		phone, ok := phones[0].(map[string]interface{})
+		require.True(t, ok)
 		// do_not_call bool is always emitted — must be false here.
 		doNotCall, exists := phone["do_not_call"]
 		require.True(t, exists, "do_not_call field must always be emitted")
@@ -507,7 +511,8 @@ func TestOutputLushaDomainJSONL(t *testing.T) {
 		phones, ok := obj0["phones"].([]interface{})
 		require.True(t, ok, "phones must be a JSON array")
 		require.Len(t, phones, 1)
-		phone := phones[0].(map[string]interface{})
+		phone, ok := phones[0].(map[string]interface{})
+		require.True(t, ok)
 		doNotCall, exists := phone["do_not_call"]
 		require.True(t, exists, "do_not_call field must always be present (P0-DNC)")
 		assert.Equal(t, true, doNotCall, "DNC flag must be true")

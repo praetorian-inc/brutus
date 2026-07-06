@@ -113,7 +113,7 @@ func runEnumGithubMap(cmd *cobra.Command, args []string) error {
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s Correlating %d email(s) to GitHub accounts via a temporary private repo (deleted afterward)...\n",
 			dim(useColor, SymbolInfo), len(emails))
-		fmt.Fprintf(os.Stdout, "\n%s %s\n\n",
+		_, _ = fmt.Fprintf(os.Stdout, "\n%s %s\n\n",
 			dim(useColor, SymbolInfo), heading(useColor, "GitHub Email → Account Correlation"))
 	}
 

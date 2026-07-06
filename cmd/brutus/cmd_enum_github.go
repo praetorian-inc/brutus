@@ -139,7 +139,7 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s Enumerating %d email(s) against GitHub...\n",
 			dim(useColor, SymbolInfo), len(emails))
-		fmt.Fprintf(os.Stdout, "\n%s %s\n\n", dim(useColor, SymbolInfo), heading(useColor, "GitHub Account Enumeration"))
+		_, _ = fmt.Fprintf(os.Stdout, "\n%s %s\n\n", dim(useColor, SymbolInfo), heading(useColor, "GitHub Account Enumeration"))
 	}
 
 	// Stream each completed result live. Human mode prints only EXISTS rows

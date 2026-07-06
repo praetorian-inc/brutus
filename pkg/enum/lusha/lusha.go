@@ -193,7 +193,7 @@ func NewClient(apiKey string, timeout time.Duration, proxyURL string) (*Client, 
 
 // Enrich resolves one identity to an enriched contact via v3 search-and-enrich.
 // A 200 with no datapoints returns a *Contact with empty slices (not an error).
-func (c *Client) Enrich(ctx context.Context, q ContactQuery, r RevealOptions) (*Contact, error) {
+func (c *Client) Enrich(ctx context.Context, q *ContactQuery, r RevealOptions) (*Contact, error) {
 	body := buildEnrichRequest(q, r)
 	raw, err := c.do(ctx, http.MethodPost, enrichPath, body)
 	if err != nil {
@@ -333,7 +333,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any) ([]byte,
 // values ("emails"/"phones") are UNVERIFIED against a live key — they are
 // isolated here so a single edit corrects any mismatch without touching control
 // flow.
-func buildEnrichRequest(q ContactQuery, r RevealOptions) lushaEnrichRequest {
+func buildEnrichRequest(q *ContactQuery, r RevealOptions) lushaEnrichRequest {
 	var reveal []string
 	if r.Email {
 		reveal = append(reveal, "emails")

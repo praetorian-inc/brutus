@@ -287,7 +287,7 @@ func runEnumTeamsAuth(cmd *cobra.Command, args []string) error {
 	outputTeamsDeviceCodeHuman(os.Stderr, dc, useColor)
 
 	if !flagTeamsNoBrowser {
-		if err := openBrowser(dc.VerificationURI); err != nil {
+		if openErr := openBrowser(dc.VerificationURI); openErr != nil {
 			if !flagQuiet && !flagJSON {
 				fmt.Fprintf(os.Stderr, "%s Couldn't open a browser automatically — open the URL above manually.\n", dim(useColor, SymbolInfo))
 			}
@@ -368,7 +368,7 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	accessToken, refreshToken, err := teamsEnumResolveTokens(ctx, teamsTokenSource{
+	accessToken, refreshToken, err := teamsEnumResolveTokens(ctx, &teamsTokenSource{
 		accessToken:  flagTeamsEnumAccessToken,
 		refreshToken: flagTeamsEnumRefreshToken,
 		tokenFile:    flagTeamsEnumTokenFile,
@@ -441,12 +441,12 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 				// Positive signals always print. Clear the in-place bar first so
 				// its partial line doesn't corrupt the row; it redraws next tick.
 				progress.Clear()
-				outputTeamsEnumResultLine(os.Stdout, res, useColor)
+				outputTeamsEnumResultLine(os.Stdout, &res, useColor)
 			default:
 				// ExistenceNo / ExistenceUnknown are suppressed unless --verbose.
 				if flagVerbose {
 					progress.Clear()
-					outputTeamsEnumResultLine(os.Stdout, res, useColor)
+					outputTeamsEnumResultLine(os.Stdout, &res, useColor)
 				}
 			}
 		}
@@ -460,10 +460,10 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	posture := teams.DerivePosture(teamsEnumDomain(emails), results)
 
 	if flagJSON {
-		outputTeamsPostureJSONL(jsonWriter, posture)
+		outputTeamsPostureJSONL(jsonWriter, &posture)
 	} else {
 		outputTeamsEnumSummary(os.Stdout, results, useColor)
-		outputTeamsPostureHuman(os.Stdout, posture, useColor)
+		outputTeamsPostureHuman(os.Stdout, &posture, useColor)
 	}
 	return nil
 }
@@ -489,7 +489,7 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	accessToken, refreshToken, err := teamsEnumResolveTokens(ctx, teamsTokenSource{
+	accessToken, refreshToken, err := teamsEnumResolveTokens(ctx, &teamsTokenSource{
 		accessToken:  flagTeamsAuditAccessToken,
 		refreshToken: flagTeamsAuditRefreshToken,
 		tokenFile:    flagTeamsAuditTokenFile,
@@ -537,7 +537,7 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 	result := enumerator.EnumerateOne(ctx, seedEmail)
 	domain := teamsEnumDomain([]string{seedEmail})
 	posture := teams.DerivePosture(domain, []teams.EnumResult{result})
-	findings := teams.Audit(domain, seedEmail, result, posture, presenceChecked)
+	findings := teams.Audit(domain, seedEmail, &result, &posture, presenceChecked)
 
 	// Warn (to stderr, never stdout) when the seed didn't resolve, so the user
 	// knows findings are limited — but still emit whatever we gathered.
@@ -548,7 +548,7 @@ func runEnumTeamsAudit(cmd *cobra.Command, args []string) error {
 	if flagJSON {
 		outputTeamsAuditJSONL(jsonWriter, findings)
 	} else {
-		outputTeamsAuditHuman(os.Stdout, domain, posture, findings, useColor)
+		outputTeamsAuditHuman(os.Stdout, domain, &posture, findings, useColor)
 	}
 	return nil
 }
@@ -671,7 +671,7 @@ type teamsTokenSource struct {
 // teamsEnumResolveTokens determines the access (and optional refresh) token from
 // the three mutually exclusive sources in src: --token-file, --access-token, or
 // an inline device-code flow. Token values are never logged.
-func teamsEnumResolveTokens(ctx context.Context, src teamsTokenSource, useColor bool) (accessToken, refreshToken string, err error) {
+func teamsEnumResolveTokens(ctx context.Context, src *teamsTokenSource, useColor bool) (accessToken, refreshToken string, err error) {
 	if src.tokenFile != "" && src.accessToken != "" {
 		return "", "", fmt.Errorf("--token-file and --access-token are mutually exclusive")
 	}
@@ -708,7 +708,7 @@ func teamsEnumLoadDefaultTokens(useColor bool) (accessToken, refreshToken string
 	if err != nil {
 		return "", "", false
 	}
-	if _, err := os.Stat(path); err != nil {
+	if _, statErr := os.Stat(path); statErr != nil {
 		return "", "", false
 	}
 
@@ -749,7 +749,7 @@ func teamsEnumReadTokenFile(path string) (accessToken, refreshToken string, err 
 
 // teamsEnumDeviceCodeTokens runs the interactive device-code flow inline and
 // returns the resulting access and refresh tokens.
-func teamsEnumDeviceCodeTokens(ctx context.Context, src teamsTokenSource, useColor bool) (accessToken, refreshToken string, err error) {
+func teamsEnumDeviceCodeTokens(ctx context.Context, src *teamsTokenSource, useColor bool) (accessToken, refreshToken string, err error) {
 	proxyURL, err := resolveProxyURL()
 	if err != nil {
 		return "", "", err

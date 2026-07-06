@@ -283,7 +283,7 @@ func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
 	}
 	for i := range result.People {
 		if m, ok := byID[result.People[i].ID]; ok {
-			mergeReveal(&result.People[i], *m)
+			mergeReveal(&result.People[i], m)
 		}
 	}
 	result.CreditsCharged = len(enriched)
@@ -384,11 +384,35 @@ func (c *Client) do(ctx context.Context, method, path string, body any) ([]byte,
 	return respBody, nil
 }
 
+type apolloPerson struct {
+	ID           string             `json:"id"`
+	FirstName    string             `json:"first_name"`
+	LastName     string             `json:"last_name"`
+	Name         string             `json:"name"`
+	Title        string             `json:"title"`
+	Seniority    string             `json:"seniority"`
+	Departments  []string           `json:"departments"`
+	Organization apolloOrganization `json:"organization"`
+	// Availability flags from people-search (no credits). has_email is a bool;
+	// has_direct_phone is a STRING ("Yes" / "Maybe: ...") — verified live
+	// 2026-06-26, hence the string type and the =="Yes" mapping in toPerson.
+	HasEmail          bool                    `json:"has_email"`
+	HasDirectPhone    string                  `json:"has_direct_phone"`
+	Email             string                  `json:"email"`
+	EmailStatus       string                  `json:"email_status"`
+	LinkedinURL       string                  `json:"linkedin_url"`
+	TwitterURL        string                  `json:"twitter_url"`
+	City              string                  `json:"city"`
+	State             string                  `json:"state"`
+	Country           string                  `json:"country"`
+	EmploymentHistory []apolloEmploymentEntry `json:"employment_history"`
+}
+
 // toPerson converts the API person struct to the public Person type, mapping
 // every field present in the payload. The search response is thin (reveal-only
 // fields are null/empty and map to zero values); the match response populates
 // the full record. Revealed is NOT set here — the caller owns that flag.
-func (p apolloPerson) toPerson() Person {
+func (p *apolloPerson) toPerson() Person {
 	dept := ""
 	if len(p.Departments) > 0 {
 		dept = p.Departments[0]
@@ -431,7 +455,7 @@ func (p apolloPerson) toPerson() Person {
 // discovered person, overwriting the obfuscated/empty search-tier last name and
 // filling in the reveal-only fields. Search-tier identity fields already on p
 // (ID, Name, Title, Organization) are left intact.
-func mergeReveal(p *Person, m Person) {
+func mergeReveal(p, m *Person) {
 	p.LastName = m.LastName
 	p.Email = m.Email
 	p.EmailStatus = m.EmailStatus
@@ -477,30 +501,6 @@ type apolloMatchRequest struct {
 
 type apolloMatchResponse struct {
 	Person apolloPerson `json:"person"`
-}
-
-type apolloPerson struct {
-	ID           string             `json:"id"`
-	FirstName    string             `json:"first_name"`
-	LastName     string             `json:"last_name"`
-	Name         string             `json:"name"`
-	Title        string             `json:"title"`
-	Seniority    string             `json:"seniority"`
-	Departments  []string           `json:"departments"`
-	Organization apolloOrganization `json:"organization"`
-	// Availability flags from people-search (no credits). has_email is a bool;
-	// has_direct_phone is a STRING ("Yes" / "Maybe: ...") — verified live
-	// 2026-06-26, hence the string type and the =="Yes" mapping in toPerson.
-	HasEmail          bool                    `json:"has_email"`
-	HasDirectPhone    string                  `json:"has_direct_phone"`
-	Email             string                  `json:"email"`
-	EmailStatus       string                  `json:"email_status"`
-	LinkedinURL       string                  `json:"linkedin_url"`
-	TwitterURL        string                  `json:"twitter_url"`
-	City              string                  `json:"city"`
-	State             string                  `json:"state"`
-	Country           string                  `json:"country"`
-	EmploymentHistory []apolloEmploymentEntry `json:"employment_history"`
 }
 
 type apolloEmploymentEntry struct {

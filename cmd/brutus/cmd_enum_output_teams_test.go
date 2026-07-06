@@ -94,7 +94,7 @@ func TestOutputTeamsEnumResultLine_AccountType(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			outputTeamsEnumResultLine(&buf, tc.result, false /* useColor */)
+			outputTeamsEnumResultLine(&buf, &tc.result, false /* useColor */)
 			out := buf.String()
 
 			if tc.wantContain != "" {
@@ -152,7 +152,7 @@ func TestOutputTeamsEnumResultLine_Sanitizes(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			outputTeamsEnumResultLine(&buf, tc.result, false)
+			outputTeamsEnumResultLine(&buf, &tc.result, false)
 			out := buf.String()
 
 			assert.NotContains(t, out, "\x1b",

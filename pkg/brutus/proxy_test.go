@@ -293,7 +293,7 @@ func TestProxyTransport(t *testing.T) {
 		assert.Nil(t, transport.DialContext, "expected DialContext to be nil for http scheme")
 
 		// Call transport.Proxy with a sample request and assert the returned URL host/user.
-		req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
+		req := httptest.NewRequest(http.MethodGet, "http://example.com", http.NoBody)
 		proxyURL, err := transport.Proxy(req)
 		require.NoError(t, err)
 		require.NotNil(t, proxyURL)

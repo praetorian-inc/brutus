@@ -241,7 +241,7 @@ func (e *Enumerator) CheckAccount(ctx context.Context, email string) Result {
 // The shared proxied client follows redirects by default, so a per-request
 // clone with CheckRedirect=ErrUseLastResponse is used to inspect the 302
 // Location header while keeping the proxy transport.
-func (e *Enumerator) checkAccountChooser(ctx context.Context, email string) (bool, string, error) {
+func (e *Enumerator) checkAccountChooser(ctx context.Context, email string) (federated bool, host string, err error) {
 	u := e.accountChooserBaseURL + "/AccountChooser?Email=" + url.QueryEscape(email) + "&continue=https://mail.google.com/mail/"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {

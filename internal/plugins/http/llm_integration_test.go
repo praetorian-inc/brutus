@@ -324,12 +324,12 @@ func TestHTTPWithLLM_BruteAPI(t *testing.T) {
 
 	// Use the Brute() API with LLM config
 	cfg := &brutus.Config{
-		Target:        target,
-		Protocol:      "http",
-		Usernames:     []string{"admin"},
-		Passwords:     []string{"wrong1", "wrong2"}, // Wrong passwords - LLM should find the right one
-		Timeout:       10 * time.Second,
-		Threads:       1,
+		Target:    target,
+		Protocol:  "http",
+		Usernames: []string{"admin"},
+		Passwords: []string{"wrong1", "wrong2"}, // Wrong passwords - LLM should find the right one
+		Timeout:   10 * time.Second,
+		Threads:   1,
 		LLMConfig: &brutus.LLMConfig{
 			Enabled:  true,
 			Provider: provider,

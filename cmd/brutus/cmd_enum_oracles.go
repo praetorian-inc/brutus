@@ -601,7 +601,7 @@ func confirmTeamsOracle(ctx context.Context, knownValid string, useColor bool) s
 	}
 
 	res := enumerator.EnumerateOne(ctx, knownValid)
-	return teamsDiscoverLine(res)
+	return teamsDiscoverLine(&res)
 }
 
 // resolveTeamsConfirmToken resolves a Teams token opportunistically for the
@@ -634,7 +634,7 @@ func resolveTeamsConfirmToken(useColor bool) (accessToken, refreshToken string, 
 // teamsDiscoverLine maps a Teams enumeration result to a discover-style status
 // line. A 403/blocked result is still a working oracle (it distinguishes real
 // from fake accounts). Token values never appear in the returned string.
-func teamsDiscoverLine(res teams.EnumResult) string {
+func teamsDiscoverLine(res *teams.EnumResult) string {
 	switch res.Exists {
 	case teams.ExistenceYes:
 		line := "teams: working (corporate account resolved)"

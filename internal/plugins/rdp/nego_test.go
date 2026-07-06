@@ -61,8 +61,8 @@ func TestNegoBuildNegReq(t *testing.T) {
 func ccWithNeg(negType byte, payload uint32) []byte {
 	buf := make([]byte, 19)
 	// TPKT header
-	buf[0] = 0x03 // version
-	buf[1] = 0x00 // reserved
+	buf[0] = 0x03                            // version
+	buf[1] = 0x00                            // reserved
 	binary.BigEndian.PutUint16(buf[2:4], 19) // total length = 19
 	// X.224 Connection Confirm body
 	buf[4] = 0x0E  // LI = 14
@@ -74,8 +74,8 @@ func ccWithNeg(negType byte, payload uint32) []byte {
 	buf[10] = 0x00 // class/options
 	// 8-byte negotiation trailer at bytes 11-18
 	buf[11] = negType
-	buf[12] = 0x00 // flags
-	binary.LittleEndian.PutUint16(buf[13:15], 8) // length (LE) = 8
+	buf[12] = 0x00                               // flags
+	binary.LittleEndian.PutUint16(buf[13:15], 8) // length (LE): 8
 	binary.LittleEndian.PutUint32(buf[15:19], payload)
 	return buf
 }
@@ -192,10 +192,10 @@ func (fc *fakeConn) Read(b []byte) (int, error)  { return fc.readBuf.Read(b) }
 func (fc *fakeConn) Write(b []byte) (int, error) { return fc.written.Write(b) }
 func (fc *fakeConn) Close() error                { return nil }
 
-func (fc *fakeConn) LocalAddr() net.Addr              { return &net.TCPAddr{} }
-func (fc *fakeConn) RemoteAddr() net.Addr             { return &net.TCPAddr{} }
-func (fc *fakeConn) SetDeadline(t time.Time) error    { return nil }
-func (fc *fakeConn) SetReadDeadline(t time.Time) error { return nil }
+func (fc *fakeConn) LocalAddr() net.Addr                { return &net.TCPAddr{} }
+func (fc *fakeConn) RemoteAddr() net.Addr               { return &net.TCPAddr{} }
+func (fc *fakeConn) SetDeadline(t time.Time) error      { return nil }
+func (fc *fakeConn) SetReadDeadline(t time.Time) error  { return nil }
 func (fc *fakeConn) SetWriteDeadline(t time.Time) error { return nil }
 
 // TestProbeNLA_ScannableSSL verifies that a NEG_RSP selecting PROTOCOL_SSL

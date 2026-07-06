@@ -56,7 +56,7 @@ type Finding struct {
 // actually gathered. Findings are returned ordered by
 // severity (high -> info) then by ID, for stable output. Token values never
 // appear in any field.
-func Audit(domain, seedEmail string, result EnumResult, posture TenantPosture, presenceChecked bool) []Finding {
+func Audit(domain, seedEmail string, result *EnumResult, posture *TenantPosture, presenceChecked bool) []Finding {
 	var findings []Finding
 
 	if posture.ExternalChatAllowed == "open" {
@@ -91,7 +91,7 @@ func Audit(domain, seedEmail string, result EnumResult, posture TenantPosture, p
 // externalAccessFinding reports that external / cross-tenant Teams chat is
 // enabled: the externalsearchv3 endpoint resolved the seed user to this tenant
 // from an external context.
-func externalAccessFinding(domain string, result EnumResult) Finding {
+func externalAccessFinding(domain string, result *EnumResult) Finding {
 	evidence := "externalsearchv3 returned the user to an external tenant"
 	if posture := externalAccessSignals(result); posture != "" {
 		evidence += " (" + posture + ")"
@@ -124,7 +124,7 @@ func userEnumerationFinding(domain, seedEmail string) Finding {
 
 // presenceFinding reports that the seed user's Teams presence (availability /
 // device type) was disclosed to an external requester.
-func presenceFinding(domain, seedEmail string, result EnumResult) Finding {
+func presenceFinding(domain, seedEmail string, result *EnumResult) Finding {
 	evidence := "presence availability returned: " + result.Availability
 	if result.DeviceType != "" {
 		evidence += " (device: " + result.DeviceType + ")"
@@ -143,7 +143,7 @@ func presenceFinding(domain, seedEmail string, result EnumResult) Finding {
 // oofFinding reports that the seed user's out-of-office note was disclosed to an
 // external requester. The raw note is stored in Evidence; the caller sanitizes
 // and truncates it for terminal output.
-func oofFinding(domain, seedEmail string, result EnumResult) Finding {
+func oofFinding(domain, seedEmail string, result *EnumResult) Finding {
 	return Finding{
 		ID:          "teams-oof-disclosure",
 		Title:       "Out-of-office note disclosed to external users",
@@ -157,7 +157,7 @@ func oofFinding(domain, seedEmail string, result EnumResult) Finding {
 
 // metadataFinding reports that account metadata (UPN, objectId, tenantId,
 // coexistence mode) was disclosed to an external party via externalsearchv3.
-func metadataFinding(domain, seedEmail string, result EnumResult) Finding {
+func metadataFinding(domain, seedEmail string, result *EnumResult) Finding {
 	var fields []string
 	if result.UserPrincipalName != "" {
 		fields = append(fields, "userPrincipalName")
@@ -189,7 +189,7 @@ func metadataFinding(domain, seedEmail string, result EnumResult) Finding {
 // externalAccessSignals describes any federation/type signal observed on the
 // seed result, for inclusion in the external-access evidence string. It returns
 // "" when no such signal is present.
-func externalAccessSignals(result EnumResult) string {
+func externalAccessSignals(result *EnumResult) string {
 	var parts []string
 	if result.Type != "" {
 		parts = append(parts, "type="+result.Type)

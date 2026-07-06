@@ -353,7 +353,7 @@ func TestTeamsDiscoverLine_Mapping(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			line := teamsDiscoverLine(tc.result)
+			line := teamsDiscoverLine(&tc.result)
 
 			for _, want := range tc.wantContains {
 				assert.Contains(t, line, want,

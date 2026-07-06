@@ -89,16 +89,16 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 	}()
 
 	for i, email := range emails {
-		if err = e.pushCommit(ctx, login, repo, email); err != nil {
-			return nil, err
+		if perr := e.pushCommit(ctx, login, repo, email); perr != nil {
+			return nil, perr
 		}
 		if onProgress != nil {
 			onProgress(i+1, len(emails))
 		}
 	}
 
-	if err = e.sleep(ctx, e.settleDelay); err != nil {
-		return nil, err
+	if serr := e.sleep(ctx, e.settleDelay); serr != nil {
+		return nil, serr
 	}
 
 	mapping, err = e.listCommitLogins(ctx, login, repo, branch)
@@ -144,7 +144,7 @@ func (e *Enumerator) getAuthUser(ctx context.Context) (string, error) {
 
 // createRepo POSTs {api}/user/repos to create a private throwaway repo, returning
 // its name and default branch (falling back to "main" when absent).
-func (e *Enumerator) createRepo(ctx context.Context) (repo string, branch string, err error) {
+func (e *Enumerator) createRepo(ctx context.Context) (repo, branch string, err error) {
 	name := e.newName()
 	payload := map[string]any{"name": name, "private": true}
 

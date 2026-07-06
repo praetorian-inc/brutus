@@ -485,7 +485,7 @@ func TestIsCombolist(t *testing.T) {
 // makePagedServer builds an httptest server that serves DeHashed-shaped POST
 // responses. It reads the page number from the decoded JSON body (not a query
 // param — DeHashed uses POST with JSON body). An atomic counter tracks calls.
-func makePagedServer(t *testing.T, allEntries []apiEntry, total, pageSize int, midErr429AtPage int) (*httptest.Server, *atomic.Int32) {
+func makePagedServer(t *testing.T, allEntries []apiEntry, total, pageSize, midErr429AtPage int) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var requestCount atomic.Int32
 

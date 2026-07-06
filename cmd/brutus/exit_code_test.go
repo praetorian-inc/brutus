@@ -86,7 +86,7 @@ func TestScanExitError(t *testing.T) {
 	}
 }
 
-// TestScanExitError_UnreachableIsExitZero locks in the cardinal-rule behaviour:
+// TestScanExitError_UnreachableIsExitZero locks in the cardinal-rule behavior:
 // an unreachable result is terminal & non-retryable (Indeterminate=false), so
 // scanExitError must return nil (exit 0), NOT errIndeterminate (exit 2).
 //

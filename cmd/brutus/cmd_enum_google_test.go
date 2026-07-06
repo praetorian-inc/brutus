@@ -17,7 +17,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -254,7 +253,7 @@ func TestOutputGoogleEnumResultLine(t *testing.T) {
 	t.Run("malicious IdP with ANSI escape is sanitized", func(t *testing.T) {
 		// A server-controlled IdP that injects a raw ESC (0x1B) byte. The output
 		// layer must strip it before rendering (P0-4 requirement).
-		maliciousIdP := fmt.Sprintf("login.okta.com\x1b[31mINJECTED\x1b[0m")
+		maliciousIdP := "login.okta.com\x1b[31mINJECTED\x1b[0m"
 		r := google.Result{
 			Email:  "user@example.com",
 			Exists: true,

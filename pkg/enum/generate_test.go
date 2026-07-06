@@ -251,7 +251,7 @@ func TestGenerateUsernames_AllFormatsBoundedAndNonEmpty(t *testing.T) {
 // TestGenerateUsernames_UnknownFormat
 // ---------------------------------------------------------------------------
 
-// TestGenerateUsernames_UnknownFormat verifies that an unrecognised format
+// TestGenerateUsernames_UnknownFormat verifies that an unrecognized format
 // string causes all pairs to be skipped (formatUsername returns "" for the
 // default branch), producing an empty result with no error.
 func TestGenerateUsernames_UnknownFormat(t *testing.T) {
@@ -405,16 +405,4 @@ func TestGenerateEmails_FirstUnderLast(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, len(usernames), len(emails),
 		"GenerateEmails must produce the same count as GenerateUsernames for first_last")
-}
-
-// ---------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------
-
-// min returns the smaller of a and b.
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

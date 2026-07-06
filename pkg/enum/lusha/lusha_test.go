@@ -223,7 +223,7 @@ func TestEnrich_Success(t *testing.T) {
 		CompanyName: "AnalyticalCo",
 	}
 	r := RevealOptions{Email: true, Phone: true}
-	contact, err := c.Enrich(context.Background(), q, r)
+	contact, err := c.Enrich(context.Background(), &q, r)
 	require.NoError(t, err)
 
 	// API key set as header, not in URL.
@@ -305,7 +305,7 @@ func TestBuildEnrichRequest(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := buildEnrichRequest(tc.query, tc.reveal)
+			got := buildEnrichRequest(&tc.query, tc.reveal)
 			// Must be a batch with exactly one contact.
 			require.Len(t, got.Contacts, 1, "batch must have exactly one contact")
 			assert.Equal(t, tc.wantContact, got.Contacts[0])
@@ -322,7 +322,7 @@ func TestEnrich_401ErrUnauthorized(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.Enrich(context.Background(), ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
+	_, err := c.Enrich(context.Background(), &ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrUnauthorized))
 }
@@ -335,7 +335,7 @@ func TestEnrich_402ErrNoCredits(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.Enrich(context.Background(), ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
+	_, err := c.Enrich(context.Background(), &ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrNoCredits))
 
@@ -352,7 +352,7 @@ func TestEnrich_429ErrRateLimited(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.Enrich(context.Background(), ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
+	_, err := c.Enrich(context.Background(), &ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrRateLimited))
 }
@@ -367,7 +367,7 @@ func TestEnrich_EmptyMatch(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	contact, err := c.Enrich(context.Background(), ContactQuery{Email: "nobody@example.com"}, RevealOptions{Email: true})
+	contact, err := c.Enrich(context.Background(), &ContactQuery{Email: "nobody@example.com"}, RevealOptions{Email: true})
 	require.NoError(t, err, "empty 200 must not return an error")
 	require.NotNil(t, contact)
 	assert.Empty(t, contact.Emails)
@@ -382,7 +382,7 @@ func TestEnrich_MalformedJSON(t *testing.T) {
 	defer srv.Close()
 
 	c := newTestClient(srv.URL)
-	_, err := c.Enrich(context.Background(), ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
+	_, err := c.Enrich(context.Background(), &ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decoding lusha response")
 }
@@ -401,7 +401,7 @@ func TestEnrich_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	_, err := c.Enrich(ctx, ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
+	_, err := c.Enrich(ctx, &ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
 	require.Error(t, err, "context cancellation must produce an error")
 }
 
@@ -427,34 +427,6 @@ type prospectSearchBody struct {
 type prospectEnrichBody struct {
 	RequestID  string   `json:"requestId"`
 	ContactIDs []string `json:"contactIds"`
-}
-
-// newProspectServer builds an httptest.Server that handles the two prospecting
-// endpoints via a router. The search handler is called once (page 0); the enrich
-// handler is called once with the page's requestId + contactIds.
-func newProspectServer(t *testing.T, searchResp, enrichResp interface{}, captureSearch, captureEnrich *[]byte) *httptest.Server {
-	t.Helper()
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-
-		switch r.URL.Path {
-		case prospectSearchPath:
-			if captureSearch != nil {
-				*captureSearch = body
-			}
-			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(searchResp))
-		case prospectEnrichPath:
-			if captureEnrich != nil {
-				*captureEnrich = body
-			}
-			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(enrichResp))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
 }
 
 func TestSearchDomain_Success(t *testing.T) {
@@ -550,7 +522,7 @@ func TestSearchDomain_Success(t *testing.T) {
 	assert.Equal(t, 2, result.Total, "Total must equal totalResults from search page")
 	require.Len(t, result.Contacts, 2)
 
-	// Credits: 1 (search) + 2 (enrich) = 3
+	// Credits: 1 for search plus 2 for enrich, totaling 3
 	assert.Equal(t, 3, result.CreditsCharged, "CreditsCharged must sum search+enrich billing")
 
 	// ---- Bruna White (first contact) ----

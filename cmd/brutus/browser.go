@@ -58,7 +58,7 @@ func isAllowedVerificationURL(raw string) bool {
 
 // browserCommand returns the executable and args to open rawURL on the given
 // GOOS. It is pure (executes nothing) so it can be unit-tested across platforms.
-func browserCommand(goos, rawURL string) (string, []string, error) {
+func browserCommand(goos, rawURL string) (executable string, args []string, err error) {
 	switch goos {
 	case "darwin":
 		return "open", []string{rawURL}, nil

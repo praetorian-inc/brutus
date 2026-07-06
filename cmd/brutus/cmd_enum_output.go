@@ -595,7 +595,7 @@ func outputTeamsEnumHuman(w io.Writer, results []teams.EnumResult, useColor bool
 // are sanitized via sanitizeTerminal (P0-4). Token values are never printed.
 // Callers decide which results to print (e.g. positive signals only, unless
 // verbose); this helper renders whatever it is given.
-func outputTeamsEnumResultLine(w io.Writer, r teams.EnumResult, useColor bool) {
+func outputTeamsEnumResultLine(w io.Writer, r *teams.EnumResult, useColor bool) {
 	statusCol, statusColor := teamsEnumStatusLabel(r.Exists)
 	email := truncate(sanitizeTerminal(r.Email), 32)
 	name := truncate(sanitizeTerminal(r.DisplayName), 28)
@@ -745,7 +745,7 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 // The "External / cross-tenant chat: ALLOWED" line is a finding and is colored
 // red when open, green when blocked, and dim when unknown. The server-derived
 // coexistence mode is sanitized via sanitizeTerminal (P0-4).
-func outputTeamsPostureHuman(w io.Writer, p teams.TenantPosture, useColor bool) {
+func outputTeamsPostureHuman(w io.Writer, p *teams.TenantPosture, useColor bool) {
 	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo),
 		heading(useColor, "Teams posture: "+sanitizeTerminal(p.Domain)))
 
@@ -778,7 +778,7 @@ func outputTeamsPostureHuman(w io.Writer, p teams.TenantPosture, useColor bool) 
 
 // outputTeamsPostureJSONL writes the tenant posture as a single JSON object.
 // encoding/json escapes control characters, so no sanitization is needed.
-func outputTeamsPostureJSONL(w io.Writer, p teams.TenantPosture) {
+func outputTeamsPostureJSONL(w io.Writer, p *teams.TenantPosture) {
 	type teamsPostureJSON struct {
 		Type                string `json:"type"`
 		Domain              string `json:"domain"`
@@ -826,7 +826,7 @@ const auditEvidenceMaxRunes = 200
 // severity-appropriate color, followed by indented Evidence and Remediation
 // lines, and the run ends with a counts-by-severity summary. The posture block
 // is always printed first for context.
-func outputTeamsAuditHuman(w io.Writer, domain string, posture teams.TenantPosture, findings []teams.Finding, useColor bool) {
+func outputTeamsAuditHuman(w io.Writer, domain string, posture *teams.TenantPosture, findings []teams.Finding, useColor bool) {
 	_, _ = fmt.Fprintf(w, "\n%s\n", heading(useColor, "=== Teams Audit: "+sanitizeTerminal(domain)+" ==="))
 
 	outputTeamsPostureHuman(w, posture, useColor)

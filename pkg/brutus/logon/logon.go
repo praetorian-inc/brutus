@@ -71,7 +71,7 @@ func DetectBackdoors(ctx context.Context, target string, connectTimeout, timeout
 
 	// STAGE 2 — existing decode-slot-gated WASM pipeline.
 	if err := decodeSlots.Acquire(ctx, 1); err != nil {
-		// Context cancelled while queued: the host never ran, so it must read
+		// Context canceled while queued: the host never ran, so it must read
 		// as indeterminate, never silently clean.
 		return CancelledResults(target), false
 	}
@@ -104,13 +104,13 @@ func anyIndeterminate(results []brutus.Result) bool {
 }
 
 // retryBackoff sleeps a capped exponential delay before a retry attempt,
-// returning early if the context is cancelled. attempt is 1-based.
+// returning early if the context is canceled. attempt is 1-based.
 func retryBackoff(ctx context.Context, attempt int) {
 	const base = 100 * time.Millisecond
-	const cap = 2 * time.Second
+	const maxDelay = 2 * time.Second
 	delay := base << (attempt - 1)
-	if delay > cap || delay <= 0 {
-		delay = cap
+	if delay > maxDelay || delay <= 0 {
+		delay = maxDelay
 	}
 	select {
 	case <-time.After(delay):

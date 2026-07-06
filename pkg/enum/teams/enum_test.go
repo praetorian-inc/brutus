@@ -525,7 +525,7 @@ func TestEnumerate_ConcurrentRefreshNoRace(t *testing.T) {
 	var refreshCount atomic.Int32
 
 	// Server: first call → 401, all subsequent → 200 with a valid user.
-	// Using an atomic counter makes the behaviour deterministic across
+	// Using an atomic counter makes the behavior deterministic across
 	// goroutines without any mutex in the handler.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		n := reqCount.Add(1)
@@ -842,7 +842,7 @@ func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
 			e.searchBaseURL = srv.URL + "/%s"
 			// No refresh function to keep test deterministic.
 
-			res := e.EnumerateOne(context.Background(), fmt.Sprintf("user@contoso.com"))
+			res := e.EnumerateOne(context.Background(), "user@contoso.com")
 
 			if res.Error != nil {
 				assert.NotContains(t, res.Error.Error(), accessToken,

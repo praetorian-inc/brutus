@@ -51,7 +51,7 @@ func TestAudit_ExternalAccessOpen(t *testing.T) {
 
 	t.Run("posture open emits teams-external-access Medium", func(t *testing.T) {
 		posture := TenantPosture{ExternalChatAllowed: "open"}
-		findings := Audit("contoso.com", "alice@contoso.com", baseResult, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &baseResult, &posture, false)
 
 		f, ok := findFinding(findings, "teams-external-access")
 		require.True(t, ok, "teams-external-access finding must be present when ExternalChatAllowed==\"open\"")
@@ -61,14 +61,14 @@ func TestAudit_ExternalAccessOpen(t *testing.T) {
 
 	t.Run("posture blocked omits teams-external-access", func(t *testing.T) {
 		posture := TenantPosture{ExternalChatAllowed: "blocked"}
-		findings := Audit("contoso.com", "alice@contoso.com", baseResult, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &baseResult, &posture, false)
 		assert.False(t, hasFinding(findings, "teams-external-access"),
 			"teams-external-access must be absent when ExternalChatAllowed==\"blocked\"")
 	})
 
 	t.Run("posture unknown omits teams-external-access", func(t *testing.T) {
 		posture := TenantPosture{ExternalChatAllowed: "unknown"}
-		findings := Audit("contoso.com", "alice@contoso.com", baseResult, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &baseResult, &posture, false)
 		assert.False(t, hasFinding(findings, "teams-external-access"),
 			"teams-external-access must be absent when ExternalChatAllowed==\"unknown\"")
 	})
@@ -83,7 +83,7 @@ func TestAudit_UserEnumeration(t *testing.T) {
 
 	t.Run("ExistenceYes emits teams-user-enumeration Info", func(t *testing.T) {
 		result := EnumResult{Exists: ExistenceYes}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 
 		f, ok := findFinding(findings, "teams-user-enumeration")
 		require.True(t, ok, "teams-user-enumeration must be present when Exists==ExistenceYes")
@@ -93,7 +93,7 @@ func TestAudit_UserEnumeration(t *testing.T) {
 
 	t.Run("ExistenceBlocked emits teams-user-enumeration Info", func(t *testing.T) {
 		result := EnumResult{Exists: ExistenceBlocked}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 
 		f, ok := findFinding(findings, "teams-user-enumeration")
 		require.True(t, ok, "teams-user-enumeration must be present when Exists==ExistenceBlocked")
@@ -103,14 +103,14 @@ func TestAudit_UserEnumeration(t *testing.T) {
 
 	t.Run("ExistenceNo omits teams-user-enumeration", func(t *testing.T) {
 		result := EnumResult{Exists: ExistenceNo}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 		assert.False(t, hasFinding(findings, "teams-user-enumeration"),
 			"teams-user-enumeration must be absent when Exists==ExistenceNo")
 	})
 
 	t.Run("ExistenceUnknown omits teams-user-enumeration", func(t *testing.T) {
 		result := EnumResult{Exists: ExistenceUnknown}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 		assert.False(t, hasFinding(findings, "teams-user-enumeration"),
 			"teams-user-enumeration must be absent when Exists==ExistenceUnknown")
 	})
@@ -129,7 +129,7 @@ func TestAudit_PresenceAndOOF_GatedByPresenceChecked(t *testing.T) {
 			Availability:    "Busy",
 			OutOfOfficeNote: "Back Monday call Jane",
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false /* presenceChecked */)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false /* presenceChecked */)
 
 		assert.False(t, hasFinding(findings, "teams-presence-disclosure"),
 			"teams-presence-disclosure must be absent when presenceChecked==false")
@@ -142,7 +142,7 @@ func TestAudit_PresenceAndOOF_GatedByPresenceChecked(t *testing.T) {
 			Exists:       ExistenceYes,
 			Availability: "Busy",
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, true /* presenceChecked */)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true /* presenceChecked */)
 
 		f, ok := findFinding(findings, "teams-presence-disclosure")
 		require.True(t, ok, "teams-presence-disclosure must be present when presenceChecked==true and Availability is set")
@@ -156,7 +156,7 @@ func TestAudit_PresenceAndOOF_GatedByPresenceChecked(t *testing.T) {
 			Exists:          ExistenceYes,
 			OutOfOfficeNote: oooNote,
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, true /* presenceChecked */)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true /* presenceChecked */)
 
 		f, ok := findFinding(findings, "teams-oof-disclosure")
 		require.True(t, ok, "teams-oof-disclosure must be present when presenceChecked==true and OutOfOfficeNote is set")
@@ -171,7 +171,7 @@ func TestAudit_PresenceAndOOF_GatedByPresenceChecked(t *testing.T) {
 			Exists:       ExistenceYes,
 			Availability: "", // empty
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, true)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true)
 		assert.False(t, hasFinding(findings, "teams-presence-disclosure"),
 			"teams-presence-disclosure must be absent when Availability is empty even if presenceChecked==true")
 	})
@@ -181,7 +181,7 @@ func TestAudit_PresenceAndOOF_GatedByPresenceChecked(t *testing.T) {
 			Exists:          ExistenceYes,
 			OutOfOfficeNote: "", // empty
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, true)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true)
 		assert.False(t, hasFinding(findings, "teams-oof-disclosure"),
 			"teams-oof-disclosure must be absent when OutOfOfficeNote is empty even if presenceChecked==true")
 	})
@@ -199,7 +199,7 @@ func TestAudit_MetadataDisclosure(t *testing.T) {
 			Exists:            ExistenceYes,
 			UserPrincipalName: "alice@contoso.com",
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 
 		f, ok := findFinding(findings, "teams-metadata-disclosure")
 		require.True(t, ok, "teams-metadata-disclosure must be present when UserPrincipalName is set")
@@ -212,7 +212,7 @@ func TestAudit_MetadataDisclosure(t *testing.T) {
 			Exists:   ExistenceYes,
 			ObjectID: "o-456",
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 
 		_, ok := findFinding(findings, "teams-metadata-disclosure")
 		require.True(t, ok, "teams-metadata-disclosure must be present when ObjectID is set")
@@ -223,7 +223,7 @@ func TestAudit_MetadataDisclosure(t *testing.T) {
 			Exists:   ExistenceYes,
 			TenantID: "t-123",
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 
 		_, ok := findFinding(findings, "teams-metadata-disclosure")
 		require.True(t, ok, "teams-metadata-disclosure must be present when TenantID is set")
@@ -236,7 +236,7 @@ func TestAudit_MetadataDisclosure(t *testing.T) {
 			ObjectID:          "",
 			TenantID:          "",
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 		assert.False(t, hasFinding(findings, "teams-metadata-disclosure"),
 			"teams-metadata-disclosure must be absent when all metadata fields are empty")
 	})
@@ -247,7 +247,7 @@ func TestAudit_MetadataDisclosure(t *testing.T) {
 			Exists:            ExistenceBlocked,
 			UserPrincipalName: "alice@contoso.com",
 		}
-		findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+		findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 		assert.False(t, hasFinding(findings, "teams-metadata-disclosure"),
 			"teams-metadata-disclosure must be absent when Exists!=ExistenceYes")
 	})
@@ -268,7 +268,7 @@ func TestAudit_Ordering(t *testing.T) {
 	}
 	posture := TenantPosture{ExternalChatAllowed: "open"}
 
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, true /* presenceChecked */)
+	findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true /* presenceChecked */)
 
 	require.GreaterOrEqual(t, len(findings), 3,
 		"expected at least 3 findings for ordering test: Medium + Low + Info")
@@ -332,7 +332,7 @@ func TestAudit_Ordering_WithinSeverityByID(t *testing.T) {
 	}
 	posture := TenantPosture{ExternalChatAllowed: "blocked"}
 
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, true /* presenceChecked */)
+	findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true /* presenceChecked */)
 
 	var lowFindings []Finding
 	var infoFindings []Finding
@@ -391,7 +391,7 @@ func TestAudit_NoTokensInFindings(t *testing.T) {
 	}
 	posture := TenantPosture{ExternalChatAllowed: "open"}
 
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, true)
+	findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true)
 	require.NotEmpty(t, findings, "expect at least one finding")
 
 	// The refresh token sentinel must NEVER appear in any field.
@@ -443,7 +443,7 @@ func TestAudit_EmptyResult(t *testing.T) {
 
 	var findings []Finding
 	require.NotPanics(t, func() {
-		findings = Audit("contoso.com", "", result, posture, false)
+		findings = Audit("contoso.com", "", &result, &posture, false)
 	}, "Audit must not panic on zero-value inputs")
 
 	// Audit returns nil (not an initialized empty slice) when no rules fire — this
@@ -464,7 +464,7 @@ func TestAudit_FindingFieldsNonEmpty(t *testing.T) {
 	}
 	posture := TenantPosture{ExternalChatAllowed: "open"}
 
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, true)
+	findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true)
 	require.NotEmpty(t, findings)
 
 	for _, f := range findings {
@@ -487,7 +487,7 @@ func TestAudit_AffectedContainsDomain(t *testing.T) {
 	result := EnumResult{Exists: ExistenceYes, UserPrincipalName: "alice@contoso.com"}
 	posture := TenantPosture{ExternalChatAllowed: "open"}
 
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+	findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 	require.NotEmpty(t, findings)
 
 	for _, f := range findings {
@@ -510,7 +510,7 @@ func TestAudit_PresenceEvidenceContainsAvailability(t *testing.T) {
 		Availability: "DoNotDisturb",
 	}
 	posture := TenantPosture{ExternalChatAllowed: "blocked"}
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, true)
+	findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, true)
 
 	f, ok := findFinding(findings, "teams-presence-disclosure")
 	require.True(t, ok, "teams-presence-disclosure must be present")
@@ -528,7 +528,7 @@ func TestAudit_MetadataEvidenceListsFields(t *testing.T) {
 		TenantID:          "",
 	}
 	posture := TenantPosture{ExternalChatAllowed: "open"}
-	findings := Audit("contoso.com", "alice@contoso.com", result, posture, false)
+	findings := Audit("contoso.com", "alice@contoso.com", &result, &posture, false)
 
 	f, ok := findFinding(findings, "teams-metadata-disclosure")
 	require.True(t, ok)

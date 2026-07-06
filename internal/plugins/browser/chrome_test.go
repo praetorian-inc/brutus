@@ -127,4 +127,3 @@ func TestBrowser_Navigate(t *testing.T) {
 		t.Errorf("Navigate failed: %v", err)
 	}
 }
-

@@ -182,3 +182,35 @@ func TestAddDomainIndependentOracles(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// TestEmailDomain
+// ---------------------------------------------------------------------------
+
+// TestEmailDomain covers the helper that extracts the domain portion of an
+// email address (the substring after the last "@"), used so --domain can
+// default to the domain of the required --known-valid email. It confirms the
+// normal case, subdomains, the last-"@"-wins rule, and the empty-domain cases
+// (no "@", trailing "@", empty string) all resolve as documented.
+func TestEmailDomain(t *testing.T) {
+	tests := []struct {
+		name  string
+		email string
+		want  string
+	}{
+		{name: "normal address", email: "admin@example.com", want: "example.com"},
+		{name: "subdomain address", email: "a@mail.corp.example.com", want: "mail.corp.example.com"},
+		{name: "multiple @ uses the last one", email: `"a@b"@example.com`, want: "example.com"},
+		{name: "no @ returns empty", email: "notanemail", want: ""},
+		{name: "trailing @ returns empty", email: "user@", want: ""},
+		{name: "empty string returns empty", email: "", want: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := emailDomain(tc.email)
+			assert.Equal(t, tc.want, got,
+				"emailDomain(%q) = %q; want %q", tc.email, got, tc.want)
+		})
+	}
+}

@@ -181,9 +181,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 	// known-valid address (e.g. `--known-valid admin@example.com` is enough to
 	// drive DNS recon and email generation for example.com). An explicit
 	// --domain still wins.
-	if flagEnumDomain == "" {
-		flagEnumDomain = emailDomain(flagOraclesKnownValid)
-	}
+	flagEnumDomain = resolveOraclesDomain(flagEnumDomain, flagOraclesKnownValid)
 
 	if flagEnumDomain == "" && flagOraclesEmails == "" && flagOraclesEmailFile == "" {
 		return fmt.Errorf("--domain, --emails/-e, or --email-file/-E is required (or pass a --known-valid address with a domain)")
@@ -703,4 +701,16 @@ func emailDomain(email string) string {
 		return ""
 	}
 	return email[at+1:]
+}
+
+// resolveOraclesDomain returns the effective org domain for the oracles command.
+// An explicit --domain always wins; otherwise it falls back to the domain of the
+// required --known-valid email (see emailDomain). Returns "" when neither yields
+// a domain. Kept as a pure function so the precedence (explicit over derived) is
+// unit-testable without running runEnumOracles' network path.
+func resolveOraclesDomain(domain, knownValid string) string {
+	if domain != "" {
+		return domain
+	}
+	return emailDomain(knownValid)
 }

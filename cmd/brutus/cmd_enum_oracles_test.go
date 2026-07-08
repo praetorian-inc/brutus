@@ -214,3 +214,62 @@ func TestEmailDomain(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// TestResolveOraclesDomain
+// ---------------------------------------------------------------------------
+
+// TestResolveOraclesDomain covers the helper that decides the effective org
+// domain for the oracles command. It confirms the precedence the fix relies on:
+// an explicit --domain always wins, and when it is absent the domain is derived
+// from the required --known-valid email — so `--known-valid admin@example.com`
+// alone yields a domain and satisfies the required-one-of gate. When neither
+// yields a domain, it returns "".
+func TestResolveOraclesDomain(t *testing.T) {
+	tests := []struct {
+		name       string
+		domain     string
+		knownValid string
+		want       string
+	}{
+		{
+			name:       "explicit domain wins over known-valid",
+			domain:     "explicit.com",
+			knownValid: "admin@derived.com",
+			want:       "explicit.com",
+		},
+		{
+			name:       "explicit domain wins even when known-valid has no domain",
+			domain:     "explicit.com",
+			knownValid: "notanemail",
+			want:       "explicit.com",
+		},
+		{
+			name:       "no domain derives from known-valid",
+			domain:     "",
+			knownValid: "admin@derived.com",
+			want:       "derived.com",
+		},
+		{
+			name:       "no domain and known-valid without @ yields empty",
+			domain:     "",
+			knownValid: "notanemail",
+			want:       "",
+		},
+		{
+			name:       "both empty yields empty",
+			domain:     "",
+			knownValid: "",
+			want:       "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := resolveOraclesDomain(tc.domain, tc.knownValid)
+			assert.Equal(t, tc.want, got,
+				"resolveOraclesDomain(%q, %q) = %q; want %q",
+				tc.domain, tc.knownValid, got, tc.want)
+		})
+	}
+}

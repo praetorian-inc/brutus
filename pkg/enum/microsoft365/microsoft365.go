@@ -70,16 +70,26 @@ type Checker struct {
 }
 
 // NewChecker creates a Checker with the given timeout. Pass "" for baseURL to
-// use the default Microsoft login endpoint.
-func NewChecker(baseURL string, timeout time.Duration) *Checker {
+// use the default Microsoft login endpoint. Pass "" for proxyURL for a direct
+// (non-proxied) client; when proxyURL is non-empty the checker's client routes
+// through it (honoring the --proxy flag), mirroring the Google enumerator.
+func NewChecker(baseURL, proxyURL string, timeout time.Duration) (*Checker, error) {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
+	}
+	client := enum.NewEnumHTTPClient(timeout)
+	if proxyURL != "" {
+		c, err := enum.NewEnumHTTPClientWithProxy(timeout, proxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("microsoft365: configuring proxy: %w", err)
+		}
+		client = c
 	}
 	return &Checker{
 		baseURL: baseURL,
 		timeout: timeout,
-		client:  enum.NewEnumHTTPClient(timeout),
-	}
+		client:  client,
+	}, nil
 }
 
 // CheckAccount tests if an email account exists on Microsoft 365 via the

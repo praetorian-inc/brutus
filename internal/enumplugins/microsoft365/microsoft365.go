@@ -46,7 +46,12 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 		Email:   email,
 	}
 
-	checker := ms365.NewChecker("", timeout)
+	checker, err := ms365.NewChecker("", "", timeout)
+	if err != nil {
+		result.Error = err
+		result.Duration = time.Since(start)
+		return result
+	}
 	res := checker.CheckAccount(ctx, email)
 
 	result.Exists = res.Exists

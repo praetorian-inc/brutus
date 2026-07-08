@@ -93,7 +93,8 @@ func TestCheckAccount_Exists(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "exists@example.com")
 
 	require.NoError(t, result.Error)
@@ -108,7 +109,8 @@ func TestCheckAccount_NotExists(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "notexists@example.com")
 
 	require.NoError(t, result.Error)
@@ -121,7 +123,8 @@ func TestCheckAccount_DifferentTenant(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "difftenant@example.com")
 
 	require.NoError(t, result.Error)
@@ -134,7 +137,8 @@ func TestCheckAccount_DomainHint(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "domainhint@example.com")
 
 	require.NoError(t, result.Error)
@@ -147,7 +151,8 @@ func TestCheckAccount_UnknownResult(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "unknown@example.com")
 
 	require.NoError(t, result.Error)
@@ -160,7 +165,8 @@ func TestCheckAccount_Throttled(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "throttled@example.com")
 
 	require.Error(t, result.Error)
@@ -173,7 +179,8 @@ func TestCheckAccount_Federated(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "federated@example.com")
 
 	require.NoError(t, result.Error)
@@ -189,7 +196,8 @@ func TestCheckAccount_ServerError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "test@example.com")
 
 	require.Error(t, result.Error)
@@ -204,7 +212,8 @@ func TestCheckAccount_BadJSON(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(context.Background(), "test@example.com")
 
 	require.Error(t, result.Error)
@@ -219,7 +228,8 @@ func TestCheckAccount_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 	result := c.CheckAccount(ctx, "exists@example.com")
 
 	require.Error(t, result.Error)
@@ -228,8 +238,16 @@ func TestCheckAccount_ContextCancelled(t *testing.T) {
 
 func TestNewChecker_DefaultBaseURL(t *testing.T) {
 	t.Parallel()
-	c := NewChecker("", 5*time.Second)
+	c, err := NewChecker("", "", 5*time.Second)
+	require.NoError(t, err)
 	assert.Equal(t, DefaultBaseURL, c.baseURL)
+}
+
+func TestNewChecker_WithProxyURL(t *testing.T) {
+	t.Parallel()
+	c, err := NewChecker("", "http://user:pass@127.0.0.1:1/", 5*time.Second)
+	require.NoError(t, err)
+	assert.NotNil(t, c)
 }
 
 // ---------------------------------------------------------------------------
@@ -252,7 +270,8 @@ func TestCheckAccount_UsesHTTPClientFromContext(t *testing.T) {
 	}))
 	t.Cleanup(failing.Close)
 
-	c := NewChecker(failing.URL, 5*time.Second)
+	c, err := NewChecker(failing.URL, "", 5*time.Second)
+	require.NoError(t, err)
 
 	body, err := json.Marshal(credTypeResponse{IfExistsResult: IfExistsResultExists})
 	require.NoError(t, err)
@@ -279,7 +298,8 @@ func TestCheckAccount_FallsBackToOwnClientWithoutContextClient(t *testing.T) {
 	srv := newMockServer(t)
 	t.Cleanup(srv.Close)
 
-	c := NewChecker(srv.URL, 5*time.Second)
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
 
 	// No enum.WithHTTPClient on this context — CheckAccount must fall back
 	// to the Checker's own client and still reach srv successfully.

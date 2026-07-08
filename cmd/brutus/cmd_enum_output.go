@@ -1116,6 +1116,15 @@ func microsoft365FederationHost(raw string) string {
 func outputMicrosoft365EnumResultLine(w io.Writer, r m365.Result, useColor bool) { //nolint:gocritic // hugeParam: Result passed by value to mirror the Google enum output helpers and keep call sites simple
 	email := truncate(sanitizeTerminal(r.Email), 40)
 
+	if r.Error != nil {
+		// Error messages are constructed by the checker but may wrap
+		// transport/server text; sanitize before rendering (P0-4).
+		_, _ = fmt.Fprintf(w, "  %-40s %s[!] error:%s %s\n",
+			email, colorIf(useColor, ColorRed), colorIf(useColor, ColorReset),
+			dim(useColor, sanitizeTerminal(r.Error.Error())))
+		return
+	}
+
 	if !r.Exists {
 		_, _ = fmt.Fprintf(w, "  %-40s %s[ ] not found%s\n",
 			email, colorIf(useColor, ColorDim), colorIf(useColor, ColorReset))
@@ -1164,35 +1173,52 @@ func outputMicrosoft365EnumSummary(w io.Writer, results []m365.Result, useColor 
 	_, _ = fmt.Fprintln(w)
 }
 
-// outputMicrosoft365EnumJSONL writes one JSON object per result. encoding/json
-// escapes control characters, so no sanitization is needed.
-func outputMicrosoft365EnumJSONL(w io.Writer, results []m365.Result) {
-	type microsoft365EnumJSON struct {
-		Type           string `json:"type"`
-		Email          string `json:"email"`
-		Exists         bool   `json:"exists"`
-		IfExistsResult int    `json:"if_exists_result"`
-		Federated      bool   `json:"federated,omitempty"`
-		FederationURL  string `json:"federation_url,omitempty"`
-		Error          string `json:"error,omitempty"`
-	}
+// microsoft365EnumJSON is the JSONL shape for one Microsoft 365 enumeration
+// result. IfExistsResult is a pointer with omitempty so it is emitted only when
+// an actual API code was decoded (i.e. no error): on a pre-response failure the
+// zero value 0 would otherwise be indistinguishable from the API's "account
+// exists" code, contradicting the accompanying error.
+type microsoft365EnumJSON struct {
+	Type           string `json:"type"`
+	Email          string `json:"email"`
+	Exists         bool   `json:"exists"`
+	IfExistsResult *int   `json:"if_exists_result,omitempty"`
+	Federated      bool   `json:"federated,omitempty"`
+	FederationURL  string `json:"federation_url,omitempty"`
+	Error          string `json:"error,omitempty"`
+}
 
+// encodeMicrosoft365EnumResult encodes ONE Microsoft 365 enumeration result as a
+// JSONL line via enc. When the result carries no error, if_exists_result is
+// populated with the decoded API code (present even when 0); on error it is left
+// nil (omitted) and the error message is emitted instead. encoding/json escapes
+// control characters, so no sanitization is needed.
+func encodeMicrosoft365EnumResult(enc *json.Encoder, r m365.Result) { //nolint:gocritic // hugeParam: Result passed by value to mirror the sibling enum output helpers and keep call sites simple
+	jr := microsoft365EnumJSON{
+		Type:          "microsoft365_account",
+		Email:         r.Email,
+		Exists:        r.Exists,
+		Federated:     r.Federated,
+		FederationURL: r.FederationURL,
+	}
+	if r.Error != nil {
+		jr.Error = r.Error.Error()
+	} else {
+		// Fresh var per call so &code never aliases across results.
+		code := r.IfExistsResult
+		jr.IfExistsResult = &code
+	}
+	if err := enc.Encode(jr); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error encoding microsoft365 enum JSON: %v\n", err)
+	}
+}
+
+// outputMicrosoft365EnumJSONL writes one JSON object per result, reusing a
+// single encoder. encoding/json escapes control characters, so no sanitization
+// is needed.
+func outputMicrosoft365EnumJSONL(w io.Writer, results []m365.Result) {
 	enc := json.NewEncoder(w)
 	for i := range results {
-		r := &results[i]
-		jr := microsoft365EnumJSON{
-			Type:           "microsoft365_account",
-			Email:          r.Email,
-			Exists:         r.Exists,
-			IfExistsResult: r.IfExistsResult,
-			Federated:      r.Federated,
-			FederationURL:  r.FederationURL,
-		}
-		if r.Error != nil {
-			jr.Error = r.Error.Error()
-		}
-		if err := enc.Encode(jr); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Error encoding microsoft365 enum JSON: %v\n", err)
-		}
+		encodeMicrosoft365EnumResult(enc, results[i])
 	}
 }

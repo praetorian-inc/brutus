@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -135,6 +136,9 @@ func runEnumMicrosoft365(cmd *cobra.Command, args []string) error {
 	// stderr (suppressed under --quiet/--json); on a TTY it redraws in place with
 	// percent/rate/elapsed/ETA, off-TTY it emits throttled newline lines.
 	total := len(emails)
+	// Create the JSONL encoder once so streamed results reuse a single encoder
+	// (only meaningfully used under --json, but harmless to always construct).
+	jsonEnc := json.NewEncoder(jsonWriter)
 	progress := newProgressReporter(os.Stderr, total, !flagQuiet && !flagJSON, useColor)
 	progress.Start()
 	var processed, found int
@@ -145,7 +149,7 @@ func runEnumMicrosoft365(cmd *cobra.Command, args []string) error {
 		}
 
 		if flagJSON {
-			outputMicrosoft365EnumJSONL(jsonWriter, []m365.Result{res})
+			encodeMicrosoft365EnumResult(jsonEnc, res)
 		} else if res.Exists || flagVerbose {
 			// Clear the in-place bar before printing a result row so the bar's
 			// partial line doesn't corrupt it; the bar redraws on the next tick.
@@ -200,10 +204,13 @@ func microsoft365EnumTargets() ([]string, error) {
 		if e == "" {
 			continue
 		}
-		if _, ok := seen[e]; ok {
+		// Key on the lowercased address (the API is case-insensitive) while
+		// appending the original-cased email to the results.
+		key := strings.ToLower(e)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[e] = struct{}{}
+		seen[key] = struct{}{}
 		emails = append(emails, e)
 	}
 

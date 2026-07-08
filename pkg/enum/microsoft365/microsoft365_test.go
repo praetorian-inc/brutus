@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -419,4 +420,100 @@ func TestEnumerateWith_NilCallback(t *testing.T) {
 
 	results := c.EnumerateWith(context.Background(), emails, 2, 0, 0, nil)
 	require.Len(t, results, len(emails), "nil callback must not panic; must return one result per email")
+}
+
+// ---------------------------------------------------------------------------
+// TestEnumerateWith_CanceledContextRecordsAllSlots
+// Regression guard: with an already-canceled context, every worker hits the
+// <-ctx.Done() guard before the HTTP call. Each guard must still call
+// record(i, ...) before returning, so every index is filled (Email set, input
+// order preserved) and the callback fires exactly once per email. Reverting
+// that record() call leaves the dropped slots as zero-value Result{} (empty
+// Email, nil Error) and skips the callback for those emails.
+// ---------------------------------------------------------------------------
+
+func TestEnumerateWith_CanceledContextRecordsAllSlots(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	t.Cleanup(srv.Close)
+
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
+
+	emails := []string{"exists@example.com", "notexists@example.com", "unknown@example.com"}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var mu sync.Mutex
+	var cbResults []Result
+
+	results := c.EnumerateWith(ctx, emails, 4, 0, 0, func(r Result) {
+		mu.Lock()
+		cbResults = append(cbResults, r)
+		mu.Unlock()
+	})
+
+	require.Len(t, results, len(emails), "every slot must be filled even when ctx is already canceled")
+
+	for i := range emails {
+		assert.Equal(t, emails[i], results[i].Email,
+			"results[%d].Email must be set (input order preserved), not left as a dropped zero-value", i)
+		assert.Error(t, results[i].Error, "results[%d] must carry the ctx.Done() error, not be silently dropped", i)
+		assert.True(t, errors.Is(results[i].Error, context.Canceled),
+			"results[%d].Error must be context.Canceled from the <-ctx.Done() guard", i)
+	}
+
+	assert.Len(t, cbResults, len(emails), "onResult callback must fire exactly once per email, even on the canceled-context path")
+}
+
+// ---------------------------------------------------------------------------
+// TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang
+// Regression guard: threads<=0 must be normalized to 1 before g.SetLimit.
+// SetLimit(0) would permit zero concurrent goroutines, so no worker could ever
+// run and EnumerateWith would hang forever. Guarded by a timeout rather than
+// relying solely on `go test -timeout`, so failure is immediate and specific.
+// ---------------------------------------------------------------------------
+
+func TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
+	tests := []struct {
+		name    string
+		threads int
+	}{
+		{"zero", 0},
+		{"negative", -1},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newMockServer(t)
+			t.Cleanup(srv.Close)
+
+			c, err := NewChecker(srv.URL, "", 5*time.Second)
+			require.NoError(t, err)
+
+			emails := []string{"exists@example.com", "notexists@example.com"}
+
+			done := make(chan []Result, 1)
+			go func() {
+				done <- c.EnumerateWith(context.Background(), emails, tc.threads, 0, 0, nil)
+			}()
+
+			select {
+			case results := <-done:
+				require.Len(t, results, len(emails), "threads=%d must still return one result per email", tc.threads)
+				for i := range emails {
+					assert.Equal(t, emails[i], results[i].Email,
+						"results[%d] must preserve input order under normalized serial execution", i)
+					assert.NoError(t, results[i].Error, "results[%d] must succeed against the mock server", i)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatalf("EnumerateWith hung with threads=%d", tc.threads)
+			}
+		})
+	}
 }

@@ -222,8 +222,8 @@ func TestMapUtilmanResult(t *testing.T) {
 // of the fast-mode plan (Phase 2).
 //
 // RED until the developer:
-//   1. Adds `fast bool` parameter to stabilizedVerdict (detect.go:381)
-//   2. Implements: if verdict == "clean" && (!stabilized || fast) { return verdictIndeterminate }
+//  1. Adds `fast bool` parameter to stabilizedVerdict (detect.go:381)
+//  2. Implements: if verdict == "clean" && (!stabilized || fast) { return verdictIndeterminate }
 func TestStabilizedVerdict(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -550,7 +550,7 @@ func TestMapStickyResult_WasmFailure_StaysIndeterminate(t *testing.T) {
 }
 
 // TestMapUtilmanResult_Unreachable_Terminal verifies the same terminal-unreachable
-// behaviour for the utilman mapper.
+// behavior for the utilman mapper.
 func TestMapUtilmanResult_Unreachable_Terminal(t *testing.T) {
 	r := mapUtilmanResult(&UtilmanResult{Performed: false, Unreachable: true, SkipReason: "connection failed: refused"}, "(utilman)")
 	assert.False(t, r.Indeterminate)

@@ -168,7 +168,7 @@ func runEnumLusha(cmd *cobra.Command, args []string) error {
 		reveal = lusha.RevealOptions{Email: true, Phone: false}
 	}
 
-	contact, err := client.Enrich(ctx, query, reveal)
+	contact, err := client.Enrich(ctx, &query, reveal)
 	if err != nil {
 		return classifyLushaError(err)
 	}

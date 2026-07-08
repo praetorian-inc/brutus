@@ -39,9 +39,9 @@ package github
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -112,7 +112,7 @@ type Enumerator struct {
 	// them, giving GitHub time to resolve author logins. Overridable by tests.
 	settleDelay time.Duration
 
-	// sleep waits for d or until ctx is cancelled; overridable by tests to avoid
+	// sleep waits for d or until ctx is canceled; overridable by tests to avoid
 	// real delays. newName generates a random hex name for repos and files;
 	// overridable by tests for determinism.
 	sleep   func(ctx context.Context, d time.Duration) error
@@ -270,8 +270,8 @@ func cookieHeader(cookies []*http.Cookie) string {
 // reference's binascii.b2a_hex(os.urandom(15)).
 func randomHexName() string {
 	b := make([]byte, 15)
-	// math/rand is sufficient here: these names only need to be unique within a
-	// single run, not cryptographically unpredictable.
+	// crypto/rand.Read is used for name uniqueness within a single run; it never
+	// fails on the platforms we target, so the error is intentionally ignored.
 	_, _ = rand.Read(b)
 	var sb strings.Builder
 	for _, x := range b {
@@ -281,7 +281,7 @@ func randomHexName() string {
 	return sb.String()
 }
 
-// sleepCtx waits for d or returns ctx.Err() if ctx is cancelled first.
+// sleepCtx waits for d or returns ctx.Err() if ctx is canceled first.
 func sleepCtx(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil

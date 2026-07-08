@@ -27,8 +27,8 @@ import (
 
 // TestRunScanTargetsConcurrent_CancelledIndexIndeterminate verifies that every
 // target emits non-nil, INDETERMINATE results when the context is already
-// cancelled on entry — no target may silently vanish (emit nil/empty results)
-// when the run is cancelled (invariant I5/I6).
+// canceled on entry — no target may silently vanish (emit nil/empty results)
+// when the run is canceled (invariant I5/I6).
 //
 // This test is RED until the developer adds an injectable-context entry point:
 //
@@ -68,12 +68,12 @@ func TestRunScanTargetsConcurrent_CancelledIndexIndeterminate(t *testing.T) {
 	// Every result must be INDETERMINATE — hosts never ran.
 	for i, r := range results {
 		assert.True(t, r.Indeterminate,
-			"result[%d] (target %s) must be Indeterminate (scan was cancelled)", i, r.Target)
+			"result[%d] (target %s) must be Indeterminate (scan was canceled)", i, r.Target)
 		assert.False(t, r.Success,
-			"result[%d] must not be Success (scan was cancelled)", i)
+			"result[%d] must not be Success (scan was canceled)", i)
 	}
 
-	assert.False(t, hasSuccess, "cancelled scan must not report success")
+	assert.False(t, hasSuccess, "canceled scan must not report success")
 	assert.False(t, scanInvoked,
-		"scanTargetFn must not be invoked when context is cancelled before any target runs")
+		"scanTargetFn must not be invoked when context is canceled before any target runs")
 }

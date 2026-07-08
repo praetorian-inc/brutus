@@ -46,7 +46,7 @@ func main() {
 	addr := flag.String("addr", ":8080", "listen address (host:port)")
 	flag.Parse()
 
-	// PORT env overrides the default port when -addr was not customised, so the
+	// PORT env overrides the default port when -addr was not customized, so the
 	// demo runs unchanged on platforms that inject a PORT.
 	if port := os.Getenv("PORT"); port != "" && *addr == ":8080" {
 		*addr = ":" + port

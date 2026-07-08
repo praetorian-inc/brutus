@@ -82,13 +82,13 @@ func TestEnumGithubMapCmd_WiredUnderGithub(t *testing.T) {
 // no-source sentinel error path.
 func TestCollectGithubEmails(t *testing.T) {
 	tests := []struct {
-		name         string
-		emailsCSV    string
-		emailFile    string
-		generated    []string
-		noSourceErr  error
-		wantEmails   []string
-		wantErrIs    error // non-nil → expect an error satisfying errors.Is
+		name        string
+		emailsCSV   string
+		emailFile   string
+		generated   []string
+		noSourceErr error
+		wantEmails  []string
+		wantErrIs   error // non-nil → expect an error satisfying errors.Is
 	}{
 		{
 			name:        "CSV dedup + trim + order",

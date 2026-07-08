@@ -29,21 +29,21 @@ import (
 
 // TestDetectBackdoors_CancelledWhileQueued verifies the cardinal-property
 // protection at the admission-control gate: when the context is already
-// cancelled before DetectBackdoors is called, the semaphore Acquire fails and
+// canceled before DetectBackdoors is called, the semaphore Acquire fails and
 // the host must read as INDETERMINATE — never silently clean or empty.
 //
 // This covers the previously-uncovered branch at logon.go:50-53.
 func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 	// Use the minimum semaphore size (1 slot) so Acquire is always attempted,
-	// giving us a deterministic cancelled-acquire on the pre-cancelled context.
+	// giving us a deterministic canceled-acquire on the pre-canceled context.
 	withDecodeSlots(t, 1)
 
 	// Swap runDetection with a fake that records whether it was ever invoked.
-	// The cardinal property requires it is NOT invoked when the ctx is cancelled
+	// The cardinal property requires it is NOT invoked when the ctx is canceled
 	// before the Acquire — the host never ran, so no detection work happens.
-	// Stub the NLA probe to return NegoScannable. The cancelled context causes the
+	// Stub the NLA probe to return NegoScannable. The canceled context causes the
 	// decode-slot Acquire to fail before runDetection is ever called, so we need the
-	// probe stub to ensure the probe itself also receives the cancelled context.
+	// probe stub to ensure the probe itself also receives the canceled context.
 	origProbe := nlaProbe
 	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoScannable
@@ -66,7 +66,7 @@ func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 	results, hasSuccess := DetectBackdoors(ctx, "1.2.3.4:3389", 3*time.Second, 5*time.Second, false, 0, CheckBoth, "", false, false)
 
 	// The host never ran; both results must be INDETERMINATE.
-	require.Len(t, results, 2, "cancelled context must produce exactly 2 results (sticky + utilman)")
+	require.Len(t, results, 2, "canceled context must produce exactly 2 results (sticky + utilman)")
 	assert.False(t, hasSuccess, "no scan ran; hasSuccess must be false")
 
 	for i, r := range results {
@@ -77,12 +77,12 @@ func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 	// The detection body must NEVER have been called — cancellation must
 	// short-circuit before any RDP work begins.
 	assert.False(t, detectionInvoked.Load(),
-		"runDetection must not be invoked when context is cancelled before Acquire")
+		"runDetection must not be invoked when context is canceled before Acquire")
 }
 
 // TestCancelledResults verifies the full content of the CancelledResults helper:
 // 2 results, correct ScanType/username/protocol/target/Indeterminate/Success,
-// and banners that carry both "INDETERMINATE" and "cancelled" (the rerun signal).
+// and banners that carry both "INDETERMINATE" and "canceled" (the rerun signal).
 // Testing content (not just length) satisfies the avoiding-low-value-tests
 // requirement — length-only assertions would miss a regression that drops
 // Indeterminate: true.
@@ -116,14 +116,14 @@ func TestCancelledResults(t *testing.T) {
 	assert.False(t, sticky.Success, "sticky result must not be Success")
 	assert.False(t, utilman.Success, "utilman result must not be Success")
 
-	// Banners must carry both "INDETERMINATE" (cardinal signal) and "cancelled"
+	// Banners must carry both "INDETERMINATE" (cardinal signal) and "canceled"
 	// (the rerun signal that tells the operator why the host was not scanned).
 	assert.Contains(t, sticky.Banner, "INDETERMINATE",
 		"sticky banner must contain INDETERMINATE")
-	assert.Contains(t, sticky.Banner, "cancelled",
-		"sticky banner must contain cancelled (rerun signal)")
+	assert.Contains(t, sticky.Banner, "canceled",
+		"sticky banner must contain canceled (rerun signal)")
 	assert.Contains(t, utilman.Banner, "INDETERMINATE",
 		"utilman banner must contain INDETERMINATE")
-	assert.Contains(t, utilman.Banner, "cancelled",
-		"utilman banner must contain cancelled (rerun signal)")
+	assert.Contains(t, utilman.Banner, "canceled",
+		"utilman banner must contain canceled (rerun signal)")
 }

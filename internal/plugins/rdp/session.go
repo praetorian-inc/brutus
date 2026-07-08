@@ -140,6 +140,8 @@ var MinViableTimeout = CarefulBudget.minPump + CarefulBudget.quietWindow
 // Returns (baseline_rgba, response_rgba, width, height, stabilized, error).
 // stabilized reflects whether the response pump observed a settled framebuffer.
 // timeout is the per-host budget applied to each pump phase (baseline and response).
+//
+//nolint:gocritic // cohesive multi-return (baseline+response frames, width, height, stabilized, err); a result struct would churn ~20 return sites in this WASM path for no behavior change
 func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
 	width, height uint32, timeout time.Duration, budget SettleBudget) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
@@ -220,6 +222,8 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 // Returns (baseline_rgba, response_rgba, width, height, stabilized, error).
 // stabilized reflects whether the response pump observed a settled framebuffer.
 // timeout is the per-host budget applied to each pump phase (baseline and response).
+//
+//nolint:gocritic // cohesive multi-return (baseline+response frames, width, height, stabilized, err); a result struct would churn ~20 return sites in this WASM path for no behavior change
 func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
 	width, height uint32, timeout time.Duration, budget SettleBudget) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
@@ -382,7 +386,7 @@ func readRDPFrame(r io.Reader) ([]byte, error) {
 // changed-pixel count used to decide whether a frame is quiet (see framesQuiet).
 // Returns false if the deadline cut it off while frames were still changing (or
 // it never settled).
-func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle uint32, width, height uint32, timeout time.Duration, budget SettleBudget) (stabilized bool, err error) {
+func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle, width, height uint32, timeout time.Duration, budget SettleBudget) (stabilized bool, err error) {
 	callCtx := inst.callCtx(ctx)
 	sessionStepFn := inst.mod.ExportedFunction("session_step")
 	if sessionStepFn == nil {

@@ -576,7 +576,7 @@ func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *ru
 		g.Go(func() error {
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
-					// Context cancelled while queued: the host never ran, so it
+					// Context canceled while queued: the host never ran, so it
 					// must read as INDETERMINATE, never silently disappear.
 					perTarget[idx] = logon.CancelledResults(target)
 					success[idx] = false

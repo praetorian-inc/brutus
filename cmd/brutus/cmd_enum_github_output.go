@@ -51,14 +51,14 @@ func outputGithubEnumResultLine(w io.Writer, r githubenum.Result, useColor bool)
 // outputGithubEnumUsernames prints the resolved username:email mappings for
 // results that have a revealed username, under a small heading.
 func outputGithubEnumUsernames(w io.Writer, results []githubenum.Result, useColor bool) {
-	var any bool
+	var anyMatch bool
 	for i := range results {
 		if results[i].Username != "" {
-			any = true
+			anyMatch = true
 			break
 		}
 	}
-	if !any {
+	if !anyMatch {
 		return
 	}
 

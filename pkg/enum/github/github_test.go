@@ -46,15 +46,6 @@ func noopSleep(_ context.Context, _ time.Duration) error { return nil }
 // call should use a counter-based newName.
 func deterministicName() string { return "test-repo-name" }
 
-// counterName returns a newName func that returns "name-N" (N=0,1,2,...),
-// which is useful when pushCommit calls newName multiple times.
-func counterName() func() string {
-	var n atomic.Int64
-	return func() string {
-		return fmt.Sprintf("name-%d", n.Add(1))
-	}
-}
-
 // webMux builds an http.ServeMux that fakes the GitHub web flow. The statusFor
 // map controls which HTTP status the /email_validity_checks POST returns per
 // email value (default 200 = available).
@@ -137,10 +128,7 @@ func apiMux(t *testing.T, token string, emailToLogin map[string]*string, deleteS
 	checkAuth := func(t *testing.T, r *http.Request) bool {
 		t.Helper()
 		auth := r.Header.Get("Authorization")
-		if auth != "Bearer "+token {
-			return false
-		}
-		return true
+		return auth == "Bearer "+token
 	}
 
 	mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
@@ -225,9 +213,6 @@ func newTestEnumerator(t *testing.T, webSrv, apiSrv *httptest.Server, token stri
 	e.newName = deterministicName
 	return e
 }
-
-// strPtr returns a pointer to s, used to build emailToLogin maps.
-func strPtr(s string) *string { return &s }
 
 // ---------------------------------------------------------------------------
 // Existence tests: 422 → Exists=true, 200 → Exists=false

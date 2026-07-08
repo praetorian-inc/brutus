@@ -43,7 +43,7 @@ const unreachableScanBanner = "[INFO] unreachable (no RDP/TCP connection to host
 // This function wraps RunStickyKeysCheck and interprets the StickyKeysResult into
 // a standardized Result format suitable for CLI output. fast selects the short
 // FastBudget settle profile and enforces the never-clean invariant.
-func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool, fast bool) *brutus.Result {
+func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
 	plugin := &Plugin{}
 	budget := CarefulBudget
 	if fast {
@@ -120,7 +120,7 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 // This function wraps RunUtilmanCheck and interprets the UtilmanResult into
 // a standardized Result format suitable for CLI output. fast selects the short
 // FastBudget settle profile and enforces the never-clean invariant.
-func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision bool, fast bool) *brutus.Result {
+func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
 	plugin := &Plugin{}
 	budget := CarefulBudget
 	if fast {

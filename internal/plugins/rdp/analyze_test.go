@@ -200,7 +200,7 @@ func TestDetectChangedRectangle_ReturnsBox(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // paintBox fills a rectangular region of an RGBA buffer with the given gray value.
-func paintBox(buf []byte, w int, x0, y0, x1, y1 int, gray byte) {
+func paintBox(buf []byte, w, x0, y0, x1, y1 int, gray byte) {
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			idx := (y*w + x) * 4
@@ -211,7 +211,7 @@ func paintBox(buf []byte, w int, x0, y0, x1, y1 int, gray byte) {
 
 // paintBoxRGB fills a rectangular region with explicit RGB values.
 // Used for themed-console tests (e.g. PowerShell blue, brightness ~31).
-func paintBoxRGB(buf []byte, w int, x0, y0, x1, y1 int, r, g, b byte) {
+func paintBoxRGB(buf []byte, w, x0, y0, x1, y1 int, r, g, b byte) {
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
 			idx := (y*w + x) * 4
@@ -257,10 +257,10 @@ func TestClassifyRegion_Unknown(t *testing.T) {
 
 func TestDecideVerdict(t *testing.T) {
 	tests := []struct {
-		name      string
-		verdict   string
-		keepHigh  bool
-		want      string
+		name     string
+		verdict  string
+		keepHigh bool
+		want     string
 	}{
 		// Real console — keepHigh=true → kept as backdoor_likely.
 		{"backdoor_likely keepHigh=true → backdoor_likely", "backdoor_likely", true, "backdoor_likely"},

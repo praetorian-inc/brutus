@@ -196,7 +196,7 @@ func TestOutputTeamsAuditHuman_Sanitizes(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		outputTeamsAuditHuman(&buf, "contoso.com", posture, findings, false /* useColor */)
+		outputTeamsAuditHuman(&buf, "contoso.com", &posture, findings, false /* useColor */)
 		out := buf.String()
 
 		// The raw ESC byte (0x1B) must not appear in the output.
@@ -230,7 +230,7 @@ func TestOutputTeamsAuditHuman_Sanitizes(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		outputTeamsAuditHuman(&buf, "contoso.com", posture, findings, false)
+		outputTeamsAuditHuman(&buf, "contoso.com", &posture, findings, false)
 		out := buf.String()
 
 		// The full 300-character string must not appear; truncation cuts it at
@@ -248,7 +248,7 @@ func TestOutputTeamsAuditHuman_Sanitizes(t *testing.T) {
 			ExternalChatAllowed: "blocked",
 		}
 		var buf bytes.Buffer
-		outputTeamsAuditHuman(&buf, "contoso.com", posture, nil, false)
+		outputTeamsAuditHuman(&buf, "contoso.com", &posture, nil, false)
 		out := buf.String()
 		assert.Contains(t, out, "No findings",
 			"empty findings must print the no-findings message")
@@ -359,7 +359,7 @@ func TestOutputTeamsAuditHuman_SeverityLabels(t *testing.T) {
 				},
 			}
 			var buf bytes.Buffer
-			outputTeamsAuditHuman(&buf, "contoso.com", posture, findings, false)
+			outputTeamsAuditHuman(&buf, "contoso.com", &posture, findings, false)
 			out := buf.String()
 			assert.Contains(t, out, tc.label,
 				"human output must contain severity label %q for severity %q", tc.label, tc.severity)
@@ -396,7 +396,7 @@ func TestOutputTeamsAuditHuman_NoTokens(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	outputTeamsAuditHuman(&buf, "contoso.com", posture, findings, false)
+	outputTeamsAuditHuman(&buf, "contoso.com", &posture, findings, false)
 	out := buf.String()
 
 	assert.NotContains(t, out, accessTokenSentinel,

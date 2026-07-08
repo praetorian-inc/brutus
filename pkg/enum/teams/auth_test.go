@@ -390,13 +390,13 @@ func TestWaitForToken_AccessDenied(t *testing.T) {
 }
 
 func TestWaitForToken_ContextCancellation(t *testing.T) {
-	// Server blocks until the request context is cancelled (client hung up),
+	// Server blocks until the request context is canceled (client hung up),
 	// then returns without writing a response.  This ensures the handler exits
 	// promptly so srv.Close() is never blocked waiting for an active connection.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
-			// Client cancelled — handler exits immediately.
+			// Client canceled — handler exits immediately.
 			return
 		case <-time.After(10 * time.Second):
 			w.WriteHeader(http.StatusOK)
@@ -404,7 +404,7 @@ func TestWaitForToken_ContextCancellation(t *testing.T) {
 	}))
 	// CloseClientConnections forcibly terminates any open keep-alive connections
 	// before Close() waits for handlers to finish, eliminating the 5-second
-	// "blocked in Close" warning that occurs when a context-cancelled request
+	// "blocked in Close" warning that occurs when a context-canceled request
 	// leaves a TCP connection in the active state.
 	defer func() {
 		srv.CloseClientConnections()

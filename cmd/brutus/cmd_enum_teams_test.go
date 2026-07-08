@@ -375,7 +375,7 @@ func TestOutputTeamsPostureJSONL(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	outputTeamsPostureJSONL(&buf, posture)
+	outputTeamsPostureJSONL(&buf, &posture)
 
 	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
 	require.Len(t, lines, 1, "outputTeamsPostureJSONL must emit exactly 1 JSONL line")
@@ -506,7 +506,7 @@ func TestOutputTeamsPostureHuman_SanitizesCoExistenceMode(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	outputTeamsPostureHuman(&buf, posture, false /* useColor */)
+	outputTeamsPostureHuman(&buf, &posture, false /* useColor */)
 	out := buf.String()
 
 	// Raw ESC must be absent — sanitizeTerminal strips it.

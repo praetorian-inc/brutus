@@ -128,6 +128,12 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 	defer cancel()
 
 	g, ctx := errgroup.WithContext(ctx)
+	// Normalize thread count: 0 would deadlock errgroup.SetLimit (no goroutine
+	// can ever run) and a negative value means unbounded. Clamp to a safe
+	// positive default of 1 (serial execution).
+	if threads <= 0 {
+		threads = 1
+	}
 	g.SetLimit(threads)
 
 	var limiter *rate.Limiter
@@ -164,12 +170,16 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 
 			select {
 			case <-ctx.Done():
+				// Record before returning so every index is filled and the callback fires exactly once per email.
+				record(i, Result{Email: email, Error: ctx.Err()})
 				return nil
 			default:
 			}
 
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
+					// Record before returning so every index is filled and the callback fires exactly once per email.
+					record(i, Result{Email: email, Error: err})
 					return nil
 				}
 				if jitter > 0 {
@@ -177,6 +187,8 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 					select {
 					case <-time.After(delay):
 					case <-ctx.Done():
+						// Record before returning so every index is filled and the callback fires exactly once per email.
+						record(i, Result{Email: email, Error: ctx.Err()})
 						return nil
 					}
 				}

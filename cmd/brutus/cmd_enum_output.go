@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 	"github.com/praetorian-inc/brutus/pkg/enum/google"
 	"github.com/praetorian-inc/brutus/pkg/enum/hunter"
+	m365 "github.com/praetorian-inc/brutus/pkg/enum/microsoft365"
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
@@ -1058,6 +1060,139 @@ func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
 		}
 		if err := enc.Encode(jr); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding google enum JSON: %v\n", err)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Microsoft 365 account enumeration output functions
+// ---------------------------------------------------------------------------
+
+// microsoft365ExistsNote builds the parenthetical annotation for an EXISTS row:
+// the tenant relationship the GetCredentialType API reveals and, when the
+// tenant is federated, the identity-provider host the sign-in redirects to.
+// The server-controlled FederationURL is sanitized (P0-4) before rendering.
+func microsoft365ExistsNote(r m365.Result) string { //nolint:gocritic // hugeParam: Result passed by value to mirror the Google enum output helpers and keep call sites simple
+	var parts []string
+	switch r.IfExistsResult {
+	case m365.IfExistsResultExists:
+		parts = append(parts, "managed")
+	case m365.IfExistsResultDifferentTenant:
+		parts = append(parts, "different tenant")
+	case m365.IfExistsResultDomainHint:
+		parts = append(parts, "domain hint")
+	}
+	if r.Federated {
+		host := sanitizeTerminal(microsoft365FederationHost(r.FederationURL))
+		if host != "" {
+			parts = append(parts, "federated -> "+host)
+		} else {
+			parts = append(parts, "federated")
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
+}
+
+// microsoft365FederationHost extracts the host from a federation redirect URL
+// for compact display, falling back to the raw string when it does not parse.
+func microsoft365FederationHost(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	if u, err := url.Parse(raw); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return raw
+}
+
+// outputMicrosoft365EnumResultLine prints ONE Microsoft 365 enumeration result
+// row. EXISTS rows show the email, an "[+] EXISTS" label, and a note describing
+// the tenant relationship (managed / different tenant / domain hint) and any
+// federation IdP host. Not-found rows render as "[ ] not found". Callers decide
+// which results to print (e.g. EXISTS only, unless verbose).
+func outputMicrosoft365EnumResultLine(w io.Writer, r m365.Result, useColor bool) { //nolint:gocritic // hugeParam: Result passed by value to mirror the Google enum output helpers and keep call sites simple
+	email := truncate(sanitizeTerminal(r.Email), 40)
+
+	if !r.Exists {
+		_, _ = fmt.Fprintf(w, "  %-40s %s[ ] not found%s\n",
+			email, colorIf(useColor, ColorDim), colorIf(useColor, ColorReset))
+		return
+	}
+
+	_, _ = fmt.Fprintf(w, "  %-40s %s%s EXISTS%s%s\n",
+		email,
+		colorIf(useColor, ColorGreen), SymbolSuccess, colorIf(useColor, ColorReset),
+		dim(useColor, microsoft365ExistsNote(r)))
+}
+
+// outputMicrosoft365EnumSummary prints the counts-by-status summary block for a
+// set of Microsoft 365 enumeration results: found / federated / not found /
+// errors / total.
+func outputMicrosoft365EnumSummary(w io.Writer, results []m365.Result, useColor bool) {
+	var foundCount, federatedCount, notFoundCount, errorCount int
+	for i := range results {
+		switch {
+		case results[i].Error != nil:
+			errorCount++
+		case results[i].Exists:
+			foundCount++
+			if results[i].Federated {
+				federatedCount++
+			}
+		default:
+			notFoundCount++
+		}
+	}
+
+	_, _ = fmt.Fprintf(w, "\n  %s\n", heading(useColor, "Summary"))
+	if foundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sExists:%s     %d\n", colorIf(useColor, ColorGreen), colorIf(useColor, ColorReset), foundCount)
+	}
+	if federatedCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sFederated:%s  %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), federatedCount)
+	}
+	if notFoundCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sNot found:%s  %d\n", colorIf(useColor, ColorDim), colorIf(useColor, ColorReset), notFoundCount)
+	}
+	if errorCount > 0 {
+		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
+	}
+	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	_, _ = fmt.Fprintln(w)
+}
+
+// outputMicrosoft365EnumJSONL writes one JSON object per result. encoding/json
+// escapes control characters, so no sanitization is needed.
+func outputMicrosoft365EnumJSONL(w io.Writer, results []m365.Result) {
+	type microsoft365EnumJSON struct {
+		Type           string `json:"type"`
+		Email          string `json:"email"`
+		Exists         bool   `json:"exists"`
+		IfExistsResult int    `json:"if_exists_result"`
+		Federated      bool   `json:"federated,omitempty"`
+		FederationURL  string `json:"federation_url,omitempty"`
+		Error          string `json:"error,omitempty"`
+	}
+
+	enc := json.NewEncoder(w)
+	for i := range results {
+		r := &results[i]
+		jr := microsoft365EnumJSON{
+			Type:           "microsoft365_account",
+			Email:          r.Email,
+			Exists:         r.Exists,
+			IfExistsResult: r.IfExistsResult,
+			Federated:      r.Federated,
+			FederationURL:  r.FederationURL,
+		}
+		if r.Error != nil {
+			jr.Error = r.Error.Error()
+		}
+		if err := enc.Encode(jr); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error encoding microsoft365 enum JSON: %v\n", err)
 		}
 	}
 }

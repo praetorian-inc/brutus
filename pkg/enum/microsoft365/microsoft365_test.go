@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -307,4 +308,115 @@ func TestCheckAccount_FallsBackToOwnClientWithoutContextClient(t *testing.T) {
 
 	require.NoError(t, result.Error)
 	assert.True(t, result.Exists)
+}
+
+// ---------------------------------------------------------------------------
+// TestEnumerateWith_Callback
+// 6 emails, threads=4, onResult callback appends under a mutex.
+// After the run:
+//   - callback invoked exactly once per email
+//   - returned slice len == 6
+//   - set of emails from callback matches input set
+//   - results are in input order
+//
+// Run the package under -race (go test -race ./pkg/enum/microsoft365/) to
+// verify the callback serialization guarantee.
+// ---------------------------------------------------------------------------
+
+func TestEnumerateWith_Callback(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	t.Cleanup(srv.Close)
+
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
+
+	emails := []string{
+		"exists@example.com",
+		"notexists@example.com",
+		"difftenant@example.com",
+		"domainhint@example.com",
+		"federated@example.com",
+		"unknown@example.com",
+	}
+
+	var mu sync.Mutex
+	var callbackResults []Result
+
+	results := c.EnumerateWith(
+		context.Background(),
+		emails,
+		4, // threads
+		0, // rateLimit (no throttle)
+		0, // jitter
+		func(r Result) {
+			mu.Lock()
+			callbackResults = append(callbackResults, r)
+			mu.Unlock()
+		},
+	)
+
+	// Returned slice must have exactly one entry per input email.
+	require.Len(t, results, len(emails),
+		"EnumerateWith must return one Result per email")
+
+	// Callback must be invoked exactly once per email.
+	assert.Len(t, callbackResults, len(emails),
+		"onResult callback must be invoked exactly once per email")
+
+	// The set of emails seen by the callback must equal the input set.
+	cbEmails := make(map[string]struct{}, len(callbackResults))
+	for _, r := range callbackResults {
+		cbEmails[r.Email] = struct{}{}
+	}
+	for _, email := range emails {
+		assert.Contains(t, cbEmails, email,
+			"onResult callback must have been called for email %q", email)
+	}
+
+	// Returned results must preserve input order.
+	for i, r := range results {
+		assert.Equal(t, emails[i], r.Email,
+			"results[%d] must correspond to emails[%d]", i, i)
+	}
+
+	// Spot-check known-exists emails.
+	byEmail := make(map[string]Result, len(results))
+	for _, r := range results {
+		byEmail[r.Email] = r
+	}
+
+	for _, email := range []string{"exists@example.com", "difftenant@example.com", "domainhint@example.com", "federated@example.com"} {
+		r := byEmail[email]
+		assert.NoError(t, r.Error, "email %q must not have an error", email)
+		assert.True(t, r.Exists, "email %q must be Exists=true", email)
+	}
+
+	for _, email := range []string{"notexists@example.com", "unknown@example.com"} {
+		r := byEmail[email]
+		assert.NoError(t, r.Error, "email %q must not have an error", email)
+		assert.False(t, r.Exists, "email %q must be Exists=false", email)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TestEnumerateWith_NilCallback
+// Passing nil as the callback must not panic and must return one result per
+// email.
+// ---------------------------------------------------------------------------
+
+func TestEnumerateWith_NilCallback(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	t.Cleanup(srv.Close)
+
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
+
+	emails := []string{"exists@example.com", "notexists@example.com", "unknown@example.com"}
+
+	results := c.EnumerateWith(context.Background(), emails, 2, 0, 0, nil)
+	require.Len(t, results, len(emails), "nil callback must not panic; must return one result per email")
 }

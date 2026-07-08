@@ -23,8 +23,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"os"
+	"runtime/debug"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
@@ -90,6 +97,105 @@ func NewChecker(baseURL, proxyURL string, timeout time.Duration) (*Checker, erro
 		timeout: timeout,
 		client:  client,
 	}, nil
+}
+
+// ---------------------------------------------------------------------------
+// Enumeration
+// ---------------------------------------------------------------------------
+
+// Enumerate looks up each email using a bounded worker pool, applying rate
+// limiting and jitter when rateLimit > 0. Results preserve input order. It is a
+// thin wrapper around EnumerateWith with no per-result callback.
+func (c *Checker) Enumerate(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration) []Result {
+	return c.EnumerateWith(ctx, emails, threads, rateLimit, jitter, nil)
+}
+
+// EnumerateWith runs enumeration with bounded concurrency and invokes onResult
+// (if non-nil) for each completed result, serialized so callers can print/stream
+// safely. It still returns all results in input order.
+//
+// onResult is called under the same mutex that guards the results slice, so
+// callback invocations never interleave and never race the slice. The callback
+// must therefore be cheap and self-contained: it may write to an io.Writer or
+// update counters, but it must NOT call back into the Checker (doing so risks
+// deadlock and defeats the serialization guarantee).
+func (c *Checker) EnumerateWith(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration, onResult func(Result)) []Result {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(threads)
+
+	var limiter *rate.Limiter
+	if rateLimit > 0 {
+		limiter = rate.NewLimiter(rate.Limit(rateLimit), 1)
+	}
+
+	results := make([]Result, len(emails))
+	var mu sync.Mutex
+
+	// record stores a completed result and, under the same lock, invokes the
+	// caller's callback so streamed output is serialized and slice-safe.
+	record := func(i int, res Result) {
+		mu.Lock()
+		defer mu.Unlock()
+		results[i] = res
+		if onResult != nil {
+			onResult(res)
+		}
+	}
+
+	for i, email := range emails {
+		i, email := i, email
+		g.Go(func() error {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Fprintf(os.Stderr, "microsoft365 enum: panic checking %s: %v\n%s\n", email, r, debug.Stack())
+					record(i, Result{
+						Email: email,
+						Error: fmt.Errorf("microsoft365 enum: panicked: %v", r),
+					})
+				}
+			}()
+
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+			}
+
+			if limiter != nil {
+				if err := limiter.Wait(ctx); err != nil {
+					return nil
+				}
+				if jitter > 0 {
+					delay := time.Duration(rand.Int63n(int64(jitter)))
+					select {
+					case <-time.After(delay):
+					case <-ctx.Done():
+						return nil
+					}
+				}
+			}
+
+			r := c.CheckAccount(ctx, email)
+			if r == nil {
+				record(i, Result{
+					Email: email,
+					Error: fmt.Errorf("microsoft365 enum: nil result for %s", email),
+				})
+				return nil
+			}
+			record(i, *r)
+			return nil
+		})
+	}
+
+	// Discarding g.Wait()'s error is deliberate: worker goroutines never return
+	// a non-nil error (per-email failures are encoded in each Result), so the
+	// returned error is always nil.
+	_ = g.Wait()
+	return results
 }
 
 // CheckAccount tests if an email account exists on Microsoft 365 via the

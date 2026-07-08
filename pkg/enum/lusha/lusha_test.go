@@ -96,6 +96,8 @@ func TestToContact(t *testing.T) {
 	}
 	got := toContact(resp)
 	assert.Equal(t, "Ada Lovelace", got.Name)
+	assert.Equal(t, "Ada", got.FirstName)
+	assert.Equal(t, "Lovelace", got.LastName)
 	assert.Equal(t, "Mathematician", got.JobTitle)
 	assert.Equal(t, "Analytical Engine Co", got.Company)
 	assert.Equal(t, "analytical.example.com", got.CompanyDomain)
@@ -866,6 +868,8 @@ func TestSearchDomain_ContextCancellation(t *testing.T) {
 // (emailAddresses, phoneNumbers, seniority[].value differ from single-identity).
 func TestToProspectContact(t *testing.T) {
 	d := &prospectEnrichData{
+		FirstName:   "Bruna",
+		LastName:    "White",
 		FullName:    "Bruna White",
 		JobTitle:    "Assistant Director",
 		CompanyName: "Fox",
@@ -896,6 +900,8 @@ func TestToProspectContact(t *testing.T) {
 
 	got := toProspectContact(d)
 	assert.Equal(t, "Bruna White", got.Name)
+	assert.Equal(t, "Bruna", got.FirstName)
+	assert.Equal(t, "White", got.LastName)
 	assert.Equal(t, "Assistant Director", got.JobTitle)
 	assert.Equal(t, "Fox", got.Company)
 	assert.Equal(t, "United States", got.Location)

@@ -109,6 +109,8 @@ type EmploymentEntry struct {
 // Contact is the enriched result for one identity.
 type Contact struct {
 	Name          string
+	FirstName     string
+	LastName      string
 	JobTitle      string
 	Company       string
 	CompanyDomain string
@@ -373,6 +375,8 @@ func toContact(resp *lushaEnrichResponse) *Contact {
 
 	c := &Contact{
 		Name:          name,
+		FirstName:     r.FirstName,
+		LastName:      r.LastName,
 		JobTitle:      r.JobTitle.Title,
 		Company:       r.Company.Name,
 		CompanyDomain: r.Company.Domain,
@@ -490,6 +494,8 @@ func toProspectContact(d *prospectEnrichData) Contact {
 
 	c := Contact{
 		Name:        name,
+		FirstName:   d.FirstName,
+		LastName:    d.LastName,
 		JobTitle:    d.JobTitle,
 		Company:     d.CompanyName,
 		LinkedIn:    d.SocialLinks.Linkedin,

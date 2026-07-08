@@ -40,7 +40,7 @@ work for an organization and enumerate emails against them, or enumerate Active
 Directory usernames via Kerberos AS-REQ.
 
 Subcommands:
-  active     Active enumeration against live oracles & directories (oracles, google, kerberos, teams, github, custom)
+  active     Active enumeration against live oracles & directories (oracles, google, microsoft365, kerberos, teams, github, custom)
   generate   Generate email addresses or usernames from embedded name lists
   passive    API-key OSINT/HUMINT sources (Hunter, Apollo, Lusha, DeHashed)
 
@@ -118,7 +118,8 @@ func init() {
 
 	// Canonical path: the active enumeration sources live under "active".
 	// (enum active google is wired in cmd_enum_google.go init(); enum active
-	// github in cmd_enum_github.go init().)
+	// microsoft365 in cmd_enum_microsoft365.go init(); enum active github in
+	// cmd_enum_github.go init().)
 	enumActiveCmd.AddCommand(enumOraclesCmd)
 	enumActiveCmd.AddCommand(enumKerberosCmd)
 	enumActiveCmd.AddCommand(enumCustomCmd)

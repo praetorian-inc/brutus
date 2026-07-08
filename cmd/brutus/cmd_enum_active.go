@@ -22,23 +22,27 @@ var enumActiveCmd = &cobra.Command{
 	Use:   "active",
 	Short: "Active account-existence enumeration against live oracles & directories",
 	Long: `Active enumeration probes live services directly (account-existence oracles,
-Google Workspace, GitHub, Active Directory via Kerberos, Microsoft Entra ID).
+Google Workspace, Microsoft 365, GitHub, Active Directory via Kerberos, Microsoft Entra ID).
 Unlike the passive API-key sources, these sources send traffic to the target's
 own infrastructure or to the relevant provider's public endpoints — see the
 per-source help for what each one touches and whether it is authenticated.
 
 Sources:
-  oracles    Enumerate which account-existence oracles work for an organization
-  google     Enumerate Google Workspace accounts (existence + SSO/IdP)
-  kerberos   Enumerate Active Directory users via Kerberos AS-REQ
-  teams      Authenticate with Microsoft Entra ID via device code flow
-  github     Enumerate GitHub accounts by email (existence + username reveal)
-  custom     Enumerate against a user-supplied oracle definition`,
+  oracles      Enumerate which account-existence oracles work for an organization
+  google       Enumerate Google Workspace accounts (existence + SSO/IdP)
+  microsoft365 Enumerate Microsoft 365 accounts (existence + federation/tenant)
+  kerberos     Enumerate Active Directory users via Kerberos AS-REQ
+  teams        Authenticate with Microsoft Entra ID via device code flow
+  github       Enumerate GitHub accounts by email (existence + username reveal)
+  custom       Enumerate against a user-supplied oracle definition`,
 	Example: `  # Account-existence oracle enumeration
   brutus enum active oracles --domain example.com --known-valid admin@example.com
 
   # Google Workspace account enumeration
   brutus enum active google -e alice@example.com,bob@example.com
+
+  # Microsoft 365 account enumeration
+  brutus enum active microsoft365 -e alice@example.com,bob@example.com
 
   # Kerberos user enumeration
   brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator

@@ -45,7 +45,8 @@ var enumOraclesCmd = &cobra.Command{
 	Long: `Identify which unauthenticated account-existence oracles (e.g. microsoft365,
 google) — plus the Microsoft Teams oracle — work for an organization, validate
 them against a known-valid user, then enumerate candidate emails against the
-working oracles.
+working oracles. The org domain defaults to the --known-valid email's domain, so
+an explicit --domain is only needed to target a different domain.
 
 DNS TXT recon surfaces the candidate oracles for the org; the validation step
 (against --known-valid) is the headline: it reports, per oracle, whether the
@@ -54,11 +55,12 @@ against the oracles that confirm it (including the Microsoft Teams oracle when
 applicable).
 
 Modes:
-  Oracle check only:  brutus enum active oracles --domain example.com --known-valid admin@example.com
-  Enumerate emails:   brutus enum active oracles --domain example.com -e user@example.com --known-valid admin@example.com
-  Generate + enum:    brutus enum active oracles --domain example.com --generate --format flast --known-valid admin@example.com`,
-	Example: `  # Discover candidate oracles via DNS and report which ones work (validated against --known-valid)
-  brutus enum active oracles --domain praetorian.com --known-valid admin@praetorian.com
+  Oracle check only:  brutus enum active oracles --known-valid admin@example.com
+  Enumerate emails:   brutus enum active oracles -e user@example.com --known-valid admin@example.com
+  Generate + enum:    brutus enum active oracles --generate --format flast --known-valid admin@example.com`,
+	Example: `  # Discover candidate oracles via DNS and report which ones work
+  # (domain defaults to the --known-valid email's domain)
+  brutus enum active oracles --known-valid admin@praetorian.com
 
   # Enumerate specific emails against the working oracles
   brutus enum active oracles --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com
@@ -102,7 +104,7 @@ func init() {
 // registerOraclesFlags registers flags for the oracles subcommand.
 func registerOraclesFlags(cmd *cobra.Command) {
 	f := cmd.Flags()
-	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to enumerate (used for DNS recon and email generation)")
+	f.StringVarP(&flagEnumDomain, "domain", "d", "", "Domain to enumerate for DNS recon and email generation (defaults to the --known-valid email's domain)")
 	f.StringVarP(&flagOraclesEmails, "emails", "e", "", "Comma-separated emails to enumerate")
 	f.StringVarP(&flagOraclesEmailFile, "email-file", "E", "", "File of emails to enumerate (one per line, use - for stdin)")
 	f.StringVarP(&flagOraclesServices, "services", "s", "", "Comma-separated oracles to check (default: all discovered/registered)")
@@ -174,8 +176,15 @@ func addDomainIndependentOracles(services []string, registeredSet map[string]boo
 func runEnumOracles(cmd *cobra.Command, args []string) error {
 	useColor := isColorEnabled(flagNoColor)
 
+	// --domain defaults to the domain of the required --known-valid email, so
+	// callers don't have to repeat a domain they already supplied in the
+	// known-valid address (e.g. `--known-valid admin@example.com` is enough to
+	// drive DNS recon and email generation for example.com). An explicit
+	// --domain still wins.
+	flagEnumDomain = resolveOraclesDomain(flagEnumDomain, flagOraclesKnownValid)
+
 	if flagEnumDomain == "" && flagOraclesEmails == "" && flagOraclesEmailFile == "" {
-		return fmt.Errorf("--domain, --emails/-e, or --email-file/-E is required")
+		return fmt.Errorf("--domain, --emails/-e, or --email-file/-E is required (or pass a --known-valid address with a domain)")
 	}
 
 	// Setup output writer
@@ -680,4 +689,28 @@ func oracleCheckLabel(emails []string) string {
 		return strings.Join(emails, ", ")
 	}
 	return "(no targets)"
+}
+
+// emailDomain returns the domain portion of an email address: the substring
+// after the last "@". It returns "" when the value has no usable domain part
+// (no "@", or "@" is the final character). Used so --domain can default to the
+// domain of the required --known-valid email.
+func emailDomain(email string) string {
+	at := strings.LastIndex(email, "@")
+	if at < 0 || at == len(email)-1 {
+		return ""
+	}
+	return email[at+1:]
+}
+
+// resolveOraclesDomain returns the effective org domain for the oracles command.
+// An explicit --domain always wins; otherwise it falls back to the domain of the
+// required --known-valid email (see emailDomain). Returns "" when neither yields
+// a domain. Kept as a pure function so the precedence (explicit over derived) is
+// unit-testable without running runEnumOracles' network path.
+func resolveOraclesDomain(domain, knownValid string) string {
+	if domain != "" {
+		return domain
+	}
+	return emailDomain(knownValid)
 }

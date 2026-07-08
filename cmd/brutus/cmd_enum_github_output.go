@@ -74,13 +74,16 @@ func outputGithubEnumUsernames(w io.Writer, results []githubenum.Result, useColo
 }
 
 // outputGithubEnumSummary prints the counts-by-status summary block: found /
-// revealed / not found / errors / total.
+// revealed / not found / errors / total, followed by a "Top errors" breakdown
+// when any result errored.
 func outputGithubEnumSummary(w io.Writer, results []githubenum.Result, useColor bool) {
 	var foundCount, revealedCount, notFoundCount, errorCount int
+	var errMsgs []string
 	for i := range results {
 		switch {
 		case results[i].Error != nil:
 			errorCount++
+			errMsgs = append(errMsgs, results[i].Error.Error())
 		case results[i].Exists:
 			foundCount++
 			if results[i].Username != "" {
@@ -105,6 +108,7 @@ func outputGithubEnumSummary(w io.Writer, results []githubenum.Result, useColor 
 		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
 	}
 	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	outputEnumErrorBreakdown(w, errMsgs, useColor)
 	_, _ = fmt.Fprintln(w)
 }
 

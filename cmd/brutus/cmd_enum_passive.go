@@ -31,6 +31,7 @@ Sources:
   apollo     Discover and enrich people for a domain via Apollo.io
   lusha      Enrich a single contact (email/phone) via Lusha
   dehashed   Collect breach-exposed identity data for a domain via DeHashed
+  linkedin   Scrape LinkedIn Sales Navigator profiles via PhantomBuster
 
 These sources are standalone — they do not feed the saas enumeration pipeline.`,
 	Example: `  # Discover people via Hunter.io
@@ -43,5 +44,8 @@ These sources are standalone — they do not feed the saas enumeration pipeline.
   brutus enum passive lusha --first-name Jane --last-name Doe --company "Example Inc"
 
   # Collect breach-exposed identity data via DeHashed
-  brutus enum passive dehashed --domain example.com`,
+  brutus enum passive dehashed --domain example.com
+
+  # Scrape LinkedIn Sales Navigator profiles via PhantomBuster
+  brutus enum passive linkedin --agent-id 1234567890`,
 }

@@ -127,7 +127,7 @@ func init() {
 	enumCmd.AddCommand(enumActiveCmd)
 
 	// Canonical path: the passive API-key OSINT/HUMINT sources live under "passive".
-	enumPassiveCmd.AddCommand(newEnumHunterCmd(), newEnumApolloCmd(), newEnumLushaCmd(), newEnumDehashedCmd())
+	enumPassiveCmd.AddCommand(newEnumHunterCmd(), newEnumApolloCmd(), newEnumLushaCmd(), newEnumDehashedCmd(), newEnumLinkedinCmd())
 	enumCmd.AddCommand(enumPassiveCmd)
 
 	// Hidden back-compat aliases: the old "enum <name>" paths still work but are

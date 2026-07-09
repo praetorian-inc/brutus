@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -634,6 +635,7 @@ func outputTeamsEnumResultLine(w io.Writer, r *teams.EnumResult, useColor bool) 
 // reported as before.
 func outputTeamsEnumSummary(w io.Writer, results []teams.EnumResult, useColor bool) {
 	var withDetailsCount, restrictedCount, notFoundCount, errorCount int
+	var errMsgs []string
 	for i := range results {
 		switch results[i].Exists {
 		case teams.ExistenceYes:
@@ -644,6 +646,9 @@ func outputTeamsEnumSummary(w io.Writer, results []teams.EnumResult, useColor bo
 			notFoundCount++
 		default:
 			errorCount++
+			if results[i].Error != nil {
+				errMsgs = append(errMsgs, results[i].Error.Error())
+			}
 		}
 	}
 	existsCount := withDetailsCount + restrictedCount
@@ -661,6 +666,7 @@ func outputTeamsEnumSummary(w io.Writer, results []teams.EnumResult, useColor bo
 		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
 	}
 	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	outputEnumErrorBreakdown(w, errMsgs, useColor)
 	_, _ = fmt.Fprintln(w)
 }
 
@@ -1004,14 +1010,79 @@ func outputGoogleEnumResultLine(w io.Writer, r google.Result, useColor bool) {
 		dim(useColor, note))
 }
 
+// enumErrorBreakdownTopN caps how many distinct error groups the "Top errors"
+// breakdown lists; any remainder collapses into a single "… and K more" line.
+const enumErrorBreakdownTopN = 5
+
+// enumErrorGroup is one distinct error message and the number of results that
+// failed with it, used to render an enum summary's "Top errors" breakdown.
+type enumErrorGroup struct {
+	msg   string
+	count int
+}
+
+// outputEnumErrorBreakdown renders the "Top errors" section of an enum summary:
+// a concise breakdown of the DISTINCT error messages in errMsgs with per-message
+// counts, so a bare "Errors: 100" becomes actionable (e.g. every request failing
+// the same proxy CONNECT collapses to one "100×" row). Messages are grouped by
+// their full string — deliberately NOT normalized, so distinct failure modes
+// (407 / 403 / TLS / context deadline exceeded) stay separate; every enum target
+// hits the same endpoint, so there is no volatile per-request URL to trim.
+// Groups are sorted by count (descending, then message ascending for stable ties),
+// at most enumErrorBreakdownTopN are shown, and the rest collapse into
+// "… and K more". Each message is sanitized (P0-4) before rendering. Prints
+// nothing when errMsgs is empty, so callers may invoke it unconditionally.
+func outputEnumErrorBreakdown(w io.Writer, errMsgs []string, useColor bool) {
+	if len(errMsgs) == 0 {
+		return
+	}
+
+	counts := make(map[string]int)
+	var order []string
+	for _, m := range errMsgs {
+		m = sanitizeTerminal(m)
+		if _, seen := counts[m]; !seen {
+			order = append(order, m)
+		}
+		counts[m]++
+	}
+
+	groups := make([]enumErrorGroup, 0, len(order))
+	for _, m := range order {
+		groups = append(groups, enumErrorGroup{msg: m, count: counts[m]})
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		if groups[i].count != groups[j].count {
+			return groups[i].count > groups[j].count
+		}
+		return groups[i].msg < groups[j].msg
+	})
+
+	_, _ = fmt.Fprintf(w, "    %sTop errors:%s\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset))
+	shown := groups
+	if len(shown) > enumErrorBreakdownTopN {
+		shown = shown[:enumErrorBreakdownTopN]
+	}
+	for _, g := range shown {
+		_, _ = fmt.Fprintf(w, "      %d×  %s\n", g.count, g.msg)
+	}
+	if remaining := len(groups) - len(shown); remaining > 0 {
+		_, _ = fmt.Fprintf(w, "      %s… and %d more%s\n",
+			colorIf(useColor, ColorDim), remaining, colorIf(useColor, ColorReset))
+	}
+}
+
 // outputGoogleEnumSummary prints the counts-by-status summary block for a set
-// of Google enumeration results: found / not found / errors / total.
+// of Google enumeration results: found / not found / errors / total, followed by
+// a "Top errors" breakdown when any result errored.
 func outputGoogleEnumSummary(w io.Writer, results []google.Result, useColor bool) {
 	var foundCount, notFoundCount, errorCount int
+	var errMsgs []string
 	for i := range results {
 		switch {
 		case results[i].Error != nil:
 			errorCount++
+			errMsgs = append(errMsgs, results[i].Error.Error())
 		case results[i].Exists:
 			foundCount++
 		default:
@@ -1030,6 +1101,7 @@ func outputGoogleEnumSummary(w io.Writer, results []google.Result, useColor bool
 		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
 	}
 	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	outputEnumErrorBreakdown(w, errMsgs, useColor)
 	_, _ = fmt.Fprintln(w)
 }
 
@@ -1139,13 +1211,17 @@ func outputMicrosoft365EnumResultLine(w io.Writer, r m365.Result, useColor bool)
 
 // outputMicrosoft365EnumSummary prints the counts-by-status summary block for a
 // set of Microsoft 365 enumeration results: found / federated / not found /
-// errors / total.
+// errors / total, followed by a "Top errors" breakdown when any result errored
+// (so a proxy/transport failure that errors every request is diagnosable from
+// the summary instead of showing only "Errors: N").
 func outputMicrosoft365EnumSummary(w io.Writer, results []m365.Result, useColor bool) {
 	var foundCount, federatedCount, notFoundCount, errorCount int
+	var errMsgs []string
 	for i := range results {
 		switch {
 		case results[i].Error != nil:
 			errorCount++
+			errMsgs = append(errMsgs, results[i].Error.Error())
 		case results[i].Exists:
 			foundCount++
 			if results[i].Federated {
@@ -1170,6 +1246,7 @@ func outputMicrosoft365EnumSummary(w io.Writer, results []m365.Result, useColor 
 		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
 	}
 	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
+	outputEnumErrorBreakdown(w, errMsgs, useColor)
 	_, _ = fmt.Fprintln(w)
 }
 

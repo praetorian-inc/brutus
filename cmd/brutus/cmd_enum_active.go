@@ -34,6 +34,7 @@ Sources:
   kerberos     Enumerate Active Directory users via Kerberos AS-REQ
   teams        Authenticate with Microsoft Entra ID via device code flow
   github       Enumerate GitHub accounts by email (existence + username reveal)
+  gravatar     Enumerate accounts with a registered Gravatar (by email)
   custom       Enumerate against a user-supplied oracle definition`,
 	Example: `  # Account-existence oracle enumeration
   brutus enum active oracles --domain example.com --known-valid admin@example.com
@@ -52,6 +53,9 @@ Sources:
 
   # GitHub account enumeration by email
   brutus enum active github -e alice@example.com,bob@example.com
+
+  # Gravatar account enumeration by email
+  brutus enum active gravatar -e alice@example.com,bob@example.com
 
   # Enumerate against a custom oracle definition
   brutus enum active custom -f oracle.json -e jsmith,asmith`,

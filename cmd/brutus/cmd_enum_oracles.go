@@ -146,7 +146,7 @@ func teamsOracleAvailable(result *enum.DNSReconResult) bool {
 // (GitHub account existence is checkable for any address; there is no per-tenant
 // DNS TXT record to discover). They are unioned into the auto-discovered oracle
 // set in runEnumOracles so the oracle check covers them.
-var domainIndependentOracles = []string{"github"}
+var domainIndependentOracles = []string{"github", "gravatar"}
 
 // addDomainIndependentOracles appends any registered domain-independent oracles
 // (see domainIndependentOracles) to services that are not already present. It is

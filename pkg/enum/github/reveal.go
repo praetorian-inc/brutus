@@ -29,7 +29,7 @@ import (
 
 // cleanupTimeout bounds the deferred throwaway-repo deletion in RevealWith. The
 // deletion runs on a context detached from the reveal ctx (which may already be
-// cancelled or past its deadline), so it needs its own deadline to guarantee it
+// canceled or past its deadline), so it needs its own deadline to guarantee it
 // cannot hang.
 const cleanupTimeout = 30 * time.Second
 
@@ -86,7 +86,7 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 	// (not overwritten). The token is never included in the error.
 	defer func() {
 		// Detach cleanup from ctx's cancellation/deadline: reveal's ctx may
-		// already be cancelled or timed out (e.g. a caller deadline, or the
+		// already be canceled or timed out (e.g. a caller deadline, or the
 		// settle-delay sleep returning early), and reusing it here would make
 		// the DELETE fail to send and orphan the throwaway private repo under
 		// the operator's account. context.WithoutCancel keeps ctx's values

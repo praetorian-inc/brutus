@@ -109,7 +109,8 @@ func runEnumLinkedin(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "%s Fetching results from previous run (agent %s)...\n",
 				dim(useColor, SymbolInfo), flagLinkedinAgentID)
 		}
-		info, err := client.FetchAgentInfo(ctx, flagLinkedinAgentID)
+		var info *pb.AgentInfo
+		info, err = client.FetchAgentInfo(ctx, flagLinkedinAgentID)
 		if err != nil {
 			return classifyPhantomBusterError(err)
 		}

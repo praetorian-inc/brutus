@@ -224,7 +224,7 @@ func TestDownloadResult_Success(t *testing.T) {
 	// s3BaseURL is a const so we can't override it for tests. Instead, verify
 	// the download mechanics by hitting the test server directly.
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet,
-		server.URL+"/orgfolder/s3folder/result.csv", nil)
+		server.URL+"/orgfolder/s3folder/result.csv", http.NoBody)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		t.Fatalf("download: %v", err)

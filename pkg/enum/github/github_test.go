@@ -488,21 +488,21 @@ func TestReveal_DeleteAlwaysAttempted(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Reveal: repo cleanup (DELETE) survives a cancelled reveal context
+// Reveal: repo cleanup (DELETE) survives a canceled reveal context
 // ---------------------------------------------------------------------------
 
 // TestReveal_DeletesEvenWhenContextCancelled verifies that the deferred repo
-// DELETE is still sent even when the reveal ctx is cancelled mid-flow. The
+// DELETE is still sent even when the reveal ctx is canceled mid-flow. The
 // settle-delay sleep cancels the ctx and returns context.Canceled, after
 // createRepo and pushCommit succeed but before listCommitLogins runs, so the
-// deferred cleanup fires with an already-cancelled ctx. Because cleanup runs on
+// deferred cleanup fires with an already-canceled ctx. Because cleanup runs on
 // a context detached from cancellation, the DELETE must still reach the API.
-// Pre-fix (deferred deleteRepo reused the cancelled ctx) => deleteCount == 0;
+// Pre-fix (deferred deleteRepo reused the canceled ctx) => deleteCount == 0;
 // with the fix => deleteCount == 1.
 func TestReveal_DeletesEvenWhenContextCancelled(t *testing.T) {
 	t.Parallel()
 
-	const token = "ghp-test-token-cancelled-cleanup"
+	const token = "ghp-test-token-canceled-cleanup"
 
 	var deleteCount atomic.Int32
 
@@ -547,7 +547,7 @@ func TestReveal_DeletesEvenWhenContextCancelled(t *testing.T) {
 	require.Error(t, revErr)
 
 	assert.Equal(t, int32(1), deleteCount.Load(),
-		"repo DELETE must still be sent even though the reveal ctx was cancelled")
+		"repo DELETE must still be sent even though the reveal ctx was canceled")
 }
 
 // ---------------------------------------------------------------------------

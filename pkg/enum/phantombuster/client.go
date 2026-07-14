@@ -126,7 +126,7 @@ type OutputStatus struct {
 }
 
 // PollUntilDone polls the agent output endpoint until the container finishes
-// or the context is cancelled. It uses exponential backoff between polls.
+// or the context is canceled. It uses exponential backoff between polls.
 // onProgress is called (if non-nil) on each poll with the current status,
 // allowing the caller to log progress updates.
 func (c *Client) PollUntilDone(ctx context.Context, agentID, containerID string, onProgress func(OutputStatus)) (*OutputStatus, error) {
@@ -205,7 +205,7 @@ func (c *Client) FetchAgentInfo(ctx context.Context, agentID string) (*AgentInfo
 func (c *Client) DownloadResult(ctx context.Context, info *AgentInfo, filename string) ([]byte, error) {
 	url := fmt.Sprintf("%s/%s/%s/%s", s3BaseURL, info.OrgS3Folder, info.S3Folder, filename)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("building S3 download request: %w", err)
 	}

@@ -59,6 +59,13 @@ func init() {
 	registerSharedFlags(rootCmd)
 	registerRootFlags(rootCmd)
 
+	// Target-input flags are scan-only; register them on the target-based scan
+	// commands rather than rootCmd so the enum subtree (emails/domains) does not
+	// inherit them.
+	for _, c := range []*cobra.Command{credsCmd, webCmd, snmpCmd, badkeysCmd, logonCmd, stickykeysCmd, utilmanCmd} {
+		registerScanTargetFlags(c)
+	}
+
 	// Validate shared flags before any subcommand runs.
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		// SNMP has its own tier names (extended, full) that predate the global

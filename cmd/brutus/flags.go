@@ -119,12 +119,6 @@ var flagVersion bool
 func registerSharedFlags(cmd *cobra.Command) {
 	pf := cmd.PersistentFlags()
 
-	// Target
-	pf.StringVar(&flagTarget, "target", "", "Target host:port")
-	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
-	pf.StringVar(&flagNmapFile, "nmap-file", "", "Nmap XML file (-oX output) to import targets from")
-	pf.StringVar(&flagMasscanFile, "masscan-file", "", "Masscan JSON file (-oJ output) to import targets from")
-
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
 	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
@@ -148,6 +142,18 @@ func registerSharedFlags(cmd *cobra.Command) {
 	pf.BoolVar(&flagNoColor, "no-color", false, "Disable colored output")
 	pf.BoolVarP(&flagQuiet, "quiet", "q", false, "Quiet mode - only show successful credentials")
 	pf.BoolVarP(&flagVerbose, "verbose", "v", false, "Verbose mode - show detailed progress to stderr")
+}
+
+// registerScanTargetFlags registers the host:port target-input flags as
+// persistent flags on a target-based scan command. These are intentionally NOT
+// rootCmd-persistent: the enum subtree operates on emails/domains, so it must
+// not inherit --target/--targets-file/--nmap-file/--masscan-file.
+func registerScanTargetFlags(cmd *cobra.Command) {
+	pf := cmd.PersistentFlags()
+	pf.StringVar(&flagTarget, "target", "", "Target host:port")
+	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
+	pf.StringVar(&flagNmapFile, "nmap-file", "", "Nmap XML file (-oX output) to import targets from")
+	pf.StringVar(&flagMasscanFile, "masscan-file", "", "Masscan JSON file (-oJ output) to import targets from")
 }
 
 // registerCredentialFlags registers credential and brute-force strategy flags

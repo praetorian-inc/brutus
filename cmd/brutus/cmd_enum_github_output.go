@@ -31,6 +31,14 @@ import (
 func outputGithubEnumResultLine(w io.Writer, r githubenum.Result, useColor bool) {
 	email := truncate(sanitizeTerminal(r.Email), 40)
 
+	if r.Error != nil {
+		_, _ = fmt.Fprintf(w, "  %-40s %s%s error%s %s\n",
+			email,
+			colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
+			dim(useColor, truncate(sanitizeTerminal(r.Error.Error()), 100)))
+		return
+	}
+
 	if !r.Exists {
 		_, _ = fmt.Fprintf(w, "  %-40s %s[ ] not found%s\n",
 			email, colorIf(useColor, ColorDim), colorIf(useColor, ColorReset))
@@ -103,9 +111,22 @@ func outputGithubEnumSummary(w io.Writer, results []githubenum.Result, useColor 
 	}
 	if errorCount > 0 {
 		_, _ = fmt.Fprintf(w, "    %sErrors:%s     %d\n", colorIf(useColor, ColorRed), colorIf(useColor, ColorReset), errorCount)
+		if msg := firstGithubEnumError(results); msg != "" {
+			_, _ = fmt.Fprintf(w, "      %s\n", dim(useColor, "e.g. "+truncate(sanitizeTerminal(msg), 120)))
+		}
 	}
 	_, _ = fmt.Fprintf(w, "    %sTotal:%s      %d\n", colorIf(useColor, ColorCyan), colorIf(useColor, ColorReset), len(results))
 	_, _ = fmt.Fprintln(w)
+}
+
+// firstGithubEnumError returns the first non-nil result error message, or "".
+func firstGithubEnumError(results []githubenum.Result) string {
+	for i := range results {
+		if results[i].Error != nil {
+			return results[i].Error.Error()
+		}
+	}
+	return ""
 }
 
 // outputGithubEnumJSONL writes one JSON object per result. encoding/json escapes

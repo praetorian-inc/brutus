@@ -136,34 +136,67 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 // Existence helpers
 // ---------------------------------------------------------------------------
 
-// establishSession GETs the join page, parses the CSRF authenticity token from
-// the auto-check[src="/email_validity_checks"] element's hidden input, and
-// captures the response cookies. The parsed token + cookies are reused across
-// all existence checks. As a sanity check it verifies that a random,
-// almost-certainly-nonexistent address returns 200 (available); if it does not,
-// the endpoint likely changed and a warning is emitted to stderr.
+// establishSession fetches the join page, parses the CSRF token, and runs the
+// sanity check, retrying on transient failures. GitHub's signup page applies
+// intermittent, rate/reputation-based bot detection that returns a token-less
+// stub (commonly HTTP 403); a single such response would otherwise fail the
+// whole run. Retries use e.existenceBackoff / e.existenceMaxRetries (tuned to a
+// short delay + higher ceiling under --rotating-proxy, where each retry egresses
+// a fresh exit IP). A 200 response whose HTML lacks the token is NOT retried —
+// that signals a genuine endpoint change, so it fails fast.
 func (e *Enumerator) establishSession(ctx context.Context) (*session, error) {
+	var lastErr error
+	for attempt := 0; ; attempt++ {
+		sess, retryable, err := e.tryEstablishSession(ctx)
+		if err == nil {
+			return sess, nil
+		}
+		lastErr = err
+		if !retryable || attempt >= e.existenceMaxRetries {
+			return nil, lastErr
+		}
+		if serr := e.sleep(ctx, e.existenceBackoff); serr != nil {
+			return nil, serr
+		}
+	}
+}
+
+// tryEstablishSession performs ONE attempt to GET the join page, parse the CSRF
+// token, and run the sanity check. The bool reports whether a non-nil error is
+// worth retrying: transport failures, non-200 responses (the intermittent bot/
+// rate block), and transient sanity-check failures are retryable; a 200 with no
+// parseable token is not (the page contract changed).
+func (e *Enumerator) tryEstablishSession(ctx context.Context) (*session, bool, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.webBaseURL+joinPath, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("github enum: creating join request: %w", err)
+		return nil, false, fmt.Errorf("github enum: creating join request: %w", err)
 	}
 
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("github enum: join request failed: %w", err)
+		return nil, true, fmt.Errorf("github enum: join request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		// GitHub serves a token-less stub (commonly HTTP 403) to requests its bot/
+		// rate detection dislikes. This is intermittent, so it is retryable — with
+		// --rotating-proxy each retry uses a fresh exit IP.
+		return nil, true, fmt.Errorf("github enum: join page returned HTTP %d (GitHub bot/rate detection on the signup page; intermittent — with --rotating-proxy each retry uses a fresh exit IP)", resp.StatusCode)
+	}
 
 	// Bounded read — reuses enum.ReadResponseBody (1 MB default) so a hostile or
 	// misbehaving join endpoint cannot exhaust memory via an unbounded HTML body.
 	body, err := enum.ReadResponseBody(resp, 0)
 	if err != nil {
-		return nil, fmt.Errorf("github enum: reading join page: %w", err)
+		return nil, true, fmt.Errorf("github enum: reading join page: %w", err)
 	}
 
 	csrf, err := parseCSRFToken(bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("github enum: parsing join page: %w", err)
+		// 200 but no token: the endpoint contract likely changed. Retrying will
+		// not help, so fail fast.
+		return nil, false, fmt.Errorf("github enum: parsing join page: %w", err)
 	}
 
 	sess := &session{
@@ -176,7 +209,7 @@ func (e *Enumerator) establishSession(ctx context.Context) (*session, error) {
 	sanityEmail := e.newName() + "@foobar.com"
 	exists, err := e.postValidity(ctx, sess, sanityEmail)
 	if err != nil {
-		return nil, fmt.Errorf("github enum: sanity check failed: %w", err)
+		return nil, true, fmt.Errorf("github enum: sanity check failed: %w", err)
 	}
 	if exists {
 		fmt.Fprintf(os.Stderr,
@@ -184,7 +217,7 @@ func (e *Enumerator) establishSession(ctx context.Context) (*session, error) {
 			sanityEmail)
 	}
 
-	return sess, nil
+	return sess, false, nil
 }
 
 // checkEmail POSTs a single email to the validity endpoint and maps the result.

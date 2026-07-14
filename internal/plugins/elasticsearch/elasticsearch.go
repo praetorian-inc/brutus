@@ -75,6 +75,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
+	defer client.CloseIdleConnections()
 
 	// Execute request
 	resp, err := client.Do(req)
@@ -124,6 +125,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	if err != nil {
 		return result
 	}
+	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
 		return result

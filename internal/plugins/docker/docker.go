@@ -63,6 +63,7 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 	if err != nil {
 		return result
 	}
+	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
 		return result

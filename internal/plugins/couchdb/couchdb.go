@@ -64,6 +64,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
+	defer client.CloseIdleConnections()
 
 	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)

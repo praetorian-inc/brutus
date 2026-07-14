@@ -58,6 +58,7 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 	if err != nil {
 		return result
 	}
+	defer client.CloseIdleConnections()
 	scheme := brutus.SchemeFromTLSMode(tlsMode)
 
 	// For kubelet (port 10250), check the /pods endpoint directly

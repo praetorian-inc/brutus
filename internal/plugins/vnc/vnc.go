@@ -67,6 +67,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
+	// Bound the VNC handshake so a server that stalls after connect cannot hang
+	// the worker (vnc.Client performs blocking reads with no timeout of its own).
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+
 	// Create VNC client configuration
 	cfg := &vnc.ClientConfig{
 		Auth: []vnc.ClientAuth{

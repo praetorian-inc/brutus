@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/praetorian-inc/brutus/pkg/badkeys"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -192,6 +194,34 @@ func TestPlugin_TestKey_ContextCancellation(t *testing.T) {
 	if result.Error == nil {
 		t.Error("expected Error!=nil for canceled context")
 	}
+}
+
+// TestPlugin_TestKey_StalledHandshakeDoesNotHang is a regression test proving
+// that a server which accepts the TCP connection but never speaks (no SSH
+// banner) does not hang TestKey() forever. Without SetDeadline on the dialed
+// conn, the SSH handshake would block indefinitely on the stalled read.
+func TestPlugin_TestKey_StalledHandshakeDoesNotHang(t *testing.T) {
+	plugin := &Plugin{}
+	target := startStallingServer(t)
+	validKey := generateTestKey(t)
+
+	done := make(chan struct{})
+	var result *brutus.Result
+	go func() {
+		result = plugin.TestKey(context.Background(), target, "testuser", validKey, 500*time.Millisecond, brutus.PluginConfig{})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// completed - good
+	case <-time.After(5 * time.Second):
+		t.Fatal("TestKey() did not return within 5s - handshake deadline missing (regressed)")
+	}
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.Error(t, result.Error)
 }
 
 // getKeyTestConfig returns test configuration from environment variables.

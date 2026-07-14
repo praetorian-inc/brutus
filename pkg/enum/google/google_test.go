@@ -394,6 +394,48 @@ func TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestCheckAccount_SendsBrowserUserAgent
+// Regression guard: NewEnumerator wraps its transport with enum.WithUserAgent
+// so outbound requests carry a browser User-Agent instead of Go's default
+// "Go-http-client/1.1". Captures the User-Agent seen by both the
+// AccountChooser and GXLU endpoints and asserts it looks like a browser UA.
+// ---------------------------------------------------------------------------
+
+func TestCheckAccount_SendsBrowserUserAgent(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var capturedUA string
+
+	captureUA := func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		capturedUA = r.Header.Get("User-Agent")
+		mu.Unlock()
+		w.Header().Set("Location", "https://accounts.google.com/ServiceLogin")
+		w.WriteHeader(http.StatusFound)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/AccountChooser", captureUA)
+	mux.HandleFunc("/mail/gxlu", captureUA)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e := newTestEnumerator(t, srv)
+	res := e.CheckAccount(context.Background(), "user@gmail.com")
+
+	require.NoError(t, res.Error)
+
+	mu.Lock()
+	ua := capturedUA
+	mu.Unlock()
+
+	require.NotEmpty(t, ua, "the account-check must issue at least one request")
+	assert.NotContains(t, ua, "Go-http-client", "requests must not carry Go's default User-Agent")
+	assert.Contains(t, ua, "Mozilla", "requests must carry a browser User-Agent")
+}
+
+// ---------------------------------------------------------------------------
 // idpHost helper (unit coverage for the unexported helper)
 // ---------------------------------------------------------------------------
 

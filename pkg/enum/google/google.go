@@ -36,6 +36,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
 // Method identifies which oracle confirmed an account's existence.
@@ -95,6 +96,12 @@ func NewEnumerator(proxyURL string, timeout time.Duration) (*Enumerator, error) 
 	if err != nil {
 		return nil, fmt.Errorf("google enum: configuring HTTP client: %w", err)
 	}
+
+	// Providers' anti-automation reject Go's default "Go-http-client" User-Agent
+	// (the same failure the github enumerator hit). Inject a browser UA at the
+	// transport layer so every request — including the client clone in
+	// checkAccountChooser, which shares this transport — carries it.
+	httpClient.Transport = enum.WithUserAgent(httpClient.Transport)
 
 	return &Enumerator{
 		httpClient:            httpClient,

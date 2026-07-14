@@ -50,6 +50,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
 // Result is the outcome of checking (and optionally revealing) a single email.
@@ -142,6 +143,12 @@ func NewEnumerator(proxyURL string, timeout time.Duration, token string, rotatin
 	if err != nil {
 		return nil, fmt.Errorf("github enum: configuring HTTP client: %w", err)
 	}
+
+	// GitHub rejects Go's default "Go-http-client/…" User-Agent: github.com/join
+	// returns 403 with no CSRF token, and api.github.com requires a UA. Inject a
+	// browser UA at the transport layer so every existence and reveal request
+	// carries it (the apiClient clone below inherits this wrapped transport).
+	httpClient.Transport = enum.WithUserAgent(httpClient.Transport)
 
 	existenceBackoff := rateLimitBackoff
 	existenceMaxRetries := maxRateLimitRetries

@@ -16,6 +16,7 @@ package vnc
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -23,6 +24,49 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
+
+// startStallingServer starts a TCP listener that accepts connections but
+// never writes anything (no protocol banner), simulating a server that
+// stalls the handshake. It returns the listener's address as the target.
+func startStallingServer(t *testing.T) string {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to start stalling server: %v", err)
+	}
+
+	stop := make(chan struct{})
+	t.Cleanup(func() {
+		close(stop)
+		_ = ln.Close()
+	})
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer func() { _ = c.Close() }()
+				buf := make([]byte, 1)
+				for {
+					select {
+					case <-stop:
+						return
+					default:
+					}
+					if _, err := c.Read(buf); err != nil {
+						return
+					}
+				}
+			}(conn)
+		}
+	}()
+
+	return ln.Addr().String()
+}
 
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}
@@ -98,6 +142,33 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
+}
+
+// TestPlugin_Test_StalledHandshakeDoesNotHang is a regression test proving
+// that a server which accepts the TCP connection but never speaks (no VNC
+// protocol banner) does not hang Test() forever. Without SetDeadline on the
+// dialed conn, vnc.Client's blocking read would stall indefinitely.
+func TestPlugin_Test_StalledHandshakeDoesNotHang(t *testing.T) {
+	p := &Plugin{}
+	target := startStallingServer(t)
+
+	done := make(chan struct{})
+	var result *brutus.Result
+	go func() {
+		result = p.Test(context.Background(), target, "", "password", 500*time.Millisecond, brutus.PluginConfig{})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// completed - good
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test() did not return within 5s - handshake deadline missing (regressed)")
+	}
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.Error(t, result.Error)
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {

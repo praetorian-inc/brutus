@@ -69,23 +69,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create options
 	options := &imapclient.Options{}
 
-	// Dial IMAP server (proxy-aware)
-	var client *imapclient.Client
-	if pluginCfg.ProxyURL != "" {
-		conn, dialErr := brutus.DialWithProxy(dialCtx, "tcp", addr, timeout, pluginCfg.ProxyURL)
-		if dialErr != nil {
-			result.Error = classifyError(dialErr)
-			return result
-		}
-		client = imapclient.New(conn, options)
-	} else {
-		var dialErr error
-		client, dialErr = imapclient.DialInsecure(addr, options)
-		if dialErr != nil {
-			result.Error = classifyError(dialErr)
-			return result
-		}
+	// Dial IMAP server. brutus.DialWithProxy honors the connect timeout and,
+	// with an empty ProxyURL, does a direct timeout-aware dial — so both the
+	// proxied and direct paths are bounded identically (the previous
+	// imapclient.DialInsecure direct path ignored the timeout).
+	conn, dialErr := brutus.DialWithProxy(dialCtx, "tcp", addr, timeout, pluginCfg.ProxyURL)
+	if dialErr != nil {
+		result.Error = classifyError(dialErr)
+		return result
 	}
+	client := imapclient.New(conn, options)
 	defer func() { _ = client.Close() }()
 
 	// Check if context was canceled during dial

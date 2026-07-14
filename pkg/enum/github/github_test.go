@@ -488,6 +488,69 @@ func TestReveal_DeleteAlwaysAttempted(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Reveal: repo cleanup (DELETE) survives a cancelled reveal context
+// ---------------------------------------------------------------------------
+
+// TestReveal_DeletesEvenWhenContextCancelled verifies that the deferred repo
+// DELETE is still sent even when the reveal ctx is cancelled mid-flow. The
+// settle-delay sleep cancels the ctx and returns context.Canceled, after
+// createRepo and pushCommit succeed but before listCommitLogins runs, so the
+// deferred cleanup fires with an already-cancelled ctx. Because cleanup runs on
+// a context detached from cancellation, the DELETE must still reach the API.
+// Pre-fix (deferred deleteRepo reused the cancelled ctx) => deleteCount == 0;
+// with the fix => deleteCount == 1.
+func TestReveal_DeletesEvenWhenContextCancelled(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-test-token-cancelled-cleanup"
+
+	var deleteCount atomic.Int32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/user", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"login":"testowner"}`)
+	})
+	mux.HandleFunc("/user/repos", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = fmt.Fprintf(w, `{"name":"test-repo-name","default_branch":"main"}`)
+	})
+	mux.HandleFunc("/repos/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodDelete:
+			deleteCount.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		case http.MethodPut:
+			w.WriteHeader(http.StatusCreated)
+		case http.MethodGet:
+			w.WriteHeader(http.StatusOK)
+			_, _ = fmt.Fprint(w, `[]`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	apiSrv := httptest.NewServer(mux)
+	t.Cleanup(apiSrv.Close)
+
+	e, err := NewEnumerator("", 5*time.Second, token, false)
+	require.NoError(t, err)
+	e.apiBaseURL = apiSrv.URL
+	e.newName = deterministicName
+	e.settleDelay = 0
+
+	ctx, cancel := context.WithCancel(context.Background())
+	e.sleep = func(_ context.Context, _ time.Duration) error {
+		cancel()
+		return context.Canceled
+	}
+
+	_, revErr := e.Reveal(ctx, []string{"alice@example.com"})
+	require.Error(t, revErr)
+
+	assert.Equal(t, int32(1), deleteCount.Load(),
+		"repo DELETE must still be sent even though the reveal ctx was cancelled")
+}
+
+// ---------------------------------------------------------------------------
 // Auth header: PAT is sent as Bearer <token> on every API call
 // ---------------------------------------------------------------------------
 

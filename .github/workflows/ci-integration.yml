@@ -16,9 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: internal
     services:
+      # SSH servers are pinned to a digest (not :latest). The linuxserver
+      # openssh-server 10.3 build (ls230, published 2026-07-08) regressed
+      # key-based auth for the Vagrant insecure key, turning TestPlugin_TestKey_*
+      # red on every main push since 2026-07-09. 10.2 (ls229) is the last
+      # known-good build. Bump deliberately and confirm integration tests stay
+      # green before moving off this pin.
       # SSH server for password testing
       ssh:
-        image: linuxserver/openssh-server:latest
+        image: linuxserver/openssh-server:10.2_p1-r0-ls229@sha256:67d4c3a1402179a6579aa217a38b52ced557eb8a0c17a8e32fe986a4549fdee4
         env:
           PUID: 1000
           PGID: 1000
@@ -30,7 +36,7 @@ jobs:
 
       # SSH server for key-based auth testing (using Vagrant insecure key)
       ssh-key:
-        image: linuxserver/openssh-server:latest
+        image: linuxserver/openssh-server:10.2_p1-r0-ls229@sha256:67d4c3a1402179a6579aa217a38b52ced557eb8a0c17a8e32fe986a4549fdee4
         env:
           PUID: 1000
           PGID: 1000

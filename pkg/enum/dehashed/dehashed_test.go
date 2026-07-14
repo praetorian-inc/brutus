@@ -433,6 +433,35 @@ func TestRefine(t *testing.T) {
 				assert.Equal(t, "alpha@example.com", got[1].Email)
 			},
 		},
+		// ----- RepairEmails -----
+		{
+			name: "RepairEmails true: truncated email merges with correctly-spelled duplicate under Dedup",
+			records: []Record{
+				{Email: []string{"benjamin.steger@corp.com"}, Name: []string{"Benjamin Steger"}, Database: "DB-A"},
+				{Email: []string{"enjamin.steger@corp.com"}, Name: []string{"Benjamin Steger"}, Database: "DB-B"},
+			},
+			opts: RefineOptions{Domain: "corp.com", Dedup: true, RepairEmails: true},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 1, "repaired email must merge with the correctly-spelled duplicate")
+				assert.Equal(t, "benjamin.steger@corp.com", got[0].Email)
+				assert.Equal(t, 2, got[0].Count)
+				assert.ElementsMatch(t, []string{"DB-A", "DB-B"}, got[0].Databases)
+			},
+		},
+		{
+			name: "RepairEmails false: truncated email stays a separate entry (today's behavior)",
+			records: []Record{
+				{Email: []string{"benjamin.steger@corp.com"}, Name: []string{"Benjamin Steger"}, Database: "DB-A"},
+				{Email: []string{"enjamin.steger@corp.com"}, Name: []string{"Benjamin Steger"}, Database: "DB-B"},
+			},
+			opts: RefineOptions{Domain: "corp.com", Dedup: true, RepairEmails: false},
+			check: func(t *testing.T, got []Entry) {
+				require.Len(t, got, 2, "without repair, truncated and correct emails must not merge")
+				for _, e := range got {
+					assert.Equal(t, 1, e.Count)
+				}
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -709,4 +738,143 @@ func TestDo_MalformedJSON(t *testing.T) {
 	// Search calls do then json.Unmarshal; malformed JSON surfaces as a decode error.
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decoding dehashed response")
+}
+
+// ---------------------------------------------------------------------------
+// buildQuery
+// ---------------------------------------------------------------------------
+
+func TestBuildQuery(t *testing.T) {
+	tests := []struct {
+		name    string
+		domain  string
+		sources []string
+		want    string
+	}{
+		{"no sources", "example.com", nil, "domain:example.com"},
+		{"empty slice", "example.com", []string{}, "domain:example.com"},
+		{"single source", "example.com", []string{"Adobe"}, `domain:example.com (database_name:"Adobe")`},
+		{"multi source", "example.com", []string{"Adobe", "LinkedIn"}, `domain:example.com (database_name:"Adobe" OR database_name:"LinkedIn")`},
+		{"spaces and #", "example.com", []string{"ALIEN TXTBASE", "Collection #2"}, `domain:example.com (database_name:"ALIEN TXTBASE" OR database_name:"Collection #2")`},
+		{"empty/whitespace dropped", "example.com", []string{"Adobe", "", "   ", "LinkedIn"}, `domain:example.com (database_name:"Adobe" OR database_name:"LinkedIn")`},
+		{"all empty -> base only", "example.com", []string{"", "  "}, "domain:example.com"},
+		{"embedded quote defused", "example.com", []string{`Ad"obe`}, `domain:example.com (database_name:"Adobe")`},
+		{"trailing backslash stripped", "example.com", []string{`Adobe\`}, `domain:example.com (database_name:"Adobe")`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, buildQuery(tc.domain, tc.sources))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// filterBySource
+// ---------------------------------------------------------------------------
+
+func TestFilterBySource(t *testing.T) {
+	recs := []Record{
+		{Email: []string{"a@x.com"}, Database: "Adobe"},
+		{Email: []string{"b@x.com"}, Database: "LinkedIn"},
+		{Email: []string{"c@x.com"}, Database: "Dropbox"},
+	}
+	t.Run("case-insensitive exact match keeps subset", func(t *testing.T) {
+		got := filterBySource(recs, []string{"adobe", "DROPBOX"})
+		require.Len(t, got, 2)
+		assert.Equal(t, "Adobe", got[0].Database)
+		assert.Equal(t, "Dropbox", got[1].Database)
+	})
+	t.Run("trims source and db before comparing", func(t *testing.T) {
+		got := filterBySource(recs, []string{"  Adobe  "})
+		require.Len(t, got, 1)
+		assert.Equal(t, "Adobe", got[0].Database)
+	})
+	t.Run("no match drops all", func(t *testing.T) {
+		assert.Empty(t, filterBySource(recs, []string{"Canva"}))
+	})
+	t.Run("empty sources passthrough", func(t *testing.T) {
+		assert.Len(t, filterBySource(recs, nil), 3)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// repairEmail
+// ---------------------------------------------------------------------------
+
+func TestRepairEmail(t *testing.T) {
+	tests := []struct {
+		name  string
+		email string
+		names []string
+		want  string
+	}{
+		{"leading truncation gap 1 repaired", "enjamin.steger@corp.com", []string{"Benjamin Steger"}, "benjamin.steger@corp.com"},
+		{"already correct unchanged", "benjamin.steger@corp.com", []string{"Benjamin Steger"}, "benjamin.steger@corp.com"},
+		{"no names unchanged", "enjamin.steger@corp.com", nil, "enjamin.steger@corp.com"},
+		{"bare last name gap>2 unchanged", "steger@corp.com", []string{"Benjamin Steger"}, "steger@corp.com"},
+		{"gap 5 unchanged", "min.steger@corp.com", []string{"Benjamin Steger"}, "min.steger@corp.com"},
+		{"non-matching name unchanged", "enjamin.steger@corp.com", []string{"Alice Wonderland"}, "enjamin.steger@corp.com"},
+		{"no at-sign unchanged", "notanemail", []string{"Benjamin Steger"}, "notanemail"},
+		{"single-token name unchanged", "enjamin.steger@corp.com", []string{"Benjamin"}, "enjamin.steger@corp.com"},
+		{"multiple names one matches", "enjamin.steger@corp.com", []string{"Alice Wonderland", "Benjamin Steger"}, "benjamin.steger@corp.com"},
+		{"empty domain side unchanged", "benjamin.steger@", []string{"Benjamin Steger"}, "benjamin.steger@"},
+		{"empty local side unchanged", "@corp.com", []string{"Benjamin Steger"}, "@corp.com"},
+		{"gap 2 repaired", "eter.parker@x.com", []string{"Peter Parker"}, "peter.parker@x.com"},
+		{"domain preserved exactly", "enjamin.steger@Corp.COM", []string{"Benjamin Steger"}, "benjamin.steger@Corp.COM"},
+		{"P1 regression: bare last name with initial-first, gap 2, unchanged", "steger@corp.com", []string{"B Steger"}, "steger@corp.com"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, repairEmail(tc.email, tc.names))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// SearchWithOptions — source scoping (query grouping + client-side backstop)
+// ---------------------------------------------------------------------------
+
+func TestSearchWithOptions_Sources(t *testing.T) {
+	all := []apiEntry{
+		{ID: "a", Email: []string{"a@e.com"}, Database: "Adobe"},
+		{ID: "b", Email: []string{"b@e.com"}, Database: "Naz.API"},
+		{ID: "c", Email: []string{"c@e.com"}, Database: "LinkedIn"},
+		{ID: "d", Email: []string{"d@e.com"}, Database: "Adobe"},
+		{ID: "e", Email: []string{"e@e.com"}, Database: "Dropbox"},
+	}
+	pageSize := 2
+	var lastQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req searchRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		lastQuery = req.Query
+		start := (req.Page - 1) * pageSize
+		resp := searchResponse{Balance: 100, Total: len(all), Took: "1ms"}
+		if start < len(all) {
+			end := start + pageSize
+			if end > len(all) {
+				end = len(all)
+			}
+			resp.Entries = all[start:end]
+		}
+		b, _ := json.Marshal(resp)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(b)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = pageSize
+
+	res, err := c.SearchWithOptions(context.Background(), SearchOptions{Domain: "e.com", Sources: []string{"Adobe"}})
+	require.NoError(t, err)
+	require.Len(t, res.Records, 2, "only Adobe records survive the client-side backstop")
+	for _, rec := range res.Records {
+		assert.Equal(t, "Adobe", rec.Database)
+	}
+	assert.Equal(t, `domain:e.com (database_name:"Adobe")`, lastQuery, "grouped query pushed to API")
+
+	res2, err := c.SearchWithOptions(context.Background(), SearchOptions{Domain: "e.com", Sources: []string{"Adobe"}, Limit: 1})
+	require.NoError(t, err)
+	assert.Len(t, res2.Records, 1, "limit bounds matching records")
 }

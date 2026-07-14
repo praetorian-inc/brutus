@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -37,6 +38,8 @@ var (
 	flagDehashedNoDedup           bool
 	flagDehashedExcludeCombolists bool
 	flagDehashedNoCredentials     bool
+	flagDehashedSources           []string
+	flagDehashedNoRepair          bool
 )
 
 // newEnumDehashedCmd builds the "dehashed" command. A fresh instance is
@@ -70,6 +73,12 @@ command exists to surface. Use --exclude-combolists to drop those recycled
 combolist DBs for clean, identity-only enumeration.
 Opt out of the other filters with --all-emails and --no-dedup.
 
+Use --sources to restrict results to specific source databases (exact names,
+comma-separated); the scoping is pushed into the query to save credits and
+enforced client-side. Truncated email local-parts (a leading character or two
+dropped by broker/aggregator sources) are repaired using each record's name data
+by default; use --no-repair-emails to disable that repair.
+
 Requires a DeHashed API key via the DEHASHED_API_KEY environment variable
 (or the --api-key flag).
 
@@ -83,6 +92,12 @@ to bound the number of results (and therefore credits) per run.`,
 
   # Keep every email (not just @example.com), unmerged; drop combolist DBs for clean identity-only enumeration
   brutus enum passive dehashed -d example.com --all-emails --no-dedup --exclude-combolists
+
+  # Restrict to specific source databases (exact names, comma-separated)
+  brutus enum passive dehashed -d example.com --sources "Adobe,LinkedIn"
+
+  # Disable truncated-email repair (repair is on by default)
+  brutus enum passive dehashed -d example.com --no-repair-emails
 
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum passive dehashed -d example.com --api-key abc123
@@ -101,6 +116,8 @@ to bound the number of results (and therefore credits) per run.`,
 	f.BoolVar(&flagDehashedNoDedup, "no-dedup", false, "Do not merge records that share an email")
 	f.BoolVar(&flagDehashedExcludeCombolists, "exclude-combolists", false, "Drop records from known aggregator/combolist source databases (combolists are included by default)")
 	f.BoolVar(&flagDehashedNoCredentials, "no-credentials", false, "Suppress breach-exposed plaintext passwords from the output")
+	f.StringSliceVar(&flagDehashedSources, "sources", nil, "Restrict results to these DeHashed source databases (comma-separated, exact names)")
+	f.BoolVar(&flagDehashedNoRepair, "no-repair-emails", false, "Do not repair truncated email local-parts using record name data (repair is on by default)")
 	_ = cmd.MarkFlagRequired("domain")
 
 	return cmd
@@ -134,17 +151,33 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s DeHashed search consumes ~1 API credit per page; querying %s...\n",
 			dim(useColor, SymbolInfo), flagDehashedDomain)
+		if len(flagDehashedSources) > 0 {
+			fmt.Fprintf(os.Stderr, "%s Restricting to source databases: %s\n",
+				dim(useColor, SymbolInfo), strings.Join(flagDehashedSources, ", "))
+		}
 	}
 
 	proxyURL, err := resolveProxyURL()
 	if err != nil {
 		return err
 	}
-	client, err := dehashed.NewClient(apiKey, flagTimeout, min(flagDehashedLimit, 100), proxyURL)
+	// Page size normally tracks --limit (capped at the API max of 100). Under
+	// --sources, Limit counts POST-filter matches, so a small --limit must NOT
+	// shrink the page size (that would force many tiny requests to accumulate
+	// matches). Use a full page in that case.
+	pageSize := min(flagDehashedLimit, 100)
+	if len(flagDehashedSources) > 0 {
+		pageSize = 100
+	}
+	client, err := dehashed.NewClient(apiKey, flagTimeout, pageSize, proxyURL)
 	if err != nil {
 		return err
 	}
-	result, err := client.Search(ctx, flagDehashedDomain, flagDehashedLimit)
+	result, err := client.SearchWithOptions(ctx, dehashed.SearchOptions{
+		Domain:  flagDehashedDomain,
+		Sources: flagDehashedSources,
+		Limit:   flagDehashedLimit,
+	})
 	if err != nil {
 		return classifyDehashedError(err)
 	}
@@ -154,6 +187,7 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 		CorporateOnly:     !flagDehashedAllEmails,
 		Dedup:             !flagDehashedNoDedup,
 		ExcludeCombolists: flagDehashedExcludeCombolists,
+		RepairEmails:      !flagDehashedNoRepair,
 	})
 
 	// Verbose: log counts only — never log the key or URL (P0-1 security requirement).

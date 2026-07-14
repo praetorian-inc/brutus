@@ -78,6 +78,15 @@ type DomainResult struct {
 	Balance int
 }
 
+// SearchOptions parameterizes a domain search. Sources, when non-empty,
+// restricts results to the named DeHashed source databases (matched against
+// Record.Database). Limit bounds the number of returned records (0 = no limit).
+type SearchOptions struct {
+	Domain  string
+	Sources []string // if non-empty, restrict results to these DeHashed databases (Record.Database)
+	Limit   int
+}
+
 // RefineOptions controls the refinement pipeline applied to raw breach records
 // before output. All filters are opt-in here; the command layer flips them on
 // by default and exposes opt-out flags.
@@ -86,6 +95,7 @@ type RefineOptions struct {
 	CorporateOnly     bool   // keep only records whose email is @Domain
 	Dedup             bool   // merge records sharing an email
 	ExcludeCombolists bool   // drop combolist/aggregator source DBs
+	RepairEmails      bool   // repair leading-truncated email local-parts using record name data
 }
 
 // Entry is a refined (optionally merged) output row.
@@ -104,10 +114,14 @@ type Entry struct {
 //
 // Pipeline order:
 //  1. ExcludeCombolists: drop records whose Database matches the combolist denylist.
-//  2. Representative email: with CorporateOnly, the first Email entry ending in
+//  2. RepairEmails: with RepairEmails, each email in the record is passed through
+//     repairEmail (using the record's Name data) BEFORE representative-email
+//     selection and dedup, so corporate-only matching and dedup keys see the
+//     repaired address. The record's stored Email slice is not mutated.
+//  3. Representative email: with CorporateOnly, the first Email entry ending in
 //     "@"+Domain (case-insensitive); record dropped if none match. Without it,
 //     the first Email entry (records with no email are kept with Email="").
-//  3. Build entries: with Dedup, group by lowercased representative email and
+//  4. Build entries: with Dedup, group by lowercased representative email and
 //     union Names/Usernames/Phones/Passwords (deduped, empties dropped) plus
 //     distinct Databases, Count = records merged. Without Dedup, one Entry per
 //     surviving record. Input order is preserved (emails in first-seen order).
@@ -124,7 +138,15 @@ func Refine(records []Record, opts RefineOptions) []Entry {
 			continue
 		}
 
-		email, ok := representativeEmail(r.Email, opts.CorporateOnly, domainSuffix)
+		emails := r.Email
+		if opts.RepairEmails {
+			emails = make([]string, len(r.Email))
+			for j, e := range r.Email {
+				emails[j] = repairEmail(e, r.Name)
+			}
+		}
+
+		email, ok := representativeEmail(emails, opts.CorporateOnly, domainSuffix)
 		if !ok {
 			continue
 		}
@@ -208,9 +230,29 @@ func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL stri
 // returns the aggregated DomainResult. It stops on the first of: an empty page,
 // reaching limit (truncating to limit), reaching the known total, the 10,000
 // result hard cap, or ctx cancellation. Honors ctx between pages.
+//
+// Search is a thin wrapper over SearchWithOptions with no source scoping.
 func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainResult, error) {
-	result := &DomainResult{Domain: domain}
-	query := "domain:" + domain
+	return c.SearchWithOptions(ctx, SearchOptions{Domain: domain, Limit: limit})
+}
+
+// SearchWithOptions runs a domain search, following pagination until exhausted,
+// and returns the aggregated DomainResult. It stops on the first of: an empty
+// page, reaching Limit (truncating), reaching the known total, the 10,000 result
+// hard cap, or ctx cancellation. Honors ctx between pages.
+//
+// When opts.Sources is non-empty, the source names are pushed into the API query
+// as an OR group of exact database_name matches (to save credits) AND a
+// client-side backstop (filterBySource) is applied to the accumulated records, so
+// the returned DomainResult.Records contain ONLY records from the requested
+// sources regardless of how the API interprets the grouped query. In that case
+// opts.Limit bounds the number of returned MATCHING records (up to Limit matching
+// records). With no sources, behavior is identical to the pre-refactor Search.
+func (c *Client) SearchWithOptions(ctx context.Context, opts SearchOptions) (*DomainResult, error) {
+	result := &DomainResult{Domain: opts.Domain}
+	query := buildQuery(opts.Domain, opts.Sources)
+	filterSources := len(opts.Sources) > 0
+	limit := opts.Limit
 
 	for page := 1; ; page++ {
 		if err := ctx.Err(); err != nil {
@@ -234,6 +276,15 @@ func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainR
 
 		for i := range resp.Entries {
 			result.Records = append(result.Records, toRecord(&resp.Entries[i]))
+		}
+
+		// Client-side source backstop: filter accumulated records so both the
+		// termination counts below and the returned set reflect only matching
+		// records. filterBySource is idempotent, so re-filtering across pages is
+		// safe. Skipped entirely when no sources are requested (byte-for-byte
+		// identical to the original single-query behavior).
+		if filterSources {
+			result.Records = filterBySource(result.Records, opts.Sources)
 		}
 
 		// Termination conditions, checked after accumulating this page.
@@ -322,6 +373,98 @@ func isCombolist(db string) bool {
 		}
 	}
 	return false
+}
+
+// buildQuery builds the DeHashed query string. With no sources it is exactly
+// "domain:<domain>". With sources it appends an OR group of exact
+// database_name matches to scope the search server-side (saving credits), e.g.
+// `domain:example.com (database_name:"Adobe" OR database_name:"LinkedIn")`.
+// Each source name is quoted; empty/whitespace-only entries are dropped and any
+// embedded double-quote or backslash is stripped so we never emit a broken query.
+func buildQuery(domain string, sources []string) string {
+	base := "domain:" + domain
+	clauses := make([]string, 0, len(sources))
+	for _, s := range sources {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		s = strings.ReplaceAll(s, `"`, "") // defuse embedded quotes
+		s = strings.ReplaceAll(s, `\`, "") // strip backslashes so a trailing "\" can't escape the closing quote
+		clauses = append(clauses, `database_name:"`+s+`"`)
+	}
+	if len(clauses) == 0 {
+		return base
+	}
+	return base + " (" + strings.Join(clauses, " OR ") + ")"
+}
+
+// filterBySource keeps only records whose Database case-insensitively equals one
+// of sources (exact match on the trimmed DB name). It is the client-side backstop
+// that guarantees source scoping even if the API ignores the grouped query. When
+// sources contains no usable (non-empty) entries it is a passthrough.
+func filterBySource(records []Record, sources []string) []Record {
+	allowed := make(map[string]struct{}, len(sources))
+	for _, s := range sources {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		allowed[strings.ToLower(s)] = struct{}{}
+	}
+	if len(allowed) == 0 {
+		return records
+	}
+	out := make([]Record, 0, len(records))
+	for _, r := range records {
+		if _, ok := allowed[strings.ToLower(strings.TrimSpace(r.Database))]; ok {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// repairEmail conservatively repairs a leading-truncated email local-part using
+// the record's name data (e.g. "enjamin.steger@corp.com" for "Benjamin Steger"
+// becomes "benjamin.steger@corp.com"). It splits on the LAST "@"; if either side
+// is empty it returns the input unchanged. For each name with >=2 whitespace
+// tokens it derives the canonical candidate local "first.last" (lowercased). If
+// the actual local already equals a candidate it is left unchanged; if a
+// candidate ends with the actual local with a small leading gap (1..2 chars) the
+// local is replaced with the candidate. The original domain is preserved exactly.
+// Anything else is returned unchanged, so real data is never corrupted.
+func repairEmail(email string, names []string) string {
+	at := strings.LastIndex(email, "@")
+	if at <= 0 || at == len(email)-1 {
+		return email
+	}
+	domain := email[at+1:]
+	localLower := strings.ToLower(email[:at])
+
+	// Only attempt repair when the actual local-part is already shaped like a
+	// truncated first.last (contains "."). A bare last name (e.g. "steger") is a
+	// legitimate mailbox, not a truncation, so we must never fabricate a local
+	// for it (which a name like "B Steger" → candidate "b.steger" would otherwise do).
+	if !strings.Contains(localLower, ".") {
+		return email
+	}
+
+	for _, name := range names {
+		fields := strings.Fields(name)
+		if len(fields) < 2 {
+			continue
+		}
+		candidate := strings.ToLower(fields[0]) + "." + strings.ToLower(fields[len(fields)-1])
+		if candidate == localLower {
+			return email // already correct
+		}
+		if strings.HasSuffix(candidate, localLower) {
+			if gap := len(candidate) - len(localLower); gap >= 1 && gap <= 2 {
+				return candidate + "@" + domain
+			}
+		}
+	}
+	return email
 }
 
 // representativeEmail picks the email used to represent a record. With

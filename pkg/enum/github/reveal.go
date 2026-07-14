@@ -22,9 +22,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
+
+// cleanupTimeout bounds the deferred throwaway-repo deletion in RevealWith. The
+// deletion runs on a context detached from the reveal ctx (which may already be
+// cancelled or past its deadline), so it needs its own deadline to guarantee it
+// cannot hang.
+const cleanupTimeout = 30 * time.Second
 
 // ---------------------------------------------------------------------------
 // Username reveal (authenticated)
@@ -78,7 +85,15 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 	// it manually; if the function already failed, the original error is joined
 	// (not overwritten). The token is never included in the error.
 	defer func() {
-		if delErr := e.deleteRepo(ctx, login, repo); delErr != nil {
+		// Detach cleanup from ctx's cancellation/deadline: reveal's ctx may
+		// already be cancelled or timed out (e.g. a caller deadline, or the
+		// settle-delay sleep returning early), and reusing it here would make
+		// the DELETE fail to send and orphan the throwaway private repo under
+		// the operator's account. context.WithoutCancel keeps ctx's values
+		// while dropping cancellation; a fresh short timeout bounds the delete.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+		if delErr := e.deleteRepo(cleanupCtx, login, repo); delErr != nil {
 			repoURL := login + "/" + repo
 			if err != nil {
 				err = fmt.Errorf("%w; ADDITIONALLY failed to delete temp repo %q (delete it manually): %v", err, repoURL, delErr)

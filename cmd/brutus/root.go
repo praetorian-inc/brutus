@@ -59,11 +59,12 @@ func init() {
 	registerSharedFlags(rootCmd)
 	registerRootFlags(rootCmd)
 
-	// Target-input flags are scan-only; register them on the target-based scan
-	// commands rather than rootCmd so the enum subtree (emails/domains) does not
-	// inherit them.
+	// Target-input and scan-tuning flags are scan-only; register them on the
+	// target-based scan commands rather than rootCmd so the enum subtree
+	// (emails/domains) does not inherit them.
 	for _, c := range []*cobra.Command{credsCmd, webCmd, snmpCmd, badkeysCmd, logonCmd, stickykeysCmd, utilmanCmd} {
 		registerScanTargetFlags(c)
+		registerScanTuningFlags(c)
 	}
 
 	// Validate shared flags before any subcommand runs.

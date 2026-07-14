@@ -122,14 +122,8 @@ func registerSharedFlags(cmd *cobra.Command) {
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
 	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
-	pf.DurationVar(&flagConnectTimeout, "connect-timeout", 3*time.Second,
-		"TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets.")
 	pf.Float64Var(&flagRateLimit, "rate-limit", 0, "Max requests per second (0 = unlimited)")
 	pf.DurationVar(&flagJitter, "jitter", 0, "Random delay variance for rate limiting")
-	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
-
-	// Mode
-	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, aggressive")
 
 	// Proxy
 	pf.StringVar(&flagProxy, "proxy", "", "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080")
@@ -154,6 +148,18 @@ func registerScanTargetFlags(cmd *cobra.Command) {
 	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
 	pf.StringVar(&flagNmapFile, "nmap-file", "", "Nmap XML file (-oX output) to import targets from")
 	pf.StringVar(&flagMasscanFile, "masscan-file", "", "Masscan JSON file (-oJ output) to import targets from")
+}
+
+// registerScanTuningFlags registers the scan-tuning flags as persistent flags on
+// a target-based scan command. Like the target-input flags, these are NOT
+// rootCmd-persistent: the enum subtree never reads --connect-timeout/--mode/
+// --retries (and never applies --mode presets), so it must not inherit them.
+func registerScanTuningFlags(cmd *cobra.Command) {
+	pf := cmd.PersistentFlags()
+	pf.DurationVar(&flagConnectTimeout, "connect-timeout", 3*time.Second,
+		"TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets.")
+	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, aggressive")
+	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
 }
 
 // registerCredentialFlags registers credential and brute-force strategy flags

@@ -454,6 +454,44 @@ func TestEnumerateOne_PresenceRequestAssertions(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Test: getPresence sends a browser User-Agent — regression for presence
+// requests going out as the default Go-http-client UA (which Teams silently
+// rejects), mirroring the browser UA already sent by search().
+// ---------------------------------------------------------------------------
+
+func TestGetPresence_SendsBrowserUserAgent(t *testing.T) {
+	searchSrv := searchServerReturning(http.StatusOK,
+		`[{"displayName":"Carol","mri":"8:orgid:carol"}]`)
+	defer searchSrv.Close()
+
+	var mu sync.Mutex
+	var capturedUserAgent string
+
+	presenceSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		capturedUserAgent = r.Header.Get("User-Agent")
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`[{"presence":{"availability":"Available","deviceType":"Desktop"}}]`))
+	}))
+	defer presenceSrv.Close()
+
+	e := newTestEnumerator(t, searchSrv, presenceSrv, true /* presence enabled */)
+	_ = e.EnumerateOne(context.Background(), "carol@contoso.com")
+
+	mu.Lock()
+	ua := capturedUserAgent
+	mu.Unlock()
+
+	require.NotEmpty(t, ua, "presence request must have reached the server with a User-Agent header")
+	assert.Contains(t, ua, "Mozilla",
+		"presence request User-Agent must look like a browser (contain \"Mozilla\")")
+	assert.NotContains(t, ua, "Go-http-client",
+		"presence request must not go out with the default Go-http-client User-Agent")
+}
+
+// ---------------------------------------------------------------------------
 // Test 12: Concurrency — Enumerate over 6 emails with threads=2
 // ---------------------------------------------------------------------------
 

@@ -49,7 +49,7 @@ func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeou
 	if fast {
 		budget = FastBudget
 	}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, connectTimeout, timeout, noVision, budget, fast)
+	stickyResult := plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
 	result := mapStickyResult(stickyResult, username)
 	result.Target = target
 	return result
@@ -126,7 +126,7 @@ func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout t
 	if fast {
 		budget = FastBudget
 	}
-	utilmanResult := plugin.RunUtilmanCheck(ctx, target, connectTimeout, timeout, noVision, budget, fast)
+	utilmanResult := plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
 	result := mapUtilmanResult(utilmanResult, username)
 	result.Target = target
 	return result
@@ -198,7 +198,7 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
 // The noVision flag disables Vision API confirmation. budget selects the settle
 // profile; fast enforces the never-clean invariant.
-func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *StickyKeysResult {
+func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *StickyKeysResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -207,8 +207,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectT
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("wasm init: %v", err)}
 	}
 
-	dialer := &net.Dialer{Timeout: connectTimeout}
-	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	conn, err := brutus.DialWithProxy(ctx, "tcp", addr, connectTimeout, proxyURL)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, Unreachable: true, SkipReason: fmt.Sprintf("connection failed: %v", err)}
 	}
@@ -230,7 +229,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, connectT
 
 // RunUtilmanCheck performs utilman backdoor detection on a separate connection.
 // budget selects the settle profile; fast enforces the never-clean invariant.
-func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *UtilmanResult {
+func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *UtilmanResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -239,8 +238,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, connectTime
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("wasm init: %v", err)}
 	}
 
-	dialer := &net.Dialer{Timeout: connectTimeout}
-	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	conn, err := brutus.DialWithProxy(ctx, "tcp", addr, connectTimeout, proxyURL)
 	if err != nil {
 		return &UtilmanResult{Performed: false, Unreachable: true, SkipReason: fmt.Sprintf("connection failed: %v", err)}
 	}

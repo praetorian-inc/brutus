@@ -15,13 +15,16 @@
 package brutus
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -96,4 +99,137 @@ func TestDetectHTTPAuthType_BasicAuth(t *testing.T) {
 			require.Equal(t, tt.expectedAuth, authType)
 		})
 	}
+}
+
+func TestHTTPBasicAuthProbe_Run(t *testing.T) {
+	t.Run("success (200)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodGet,
+			Path:         "/",
+			SuccessCodes: []int{http.StatusOK},
+		}
+
+		result := probe.Run(context.Background(), target, "user", "pass", 5*time.Second, PluginConfig{})
+
+		assert.True(t, result.Success)
+		assert.NoError(t, result.Error)
+		assert.Equal(t, "testsvc", result.Protocol)
+		assert.Equal(t, target, result.Target)
+		assert.Greater(t, result.Duration, time.Duration(0))
+	})
+
+	t.Run("auth failure (401)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(server.Close)
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodGet,
+			Path:         "/",
+			SuccessCodes: []int{http.StatusOK},
+		}
+
+		result := probe.Run(context.Background(), target, "user", "pass", 5*time.Second, PluginConfig{})
+
+		assert.False(t, result.Success)
+		assert.NoError(t, result.Error)
+	})
+
+	t.Run("unexpected status (500)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(server.Close)
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodGet,
+			Path:         "/",
+			SuccessCodes: []int{http.StatusOK},
+		}
+
+		result := probe.Run(context.Background(), target, "user", "pass", 5*time.Second, PluginConfig{})
+
+		assert.False(t, result.Success)
+		require.Error(t, result.Error)
+		assert.Contains(t, result.Error.Error(), "connection error")
+	})
+
+	t.Run("success via 204 (multiple success codes)", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		t.Cleanup(server.Close)
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodPost,
+			Path:         "/",
+			SuccessCodes: []int{http.StatusOK, http.StatusNoContent},
+		}
+
+		result := probe.Run(context.Background(), target, "user", "pass", 5*time.Second, PluginConfig{})
+
+		assert.True(t, result.Success)
+		assert.NoError(t, result.Error)
+	})
+
+	t.Run("method and path propagation", func(t *testing.T) {
+		var gotMethod, gotPath string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod = r.Method
+			gotPath = r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodPost,
+			Path:         "/api/v2/signin",
+			SuccessCodes: []int{http.StatusOK},
+		}
+
+		_ = probe.Run(context.Background(), target, "user", "pass", 5*time.Second, PluginConfig{})
+
+		assert.Equal(t, http.MethodPost, gotMethod)
+		assert.Equal(t, "/api/v2/signin", gotPath)
+	})
+
+	t.Run("basic auth credentials sent", func(t *testing.T) {
+		var gotUser, gotPass string
+		var gotOK bool
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotUser, gotPass, gotOK = r.BasicAuth()
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(server.Close)
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodGet,
+			Path:         "/",
+			SuccessCodes: []int{http.StatusOK},
+		}
+
+		_ = probe.Run(context.Background(), target, "myuser", "mypass", 5*time.Second, PluginConfig{})
+
+		require.True(t, gotOK)
+		assert.Equal(t, "myuser", gotUser)
+		assert.Equal(t, "mypass", gotPass)
+	})
 }

@@ -447,10 +447,10 @@ func TestTeamsEnumGenerate_LimitZeroReturnsAll(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Test 20: outputTeamsEnumHuman — ANSI sanitization strips ESC byte
+// Test 20: outputTeamsEnumResultLine — ANSI sanitization strips ESC byte
 // ---------------------------------------------------------------------------
 
-func TestOutputTeamsEnumHuman_Sanitization(t *testing.T) {
+func TestOutputTeamsEnumResultLine_Sanitization(t *testing.T) {
 	evilName := "\x1b[31mEVIL"
 	results := []teams.EnumResult{
 		{
@@ -471,7 +471,7 @@ func TestOutputTeamsEnumHuman_Sanitization(t *testing.T) {
 		flagVerbose = origVerbose
 	}()
 
-	outputTeamsEnumHuman(&buf, results, false /* useColor */)
+	outputTeamsEnumResultLine(&buf, &results[0], false /* useColor */)
 	out := buf.String()
 
 	// The raw ESC byte 0x1B must not appear in the output (sanitizeTerminal strips it).

@@ -77,16 +77,16 @@ var (
 
 var enumTeamsCmd = &cobra.Command{
 	Use:   "teams",
-	Short: "Authenticate with Microsoft Entra ID via device code flow",
-	Long: `Authenticate with Microsoft Entra ID (Azure AD) using the OAuth2 device
-code flow. The device code flow is designed for input-constrained or headless
-environments: brutus requests a short user code, you visit the verification URL
-in any browser and enter that code, and brutus polls until you finish signing
-in. On success it returns an access token (and, when offline_access is in the
-requested scope, a refresh token).
+	Short: "Microsoft Teams: device-code auth, user enumeration, and tenant posture audit",
+	Long: `Microsoft Teams enumeration and auditing. This is a parent command; use one
+of its subcommands:
 
-See the auth subcommand for details:
-  brutus enum active teams auth --help`,
+  auth   Obtain a Microsoft access/refresh token via the OAuth2 device code flow
+  users  Enumerate corporate Microsoft Teams users by email address
+  audit  Audit a Microsoft Teams tenant's external posture into graded findings
+
+See each subcommand's --help for details, e.g.:
+  brutus enum active teams users --help`,
 }
 
 var enumTeamsAuthCmd = &cobra.Command{

@@ -31,39 +31,45 @@ func TestPlugin_Name(t *testing.T) {
 }
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	// Skip if no SMB server available
-	// In real tests, use Docker container with known credentials
-	t.Skip("Integration test - requires SMB server")
+	host := os.Getenv("SMB_TEST_HOST")
+	if host == "" {
+		t.Skip("Integration test - requires SMB server (set SMB_TEST_HOST)")
+	}
+	user := os.Getenv("SMB_TEST_USER")
+	pass := os.Getenv("SMB_TEST_PASS")
 
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:445", "Administrator", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, host, user, pass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
-	assert.Equal(t, "localhost:445", result.Target)
-	assert.Equal(t, "Administrator", result.Username)
-	assert.Equal(t, "password", result.Password)
+	assert.Equal(t, host, result.Target)
+	assert.Equal(t, user, result.Username)
+	assert.Equal(t, pass, result.Password)
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	// Skip if no SMB server available
-	t.Skip("Integration test - requires SMB server")
+	host := os.Getenv("SMB_TEST_HOST")
+	if host == "" {
+		t.Skip("Integration test - requires SMB server (set SMB_TEST_HOST)")
+	}
+	user := os.Getenv("SMB_TEST_USER")
 
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:445", "Administrator", "wrongpassword", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, host, user, "definitely-wrong-password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
-	assert.Equal(t, "localhost:445", result.Target)
-	assert.Equal(t, "Administrator", result.Username)
-	assert.Equal(t, "wrongpassword", result.Password)
+	assert.Equal(t, host, result.Target)
+	assert.Equal(t, user, result.Username)
+	assert.Equal(t, "definitely-wrong-password", result.Password)
 	assert.False(t, result.Success)
 	assert.Nil(t, result.Error) // Auth failure returns nil error
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
@@ -85,7 +91,12 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires SMB server")
+	host := os.Getenv("SMB_TEST_HOST")
+	if host == "" {
+		t.Skip("Integration test - requires SMB server (set SMB_TEST_HOST)")
+	}
+	user := os.Getenv("SMB_TEST_USER")
+	pass := os.Getenv("SMB_TEST_PASS")
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -93,7 +104,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel immediately
 	cancel()
 
-	result := p.Test(ctx, "localhost:445", "Administrator", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, host, user, pass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)
@@ -114,18 +125,23 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 }
 
 func TestPlugin_Test_DomainUsername(t *testing.T) {
-	// Skip if no SMB server available
-	t.Skip("Integration test - requires SMB server with domain")
+	host := os.Getenv("SMB_TEST_HOST")
+	if host == "" {
+		t.Skip("Integration test - requires SMB server with domain (set SMB_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 
 	// Test with DOMAIN\username format
-	result := p.Test(ctx, "localhost:445", "DOMAIN\\Administrator", "password", 5*time.Second, brutus.PluginConfig{})
+	// NOTE: "DOMAIN\Administrator"/"password" are hardcoded since there is no
+	// SMB_TEST_DOMAIN env var - this assumes the SMB_TEST_HOST server is
+	// configured with this exact domain account. Uncertain against real servers.
+	result := p.Test(ctx, host, "DOMAIN\\Administrator", "password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "smb", result.Protocol)
-	assert.Equal(t, "localhost:445", result.Target)
+	assert.Equal(t, host, result.Target)
 	assert.Equal(t, "DOMAIN\\Administrator", result.Username)
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)

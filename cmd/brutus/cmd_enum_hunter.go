@@ -135,13 +135,7 @@ func runEnumHunter(cmd *cobra.Command, args []string) error {
 // resolveHunterAPIKey returns the flag value if set, else HUNTER_API_KEY env var.
 // The key is never logged (P0-1 security requirement).
 func resolveHunterAPIKey(flagValue string) (string, error) {
-	if flagValue != "" {
-		return flagValue, nil
-	}
-	if key := os.Getenv("HUNTER_API_KEY"); key != "" {
-		return key, nil
-	}
-	return "", fmt.Errorf("hunter.io API key required: set HUNTER_API_KEY or pass --api-key")
+	return resolveAPIKey(flagValue, "HUNTER_API_KEY", "hunter.io")
 }
 
 // classifyHunterError converts hunter sentinel errors into actionable, key-free messages.

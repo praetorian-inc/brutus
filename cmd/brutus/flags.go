@@ -230,6 +230,19 @@ func resolveProxyURL() (string, error) {
 	return brutus.BuildProxyURL(flagProxy, flagProxyUser)
 }
 
+// resolveAPIKey returns flagValue if non-empty, otherwise the value of the
+// environment variable envVar. It errors when neither is set. provider is the
+// human-facing name used in the error message (e.g. "apollo", "hunter.io").
+func resolveAPIKey(flagValue, envVar, provider string) (string, error) {
+	if flagValue != "" {
+		return flagValue, nil
+	}
+	if key := os.Getenv(envVar); key != "" {
+		return key, nil
+	}
+	return "", fmt.Errorf("%s API key required: set %s or pass --api-key", provider, envVar)
+}
+
 // buildBaseConfig constructs a baseConfigOptions with only the shared fields.
 // Subcommand-specific loading (credentials, keys, AI config) is handled by
 // each subcommand's runXxx function.

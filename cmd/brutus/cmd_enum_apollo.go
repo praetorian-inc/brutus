@@ -200,13 +200,7 @@ func runEnumApollo(cmd *cobra.Command, args []string) error {
 // resolveApolloAPIKey returns the flag value if set, else APOLLO_API_KEY env var.
 // The key is never logged (P0-1 security requirement).
 func resolveApolloAPIKey(flagValue string) (string, error) {
-	if flagValue != "" {
-		return flagValue, nil
-	}
-	if key := os.Getenv("APOLLO_API_KEY"); key != "" {
-		return key, nil
-	}
-	return "", fmt.Errorf("apollo API key required: set APOLLO_API_KEY or pass --api-key")
+	return resolveAPIKey(flagValue, "APOLLO_API_KEY", "apollo")
 }
 
 // classifyApolloError converts apollo sentinel errors into actionable, key-free

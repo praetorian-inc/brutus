@@ -92,12 +92,12 @@ func TestEnumMicrosoft365Cmd_RegisteredUnderActiveCmd(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestOutputMicrosoft365EnumJSONL
+// TestEncodeMicrosoft365EnumResult
 // Feeds m365.Result values and asserts the type/if_exists_result/federation
 // fields, including omitempty behavior.
 // ---------------------------------------------------------------------------
 
-func TestOutputMicrosoft365EnumJSONL(t *testing.T) {
+func TestEncodeMicrosoft365EnumResult(t *testing.T) {
 	tests := []struct {
 		name              string
 		result            m365.Result
@@ -155,10 +155,11 @@ func TestOutputMicrosoft365EnumJSONL(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			outputMicrosoft365EnumJSONL(&buf, []m365.Result{tc.result})
+			enc := json.NewEncoder(&buf)
+			encodeMicrosoft365EnumResult(enc, tc.result)
 
 			line := strings.TrimSpace(buf.String())
-			require.NotEmpty(t, line, "outputMicrosoft365EnumJSONL must produce a JSONL line")
+			require.NotEmpty(t, line, "encodeMicrosoft365EnumResult must produce a JSONL line")
 
 			var obj map[string]interface{}
 			require.NoError(t, json.Unmarshal([]byte(line), &obj),
@@ -217,10 +218,11 @@ func TestOutputMicrosoft365EnumJSONL(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		outputMicrosoft365EnumJSONL(&buf, []m365.Result{result})
+		enc := json.NewEncoder(&buf)
+		encodeMicrosoft365EnumResult(enc, result)
 
 		line := strings.TrimSpace(buf.String())
-		require.NotEmpty(t, line, "outputMicrosoft365EnumJSONL must produce a JSONL line")
+		require.NotEmpty(t, line, "encodeMicrosoft365EnumResult must produce a JSONL line")
 
 		var obj map[string]interface{}
 		require.NoError(t, json.Unmarshal([]byte(line), &obj),

@@ -523,74 +523,9 @@ func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
 // Teams user enumeration output functions
 // ---------------------------------------------------------------------------
 
-// outputTeamsEnumHuman renders Teams user enumeration results as an aligned
-// table. All server-provided strings are sanitized via sanitizeTerminal (P0-4).
-// The presence columns (Availability, Device) are shown only when at least one
-// result carries presence data.
-func outputTeamsEnumHuman(w io.Writer, results []teams.EnumResult, useColor bool) {
-	_, _ = fmt.Fprintf(w, "\n%s %s\n", dim(useColor, SymbolInfo), heading(useColor, "Teams User Enumeration"))
-
-	showPresence := false
-	for i := range results {
-		if results[i].Availability != "" || results[i].DeviceType != "" {
-			showPresence = true
-			break
-		}
-	}
-
-	// Header row.
-	if showPresence {
-		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-12s %-28s %-40s %-14s %-12s%s\n",
-			colorIf(useColor, ColorBold),
-			"Email", "Status", "Display Name", "MRI", "Availability", "Device",
-			colorIf(useColor, ColorReset))
-	} else {
-		_, _ = fmt.Fprintf(w, "\n  %s%-32s %-12s %-28s %-40s%s\n",
-			colorIf(useColor, ColorBold),
-			"Email", "Status", "Display Name", "MRI",
-			colorIf(useColor, ColorReset))
-	}
-
-	for i := range results {
-		r := &results[i]
-		switch r.Exists {
-		case teams.ExistenceNo:
-			if flagQuiet {
-				continue
-			}
-		case teams.ExistenceUnknown:
-			if !flagVerbose {
-				continue
-			}
-		}
-
-		statusCol, statusColor := teamsEnumStatusLabel(r.Exists)
-		email := truncate(sanitizeTerminal(r.Email), 32)
-		name := truncate(sanitizeTerminal(r.DisplayName), 28)
-		mri := truncate(sanitizeTerminal(r.MRI), 40)
-
-		if showPresence {
-			_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s %-14s %-12s\n",
-				email,
-				colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
-				name, mri,
-				truncate(sanitizeTerminal(r.Availability), 14),
-				truncate(sanitizeTerminal(r.DeviceType), 12))
-		} else {
-			_, _ = fmt.Fprintf(w, "  %-32s %s%-12s%s %-28s %-40s\n",
-				email,
-				colorIf(useColor, statusColor), statusCol, colorIf(useColor, ColorReset),
-				name, mri)
-		}
-	}
-
-	outputTeamsEnumSummary(w, results, useColor)
-}
-
-// outputTeamsEnumResultLine prints ONE Teams enumeration result row in the same
-// visual style as outputTeamsEnumHuman's per-row rendering: Email, status label,
-// Display Name, and MRI, with the account type appended for EXISTS rows (e.g.
-// "(corporate)" or "(consumer)") via teams.AccountType. A 403/blocked result is
+// outputTeamsEnumResultLine prints ONE Teams enumeration result row: Email,
+// status label, Display Name, and MRI, with the account type appended for EXISTS
+// "(corporate)" or "(consumer)" via teams.AccountType. A 403/blocked result is
 // a confirmed hit whose details the tenant withholds, so it renders as an
 // "[+] EXISTS" row with a "(details restricted)" qualifier and no
 // DisplayName/MRI/account-type (a 403 carries none). All server-provided strings
@@ -1210,15 +1145,5 @@ func encodeMicrosoft365EnumResult(enc *json.Encoder, r m365.Result) { //nolint:g
 	}
 	if err := enc.Encode(jr); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error encoding microsoft365 enum JSON: %v\n", err)
-	}
-}
-
-// outputMicrosoft365EnumJSONL writes one JSON object per result, reusing a
-// single encoder. encoding/json escapes control characters, so no sanitization
-// is needed.
-func outputMicrosoft365EnumJSONL(w io.Writer, results []m365.Result) {
-	enc := json.NewEncoder(w)
-	for i := range results {
-		encodeMicrosoft365EnumResult(enc, results[i])
 	}
 }

@@ -11,6 +11,6 @@ permissions:
 
 jobs:
   metrics:
-    uses: praetorian-inc/public-workflows/.github/workflows/leaderboard-metrics.yml@c351826e6de27cadeb5b32ce81157355b283518b # v2.16.3
+    uses: praetorian-inc/public-workflows/.github/workflows/leaderboard-metrics.yml@dc359d4cf6ade393f811c13533b1a3abb780f5d1 # v2.16.7
     with:
       capability_map: '[{"path": ".", "name": "brutus"}]'

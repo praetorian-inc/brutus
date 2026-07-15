@@ -26,6 +26,7 @@ import (
 // vncAuthIndicators defines authentication failure strings returned by VNC servers
 var vncAuthIndicators = []string{
 	"authentication failed",
+	"authentication failure",
 	"invalid password",
 	"auth failed",
 }

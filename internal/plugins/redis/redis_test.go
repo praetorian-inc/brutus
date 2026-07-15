@@ -112,7 +112,9 @@ func TestPlugin_Test_ErrorClassification(t *testing.T) {
 }
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires Redis server")
+	if os.Getenv("REDIS_TEST_HOST") == "" {
+		t.Skip("Integration test - requires Redis server (set REDIS_TEST_HOST)")
+	}
 
 	host, pass := getTestConfig()
 
@@ -133,7 +135,9 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires Redis server")
+	if os.Getenv("REDIS_TEST_HOST") == "" {
+		t.Skip("Integration test - requires Redis server (set REDIS_TEST_HOST)")
+	}
 
 	host, _ := getTestConfig()
 
@@ -154,18 +158,22 @@ func TestPlugin_Test_InvalidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_NoAuthRequired(t *testing.T) {
-	t.Skip("Integration test - requires Redis server without auth")
+	if os.Getenv("REDIS_TEST_HOST") == "" {
+		t.Skip("Integration test - requires Redis server without auth (set REDIS_TEST_HOST)")
+	}
+
+	host, _ := getTestConfig()
 
 	p := &Plugin{}
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
 	// Try empty password on Redis with no auth required
-	result := p.Test(ctx, "localhost:6379", "", "", timeout, brutus.PluginConfig{})
+	result := p.Test(ctx, host, "", "", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "redis", result.Protocol)
-	assert.Equal(t, "localhost:6379", result.Target)
+	assert.Equal(t, host, result.Target)
 	assert.Equal(t, "", result.Username)
 	assert.Equal(t, "", result.Password)
 	// If Redis has no auth, this should succeed
@@ -223,7 +231,11 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires Redis server")
+	if os.Getenv("REDIS_TEST_HOST") == "" {
+		t.Skip("Integration test - requires Redis server (set REDIS_TEST_HOST)")
+	}
+
+	host, pass := getTestConfig()
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -233,7 +245,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, "localhost:6379", "", "password", timeout, brutus.PluginConfig{})
+	result := p.Test(ctx, host, "", pass, timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected context cancellation failure")

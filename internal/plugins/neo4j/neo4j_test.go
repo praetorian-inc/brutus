@@ -16,6 +16,7 @@ package neo4j
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -24,45 +25,52 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
+var (
+	neo4jTestHost = os.Getenv("NEO4J_TEST_HOST")
+	neo4jTestUser = os.Getenv("NEO4J_TEST_USER")
+	neo4jTestPass = os.Getenv("NEO4J_TEST_PASS")
+)
+
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}
 	assert.Equal(t, "neo4j", p.Name())
 }
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	// Skip if no Neo4j server available
-	// In real tests, use Docker container with known credentials
-	t.Skip("Integration test - requires Neo4j server")
+	if neo4jTestHost == "" {
+		t.Skip("Integration test - requires Neo4j server (set NEO4J_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:7687", "neo4j", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, neo4jTestHost, neo4jTestUser, neo4jTestPass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "neo4j", result.Protocol)
-	assert.Equal(t, "localhost:7687", result.Target)
-	assert.Equal(t, "neo4j", result.Username)
-	assert.Equal(t, "password", result.Password)
+	assert.Equal(t, neo4jTestHost, result.Target)
+	assert.Equal(t, neo4jTestUser, result.Username)
+	assert.Equal(t, neo4jTestPass, result.Password)
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	// Skip if no Neo4j server available
-	t.Skip("Integration test - requires Neo4j server")
+	if neo4jTestHost == "" {
+		t.Skip("Integration test - requires Neo4j server (set NEO4J_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:7687", "neo4j", "wrongpassword", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, neo4jTestHost, neo4jTestUser, "definitely-wrong-password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "neo4j", result.Protocol)
-	assert.Equal(t, "localhost:7687", result.Target)
-	assert.Equal(t, "neo4j", result.Username)
-	assert.Equal(t, "wrongpassword", result.Password)
+	assert.Equal(t, neo4jTestHost, result.Target)
+	assert.Equal(t, neo4jTestUser, result.Username)
+	assert.Equal(t, "definitely-wrong-password", result.Password)
 	assert.False(t, result.Success)
 	assert.Nil(t, result.Error) // Auth failure returns nil error
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
@@ -84,7 +92,9 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires Neo4j server")
+	if neo4jTestHost == "" {
+		t.Skip("Integration test - requires Neo4j server (set NEO4J_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -92,7 +102,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel immediately
 	cancel()
 
-	result := p.Test(ctx, "localhost:7687", "neo4j", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, neo4jTestHost, neo4jTestUser, neo4jTestPass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)

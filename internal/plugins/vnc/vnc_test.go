@@ -17,12 +17,18 @@ package vnc
 import (
 	"context"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+)
+
+var (
+	vncTestHost = os.Getenv("VNC_TEST_HOST")
+	vncTestPass = os.Getenv("VNC_TEST_PASS")
 )
 
 // startStallingServer starts a TCP listener that accepts connections but
@@ -74,40 +80,41 @@ func TestPlugin_Name(t *testing.T) {
 }
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	// Skip if no VNC server available
-	// In real tests, use Docker container with known credentials
-	t.Skip("Integration test - requires VNC server")
+	if vncTestHost == "" {
+		t.Skip("Integration test - requires VNC server (set VNC_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 
 	// VNC uses password-only authentication (no username)
-	result := p.Test(ctx, "localhost:5900", "", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, vncTestHost, "", vncTestPass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "vnc", result.Protocol)
-	assert.Equal(t, "localhost:5900", result.Target)
+	assert.Equal(t, vncTestHost, result.Target)
 	assert.Equal(t, "", result.Username) // VNC doesn't use username
-	assert.Equal(t, "password", result.Password)
+	assert.Equal(t, vncTestPass, result.Password)
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	// Skip if no VNC server available
-	t.Skip("Integration test - requires VNC server")
+	if vncTestHost == "" {
+		t.Skip("Integration test - requires VNC server (set VNC_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:5900", "", "wrongpassword", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, vncTestHost, "", "definitely-wrong-password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "vnc", result.Protocol)
-	assert.Equal(t, "localhost:5900", result.Target)
+	assert.Equal(t, vncTestHost, result.Target)
 	assert.Equal(t, "", result.Username)
-	assert.Equal(t, "wrongpassword", result.Password)
+	assert.Equal(t, "definitely-wrong-password", result.Password)
 	assert.False(t, result.Success)
 	assert.Nil(t, result.Error) // Auth failure returns nil error
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
@@ -129,7 +136,9 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires VNC server")
+	if vncTestHost == "" {
+		t.Skip("Integration test - requires VNC server (set VNC_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -137,7 +146,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel immediately
 	cancel()
 
-	result := p.Test(ctx, "localhost:5900", "", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, vncTestHost, "", vncTestPass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)

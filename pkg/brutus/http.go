@@ -15,6 +15,7 @@
 package brutus
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -144,4 +145,62 @@ func DetectHTTPAuthType(target string, useHTTPS bool, timeout time.Duration, tls
 	}
 
 	return "form", banner
+}
+
+// HTTPBasicAuthProbe describes a single-request HTTP Basic Auth credential check
+// shared by the HTTP-based service plugins (elasticsearch, couchdb, influxdb).
+// It captures only what differs between them; the request/classify flow is
+// identical.
+type HTTPBasicAuthProbe struct {
+	Service      string // result protocol label, e.g. "elasticsearch"
+	Method       string // HTTP method, e.g. http.MethodGet
+	Path         string // request path, e.g. "/" or "/_session"
+	SuccessCodes []int  // status codes that indicate valid credentials
+}
+
+// Run performs the probe against target with the given credentials over a
+// proxy-aware, TLS-configured client. Classification: any of SuccessCodes ->
+// Success=true; 401 Unauthorized -> auth failure (Success=false, Error=nil);
+// any other status -> a "connection error" Error. Transport/setup failures are
+// wrapped via WrapConnError. Result.Duration is always set.
+func (probe HTTPBasicAuthProbe) Run(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	start := time.Now()
+	result := NewResult(probe.Service, target, username, password)
+	defer func() { result.Duration = time.Since(start) }()
+
+	scheme := SchemeFromTLSMode(pluginCfg.TLSMode)
+	url := fmt.Sprintf("%s://%s%s", scheme, target, probe.Path)
+
+	client, err := NewHTTPClientWithProxy(timeout, BuildTLSConfig(pluginCfg.TLSMode), pluginCfg.ProxyURL)
+	if err != nil {
+		result.Error = WrapConnError(err)
+		return result
+	}
+	defer client.CloseIdleConnections()
+
+	req, err := http.NewRequestWithContext(ctx, probe.Method, url, http.NoBody)
+	if err != nil {
+		result.Error = WrapConnError(err)
+		return result
+	}
+	req.SetBasicAuth(username, password)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		result.Error = WrapConnError(err)
+		return result
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	for _, code := range probe.SuccessCodes {
+		if resp.StatusCode == code {
+			result.Success = true
+			return result
+		}
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return result // Success=false, Error=nil (invalid credentials)
+	}
+	result.Error = fmt.Errorf("connection error: unexpected status code %d", resp.StatusCode)
+	return result
 }

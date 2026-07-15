@@ -16,7 +16,6 @@ package couchdb
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -45,59 +44,10 @@ func (p *Plugin) Name() string {
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
-	start := time.Now()
-
-	result := brutus.NewResult("couchdb", target, username, password)
-	defer func() { result.Duration = time.Since(start) }()
-
-	// Read TLS mode from context
-	tlsMode := pluginCfg.TLSMode
-
-	scheme := brutus.SchemeFromTLSMode(tlsMode)
-
-	// Build URL for CouchDB session endpoint
-	url := fmt.Sprintf("%s://%s/_session", scheme, target)
-
-	// Create HTTP client with TLS config
-	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-	defer client.CloseIdleConnections()
-
-	// Create request
-	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-
-	// Set Basic Auth
-	req.SetBasicAuth(username, password)
-
-	// Execute request
-	resp, err := client.Do(req)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Classify response
-	if resp.StatusCode == http.StatusOK {
-		// Success - valid credentials
-		result.Success = true
-		return result
-	}
-
-	if resp.StatusCode == http.StatusUnauthorized {
-		// Auth failure - invalid credentials
-		// Return Success=false, Error=nil
-		return result
-	}
-
-	// All other status codes are connection/server errors
-	result.Error = fmt.Errorf("connection error: HTTP %d", resp.StatusCode)
-	return result
+	return brutus.HTTPBasicAuthProbe{
+		Service:      "couchdb",
+		Method:       http.MethodGet,
+		Path:         "/_session",
+		SuccessCodes: []int{http.StatusOK},
+	}.Run(ctx, target, username, password, timeout, pluginCfg)
 }

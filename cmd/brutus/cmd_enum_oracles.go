@@ -439,6 +439,15 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 func runEnumDiscover(cmd *cobra.Command, args []string) error {
 	useColor := isColorEnabled(flagNoColor)
 
+	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
+	if err != nil {
+		return err
+	}
+	defer closeOutput()
+	if forceJSON {
+		flagJSON = true
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -530,12 +539,6 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 
 	// Phase 3: Output results
 	if flagJSON {
-		jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
-		if err != nil {
-			return err
-		}
-		defer closeOutput()
-		_ = forceJSON
 		outputEnumJSONL(jsonWriter, results)
 		if teamsLine != "" {
 			outputDiscoverTeamsJSONL(jsonWriter, teamsLine)

@@ -78,6 +78,15 @@ type DomainResult struct {
 	Balance int
 }
 
+// SearchOptions parameterizes a domain search. Sources, when non-empty,
+// restricts results to the named DeHashed source databases (matched against
+// Record.Database). Limit bounds the number of returned records (0 = no limit).
+type SearchOptions struct {
+	Domain  string
+	Sources []string // if non-empty, restrict results to these DeHashed databases (Record.Database)
+	Limit   int
+}
+
 // RefineOptions controls the refinement pipeline applied to raw breach records
 // before output. All filters are opt-in here; the command layer flips them on
 // by default and exposes opt-out flags.
@@ -90,13 +99,17 @@ type RefineOptions struct {
 
 // Entry is a refined (optionally merged) output row.
 type Entry struct {
-	Email     string
-	Names     []string
-	Usernames []string
-	Phones    []string
-	Passwords []string // breach-exposed plaintext passwords for this entry
-	Databases []string // distinct source DBs contributing to this entry
-	Count     int      // number of raw breach records merged into this entry
+	Email         string
+	Names         []string
+	Usernames     []string
+	Phones        []string
+	Passwords     []string // breach-exposed plaintext passwords for this entry
+	Databases     []string // distinct source DBs contributing to this entry
+	Count         int      // number of raw breach records merged into this entry
+	IPAddresses   []string // distinct IP addresses across merged records
+	Addresses     []string // distinct physical addresses
+	DOBs          []string // distinct dates of birth
+	ObtainedDates []string // distinct breach obtained-dates
 }
 
 // Refine applies the filtering/merging pipeline to raw breach records and
@@ -135,13 +148,17 @@ func Refine(records []Record, opts RefineOptions) []Entry {
 		}
 
 		entries = append(entries, Entry{
-			Email:     email,
-			Names:     dedupStrings(r.Name),
-			Usernames: dedupStrings(r.Username),
-			Phones:    dedupStrings(r.Phone),
-			Passwords: dedupStrings(r.Passwords),
-			Databases: dedupStrings([]string{r.Database}),
-			Count:     1,
+			Email:         email,
+			Names:         dedupStrings(r.Name),
+			Usernames:     dedupStrings(r.Username),
+			Phones:        dedupStrings(r.Phone),
+			Passwords:     dedupStrings(r.Passwords),
+			Databases:     dedupStrings([]string{r.Database}),
+			Count:         1,
+			IPAddresses:   dedupStrings(r.IPAddress),
+			Addresses:     dedupStrings(r.Address),
+			DOBs:          dedupStrings(r.DOB),
+			ObtainedDates: dedupStrings([]string{r.ObtainedDate}),
 		})
 	}
 
@@ -208,9 +225,29 @@ func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL stri
 // returns the aggregated DomainResult. It stops on the first of: an empty page,
 // reaching limit (truncating to limit), reaching the known total, the 10,000
 // result hard cap, or ctx cancellation. Honors ctx between pages.
+//
+// Search is a thin wrapper over SearchWithOptions with no source scoping.
 func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainResult, error) {
-	result := &DomainResult{Domain: domain}
-	query := "domain:" + domain
+	return c.SearchWithOptions(ctx, SearchOptions{Domain: domain, Limit: limit})
+}
+
+// SearchWithOptions runs a domain search, following pagination until exhausted,
+// and returns the aggregated DomainResult. It stops on the first of: an empty
+// page, reaching Limit (truncating), reaching the known total, the 10,000 result
+// hard cap, or ctx cancellation. Honors ctx between pages.
+//
+// When opts.Sources is non-empty, the source names are pushed into the API query
+// as an OR group of exact database_name matches (to save credits) AND a
+// client-side backstop (filterBySource) is applied to the accumulated records, so
+// the returned DomainResult.Records contain ONLY records from the requested
+// sources regardless of how the API interprets the grouped query. In that case
+// opts.Limit bounds the number of returned MATCHING records (up to Limit matching
+// records). With no sources, behavior is identical to the pre-refactor Search.
+func (c *Client) SearchWithOptions(ctx context.Context, opts SearchOptions) (*DomainResult, error) {
+	result := &DomainResult{Domain: opts.Domain}
+	query := buildQuery(opts.Domain, opts.Sources)
+	filterSources := len(opts.Sources) > 0
+	limit := opts.Limit
 
 	for page := 1; ; page++ {
 		if err := ctx.Err(); err != nil {
@@ -234,6 +271,15 @@ func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainR
 
 		for i := range resp.Entries {
 			result.Records = append(result.Records, toRecord(&resp.Entries[i]))
+		}
+
+		// Client-side source backstop: filter accumulated records so both the
+		// termination counts below and the returned set reflect only matching
+		// records. filterBySource is idempotent, so re-filtering across pages is
+		// safe. Skipped entirely when no sources are requested (byte-for-byte
+		// identical to the original single-query behavior).
+		if filterSources {
+			result.Records = filterBySource(result.Records, opts.Sources)
 		}
 
 		// Termination conditions, checked after accumulating this page.
@@ -324,6 +370,55 @@ func isCombolist(db string) bool {
 	return false
 }
 
+// buildQuery builds the DeHashed query string. With no sources it is exactly
+// "domain:<domain>". With sources it appends an OR group of exact
+// database_name matches to scope the search server-side (saving credits), e.g.
+// `domain:example.com (database_name:"Adobe" OR database_name:"LinkedIn")`.
+// Each source name is quoted; empty/whitespace-only entries are dropped and any
+// embedded double-quote or backslash is stripped so we never emit a broken query.
+func buildQuery(domain string, sources []string) string {
+	base := "domain:" + domain
+	clauses := make([]string, 0, len(sources))
+	for _, s := range sources {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		s = strings.ReplaceAll(s, `"`, "") // defuse embedded quotes
+		s = strings.ReplaceAll(s, `\`, "") // strip backslashes so a trailing "\" can't escape the closing quote
+		clauses = append(clauses, `database_name:"`+s+`"`)
+	}
+	if len(clauses) == 0 {
+		return base
+	}
+	return base + " (" + strings.Join(clauses, " OR ") + ")"
+}
+
+// filterBySource keeps only records whose Database case-insensitively equals one
+// of sources (exact match on the trimmed DB name). It is the client-side backstop
+// that guarantees source scoping even if the API ignores the grouped query. When
+// sources contains no usable (non-empty) entries it is a passthrough.
+func filterBySource(records []Record, sources []string) []Record {
+	allowed := make(map[string]struct{}, len(sources))
+	for _, s := range sources {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		allowed[strings.ToLower(s)] = struct{}{}
+	}
+	if len(allowed) == 0 {
+		return records
+	}
+	out := make([]Record, 0, len(records))
+	for _, r := range records {
+		if _, ok := allowed[strings.ToLower(strings.TrimSpace(r.Database))]; ok {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // representativeEmail picks the email used to represent a record. With
 // corporateOnly, it returns the first email ending in domainSuffix
 // (case-insensitive) and ok=false if none match. Without corporateOnly, it
@@ -360,6 +455,10 @@ func mergeEntry(entries *[]Entry, indexByEmail map[string]int, email string, r *
 	e.Phones = dedupStrings(append(e.Phones, r.Phone...))
 	e.Passwords = dedupStrings(append(e.Passwords, r.Passwords...))
 	e.Databases = dedupStrings(append(e.Databases, r.Database))
+	e.IPAddresses = dedupStrings(append(e.IPAddresses, r.IPAddress...))
+	e.Addresses = dedupStrings(append(e.Addresses, r.Address...))
+	e.DOBs = dedupStrings(append(e.DOBs, r.DOB...))
+	e.ObtainedDates = dedupStrings(append(e.ObtainedDates, r.ObtainedDate))
 	e.Count++
 }
 

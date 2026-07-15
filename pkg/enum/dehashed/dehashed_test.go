@@ -710,3 +710,159 @@ func TestDo_MalformedJSON(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decoding dehashed response")
 }
+
+// ---------------------------------------------------------------------------
+// buildQuery
+// ---------------------------------------------------------------------------
+
+func TestBuildQuery(t *testing.T) {
+	tests := []struct {
+		name    string
+		domain  string
+		sources []string
+		want    string
+	}{
+		{"no sources", "example.com", nil, "domain:example.com"},
+		{"empty slice", "example.com", []string{}, "domain:example.com"},
+		{"single source", "example.com", []string{"Adobe"}, `domain:example.com (database_name:"Adobe")`},
+		{"multi source", "example.com", []string{"Adobe", "LinkedIn"}, `domain:example.com (database_name:"Adobe" OR database_name:"LinkedIn")`},
+		{"spaces and #", "example.com", []string{"ALIEN TXTBASE", "Collection #2"}, `domain:example.com (database_name:"ALIEN TXTBASE" OR database_name:"Collection #2")`},
+		{"empty/whitespace dropped", "example.com", []string{"Adobe", "", "   ", "LinkedIn"}, `domain:example.com (database_name:"Adobe" OR database_name:"LinkedIn")`},
+		{"all empty -> base only", "example.com", []string{"", "  "}, "domain:example.com"},
+		{"embedded quote defused", "example.com", []string{`Ad"obe`}, `domain:example.com (database_name:"Adobe")`},
+		{"trailing backslash stripped", "example.com", []string{`Adobe\`}, `domain:example.com (database_name:"Adobe")`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, buildQuery(tc.domain, tc.sources))
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// filterBySource
+// ---------------------------------------------------------------------------
+
+func TestFilterBySource(t *testing.T) {
+	recs := []Record{
+		{Email: []string{"a@x.com"}, Database: "Adobe"},
+		{Email: []string{"b@x.com"}, Database: "LinkedIn"},
+		{Email: []string{"c@x.com"}, Database: "Dropbox"},
+	}
+	t.Run("case-insensitive exact match keeps subset", func(t *testing.T) {
+		got := filterBySource(recs, []string{"adobe", "DROPBOX"})
+		require.Len(t, got, 2)
+		assert.Equal(t, "Adobe", got[0].Database)
+		assert.Equal(t, "Dropbox", got[1].Database)
+	})
+	t.Run("trims source and db before comparing", func(t *testing.T) {
+		got := filterBySource(recs, []string{"  Adobe  "})
+		require.Len(t, got, 1)
+		assert.Equal(t, "Adobe", got[0].Database)
+	})
+	t.Run("no match drops all", func(t *testing.T) {
+		assert.Empty(t, filterBySource(recs, []string{"Canva"}))
+	})
+	t.Run("empty sources passthrough", func(t *testing.T) {
+		assert.Len(t, filterBySource(recs, nil), 3)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// SearchWithOptions — source scoping (query grouping + client-side backstop)
+// ---------------------------------------------------------------------------
+
+func TestSearchWithOptions_Sources(t *testing.T) {
+	all := []apiEntry{
+		{ID: "a", Email: []string{"a@e.com"}, Database: "Adobe"},
+		{ID: "b", Email: []string{"b@e.com"}, Database: "Naz.API"},
+		{ID: "c", Email: []string{"c@e.com"}, Database: "LinkedIn"},
+		{ID: "d", Email: []string{"d@e.com"}, Database: "Adobe"},
+		{ID: "e", Email: []string{"e@e.com"}, Database: "Dropbox"},
+	}
+	pageSize := 2
+	var lastQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req searchRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		lastQuery = req.Query
+		start := (req.Page - 1) * pageSize
+		resp := searchResponse{Balance: 100, Total: len(all), Took: "1ms"}
+		if start < len(all) {
+			end := start + pageSize
+			if end > len(all) {
+				end = len(all)
+			}
+			resp.Entries = all[start:end]
+		}
+		b, _ := json.Marshal(resp)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(b)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = pageSize
+
+	res, err := c.SearchWithOptions(context.Background(), SearchOptions{Domain: "e.com", Sources: []string{"Adobe"}})
+	require.NoError(t, err)
+	require.Len(t, res.Records, 2, "only Adobe records survive the client-side backstop")
+	for _, rec := range res.Records {
+		assert.Equal(t, "Adobe", rec.Database)
+	}
+	assert.Equal(t, `domain:e.com (database_name:"Adobe")`, lastQuery, "grouped query pushed to API")
+
+	res2, err := c.SearchWithOptions(context.Background(), SearchOptions{Domain: "e.com", Sources: []string{"Adobe"}, Limit: 1})
+	require.NoError(t, err)
+	assert.Len(t, res2.Records, 1, "limit bounds matching records")
+}
+
+// ---------------------------------------------------------------------------
+// Refine — detailed fields (IPAddresses, Addresses, DOBs, ObtainedDates)
+// ---------------------------------------------------------------------------
+
+func TestRefine_DetailedFields(t *testing.T) {
+	t.Run("non-dedup single record populates ip/address/dob/obtained (deduped)", func(t *testing.T) {
+		records := []Record{
+			{
+				Email:        []string{"alice@example.com"},
+				IPAddress:    []string{"1.2.3.4", "1.2.3.4"},
+				Address:      []string{"123 Main St"},
+				DOB:          []string{"1990-01-01"},
+				Database:     "DB-A",
+				ObtainedDate: "2021-01",
+			},
+		}
+		got := Refine(records, RefineOptions{Domain: "example.com"})
+		require.Len(t, got, 1)
+		e := got[0]
+		assert.Equal(t, []string{"1.2.3.4"}, e.IPAddresses)
+		assert.Equal(t, []string{"123 Main St"}, e.Addresses)
+		assert.Equal(t, []string{"1990-01-01"}, e.DOBs)
+		assert.Equal(t, []string{"2021-01"}, e.ObtainedDates)
+	})
+
+	t.Run("non-dedup empty obtained date dropped", func(t *testing.T) {
+		records := []Record{
+			{Email: []string{"a@example.com"}, Database: "DB", ObtainedDate: ""},
+		}
+		got := Refine(records, RefineOptions{Domain: "example.com"})
+		require.Len(t, got, 1)
+		assert.Empty(t, got[0].ObtainedDates, "empty obtained date must be dropped")
+	})
+
+	t.Run("dedup unions and dedups ip/address/dob/obtained across records", func(t *testing.T) {
+		records := []Record{
+			{Email: []string{"alice@example.com"}, IPAddress: []string{"1.1.1.1"}, Address: []string{"Addr A"}, DOB: []string{"1990-01-01"}, ObtainedDate: "2021-01", Database: "DB-A"},
+			{Email: []string{"alice@example.com"}, IPAddress: []string{"2.2.2.2", "1.1.1.1"}, Address: []string{"Addr B"}, DOB: []string{"1990-01-01"}, ObtainedDate: "2022-06", Database: "DB-B"},
+			{Email: []string{"alice@example.com"}, IPAddress: []string{""}, Address: []string{""}, DOB: []string{""}, ObtainedDate: "", Database: "DB-C"},
+		}
+		got := Refine(records, RefineOptions{Domain: "example.com", Dedup: true})
+		require.Len(t, got, 1)
+		e := got[0]
+		assert.ElementsMatch(t, []string{"1.1.1.1", "2.2.2.2"}, e.IPAddresses)
+		assert.ElementsMatch(t, []string{"Addr A", "Addr B"}, e.Addresses)
+		assert.Equal(t, []string{"1990-01-01"}, e.DOBs)
+		assert.ElementsMatch(t, []string{"2021-01", "2022-06"}, e.ObtainedDates)
+	})
+}

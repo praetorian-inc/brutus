@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -37,6 +39,9 @@ var (
 	flagDehashedNoDedup           bool
 	flagDehashedExcludeCombolists bool
 	flagDehashedNoCredentials     bool
+	flagDehashedSources           []string
+	flagDehashedDetailed          bool
+	flagDehashedWithCredentials   bool
 )
 
 // newEnumDehashedCmd builds the "dehashed" command. A fresh instance is
@@ -70,6 +75,16 @@ command exists to surface. Use --exclude-combolists to drop those recycled
 combolist DBs for clean, identity-only enumeration.
 Opt out of the other filters with --all-emails and --no-dedup.
 
+Use --sources to restrict results to specific source databases (exact names,
+comma-separated); the scoping is pushed into the query to save credits and
+enforced client-side.
+
+Use --detailed to emit a single structured JSON document per domain (run metadata
+plus every contact with all available fields: ip addresses, addresses, dates of
+birth, and breach obtained-dates). In --detailed mode passwords are OFF by
+default; add --with-credentials to include the breach-exposed plaintext passwords
+(hashes are never included, and --no-credentials still wins as a safety override).
+
 Requires a DeHashed API key via the DEHASHED_API_KEY environment variable
 (or the --api-key flag).
 
@@ -83,6 +98,15 @@ to bound the number of results (and therefore credits) per run.`,
 
   # Keep every email (not just @example.com), unmerged; drop combolist DBs for clean identity-only enumeration
   brutus enum passive dehashed -d example.com --all-emails --no-dedup --exclude-combolists
+
+  # Restrict to specific source databases (exact names, comma-separated)
+  brutus enum passive dehashed -d example.com --sources "Adobe,LinkedIn"
+
+  # Emit one structured JSON document with full per-contact detail + run metadata
+  brutus enum passive dehashed -d example.com --detailed -o breaches.json
+
+  # Same detailed export, including breach-exposed plaintext passwords
+  brutus enum passive dehashed -d example.com --detailed --with-credentials -o breaches.json
 
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum passive dehashed -d example.com --api-key abc123
@@ -101,6 +125,9 @@ to bound the number of results (and therefore credits) per run.`,
 	f.BoolVar(&flagDehashedNoDedup, "no-dedup", false, "Do not merge records that share an email")
 	f.BoolVar(&flagDehashedExcludeCombolists, "exclude-combolists", false, "Drop records from known aggregator/combolist source databases (combolists are included by default)")
 	f.BoolVar(&flagDehashedNoCredentials, "no-credentials", false, "Suppress breach-exposed plaintext passwords from the output")
+	f.StringSliceVar(&flagDehashedSources, "sources", nil, "Restrict results to these DeHashed source databases (comma-separated, exact names)")
+	f.BoolVar(&flagDehashedDetailed, "detailed", false, "Emit a single structured JSON document with full per-contact detail (ip addresses, addresses, dobs, obtained dates) and run metadata")
+	f.BoolVar(&flagDehashedWithCredentials, "with-credentials", false, "Include breach-exposed plaintext passwords in --detailed output (off by default; hashes are never included)")
 	_ = cmd.MarkFlagRequired("domain")
 
 	return cmd
@@ -134,17 +161,33 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s DeHashed search consumes ~1 API credit per page; querying %s...\n",
 			dim(useColor, SymbolInfo), flagDehashedDomain)
+		if len(flagDehashedSources) > 0 {
+			fmt.Fprintf(os.Stderr, "%s Restricting to source databases: %s\n",
+				dim(useColor, SymbolInfo), strings.Join(flagDehashedSources, ", "))
+		}
 	}
 
 	proxyURL, err := resolveProxyURL()
 	if err != nil {
 		return err
 	}
-	client, err := dehashed.NewClient(apiKey, flagTimeout, min(flagDehashedLimit, 100), proxyURL)
+	// Page size normally tracks --limit (capped at the API max of 100). Under
+	// --sources, Limit counts POST-filter matches, so a small --limit must NOT
+	// shrink the page size (that would force many tiny requests to accumulate
+	// matches). Use a full page in that case.
+	pageSize := min(flagDehashedLimit, 100)
+	if len(flagDehashedSources) > 0 {
+		pageSize = 100
+	}
+	client, err := dehashed.NewClient(apiKey, flagTimeout, pageSize, proxyURL)
 	if err != nil {
 		return err
 	}
-	result, err := client.Search(ctx, flagDehashedDomain, flagDehashedLimit)
+	result, err := client.SearchWithOptions(ctx, dehashed.SearchOptions{
+		Domain:  flagDehashedDomain,
+		Sources: flagDehashedSources,
+		Limit:   flagDehashedLimit,
+	})
 	if err != nil {
 		return classifyDehashedError(err)
 	}
@@ -161,6 +204,18 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 		len(result.Records), len(entries), result.Total, result.Balance)
 
 	showCredentials := !flagDehashedNoCredentials
+
+	// --detailed takes precedence over the human/JSONL branch. It reuses the same
+	// output-file plumbing as JSON (jsonWriter is the file when -o is set, else
+	// os.Stdout). Passwords are OFF by default here; --with-credentials opts in,
+	// but --no-credentials always wins as a safety override.
+	if flagDehashedDetailed {
+		detailedShowCreds := flagDehashedWithCredentials && !flagDehashedNoCredentials
+		if err := outputDehashedDetailedJSON(jsonWriter, flagDehashedDomain, len(result.Records), result.Total, result.Balance, entries, detailedShowCreds, time.Now()); err != nil {
+			return fmt.Errorf("writing detailed dehashed output: %w", err)
+		}
+		return nil
+	}
 
 	if flagJSON {
 		outputDehashedJSONL(jsonWriter, entries, showCredentials)

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -227,9 +228,10 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
-	// Just verify the plugin can be instantiated
-	p := &Plugin{}
-	assert.NotNil(t, p)
+	// Verify that init() registered this plugin with the global registry
+	// under the name "postgresql", so brutus.GetPlugin("postgresql") resolves it.
+	p, err := brutus.GetPlugin("postgresql")
+	require.NoError(t, err, "postgresql plugin must be registered via init()")
 	assert.Equal(t, "postgresql", p.Name())
 }
 

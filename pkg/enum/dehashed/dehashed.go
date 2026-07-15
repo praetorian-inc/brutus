@@ -411,9 +411,9 @@ func filterBySource(records []Record, sources []string) []Record {
 		return records
 	}
 	out := make([]Record, 0, len(records))
-	for _, r := range records {
-		if _, ok := allowed[strings.ToLower(strings.TrimSpace(r.Database))]; ok {
-			out = append(out, r)
+	for i := range records {
+		if _, ok := allowed[strings.ToLower(strings.TrimSpace(records[i].Database))]; ok {
+			out = append(out, records[i])
 		}
 	}
 	return out

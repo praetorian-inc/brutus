@@ -66,9 +66,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("ldap", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Honor a cancelled/expired context before touching the network. The
+	// Honor a canceled/expired context before touching the network. The
 	// go-ldap DialURL path is not context-aware, so without this guard a
-	// cancelled context would still dial and bind (unlike the proxy path and
+	// canceled context would still dial and bind (unlike the proxy path and
 	// the other plugins, which thread ctx through the dialer).
 	if err := ctx.Err(); err != nil {
 		result.Error = brutus.WrapConnError(err)

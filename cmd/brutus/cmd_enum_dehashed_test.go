@@ -31,6 +31,16 @@ import (
 // sentinel key used to verify no leakage through error messages.
 const dehashedTestSentinelKey = "SECRETKEY-DO-NOT-LEAK-abc123"
 
+// firstElem asserts that v is a non-empty []interface{} and returns its first
+// element. Used to keep repeated single-value type assertions in comma-ok form.
+func firstElem(t *testing.T, v interface{}) interface{} {
+	t.Helper()
+	s, ok := v.([]interface{})
+	require.True(t, ok)
+	require.NotEmpty(t, s)
+	return s[0]
+}
+
 // ---------------------------------------------------------------------------
 // Task 7: resolveDehashedAPIKey
 // ---------------------------------------------------------------------------
@@ -497,13 +507,14 @@ func TestOutputDehashedDetailedJSON(t *testing.T) {
 		arr, ok := obj["entries"].([]interface{})
 		require.True(t, ok)
 		require.Len(t, arr, 1)
-		entry := arr[0].(map[string]interface{})
+		entry, ok := arr[0].(map[string]interface{})
+		require.True(t, ok)
 		assert.Equal(t, "alice@example.com", entry["email"])
-		assert.Equal(t, "1.2.3.4", entry["ip_addresses"].([]interface{})[0])
-		assert.Equal(t, "123 Main St", entry["addresses"].([]interface{})[0])
-		assert.Equal(t, "1990-01-01", entry["dobs"].([]interface{})[0])
-		assert.Equal(t, "2021-01", entry["obtained_dates"].([]interface{})[0])
-		assert.Equal(t, "breach-db", entry["databases"].([]interface{})[0])
+		assert.Equal(t, "1.2.3.4", firstElem(t, entry["ip_addresses"]))
+		assert.Equal(t, "123 Main St", firstElem(t, entry["addresses"]))
+		assert.Equal(t, "1990-01-01", firstElem(t, entry["dobs"]))
+		assert.Equal(t, "2021-01", firstElem(t, entry["obtained_dates"]))
+		assert.Equal(t, "breach-db", firstElem(t, entry["databases"]))
 		assert.Equal(t, float64(3), entry["count"])
 		_, hasPw := entry["passwords"]
 		assert.False(t, hasPw, "passwords key must be ABSENT when showCredentials=false")
@@ -519,7 +530,11 @@ func TestOutputDehashedDetailedJSON(t *testing.T) {
 		require.NoError(t, err)
 		var obj map[string]interface{}
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &obj))
-		entry := obj["entries"].([]interface{})[0].(map[string]interface{})
+		entriesArr, ok := obj["entries"].([]interface{})
+		require.True(t, ok)
+		require.NotEmpty(t, entriesArr)
+		entry, ok := entriesArr[0].(map[string]interface{})
+		require.True(t, ok)
 		pw, ok := entry["passwords"].([]interface{})
 		require.True(t, ok, "passwords key must be PRESENT when showCredentials=true")
 		assert.Equal(t, "secret123", pw[0])

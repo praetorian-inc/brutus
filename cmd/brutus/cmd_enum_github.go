@@ -98,6 +98,10 @@ func init() {
 	f.BoolVar(&flagGithubEnumNoReveal, "no-reveal", false, "Skip username reveal after existence enumeration (existence-only; no token used, no temp repo created)")
 	// NOTE: no -t shorthand: it collides with the global persistent --threads/-t
 	// flag, which cobra merges into this subcommand at execute time.
+	// --rotating-proxy is only meaningful for GitHub existence enumeration, so it
+	// lives here (persistent, inherited by the `map` subcommand) rather than as a
+	// global root flag that would surface — doing nothing — on every other command.
+	enumGithubCmd.PersistentFlags().BoolVar(&flagRotatingProxy, "rotating-proxy", false, "Signal that --proxy rotates exit IPs (e.g. Bright Data): reduces per-IP rate-limit backoff during GitHub existence enumeration (short retry delay, higher retry ceiling). No effect on token-rate-limited reveal.")
 	enumActiveCmd.AddCommand(enumGithubCmd)
 }
 

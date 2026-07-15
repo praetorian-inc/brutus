@@ -949,6 +949,129 @@ func TestNewEnumerator_RotatingProxy(t *testing.T) {
 	})
 }
 
+// ---------------------------------------------------------------------------
+// establishSession retry behavior: /join non-200 is retried, 200-no-token fails fast
+// ---------------------------------------------------------------------------
+
+// TestSession_RetriesOn403ThenSucceeds verifies that establishSession retries
+// the /join fetch when GitHub's bot/rate detection returns a non-200 (e.g.
+// HTTP 403) stub, and succeeds once /join starts returning the CSRF-bearing
+// page.
+func TestSession_RetriesOn403ThenSucceeds(t *testing.T) {
+	t.Parallel()
+
+	const csrfToken = "csrf-403-retry-token"
+	var joinCalls atomic.Int32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/join", func(w http.ResponseWriter, _ *http.Request) {
+		n := joinCalls.Add(1)
+		if n <= 2 {
+			// Bot/rate-detection stub: non-200, no token.
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = fmt.Fprint(w, `<!DOCTYPE html><html><body>blocked</body></html>`)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html><html><body>
+<auto-check src="/email_validity_checks">
+  <input type="hidden" value="%s">
+</auto-check>
+</body></html>`, csrfToken)
+	})
+	mux.HandleFunc("/email_validity_checks", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		email := r.FormValue("value")
+		if email == "target@example.com" {
+			w.WriteHeader(http.StatusUnprocessableEntity) // 422 → exists
+		} else {
+			w.WriteHeader(http.StatusOK) // 200 → available (sanity-check passes)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e := newTestEnumerator(t, srv, nil, "")
+
+	results := e.Enumerate(context.Background(), []string{"target@example.com"}, 1, 0, 0)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Error, "establishSession must succeed after retrying past the 403 stubs")
+	assert.True(t, results[0].Exists, "HTTP 422 from validity endpoint must map to Exists=true")
+	assert.Equal(t, int32(3), joinCalls.Load(), "/join must be hit 3 times: 2 failed 403 attempts + 1 success")
+}
+
+// TestSession_403ExhaustsRetries verifies that when /join always returns a
+// non-200 response, establishSession exhausts existenceMaxRetries and every
+// email's Result carries an error mentioning the HTTP status. The session is
+// established once per Enumerate batch, so /join must be hit exactly
+// existenceMaxRetries+1 times regardless of how many emails are enumerated.
+func TestSession_403ExhaustsRetries(t *testing.T) {
+	t.Parallel()
+
+	var joinCalls atomic.Int32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/join", func(w http.ResponseWriter, _ *http.Request) {
+		joinCalls.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = fmt.Fprint(w, `<!DOCTYPE html><html><body>blocked</body></html>`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e := newTestEnumerator(t, srv, nil, "")
+	e.existenceMaxRetries = 2
+
+	results := e.Enumerate(context.Background(), []string{"a@x.com", "b@x.com"}, 2, 0, 0)
+
+	require.Len(t, results, 2)
+	for i, r := range results {
+		assert.Error(t, r.Error, "result[%d] must carry an error when /join always returns 403", i)
+		if r.Error != nil {
+			assert.Contains(t, r.Error.Error(), "join page returned HTTP 403",
+				"result[%d] error must mention the join page HTTP status", i)
+		}
+	}
+	assert.Equal(t, int32(3), joinCalls.Load(),
+		"/join must be hit existenceMaxRetries+1=3 times total (session established once per batch, not per email)")
+}
+
+// TestSession_200NoTokenNotRetried verifies that a 200 response from /join
+// whose HTML lacks a parseable CSRF token is NOT retried — it fails fast
+// after a single attempt, since the endpoint contract has changed rather than
+// GitHub applying transient bot/rate detection.
+func TestSession_200NoTokenNotRetried(t *testing.T) {
+	t.Parallel()
+
+	var joinCalls atomic.Int32
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/join", func(w http.ResponseWriter, _ *http.Request) {
+		joinCalls.Add(1)
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = fmt.Fprint(w, `<!DOCTYPE html><html><body><p>no auto-check here</p></body></html>`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e := newTestEnumerator(t, srv, nil, "")
+
+	results := e.Enumerate(context.Background(), []string{"a@x.com"}, 1, 0, 0)
+
+	require.Len(t, results, 1)
+	assert.Error(t, results[0].Error, "a 200 join page with no CSRF token must produce an error")
+	if results[0].Error != nil {
+		assert.Contains(t, results[0].Error.Error(), "parsing join page",
+			"error must mention join-page parsing failure")
+	}
+	assert.Equal(t, int32(1), joinCalls.Load(),
+		"/join must be hit exactly once — a 200-with-no-token response must fail fast, not retry")
+}
+
 // TestExistence_SetsBrowserUserAgent is a regression test for the bug where the
 // existence client sent no User-Agent header, so Go defaulted to
 // "Go-http-client/…". GitHub returns HTTP 403 with a stub page (no CSRF token)

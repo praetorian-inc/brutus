@@ -46,64 +46,12 @@ func (p *Plugin) Name() string {
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
-	start := time.Now()
-
-	result := brutus.NewResult("elasticsearch", target, username, password)
-	defer func() { result.Duration = time.Since(start) }()
-
-	// Read TLS mode from context
-	tlsMode := pluginCfg.TLSMode
-
-	scheme := brutus.SchemeFromTLSMode(tlsMode)
-
-	// Build URL for cluster info endpoint
-	url := fmt.Sprintf("%s://%s/", scheme, target)
-
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-
-	// Set Basic Auth
-	req.SetBasicAuth(username, password)
-
-	// Create HTTP client with TLS config (proxy-aware)
-	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-	defer client.CloseIdleConnections()
-
-	// Execute request
-	resp, err := client.Do(req)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Check status code
-	if resp.StatusCode == http.StatusUnauthorized {
-		// Authentication failed - this is expected for invalid credentials
-		result.Success = false
-		result.Error = nil // Auth failure returns nil error
-		return result
-	}
-
-	if resp.StatusCode == http.StatusOK {
-		// Success - valid credentials
-		result.Success = true
-		result.Error = nil
-		return result
-	}
-
-	// Any other status code is a connection/server error
-	result.Success = false
-	result.Error = fmt.Errorf("connection error: unexpected status code %d", resp.StatusCode)
-	return result
+	return brutus.HTTPBasicAuthProbe{
+		Service:      "elasticsearch",
+		Method:       http.MethodGet,
+		Path:         "/",
+		SuccessCodes: []int{http.StatusOK},
+	}.Run(ctx, target, username, password, timeout, pluginCfg)
 }
 
 // CheckUnauth probes for Elasticsearch without security enabled (X-Pack).

@@ -467,6 +467,8 @@ func (e *Enumerator) getPresence(ctx context.Context, mri string) (presenceInfo,
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+e.token())
+	req.Header.Set("X-Ms-Client-Version", clientVersion)
+	req.Header.Set("User-Agent", enumUserAgent)
 
 	resp, err := e.httpClient.Do(req)
 	if err != nil {

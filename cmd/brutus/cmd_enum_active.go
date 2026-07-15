@@ -32,7 +32,7 @@ Sources:
   google       Enumerate Google Workspace accounts (existence + SSO/IdP)
   microsoft365 Enumerate Microsoft 365 accounts (existence + federation/tenant)
   kerberos     Enumerate Active Directory users via Kerberos AS-REQ
-  teams        Authenticate with Microsoft Entra ID via device code flow
+  teams        Microsoft Teams: auth, user enumeration, and tenant posture audit
   github       Enumerate GitHub accounts by email (existence + username reveal)
   gravatar     Enumerate accounts with a registered Gravatar (by email)
   custom       Enumerate against a user-supplied oracle definition`,

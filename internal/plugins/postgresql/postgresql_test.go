@@ -48,6 +48,24 @@ func TestPlugin_Name(t *testing.T) {
 	assert.Equal(t, "postgresql", p.Name())
 }
 
+func TestSSLMode(t *testing.T) {
+	tests := []struct {
+		tlsMode string
+		want    string
+	}{
+		{"verify", "verify-full"},
+		{"skip-verify", "require"},
+		{"disable", "disable"},
+		{"", "disable"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.tlsMode, func(t *testing.T) {
+			assert.Equal(t, tt.want, sslMode(tt.tlsMode))
+		})
+	}
+}
+
 func TestPlugin_Test_ErrorClassification(t *testing.T) {
 	tests := []struct {
 		name     string

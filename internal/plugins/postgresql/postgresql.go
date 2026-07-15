@@ -46,6 +46,19 @@ func (p *Plugin) Name() string {
 	return "postgresql"
 }
 
+// sslMode maps a brutus TLS mode ("verify", "skip-verify", "disable") to the
+// equivalent lib/pq sslmode connection parameter.
+func sslMode(tlsMode string) string {
+	switch tlsMode {
+	case "verify":
+		return "verify-full"
+	case "skip-verify":
+		return "require"
+	default: // "disable"
+		return "disable"
+	}
+}
+
 // Test attempts PostgreSQL password authentication using the provided credentials.
 //
 // Returns Result with:
@@ -68,8 +81,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Without this, lib/pq defaults to dbname=<username> which fails when
 	// no database matching the username has been created — PostgreSQL
 	// rejects the connection before authentication even occurs.
-	connStr := fmt.Sprintf("dbname=postgres user=%s password=%s host=%s port=%s sslmode=disable connect_timeout=%d",
-		username, password, host, port, int(timeout.Seconds()))
+	connStr := fmt.Sprintf("dbname=postgres user=%s password=%s host=%s port=%s sslmode=%s connect_timeout=%d",
+		username, password, host, port, sslMode(pluginCfg.TLSMode), int(timeout.Seconds()))
 
 	// Open database connection
 	db, err := sql.Open("postgres", connStr)
@@ -103,8 +116,8 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 
 	host, port := brutus.ParseTarget(target, "5432")
 
-	connStr := fmt.Sprintf("dbname=postgres user=postgres password='' host=%s port=%s sslmode=disable connect_timeout=%d",
-		host, port, int(timeout.Seconds()))
+	connStr := fmt.Sprintf("dbname=postgres user=postgres password='' host=%s port=%s sslmode=%s connect_timeout=%d",
+		host, port, sslMode(pluginCfg.TLSMode), int(timeout.Seconds()))
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {

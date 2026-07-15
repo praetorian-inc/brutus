@@ -1116,6 +1116,44 @@ func TestEnumerateWith_NilCallback(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Test: EnumerateWith — threads=0 must not deadlock (clamped to 1)
+// ---------------------------------------------------------------------------
+
+// TestEnumerateWith_ZeroThreadsDoesNotHang is a regression test for the bug
+// where passing threads=0 to EnumerateWith made errgroup.SetLimit(0) block
+// every g.Go(...) call forever, hanging enumeration indefinitely. EnumerateWith
+// now clamps threads<=0 to 1 before calling SetLimit. This test bounds the call
+// with a timeout so that if the clamp regresses, the test fails cleanly instead
+// of hanging the whole suite.
+func TestEnumerateWith_ZeroThreadsDoesNotHang(t *testing.T) {
+	t.Parallel()
+
+	emails := []string{"a@x.com", "b@x.com"}
+	srv := searchServerReturning(http.StatusOK, `[]`)
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+
+	done := make(chan struct{})
+	var results []EnumResult
+	go func() {
+		results = e.Enumerate(context.Background(), emails, 0, 0, 0)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Enumerate with threads=0 did not return within 10s — threads clamp missing (regressed)")
+	}
+
+	require.Len(t, results, len(emails))
+	for i, r := range results {
+		assert.NoError(t, r.Error, "result[%d] must complete without error against the mock server", i)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Test: EnumerateWith streaming race — non-nil callback under -race
 // ---------------------------------------------------------------------------
 //

@@ -81,6 +81,12 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
+	// Normalize thread count: 0 would deadlock errgroup.SetLimit (no goroutine
+	// can ever run) and a negative value means unbounded. Clamp to a safe
+	// positive default of 1 (serial execution).
+	if threads <= 0 {
+		threads = 1
+	}
 	g.SetLimit(threads)
 
 	var limiter *rate.Limiter

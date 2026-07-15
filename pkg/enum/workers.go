@@ -83,7 +83,14 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 	ctx = WithProxyURL(ctx, cfg.ProxyURL)
 
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(cfg.Threads)
+	// Normalize thread count: 0 would deadlock errgroup.SetLimit (no goroutine
+	// can ever run) and a negative value means unbounded. Clamp to a safe
+	// positive default of 1 (serial execution).
+	threads := cfg.Threads
+	if threads <= 0 {
+		threads = 1
+	}
+	g.SetLimit(threads)
 
 	// Rate limiter
 	var limiter *rate.Limiter

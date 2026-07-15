@@ -95,7 +95,6 @@ type RefineOptions struct {
 	CorporateOnly     bool   // keep only records whose email is @Domain
 	Dedup             bool   // merge records sharing an email
 	ExcludeCombolists bool   // drop combolist/aggregator source DBs
-	RepairEmails      bool   // repair leading-truncated email local-parts using record name data
 }
 
 // Entry is a refined (optionally merged) output row.
@@ -118,14 +117,10 @@ type Entry struct {
 //
 // Pipeline order:
 //  1. ExcludeCombolists: drop records whose Database matches the combolist denylist.
-//  2. RepairEmails: with RepairEmails, each email in the record is passed through
-//     repairEmail (using the record's Name data) BEFORE representative-email
-//     selection and dedup, so corporate-only matching and dedup keys see the
-//     repaired address. The record's stored Email slice is not mutated.
-//  3. Representative email: with CorporateOnly, the first Email entry ending in
+//  2. Representative email: with CorporateOnly, the first Email entry ending in
 //     "@"+Domain (case-insensitive); record dropped if none match. Without it,
 //     the first Email entry (records with no email are kept with Email="").
-//  4. Build entries: with Dedup, group by lowercased representative email and
+//  3. Build entries: with Dedup, group by lowercased representative email and
 //     union Names/Usernames/Phones/Passwords (deduped, empties dropped) plus
 //     distinct Databases, Count = records merged. Without Dedup, one Entry per
 //     surviving record. Input order is preserved (emails in first-seen order).
@@ -142,15 +137,7 @@ func Refine(records []Record, opts RefineOptions) []Entry {
 			continue
 		}
 
-		emails := r.Email
-		if opts.RepairEmails {
-			emails = make([]string, len(r.Email))
-			for j, e := range r.Email {
-				emails[j] = repairEmail(e, r.Name)
-			}
-		}
-
-		email, ok := representativeEmail(emails, opts.CorporateOnly, domainSuffix)
+		email, ok := representativeEmail(r.Email, opts.CorporateOnly, domainSuffix)
 		if !ok {
 			continue
 		}
@@ -430,49 +417,6 @@ func filterBySource(records []Record, sources []string) []Record {
 		}
 	}
 	return out
-}
-
-// repairEmail conservatively repairs a leading-truncated email local-part using
-// the record's name data (e.g. "enjamin.steger@corp.com" for "Benjamin Steger"
-// becomes "benjamin.steger@corp.com"). It splits on the LAST "@"; if either side
-// is empty it returns the input unchanged. For each name with >=2 whitespace
-// tokens it derives the canonical candidate local "first.last" (lowercased). If
-// the actual local already equals a candidate it is left unchanged; if a
-// candidate ends with the actual local with a small leading gap (1..2 chars) the
-// local is replaced with the candidate. The original domain is preserved exactly.
-// Anything else is returned unchanged, so real data is never corrupted.
-func repairEmail(email string, names []string) string {
-	at := strings.LastIndex(email, "@")
-	if at <= 0 || at == len(email)-1 {
-		return email
-	}
-	domain := email[at+1:]
-	localLower := strings.ToLower(email[:at])
-
-	// Only attempt repair when the actual local-part is already shaped like a
-	// truncated first.last (contains "."). A bare last name (e.g. "steger") is a
-	// legitimate mailbox, not a truncation, so we must never fabricate a local
-	// for it (which a name like "B Steger" → candidate "b.steger" would otherwise do).
-	if !strings.Contains(localLower, ".") {
-		return email
-	}
-
-	for _, name := range names {
-		fields := strings.Fields(name)
-		if len(fields) < 2 {
-			continue
-		}
-		candidate := strings.ToLower(fields[0]) + "." + strings.ToLower(fields[len(fields)-1])
-		if candidate == localLower {
-			return email // already correct
-		}
-		if strings.HasSuffix(candidate, localLower) {
-			if gap := len(candidate) - len(localLower); gap >= 1 && gap <= 2 {
-				return candidate + "@" + domain
-			}
-		}
-	}
-	return email
 }
 
 // representativeEmail picks the email used to represent a record. With

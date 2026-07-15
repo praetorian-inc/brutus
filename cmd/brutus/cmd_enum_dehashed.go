@@ -40,7 +40,6 @@ var (
 	flagDehashedExcludeCombolists bool
 	flagDehashedNoCredentials     bool
 	flagDehashedSources           []string
-	flagDehashedNoRepair          bool
 	flagDehashedDetailed          bool
 	flagDehashedWithCredentials   bool
 )
@@ -78,9 +77,7 @@ Opt out of the other filters with --all-emails and --no-dedup.
 
 Use --sources to restrict results to specific source databases (exact names,
 comma-separated); the scoping is pushed into the query to save credits and
-enforced client-side. Truncated email local-parts (a leading character or two
-dropped by broker/aggregator sources) are repaired using each record's name data
-by default; use --no-repair-emails to disable that repair.
+enforced client-side.
 
 Use --detailed to emit a single structured JSON document per domain (run metadata
 plus every contact with all available fields: ip addresses, addresses, dates of
@@ -104,9 +101,6 @@ to bound the number of results (and therefore credits) per run.`,
 
   # Restrict to specific source databases (exact names, comma-separated)
   brutus enum passive dehashed -d example.com --sources "Adobe,LinkedIn"
-
-  # Disable truncated-email repair (repair is on by default)
-  brutus enum passive dehashed -d example.com --no-repair-emails
 
   # Emit one structured JSON document with full per-contact detail + run metadata
   brutus enum passive dehashed -d example.com --detailed -o breaches.json
@@ -132,7 +126,6 @@ to bound the number of results (and therefore credits) per run.`,
 	f.BoolVar(&flagDehashedExcludeCombolists, "exclude-combolists", false, "Drop records from known aggregator/combolist source databases (combolists are included by default)")
 	f.BoolVar(&flagDehashedNoCredentials, "no-credentials", false, "Suppress breach-exposed plaintext passwords from the output")
 	f.StringSliceVar(&flagDehashedSources, "sources", nil, "Restrict results to these DeHashed source databases (comma-separated, exact names)")
-	f.BoolVar(&flagDehashedNoRepair, "no-repair-emails", false, "Do not repair truncated email local-parts using record name data (repair is on by default)")
 	f.BoolVar(&flagDehashedDetailed, "detailed", false, "Emit a single structured JSON document with full per-contact detail (ip addresses, addresses, dobs, obtained dates) and run metadata")
 	f.BoolVar(&flagDehashedWithCredentials, "with-credentials", false, "Include breach-exposed plaintext passwords in --detailed output (off by default; hashes are never included)")
 	_ = cmd.MarkFlagRequired("domain")
@@ -204,7 +197,6 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 		CorporateOnly:     !flagDehashedAllEmails,
 		Dedup:             !flagDehashedNoDedup,
 		ExcludeCombolists: flagDehashedExcludeCombolists,
-		RepairEmails:      !flagDehashedNoRepair,
 	})
 
 	// Verbose: log counts only — never log the key or URL (P0-1 security requirement).

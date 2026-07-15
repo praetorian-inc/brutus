@@ -119,28 +119,15 @@ var flagVersion bool
 func registerSharedFlags(cmd *cobra.Command) {
 	pf := cmd.PersistentFlags()
 
-	// Target
-	pf.StringVar(&flagTarget, "target", "", "Target host:port")
-	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
-	pf.StringVar(&flagNmapFile, "nmap-file", "", "Nmap XML file (-oX output) to import targets from")
-	pf.StringVar(&flagMasscanFile, "masscan-file", "", "Masscan JSON file (-oJ output) to import targets from")
-
 	// Performance
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
 	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
-	pf.DurationVar(&flagConnectTimeout, "connect-timeout", 3*time.Second,
-		"TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets.")
 	pf.Float64Var(&flagRateLimit, "rate-limit", 0, "Max requests per second (0 = unlimited)")
 	pf.DurationVar(&flagJitter, "jitter", 0, "Random delay variance for rate limiting")
-	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
-
-	// Mode
-	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, aggressive")
 
 	// Proxy
 	pf.StringVar(&flagProxy, "proxy", "", "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080")
 	pf.StringVar(&flagProxyUser, "proxy-user", "", "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.")
-	pf.BoolVar(&flagRotatingProxy, "rotating-proxy", false, "Signal that --proxy rotates exit IPs (e.g. Bright Data): reduces per-IP rate-limit backoff during GitHub existence enumeration (short retry delay, higher retry ceiling). No effect on token-rate-limited reveal.")
 
 	// Output
 	pf.BoolVar(&flagJSON, "json", false, "JSON output format")
@@ -148,6 +135,30 @@ func registerSharedFlags(cmd *cobra.Command) {
 	pf.BoolVar(&flagNoColor, "no-color", false, "Disable colored output")
 	pf.BoolVarP(&flagQuiet, "quiet", "q", false, "Quiet mode - only show successful credentials")
 	pf.BoolVarP(&flagVerbose, "verbose", "v", false, "Verbose mode - show detailed progress to stderr")
+}
+
+// registerScanTargetFlags registers the host:port target-input flags as
+// persistent flags on a target-based scan command. These are intentionally NOT
+// rootCmd-persistent: the enum subtree operates on emails/domains, so it must
+// not inherit --target/--targets-file/--nmap-file/--masscan-file.
+func registerScanTargetFlags(cmd *cobra.Command) {
+	pf := cmd.PersistentFlags()
+	pf.StringVar(&flagTarget, "target", "", "Target host:port")
+	pf.StringVar(&flagTargetsFile, "targets-file", "", "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)")
+	pf.StringVar(&flagNmapFile, "nmap-file", "", "Nmap XML file (-oX output) to import targets from")
+	pf.StringVar(&flagMasscanFile, "masscan-file", "", "Masscan JSON file (-oJ output) to import targets from")
+}
+
+// registerScanTuningFlags registers the scan-tuning flags as persistent flags on
+// a target-based scan command. Like the target-input flags, these are NOT
+// rootCmd-persistent: the enum subtree never reads --connect-timeout/--mode/
+// --retries (and never applies --mode presets), so it must not inherit them.
+func registerScanTuningFlags(cmd *cobra.Command) {
+	pf := cmd.PersistentFlags()
+	pf.DurationVar(&flagConnectTimeout, "connect-timeout", 3*time.Second,
+		"TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets.")
+	pf.StringVarP(&flagMode, "mode", "m", "default", "Aggressiveness tier: cautious, default, aggressive")
+	pf.IntVar(&flagRetries, "retries", 2, "Max retries on connection error (0 = disabled)")
 }
 
 // registerCredentialFlags registers credential and brute-force strategy flags
@@ -217,6 +228,19 @@ func registerRootFlags(cmd *cobra.Command) {
 // canonical proxy URL. Returns "" when no proxy is configured.
 func resolveProxyURL() (string, error) {
 	return brutus.BuildProxyURL(flagProxy, flagProxyUser)
+}
+
+// resolveAPIKey returns flagValue if non-empty, otherwise the value of the
+// environment variable envVar. It errors when neither is set. provider is the
+// human-facing name used in the error message (e.g. "apollo", "hunter.io").
+func resolveAPIKey(flagValue, envVar, provider string) (string, error) {
+	if flagValue != "" {
+		return flagValue, nil
+	}
+	if key := os.Getenv(envVar); key != "" {
+		return key, nil
+	}
+	return "", fmt.Errorf("%s API key required: set %s or pass --api-key", provider, envVar)
 }
 
 // buildBaseConfig constructs a baseConfigOptions with only the shared fields.

@@ -43,6 +43,20 @@ func (t *uaTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(req)
 }
 
+// WithUserAgent wraps base so that requests without an explicit User-Agent get
+// the default browser UA. Enumerators that build their own client instead of
+// using NewEnumHTTPClientWithProxy (e.g. github, which must follow redirects on
+// its existence flow) call this to keep the UA behavior. Without it, Go sends
+// "Go-http-client/…", which GitHub — and other providers — reject as a bot
+// (github.com/join returns 403 with no CSRF token; api.github.com requires a UA).
+// A nil base defaults to http.DefaultTransport.
+func WithUserAgent(base http.RoundTripper) http.RoundTripper {
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return &uaTransport{base: base}
+}
+
 // NewEnumHTTPClient returns an HTTP client with safe defaults for enum plugins:
 //   - No redirect following (returns last response)
 //   - Default User-Agent header

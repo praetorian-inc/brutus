@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -354,4 +355,101 @@ func TestOutputGithubEnumJSONL(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// outputGithubEnumResultLine
+// ---------------------------------------------------------------------------
+
+// TestOutputGithubEnumResultLine_Error verifies that a result with a non-nil
+// Error renders the dedicated error row: the red "[-]" symbol, the literal
+// word "error", and a truncated/sanitized chunk of the error message. It must
+// NOT fall through to the not-found row.
+func TestOutputGithubEnumResultLine_Error(t *testing.T) {
+	r := githubenum.Result{
+		Email: "a@x.com",
+		Error: errors.New("github enum: parsing join page: CSRF authenticity token not found on join page"),
+	}
+
+	var buf bytes.Buffer
+	outputGithubEnumResultLine(&buf, r, false)
+	out := buf.String()
+
+	assert.Contains(t, out, SymbolError, "error row must show the error symbol")
+	assert.Contains(t, out, "error", "error row must contain the literal word \"error\"")
+	assert.Contains(t, out, "CSRF authenticity token not found",
+		"error row must contain a chunk of the underlying error message")
+	assert.NotContains(t, out, "[ ] not found",
+		"a result with an error must not render as the not-found row")
+}
+
+// TestOutputGithubEnumResultLine_NotFoundStillWorks guards against
+// regressing the pre-existing not-found branch: a result with no error and
+// Exists=false must still render "[ ] not found" and must not render the
+// error row.
+func TestOutputGithubEnumResultLine_NotFoundStillWorks(t *testing.T) {
+	r := githubenum.Result{Email: "b@x.com"}
+
+	var buf bytes.Buffer
+	outputGithubEnumResultLine(&buf, r, false)
+	out := buf.String()
+
+	assert.Contains(t, out, "[ ] not found", "a result with no error/no match must render the not-found row")
+	assert.NotContains(t, out, SymbolError, "a not-found result must not show the error symbol")
+	assert.NotContains(t, out, " error ", "a not-found result must not render the error row")
+}
+
+// ---------------------------------------------------------------------------
+// outputGithubEnumSummary
+// ---------------------------------------------------------------------------
+
+// TestOutputGithubEnumSummary_ShowsRepresentativeError verifies that when
+// errored results are present, the summary shows an "Errors: N" line followed
+// by a representative "e.g. <msg>" line containing the FIRST errored
+// result's message.
+func TestOutputGithubEnumSummary_ShowsRepresentativeError(t *testing.T) {
+	results := []githubenum.Result{
+		{Email: "exists@x.com", Exists: true},
+		{Email: "missing@x.com"},
+		{Email: "err1@x.com", Error: errors.New("first distinct failure message")},
+		{Email: "err2@x.com", Error: errors.New("second distinct failure message")},
+	}
+
+	var buf bytes.Buffer
+	outputGithubEnumSummary(&buf, results, false)
+	out := buf.String()
+
+	assert.Contains(t, out, "Errors:", "summary must show an Errors line when errored results exist")
+	assert.Contains(t, out, "2", "summary must show the correct error count")
+	assert.Contains(t, out, "e.g. first distinct failure message",
+		"summary must show a representative line with the first errored result's message")
+	assert.NotContains(t, out, "second distinct failure message",
+		"summary need only show the first errored result's message, not every one")
+}
+
+// ---------------------------------------------------------------------------
+// firstGithubEnumError
+// ---------------------------------------------------------------------------
+
+// TestFirstGithubEnumError verifies that firstGithubEnumError returns the
+// first non-nil error's message, and "" when no result has an error.
+func TestFirstGithubEnumError(t *testing.T) {
+	t.Run("returns first non-nil error message", func(t *testing.T) {
+		results := []githubenum.Result{
+			{Email: "ok@x.com", Exists: true},
+			{Email: "err1@x.com", Error: errors.New("boom one")},
+			{Email: "err2@x.com", Error: errors.New("boom two")},
+		}
+
+		assert.Equal(t, "boom one", firstGithubEnumError(results))
+	})
+
+	t.Run("returns empty string when no errors present", func(t *testing.T) {
+		results := []githubenum.Result{
+			{Email: "ok@x.com", Exists: true},
+			{Email: "missing@x.com"},
+		}
+
+		assert.Equal(t, "", firstGithubEnumError(results))
+	})
 }

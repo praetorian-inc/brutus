@@ -1071,3 +1071,69 @@ func TestSession_200NoTokenNotRetried(t *testing.T) {
 	assert.Equal(t, int32(1), joinCalls.Load(),
 		"/join must be hit exactly once — a 200-with-no-token response must fail fast, not retry")
 }
+
+// TestExistence_SetsBrowserUserAgent is a regression test for the bug where the
+// existence client sent no User-Agent header, so Go defaulted to
+// "Go-http-client/…". GitHub returns HTTP 403 with a stub page (no CSRF token)
+// to that UA, so establishSession → parseCSRFToken failed with "CSRF
+// authenticity token not found on join page" on every run, recording every
+// target email as an error.
+//
+// This test's /join handler mimics GitHub: it returns 403 when the request
+// carries no User-Agent or a "Go-http-client" UA, and 200 with the CSRF-bearing
+// auto-check block otherwise. Enumeration succeeding (no error, Exists=true)
+// proves the request carried a browser UA. The test fails unless NewEnumerator
+// wraps the client transport with enum.WithUserAgent.
+func TestExistence_SetsBrowserUserAgent(t *testing.T) {
+	t.Parallel()
+
+	const csrfToken = "csrf-user-agent-test-token"
+
+	signupHTML := fmt.Sprintf(`<!DOCTYPE html><html><body>
+<auto-check src="/email_validity_checks">
+  <input type="hidden" value="%s">
+</auto-check>
+</body></html>`, csrfToken)
+
+	mux := http.NewServeMux()
+
+	// /join mimics GitHub: bot UAs (empty or "Go-http-client/…") get a 403 stub
+	// with no CSRF token; a real browser UA gets the CSRF-bearing page.
+	mux.HandleFunc("/join", func(w http.ResponseWriter, r *http.Request) {
+		ua := r.Header.Get("User-Agent")
+		if ua == "" || strings.Contains(ua, "Go-http-client") {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = fmt.Fprint(w, `<html><body>Request blocked</body></html>`)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = fmt.Fprint(w, signupHTML)
+	})
+
+	// /email_validity_checks returns 422 for the target (account exists) and 200
+	// for everything else (including the sanity-check @foobar.com address).
+	mux.HandleFunc("/email_validity_checks", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.FormValue("value") == "target@example.com" {
+			w.WriteHeader(http.StatusUnprocessableEntity) // 422 → exists
+		} else {
+			w.WriteHeader(http.StatusOK) // 200 → available
+		}
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e := newTestEnumerator(t, srv, nil, "")
+
+	results := e.Enumerate(context.Background(), []string{"target@example.com"}, 1, 0, 0)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Error,
+		"establishSession must succeed by sending a browser User-Agent so /join returns the CSRF token instead of a 403 stub")
+	assert.True(t, results[0].Exists,
+		"HTTP 422 from validity endpoint must map to Exists=true")
+}

@@ -15,6 +15,7 @@
 package enum
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -88,4 +89,36 @@ func TestNewEnumHTTPClientWithProxy_EndToEnd(t *testing.T) {
 		"default User-Agent must contain Chrome/120 (injected by uaTransport)")
 	assert.Contains(t, gotUserAgent, "Mozilla/5.0",
 		"default User-Agent must contain Mozilla/5.0 (injected by uaTransport)")
+}
+
+func TestReadResponseBody(t *testing.T) {
+	t.Run("positive limit truncates", func(t *testing.T) {
+		data := bytes.Repeat([]byte("a"), 100)
+		resp := &http.Response{Body: io.NopCloser(bytes.NewReader(data))}
+
+		got, err := ReadResponseBody(resp, 10)
+
+		require.NoError(t, err)
+		assert.Len(t, got, 10)
+	})
+
+	t.Run("limit<=0 uses default cap, small body read fully", func(t *testing.T) {
+		data := bytes.Repeat([]byte("a"), 50)
+		resp := &http.Response{Body: io.NopCloser(bytes.NewReader(data))}
+
+		got, err := ReadResponseBody(resp, 0)
+
+		require.NoError(t, err)
+		assert.Len(t, got, 50)
+	})
+
+	t.Run("limit<=0 caps at 1 MB", func(t *testing.T) {
+		data := bytes.Repeat([]byte("a"), 1<<20+1024)
+		resp := &http.Response{Body: io.NopCloser(bytes.NewReader(data))}
+
+		got, err := ReadResponseBody(resp, 0)
+
+		require.NoError(t, err)
+		assert.Len(t, got, 1<<20)
+	})
 }

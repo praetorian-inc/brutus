@@ -16,6 +16,7 @@ package ldap
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -24,45 +25,52 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
+var (
+	ldapTestHost = os.Getenv("LDAP_TEST_HOST")
+	ldapTestUser = os.Getenv("LDAP_TEST_USER")
+	ldapTestPass = os.Getenv("LDAP_TEST_PASS")
+)
+
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}
 	assert.Equal(t, "ldap", p.Name())
 }
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	// Skip if no LDAP server available
-	// In real tests, use Docker container with known credentials
-	t.Skip("Integration test - requires LDAP server")
+	if ldapTestHost == "" {
+		t.Skip("Integration test - requires LDAP server (set LDAP_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:389", "admin", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, ldapTestHost, ldapTestUser, ldapTestPass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "ldap", result.Protocol)
-	assert.Equal(t, "localhost:389", result.Target)
-	assert.Equal(t, "admin", result.Username)
-	assert.Equal(t, "password", result.Password)
+	assert.Equal(t, ldapTestHost, result.Target)
+	assert.Equal(t, ldapTestUser, result.Username)
+	assert.Equal(t, ldapTestPass, result.Password)
 	assert.True(t, result.Success)
 	assert.Nil(t, result.Error)
 	assert.Greater(t, result.Duration, time.Duration(0))
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	// Skip if no LDAP server available
-	t.Skip("Integration test - requires LDAP server")
+	if ldapTestHost == "" {
+		t.Skip("Integration test - requires LDAP server (set LDAP_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 
-	result := p.Test(ctx, "localhost:389", "admin", "wrongpassword", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, ldapTestHost, ldapTestUser, "definitely-wrong-password", 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "ldap", result.Protocol)
-	assert.Equal(t, "localhost:389", result.Target)
-	assert.Equal(t, "admin", result.Username)
-	assert.Equal(t, "wrongpassword", result.Password)
+	assert.Equal(t, ldapTestHost, result.Target)
+	assert.Equal(t, ldapTestUser, result.Username)
+	assert.Equal(t, "definitely-wrong-password", result.Password)
 	assert.False(t, result.Success)
 	assert.Nil(t, result.Error) // Auth failure returns nil error
 	assert.Greater(t, result.Duration, time.Duration(0))
@@ -84,7 +92,9 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires LDAP server")
+	if ldapTestHost == "" {
+		t.Skip("Integration test - requires LDAP server (set LDAP_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -92,7 +102,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	// Cancel immediately
 	cancel()
 
-	result := p.Test(ctx, "localhost:389", "admin", "password", 5*time.Second, brutus.PluginConfig{})
+	result := p.Test(ctx, ldapTestHost, ldapTestUser, ldapTestPass, 5*time.Second, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -186,13 +187,9 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
-	// Verify that the plugin registers itself
-	// This test ensures init() was called
-	// We can't directly test init(), but we can verify the plugin is registered
-	// by checking that plugin.Register was called (indirectly)
-
-	// Just verify the plugin can be instantiated
-	p := &Plugin{}
-	assert.NotNil(t, p)
+	// Verify that init() registered this plugin with the global registry
+	// under the name "imap", so brutus.GetPlugin("imap") resolves it.
+	p, err := brutus.GetPlugin("imap")
+	require.NoError(t, err, "imap plugin must be registered via init()")
 	assert.Equal(t, "imap", p.Name())
 }

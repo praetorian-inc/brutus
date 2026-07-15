@@ -173,13 +173,7 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 // resolveDehashedAPIKey returns the flag value if set, else DEHASHED_API_KEY env
 // var. The key is never logged (P0-1 security requirement).
 func resolveDehashedAPIKey(flagValue string) (string, error) {
-	if flagValue != "" {
-		return flagValue, nil
-	}
-	if key := os.Getenv("DEHASHED_API_KEY"); key != "" {
-		return key, nil
-	}
-	return "", fmt.Errorf("dehashed API key required: set DEHASHED_API_KEY or pass --api-key")
+	return resolveAPIKey(flagValue, "DEHASHED_API_KEY", "dehashed")
 }
 
 // classifyDehashedError converts dehashed sentinel errors into actionable,

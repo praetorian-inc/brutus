@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -101,9 +102,10 @@ func TestPlugin_Test_ErrorClassification(t *testing.T) {
 }
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires PostgreSQL server")
-
 	host, user, pass := getTestConfig()
+	if os.Getenv("POSTGRES_TEST_HOST") == "" {
+		t.Skip("Integration test - requires PostgreSQL server (set POSTGRES_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
@@ -122,21 +124,22 @@ func TestPlugin_Test_ValidCredentials(t *testing.T) {
 }
 
 func TestPlugin_Test_InvalidCredentials(t *testing.T) {
-	t.Skip("Integration test - requires PostgreSQL server")
-
 	host, user, _ := getTestConfig()
+	if os.Getenv("POSTGRES_TEST_HOST") == "" {
+		t.Skip("Integration test - requires PostgreSQL server (set POSTGRES_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, host, user, "wrongpassword", timeout, brutus.PluginConfig{})
+	result := p.Test(ctx, host, user, "definitely-wrong-password", timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.Equal(t, "postgresql", result.Protocol)
 	assert.Equal(t, host, result.Target)
 	assert.Equal(t, user, result.Username)
-	assert.Equal(t, "wrongpassword", result.Password)
+	assert.Equal(t, "definitely-wrong-password", result.Password)
 	assert.False(t, result.Success, "Expected failed authentication")
 	assert.Nil(t, result.Error, "Authentication failure should have nil error")
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
@@ -192,7 +195,10 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 }
 
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
-	t.Skip("Integration test - requires PostgreSQL server")
+	host, user, pass := getTestConfig()
+	if os.Getenv("POSTGRES_TEST_HOST") == "" {
+		t.Skip("Integration test - requires PostgreSQL server (set POSTGRES_TEST_HOST)")
+	}
 
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -202,7 +208,7 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 
 	timeout := 5 * time.Second
 
-	result := p.Test(ctx, "localhost:5432", "postgres", "postgres", timeout, brutus.PluginConfig{})
+	result := p.Test(ctx, host, user, pass, timeout, brutus.PluginConfig{})
 
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected context cancellation failure")
@@ -227,9 +233,10 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
-	// Just verify the plugin can be instantiated
-	p := &Plugin{}
-	assert.NotNil(t, p)
+	// Verify that init() registered this plugin with the global registry
+	// under the name "postgresql", so brutus.GetPlugin("postgresql") resolves it.
+	p, err := brutus.GetPlugin("postgresql")
+	require.NoError(t, err, "postgresql plugin must be registered via init()")
 	assert.Equal(t, "postgresql", p.Name())
 }
 

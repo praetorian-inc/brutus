@@ -80,6 +80,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
+	// Bound the SSH handshake: ssh.ClientConfig.Timeout only covers ssh.Dial's
+	// internal dial, not NewClientConn on an already-dialed conn, so without this
+	// a server that stalls the handshake hangs the worker.
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)
 	if err != nil {
@@ -152,6 +157,11 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 		return result
 	}
 	defer func() { _ = conn.Close() }()
+
+	// Bound the SSH handshake: ssh.ClientConfig.Timeout only covers ssh.Dial's
+	// internal dial, not NewClientConn on an already-dialed conn, so without this
+	// a server that stalls the handshake hangs the worker.
+	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)

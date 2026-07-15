@@ -291,13 +291,7 @@ func validateLushaIdentity() error {
 // resolveLushaAPIKey returns the flag value if set, else LUSHA_API_KEY env var.
 // The key is never logged (P0-1 security requirement).
 func resolveLushaAPIKey(flagValue string) (string, error) {
-	if flagValue != "" {
-		return flagValue, nil
-	}
-	if key := os.Getenv("LUSHA_API_KEY"); key != "" {
-		return key, nil
-	}
-	return "", fmt.Errorf("lusha API key required: set LUSHA_API_KEY or pass --api-key")
+	return resolveAPIKey(flagValue, "LUSHA_API_KEY", "lusha")
 }
 
 // classifyLushaError converts lusha sentinel errors into actionable, key-free

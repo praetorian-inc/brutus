@@ -328,12 +328,3 @@ func runProtocolTest(t *testing.T, tc testCase) {
 	})
 }
 
-// TestHTTPBasicAuth tests HTTP Basic Authentication
-// Uses httptest server since HTTP is often tested inline
-func TestHTTPBasicAuth(t *testing.T) {
-	t.Parallel()
-
-	// HTTP tests use in-process httptest server
-	// See cmd/brutus/integration_test.go for full HTTP pipeline tests
-	t.Skip("HTTP tests use in-process httptest server in cmd/brutus/integration_test.go")
-}

@@ -16,7 +16,6 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -45,62 +44,10 @@ func (p *Plugin) Name() string {
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
-	start := time.Now()
-
-	result := brutus.NewResult("influxdb", target, username, password)
-	defer func() { result.Duration = time.Since(start) }()
-
-	// Read TLS mode from context
-	tlsMode := pluginCfg.TLSMode
-
-	scheme := brutus.SchemeFromTLSMode(tlsMode)
-
-	// Build InfluxDB signin endpoint URL
-	// POST /api/v2/signin accepts HTTP Basic Auth for username/password authentication
-	// Returns 204 No Content on success, 401 Unauthorized on failure
-	url := fmt.Sprintf("%s://%s/api/v2/signin", scheme, target)
-
-	// Create HTTP POST request with context
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, http.NoBody)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-
-	// Set HTTP Basic Auth
-	req.SetBasicAuth(username, password)
-
-	// Create HTTP client with TLS config
-	client, err := brutus.NewHTTPClientWithProxy(timeout, brutus.BuildTLSConfig(tlsMode), pluginCfg.ProxyURL)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-
-	// Send HTTP request
-	resp, err := client.Do(req)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Classify response
-	if resp.StatusCode == http.StatusUnauthorized {
-		// 401 Unauthorized = authentication failure
-		result.Success = false
-		result.Error = nil
-		return result
-	}
-
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
-		// 200 OK or 204 No Content = success
-		result.Success = true
-		result.Error = nil
-		return result
-	}
-
-	// Any other status code is a connection error
-	result.Error = fmt.Errorf("connection error: unexpected status code %d", resp.StatusCode)
-	return result
+	return brutus.HTTPBasicAuthProbe{
+		Service:      "influxdb",
+		Method:       http.MethodPost,
+		Path:         "/api/v2/signin",
+		SuccessCodes: []int{http.StatusOK, http.StatusNoContent},
+	}.Run(ctx, target, username, password, timeout, pluginCfg)
 }

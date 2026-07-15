@@ -198,7 +198,7 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
 // The noVision flag disables Vision API confirmation. budget selects the settle
 // profile; fast enforces the never-clean invariant.
-func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *StickyKeysResult {
+func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *StickyKeysResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -229,7 +229,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target string, proxyURL
 
 // RunUtilmanCheck performs utilman backdoor detection on a separate connection.
 // budget selects the settle profile; fast enforces the never-clean invariant.
-func (p *Plugin) RunUtilmanCheck(ctx context.Context, target string, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *UtilmanResult {
+func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *UtilmanResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 

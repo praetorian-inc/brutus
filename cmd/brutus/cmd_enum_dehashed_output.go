@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum/dehashed"
 )
@@ -139,4 +140,74 @@ func outputDehashedJSONL(w io.Writer, entries []dehashed.Entry, showCredentials 
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding dehashed JSON: %v\n", err)
 		}
 	}
+}
+
+// outputDehashedDetailedJSON writes ONE structured JSON document (indented,
+// 2-space) describing the whole collection: run metadata plus every refined
+// contact carrying ALL available fields (ip addresses, addresses, dobs, obtained
+// dates). When showCredentials is true each entry includes the breach-exposed
+// plaintext "passwords" (omitempty); when false the key is omitted entirely
+// (never an empty array). The hashed_password field is never present (P0-SCOPE).
+// encoding/json escapes control characters, so no sanitization is needed (same
+// rationale as outputDehashedJSONL). collectedAt is taken as a parameter
+// (emitted as UTC RFC3339) so the output is deterministic and testable. The
+// encoder error is returned so the caller/tests can assert on it.
+func outputDehashedDetailedJSON(w io.Writer, domain string, rawFetched, total, balance int, entries []dehashed.Entry, showCredentials bool, collectedAt time.Time) error {
+	type detailedEntry struct {
+		Email         string   `json:"email"`
+		Names         []string `json:"names,omitempty"`
+		Usernames     []string `json:"usernames,omitempty"`
+		Phones        []string `json:"phones,omitempty"`
+		IPAddresses   []string `json:"ip_addresses,omitempty"`
+		Addresses     []string `json:"addresses,omitempty"`
+		DOBs          []string `json:"dobs,omitempty"`
+		ObtainedDates []string `json:"obtained_dates,omitempty"`
+		Databases     []string `json:"databases"`
+		Count         int      `json:"count"`
+		Passwords     []string `json:"passwords,omitempty"`
+	}
+	type detailedDocument struct {
+		Type           string          `json:"type"`
+		Domain         string          `json:"domain"`
+		CollectedAt    string          `json:"collected_at"`
+		TotalAvailable int             `json:"total_available"`
+		RecordsFetched int             `json:"records_fetched"`
+		UniqueContacts int             `json:"unique_contacts"`
+		Balance        int             `json:"balance"`
+		Entries        []detailedEntry `json:"entries"`
+	}
+
+	doc := detailedDocument{
+		Type:           "dehashed_collection",
+		Domain:         domain,
+		CollectedAt:    collectedAt.UTC().Format(time.RFC3339),
+		TotalAvailable: total,
+		RecordsFetched: rawFetched,
+		UniqueContacts: len(entries),
+		Balance:        balance,
+		Entries:        make([]detailedEntry, 0, len(entries)),
+	}
+	for i := range entries {
+		e := &entries[i]
+		de := detailedEntry{
+			Email:         e.Email,
+			Names:         e.Names,
+			Usernames:     e.Usernames,
+			Phones:        e.Phones,
+			IPAddresses:   e.IPAddresses,
+			Addresses:     e.Addresses,
+			DOBs:          e.DOBs,
+			ObtainedDates: e.ObtainedDates,
+			Databases:     e.Databases,
+			Count:         e.Count,
+		}
+		if showCredentials {
+			de.Passwords = e.Passwords
+		}
+		doc.Entries = append(doc.Entries, de)
+	}
+
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(doc)
 }

@@ -100,13 +100,17 @@ type RefineOptions struct {
 
 // Entry is a refined (optionally merged) output row.
 type Entry struct {
-	Email     string
-	Names     []string
-	Usernames []string
-	Phones    []string
-	Passwords []string // breach-exposed plaintext passwords for this entry
-	Databases []string // distinct source DBs contributing to this entry
-	Count     int      // number of raw breach records merged into this entry
+	Email         string
+	Names         []string
+	Usernames     []string
+	Phones        []string
+	Passwords     []string // breach-exposed plaintext passwords for this entry
+	Databases     []string // distinct source DBs contributing to this entry
+	Count         int      // number of raw breach records merged into this entry
+	IPAddresses   []string // distinct IP addresses across merged records
+	Addresses     []string // distinct physical addresses
+	DOBs          []string // distinct dates of birth
+	ObtainedDates []string // distinct breach obtained-dates
 }
 
 // Refine applies the filtering/merging pipeline to raw breach records and
@@ -157,13 +161,17 @@ func Refine(records []Record, opts RefineOptions) []Entry {
 		}
 
 		entries = append(entries, Entry{
-			Email:     email,
-			Names:     dedupStrings(r.Name),
-			Usernames: dedupStrings(r.Username),
-			Phones:    dedupStrings(r.Phone),
-			Passwords: dedupStrings(r.Passwords),
-			Databases: dedupStrings([]string{r.Database}),
-			Count:     1,
+			Email:         email,
+			Names:         dedupStrings(r.Name),
+			Usernames:     dedupStrings(r.Username),
+			Phones:        dedupStrings(r.Phone),
+			Passwords:     dedupStrings(r.Passwords),
+			Databases:     dedupStrings([]string{r.Database}),
+			Count:         1,
+			IPAddresses:   dedupStrings(r.IPAddress),
+			Addresses:     dedupStrings(r.Address),
+			DOBs:          dedupStrings(r.DOB),
+			ObtainedDates: dedupStrings([]string{r.ObtainedDate}),
 		})
 	}
 
@@ -503,6 +511,10 @@ func mergeEntry(entries *[]Entry, indexByEmail map[string]int, email string, r *
 	e.Phones = dedupStrings(append(e.Phones, r.Phone...))
 	e.Passwords = dedupStrings(append(e.Passwords, r.Passwords...))
 	e.Databases = dedupStrings(append(e.Databases, r.Database))
+	e.IPAddresses = dedupStrings(append(e.IPAddresses, r.IPAddress...))
+	e.Addresses = dedupStrings(append(e.Addresses, r.Address...))
+	e.DOBs = dedupStrings(append(e.DOBs, r.DOB...))
+	e.ObtainedDates = dedupStrings(append(e.ObtainedDates, r.ObtainedDate))
 	e.Count++
 }
 

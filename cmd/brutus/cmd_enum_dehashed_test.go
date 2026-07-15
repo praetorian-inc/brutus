@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -456,4 +457,78 @@ func TestEnumDehashedRegistered(t *testing.T) {
 	require.NotNil(t, alias, `hidden "dehashed" alias must be registered directly under enumCmd`)
 	assert.True(t, alias.Hidden, "back-compat dehashed alias must be Hidden")
 	assert.NotEmpty(t, alias.Deprecated, "back-compat dehashed alias must be Deprecated")
+}
+
+// ---------------------------------------------------------------------------
+// outputDehashedDetailedJSON
+// ---------------------------------------------------------------------------
+
+func TestOutputDehashedDetailedJSON(t *testing.T) {
+	collectedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	entries := []dehashed.Entry{
+		{
+			Email:         "alice@example.com",
+			Names:         []string{"Alice Smith"},
+			Usernames:     []string{"alice"},
+			Phones:        []string{"+1-555-0100"},
+			Passwords:     []string{"secret123"},
+			Databases:     []string{"breach-db"},
+			Count:         3,
+			IPAddresses:   []string{"1.2.3.4"},
+			Addresses:     []string{"123 Main St"},
+			DOBs:          []string{"1990-01-01"},
+			ObtainedDates: []string{"2021-01"},
+		},
+	}
+
+	t.Run("showCredentials=false: full shape, metadata, no passwords key, no hashes", func(t *testing.T) {
+		var buf bytes.Buffer
+		err := outputDehashedDetailedJSON(&buf, "example.com", 5, 100, 9000, entries, false, collectedAt)
+		require.NoError(t, err)
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &obj))
+		assert.Equal(t, "dehashed_collection", obj["type"])
+		assert.Equal(t, "example.com", obj["domain"])
+		assert.Equal(t, "2026-01-02T03:04:05Z", obj["collected_at"])
+		assert.Equal(t, float64(100), obj["total_available"])
+		assert.Equal(t, float64(5), obj["records_fetched"])
+		assert.Equal(t, float64(1), obj["unique_contacts"])
+		assert.Equal(t, float64(9000), obj["balance"])
+		arr, ok := obj["entries"].([]interface{})
+		require.True(t, ok)
+		require.Len(t, arr, 1)
+		entry := arr[0].(map[string]interface{})
+		assert.Equal(t, "alice@example.com", entry["email"])
+		assert.Equal(t, "1.2.3.4", entry["ip_addresses"].([]interface{})[0])
+		assert.Equal(t, "123 Main St", entry["addresses"].([]interface{})[0])
+		assert.Equal(t, "1990-01-01", entry["dobs"].([]interface{})[0])
+		assert.Equal(t, "2021-01", entry["obtained_dates"].([]interface{})[0])
+		assert.Equal(t, "breach-db", entry["databases"].([]interface{})[0])
+		assert.Equal(t, float64(3), entry["count"])
+		_, hasPw := entry["passwords"]
+		assert.False(t, hasPw, "passwords key must be ABSENT when showCredentials=false")
+		low := strings.ToLower(buf.String())
+		assert.NotContains(t, low, "secret123")
+		assert.NotContains(t, low, "hashed_password")
+		assert.NotContains(t, low, `"hash"`)
+	})
+
+	t.Run("showCredentials=true: passwords key PRESENT with values, still no hashes", func(t *testing.T) {
+		var buf bytes.Buffer
+		err := outputDehashedDetailedJSON(&buf, "example.com", 5, 100, 9000, entries, true, collectedAt)
+		require.NoError(t, err)
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &obj))
+		entry := obj["entries"].([]interface{})[0].(map[string]interface{})
+		pw, ok := entry["passwords"].([]interface{})
+		require.True(t, ok, "passwords key must be PRESENT when showCredentials=true")
+		assert.Equal(t, "secret123", pw[0])
+		assert.NotContains(t, strings.ToLower(buf.String()), "hashed_password")
+	})
+
+	t.Run("output is indented with 2 spaces", func(t *testing.T) {
+		var buf bytes.Buffer
+		require.NoError(t, outputDehashedDetailedJSON(&buf, "example.com", 5, 100, 9000, entries, false, collectedAt))
+		assert.Contains(t, buf.String(), "\n  \"type\"", "document must be 2-space indented")
+	})
 }

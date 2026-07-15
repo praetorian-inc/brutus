@@ -22,6 +22,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -40,6 +41,8 @@ var (
 	flagDehashedNoCredentials     bool
 	flagDehashedSources           []string
 	flagDehashedNoRepair          bool
+	flagDehashedDetailed          bool
+	flagDehashedWithCredentials   bool
 )
 
 // newEnumDehashedCmd builds the "dehashed" command. A fresh instance is
@@ -79,6 +82,12 @@ enforced client-side. Truncated email local-parts (a leading character or two
 dropped by broker/aggregator sources) are repaired using each record's name data
 by default; use --no-repair-emails to disable that repair.
 
+Use --detailed to emit a single structured JSON document per domain (run metadata
+plus every contact with all available fields: ip addresses, addresses, dates of
+birth, and breach obtained-dates). In --detailed mode passwords are OFF by
+default; add --with-credentials to include the breach-exposed plaintext passwords
+(hashes are never included, and --no-credentials still wins as a safety override).
+
 Requires a DeHashed API key via the DEHASHED_API_KEY environment variable
 (or the --api-key flag).
 
@@ -99,6 +108,12 @@ to bound the number of results (and therefore credits) per run.`,
   # Disable truncated-email repair (repair is on by default)
   brutus enum passive dehashed -d example.com --no-repair-emails
 
+  # Emit one structured JSON document with full per-contact detail + run metadata
+  brutus enum passive dehashed -d example.com --detailed -o breaches.json
+
+  # Same detailed export, including breach-exposed plaintext passwords
+  brutus enum passive dehashed -d example.com --detailed --with-credentials -o breaches.json
+
   # Provide the key explicitly (note: visible in process list / shell history)
   brutus enum passive dehashed -d example.com --api-key abc123
 
@@ -118,6 +133,8 @@ to bound the number of results (and therefore credits) per run.`,
 	f.BoolVar(&flagDehashedNoCredentials, "no-credentials", false, "Suppress breach-exposed plaintext passwords from the output")
 	f.StringSliceVar(&flagDehashedSources, "sources", nil, "Restrict results to these DeHashed source databases (comma-separated, exact names)")
 	f.BoolVar(&flagDehashedNoRepair, "no-repair-emails", false, "Do not repair truncated email local-parts using record name data (repair is on by default)")
+	f.BoolVar(&flagDehashedDetailed, "detailed", false, "Emit a single structured JSON document with full per-contact detail (ip addresses, addresses, dobs, obtained dates) and run metadata")
+	f.BoolVar(&flagDehashedWithCredentials, "with-credentials", false, "Include breach-exposed plaintext passwords in --detailed output (off by default; hashes are never included)")
 	_ = cmd.MarkFlagRequired("domain")
 
 	return cmd
@@ -195,6 +212,18 @@ func runEnumDehashed(cmd *cobra.Command, args []string) error {
 		len(result.Records), len(entries), result.Total, result.Balance)
 
 	showCredentials := !flagDehashedNoCredentials
+
+	// --detailed takes precedence over the human/JSONL branch. It reuses the same
+	// output-file plumbing as JSON (jsonWriter is the file when -o is set, else
+	// os.Stdout). Passwords are OFF by default here; --with-credentials opts in,
+	// but --no-credentials always wins as a safety override.
+	if flagDehashedDetailed {
+		detailedShowCreds := flagDehashedWithCredentials && !flagDehashedNoCredentials
+		if err := outputDehashedDetailedJSON(jsonWriter, flagDehashedDomain, len(result.Records), result.Total, result.Balance, entries, detailedShowCreds, time.Now()); err != nil {
+			return fmt.Errorf("writing detailed dehashed output: %w", err)
+		}
+		return nil
+	}
 
 	if flagJSON {
 		outputDehashedJSONL(jsonWriter, entries, showCredentials)

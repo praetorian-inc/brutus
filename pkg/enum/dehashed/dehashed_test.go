@@ -878,3 +878,53 @@ func TestSearchWithOptions_Sources(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res2.Records, 1, "limit bounds matching records")
 }
+
+// ---------------------------------------------------------------------------
+// Refine — detailed fields (IPAddresses, Addresses, DOBs, ObtainedDates)
+// ---------------------------------------------------------------------------
+
+func TestRefine_DetailedFields(t *testing.T) {
+	t.Run("non-dedup single record populates ip/address/dob/obtained (deduped)", func(t *testing.T) {
+		records := []Record{
+			{
+				Email:        []string{"alice@example.com"},
+				IPAddress:    []string{"1.2.3.4", "1.2.3.4"},
+				Address:      []string{"123 Main St"},
+				DOB:          []string{"1990-01-01"},
+				Database:     "DB-A",
+				ObtainedDate: "2021-01",
+			},
+		}
+		got := Refine(records, RefineOptions{Domain: "example.com"})
+		require.Len(t, got, 1)
+		e := got[0]
+		assert.Equal(t, []string{"1.2.3.4"}, e.IPAddresses)
+		assert.Equal(t, []string{"123 Main St"}, e.Addresses)
+		assert.Equal(t, []string{"1990-01-01"}, e.DOBs)
+		assert.Equal(t, []string{"2021-01"}, e.ObtainedDates)
+	})
+
+	t.Run("non-dedup empty obtained date dropped", func(t *testing.T) {
+		records := []Record{
+			{Email: []string{"a@example.com"}, Database: "DB", ObtainedDate: ""},
+		}
+		got := Refine(records, RefineOptions{Domain: "example.com"})
+		require.Len(t, got, 1)
+		assert.Empty(t, got[0].ObtainedDates, "empty obtained date must be dropped")
+	})
+
+	t.Run("dedup unions and dedups ip/address/dob/obtained across records", func(t *testing.T) {
+		records := []Record{
+			{Email: []string{"alice@example.com"}, IPAddress: []string{"1.1.1.1"}, Address: []string{"Addr A"}, DOB: []string{"1990-01-01"}, ObtainedDate: "2021-01", Database: "DB-A"},
+			{Email: []string{"alice@example.com"}, IPAddress: []string{"2.2.2.2", "1.1.1.1"}, Address: []string{"Addr B"}, DOB: []string{"1990-01-01"}, ObtainedDate: "2022-06", Database: "DB-B"},
+			{Email: []string{"alice@example.com"}, IPAddress: []string{""}, Address: []string{""}, DOB: []string{""}, ObtainedDate: "", Database: "DB-C"},
+		}
+		got := Refine(records, RefineOptions{Domain: "example.com", Dedup: true})
+		require.Len(t, got, 1)
+		e := got[0]
+		assert.ElementsMatch(t, []string{"1.1.1.1", "2.2.2.2"}, e.IPAddresses)
+		assert.ElementsMatch(t, []string{"Addr A", "Addr B"}, e.Addresses)
+		assert.Equal(t, []string{"1990-01-01"}, e.DOBs)
+		assert.ElementsMatch(t, []string{"2021-01", "2022-06"}, e.ObtainedDates)
+	})
+}

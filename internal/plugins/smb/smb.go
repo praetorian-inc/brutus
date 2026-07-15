@@ -28,6 +28,10 @@ import (
 var smbAuthIndicators = []string{
 	"STATUS_LOGON_FAILURE",
 	"authentication failed",
+	// go-smb2 surfaces STATUS_LOGON_FAILURE as this descriptive text rather
+	// than the symbolic code, so match it explicitly.
+	"the attempted logon is invalid",
+	"bad username or authentication information",
 }
 
 func init() {

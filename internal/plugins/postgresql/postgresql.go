@@ -16,14 +16,28 @@ package postgresql
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
+
+// skipVerifyTLSKey names the pq custom TLS config registered for skip-verify
+// mode. lib/pq's built-in sslmode=require silently upgrades to CA verification
+// (matching sslmode=verify-ca) whenever a root CA file is found at the default
+// ~/.postgresql/root.crt location, so it can't be relied on to truly skip
+// verification. Registering an explicit InsecureSkipVerify config and
+// selecting it via sslmode=pqgo-<key> bypasses that fallback.
+const skipVerifyTLSKey = "brutus-skip-verify"
+
+var registerSkipVerifyTLS = sync.OnceFunc(func() {
+	_ = pq.RegisterTLSConfig(skipVerifyTLSKey, &tls.Config{InsecureSkipVerify: true}) //nolint:gosec // user explicitly chose skip-verify
+})
 
 var postgresqlAuthIndicators = []string{
 	"password authentication failed",
@@ -53,7 +67,8 @@ func sslMode(tlsMode string) string {
 	case "verify":
 		return "verify-full"
 	case "skip-verify":
-		return "require"
+		registerSkipVerifyTLS()
+		return "pqgo-" + skipVerifyTLSKey
 	default: // "disable"
 		return "disable"
 	}

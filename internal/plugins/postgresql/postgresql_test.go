@@ -54,7 +54,7 @@ func TestSSLMode(t *testing.T) {
 		want    string
 	}{
 		{"verify", "verify-full"},
-		{"skip-verify", "require"},
+		{"skip-verify", "pqgo-brutus-skip-verify"},
 		{"disable", "disable"},
 		{"", "disable"},
 	}

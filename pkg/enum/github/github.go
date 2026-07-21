@@ -105,6 +105,14 @@ type Enumerator struct {
 	existenceBackoff    time.Duration
 	existenceMaxRetries int
 
+	// rotatingProxy records whether the existence path egresses through a
+	// rotating proxy (each new connection = a fresh exit IP). It gates the
+	// HTTP 403 retry in postValidity: GitHub blocks ~80-87% of datacenter exit
+	// IPs on the validity endpoint, so retrying a 403 only helps when the retry
+	// can land on a different IP. In non-rotating mode a 403 = a persistently
+	// blocked IP, so retrying would just add latency and is skipped.
+	rotatingProxy bool
+
 	// Base URLs default to the real GitHub hosts and are overridable by tests.
 	webBaseURL string
 	apiBaseURL string
@@ -144,6 +152,20 @@ func NewEnumerator(proxyURL string, timeout time.Duration, token string, rotatin
 		return nil, fmt.Errorf("github enum: configuring HTTP client: %w", err)
 	}
 
+	// With a rotating proxy, disable HTTP keep-alives so each request (and each
+	// retry) opens a fresh TCP connection and thus egresses from a fresh proxy
+	// exit IP. Without this, retries reuse the pooled connection = the SAME exit
+	// IP, and rotation never happens — defeating the whole point of retrying a
+	// 403/429 under --rotating-proxy. Set it on the underlying *http.Transport
+	// BEFORE the WithUserAgent wrap. NOTE: apiClient is a clone that shares this
+	// transport, so reveal also gets DisableKeepAlives in rotating mode; that is
+	// harmless (reveal is sequential and PAT-based, not IP-reputation-gated).
+	if rotatingProxy {
+		if tr, ok := httpClient.Transport.(*http.Transport); ok {
+			tr.DisableKeepAlives = true
+		}
+	}
+
 	// GitHub rejects Go's default "Go-http-client/…" User-Agent: github.com/join
 	// returns 403 with no CSRF token, and api.github.com requires a UA. Inject a
 	// browser UA at the transport layer so every existence and reveal request
@@ -179,6 +201,7 @@ func NewEnumerator(proxyURL string, timeout time.Duration, token string, rotatin
 		token:               token,
 		existenceBackoff:    existenceBackoff,
 		existenceMaxRetries: existenceMaxRetries,
+		rotatingProxy:       rotatingProxy,
 		webBaseURL:          webBaseURLDefault,
 		apiBaseURL:          apiBaseURLDefault,
 		settleDelay:         settleDelayDefault,

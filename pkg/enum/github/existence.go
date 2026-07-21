@@ -242,7 +242,10 @@ func (e *Enumerator) checkEmail(ctx context.Context, sess *session, email string
 
 // postValidity POSTs email to {web}/email_validity_checks with the session's
 // CSRF token and cookies. It returns true when the address is in use (HTTP 422),
-// false when available (HTTP 200), retrying on HTTP 429 up to maxRateLimitRetries.
+// false when available (HTTP 200), retrying on HTTP 429 up to existenceMaxRetries.
+// HTTP 403 (GitHub blocking the exit IP) is also retried, but ONLY under
+// --rotating-proxy, where each retry egresses a fresh IP; in non-rotating mode a
+// 403 is a persistently blocked IP and fails fast.
 func (e *Enumerator) postValidity(ctx context.Context, sess *session, email string) (bool, error) {
 	form := url.Values{}
 	form.Set("authenticity_token", sess.csrfToken)
@@ -274,6 +277,23 @@ func (e *Enumerator) postValidity(ctx context.Context, sess *session, email stri
 		case http.StatusTooManyRequests: // 429 — rate limited
 			if attempt >= e.existenceMaxRetries {
 				return false, fmt.Errorf("rate limited (HTTP 429) after %d retries", attempt)
+			}
+			if err := e.sleep(ctx, e.existenceBackoff); err != nil {
+				return false, err
+			}
+			continue
+		case http.StatusForbidden: // 403 — GitHub blocked this exit IP
+			// GitHub blocks ~80-87% of datacenter/rotating-proxy exit IPs on the
+			// validity endpoint. Retrying only helps under --rotating-proxy, where
+			// each retry opens a fresh connection and thus a fresh exit IP (see
+			// DisableKeepAlives in NewEnumerator). In non-rotating mode a 403 is a
+			// persistently blocked IP, so retrying would just add ~10s/email of
+			// pointless latency — fail fast there. Retry accounting mirrors 429.
+			if !e.rotatingProxy {
+				return false, fmt.Errorf("unexpected status %d from validity endpoint", status)
+			}
+			if attempt >= e.existenceMaxRetries {
+				return false, fmt.Errorf("validity check blocked (HTTP 403) after %d retries", attempt)
 			}
 			if err := e.sleep(ctx, e.existenceBackoff); err != nil {
 				return false, err

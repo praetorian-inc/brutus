@@ -1176,3 +1176,78 @@ func TestExistence_SetsBrowserUserAgent(t *testing.T) {
 	assert.True(t, results[0].Exists,
 		"HTTP 422 from validity endpoint must map to Exists=true")
 }
+
+// TestExistence_SetsAcceptHeader is a regression test for the bug where the
+// existence client sent no Accept header on its requests, so Go's net/http
+// defaulted to omitting it entirely. GitHub's signup page (/join) returns HTTP
+// 403 to any request lacking an Accept header — proven empirically: the same
+// client, in the same second, got HTTP 200 WITH an Accept header and HTTP 403
+// WITHOUT one, across 25+ no-Accept samples that never succeeded.
+//
+// This test's /join and /email_validity_checks handlers record the Accept
+// header they actually received. Enumeration succeeding (no error) plus the
+// captured headers being non-empty proves both requests carry an Accept header
+// — not just that the fake server happened to tolerate a missing one.
+func TestExistence_SetsAcceptHeader(t *testing.T) {
+	t.Parallel()
+
+	const csrfToken = "csrf-accept-header-test-token"
+
+	signupHTML := fmt.Sprintf(`<!DOCTYPE html><html><body>
+<auto-check src="/email_validity_checks">
+  <input type="hidden" value="%s">
+</auto-check>
+</body></html>`, csrfToken)
+
+	var joinAccept, validityAccept string
+
+	mux := http.NewServeMux()
+
+	// /join records the Accept header it received before serving the
+	// CSRF-bearing page. In production, GitHub 403s this request when Accept
+	// is absent — this fake server always serves the page, so the assertion
+	// below is what actually catches a regression, not the handler.
+	mux.HandleFunc("/join", func(w http.ResponseWriter, r *http.Request) {
+		joinAccept = r.Header.Get("Accept")
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = fmt.Fprint(w, signupHTML)
+	})
+
+	// /email_validity_checks records the Accept header from the first request
+	// it sees (the establishSession sanity check fires before the target
+	// email's check, so this captures that first POST's header).
+	mux.HandleFunc("/email_validity_checks", func(w http.ResponseWriter, r *http.Request) {
+		if validityAccept == "" {
+			validityAccept = r.Header.Get("Accept")
+		}
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if r.FormValue("value") == "target@example.com" {
+			w.WriteHeader(http.StatusUnprocessableEntity) // 422 → exists
+		} else {
+			w.WriteHeader(http.StatusOK) // 200 → available
+		}
+	})
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	e := newTestEnumerator(t, srv, nil, "")
+
+	results := e.Enumerate(context.Background(), []string{"target@example.com"}, 1, 0, 0)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Error)
+	assert.True(t, results[0].Exists,
+		"HTTP 422 from validity endpoint must map to Exists=true")
+
+	assert.NotEmpty(t, joinAccept,
+		"the join-page GET must carry a non-empty Accept header — GitHub 403s the join page when it is absent")
+	assert.Contains(t, joinAccept, "text/html",
+		"the join-page Accept header must include text/html so GitHub serves the real page, not a 403 stub")
+
+	assert.Equal(t, "*/*", validityAccept,
+		"the validity-check POST must carry Accept: */*")
+}

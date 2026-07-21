@@ -177,6 +177,12 @@ func (e *Enumerator) tryEstablishSession(ctx context.Context) (*session, bool, e
 	if err != nil {
 		return nil, false, fmt.Errorf("github enum: creating join request: %w", err)
 	}
+	// GitHub's signup page returns 403 (a token-less stub) to requests that lack an
+	// Accept header — Go's net/http omits it by default. The browser User-Agent is
+	// already injected at the transport layer (enum.WithUserAgent in NewEnumerator);
+	// a browser-like Accept is the other half of that "look like a normal client"
+	// pattern, so the join page returns the real CSRF-bearing HTML.
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
 
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
@@ -255,6 +261,7 @@ func (e *Enumerator) postValidity(ctx context.Context, sess *session, email stri
 			return false, fmt.Errorf("creating validity request: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Accept", "*/*")
 		if sess.cookieHeader != "" {
 			req.Header.Set("Cookie", sess.cookieHeader)
 		}

@@ -134,6 +134,9 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if flagRotatingProxy && proxyURL == "" {
+		fmt.Fprintln(os.Stderr, "[!] github enum: --rotating-proxy has no effect without --proxy (direct connection does not rotate IPs); ignoring.")
+	}
 
 	enumerator, err := githubenum.NewEnumerator(proxyURL, flagTimeout, token, flagRotatingProxy)
 	if err != nil {

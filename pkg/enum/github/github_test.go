@@ -214,6 +214,39 @@ func newTestEnumerator(t *testing.T, webSrv, apiSrv *httptest.Server, token stri
 	return e
 }
 
+// fakeRotatingProxyURL is a syntactically-valid, never-dialed socks5 proxy
+// URL. NewEnumerator only treats --rotating-proxy as effective when a proxy
+// is actually configured (Codex P2 fix: rotatingProxy && proxyURL != ""), so
+// tests that only inspect the resulting Enumerator's fields (and never make a
+// network request) can use this constant to exercise that gate honestly
+// rather than asserting on the unexported field directly.
+const fakeRotatingProxyURL = "socks5://127.0.0.1:1"
+
+// newRotatingTestEnumerator is like newTestEnumerator but constructs the
+// Enumerator with rotatingProxy=true and a real (non-empty) proxyURL, so the
+// HTTP 403 retry-on-rotating-proxy path in postValidity is exercised — the
+// Codex P2 fix makes --rotating-proxy effective only when a proxy is actually
+// configured. webSrv itself is passed as the proxyURL: since Go's
+// http.Transport sends plain-HTTP requests to a configured proxy in absolute
+// form (see pkg/brutus/proxy_test.go's TestProxyAuthorization_EndToEnd) and
+// the proxy target here is the same server as webBaseURL, webSrv's own mux
+// handles the request directly — no separate forwarding proxy implementation
+// is needed. existenceMaxRetries is overridden to the given small value so
+// retry-exhaustion tests stay fast and deterministic (real rotating-proxy
+// runs default to rotatingProxyMaxRetries, which is too large for a test).
+func newRotatingTestEnumerator(t *testing.T, webSrv *httptest.Server, existenceMaxRetries int) *Enumerator {
+	t.Helper()
+	require.NotNil(t, webSrv, "newRotatingTestEnumerator requires a webSrv to double as the proxy target")
+	e, err := NewEnumerator(webSrv.URL, 5*time.Second, "", true)
+	require.NoError(t, err, "NewEnumerator must succeed")
+	e.webBaseURL = webSrv.URL
+	e.settleDelay = 0
+	e.sleep = noopSleep
+	e.newName = deterministicName
+	e.existenceMaxRetries = existenceMaxRetries
+	return e
+}
+
 // ---------------------------------------------------------------------------
 // Existence tests: 422 → Exists=true, 200 → Exists=false
 // ---------------------------------------------------------------------------
@@ -940,12 +973,15 @@ func TestNewEnumerator_RotatingProxy(t *testing.T) {
 
 	t.Run("rotatingProxy=true uses rotating-proxy throttle", func(t *testing.T) {
 		t.Parallel()
-		e, err := NewEnumerator("", time.Second, "", true)
+		// rotatingProxy is only effective when a proxy is actually configured
+		// (Codex P2 fix), so a proxyURL is required here to observe the
+		// rotating-proxy throttle constants.
+		e, err := NewEnumerator(fakeRotatingProxyURL, time.Second, "", true)
 		require.NoError(t, err)
 		assert.Equal(t, rotatingProxyBackoff, e.existenceBackoff,
-			"existenceBackoff must equal rotatingProxyBackoff when rotatingProxy=true")
+			"existenceBackoff must equal rotatingProxyBackoff when rotatingProxy=true and a proxy is configured")
 		assert.Equal(t, rotatingProxyMaxRetries, e.existenceMaxRetries,
-			"existenceMaxRetries must equal rotatingProxyMaxRetries when rotatingProxy=true")
+			"existenceMaxRetries must equal rotatingProxyMaxRetries when rotatingProxy=true and a proxy is configured")
 	})
 }
 
@@ -1250,4 +1286,269 @@ func TestExistence_SetsAcceptHeader(t *testing.T) {
 
 	assert.Equal(t, "*/*", validityAccept,
 		"the validity-check POST must carry Accept: */*")
+}
+
+// ---------------------------------------------------------------------------
+// postValidity 403 handling: rotating-proxy retries, non-rotating fails fast
+// ---------------------------------------------------------------------------
+
+// validity403Mux builds an http.ServeMux for the postValidity 403-handling
+// tests. /join always serves a valid CSRF-bearing page. /email_validity_checks
+// always returns 200 for the sanity-check address (any @foobar.com email, per
+// establishSession) so session setup never itself hits the 403 path under
+// test; for every other email it increments targetCalls and returns 403 for
+// the first failCount calls, then 422 (exists) afterward. A failCount of -1
+// (or any count >= existenceMaxRetries+1) never recovers, modeling a
+// permanently blocked IP.
+func validity403Mux(t *testing.T, csrfToken string, targetCalls *atomic.Int32, failCount int) *http.ServeMux {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/join", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `<!DOCTYPE html><html><body>
+<auto-check src="/email_validity_checks">
+  <input type="hidden" value="%s">
+</auto-check>
+</body></html>`, csrfToken)
+	})
+	mux.HandleFunc("/email_validity_checks", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if strings.HasSuffix(r.FormValue("value"), "@foobar.com") {
+			w.WriteHeader(http.StatusOK) // sanity check always passes
+			return
+		}
+		n := targetCalls.Add(1)
+		if failCount < 0 || n <= int32(failCount) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusUnprocessableEntity) // recovers to exists
+	})
+	return mux
+}
+
+// TestExistence_403RetriedToSuccess_RotatingProxy verifies that under
+// --rotating-proxy, an HTTP 403 from the validity endpoint is retried (each
+// retry modeling a fresh exit IP) rather than failing immediately, and that
+// once the block lifts the underlying 422/200 result is still returned
+// correctly.
+func TestExistence_403RetriedToSuccess_RotatingProxy(t *testing.T) {
+	t.Parallel()
+
+	const target = "blocked@example.com"
+	const failCount = 2
+	var targetCalls atomic.Int32
+
+	srv := httptest.NewServer(validity403Mux(t, "csrf-403-retry", &targetCalls, failCount))
+	t.Cleanup(srv.Close)
+
+	e := newRotatingTestEnumerator(t, srv, failCount+2) // retry budget covers failCount
+
+	results := e.Enumerate(context.Background(), []string{target}, 1, 0, 0)
+
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Error,
+		"403s must be retried to success under --rotating-proxy, not surfaced as an error")
+	assert.True(t, results[0].Exists, "422 after the retries succeed must map to Exists=true")
+	assert.Equal(t, int32(failCount+1), targetCalls.Load(),
+		"validity endpoint must be hit failCount+1 times: failCount 403s + 1 recovering 422")
+}
+
+// TestExistence_403FailsFast_NonRotatingProxy verifies that without
+// --rotating-proxy, an HTTP 403 from the validity endpoint is NOT retried: it
+// fails immediately with the generic "unexpected status" error (same as any
+// other unhandled status code), and the validity endpoint is hit exactly once.
+func TestExistence_403FailsFast_NonRotatingProxy(t *testing.T) {
+	t.Parallel()
+
+	const target = "blocked@example.com"
+	var targetCalls atomic.Int32
+
+	// failCount=-1: the handler would always return 403 for the target if ever
+	// called more than once, so a second call would also prove the (absent)
+	// retry happened; targetCalls asserts it was called exactly once regardless.
+	srv := httptest.NewServer(validity403Mux(t, "csrf-403-failfast", &targetCalls, -1))
+	t.Cleanup(srv.Close)
+
+	// newTestEnumerator always builds with rotatingProxy=false.
+	e := newTestEnumerator(t, srv, nil, "")
+
+	results := e.Enumerate(context.Background(), []string{target}, 1, 0, 0)
+
+	require.Len(t, results, 1)
+	require.Error(t, results[0].Error,
+		"a 403 from the validity endpoint in non-rotating mode must be surfaced as an error")
+	assert.Contains(t, results[0].Error.Error(), "unexpected status 403",
+		"non-rotating 403 must fail with the generic unexpected-status error, not a retry-exhaustion error")
+	assert.Equal(t, int32(1), targetCalls.Load(),
+		"validity endpoint must be hit exactly once — non-rotating mode must never retry a 403")
+}
+
+// TestExistence_403ExhaustsRetries_RotatingProxy verifies that under
+// --rotating-proxy, when the validity endpoint returns 403 on every attempt
+// (the block never lifts), postValidity retries up to existenceMaxRetries and
+// then returns the retry-exhaustion error, having hit the endpoint
+// existenceMaxRetries+1 times in total.
+func TestExistence_403ExhaustsRetries_RotatingProxy(t *testing.T) {
+	t.Parallel()
+
+	const target = "blocked@example.com"
+	const maxRetries = 2
+	var targetCalls atomic.Int32
+
+	// failCount=-1: 403 for every call to the target email, so retries never
+	// recover and existenceMaxRetries is exhausted.
+	srv := httptest.NewServer(validity403Mux(t, "csrf-403-exhaust", &targetCalls, -1))
+	t.Cleanup(srv.Close)
+
+	e := newRotatingTestEnumerator(t, srv, maxRetries)
+
+	results := e.Enumerate(context.Background(), []string{target}, 1, 0, 0)
+
+	require.Len(t, results, 1)
+	require.Error(t, results[0].Error,
+		"exhausting all retries on a persistent 403 under --rotating-proxy must produce an error")
+	assert.Contains(t, results[0].Error.Error(), "validity check blocked (HTTP 403) after",
+		"error must report retry exhaustion, not the generic unexpected-status error")
+	assert.Equal(t, int32(maxRetries+1), targetCalls.Load(),
+		"validity endpoint must be hit existenceMaxRetries+1 times: the initial attempt plus every retry")
+}
+
+// ---------------------------------------------------------------------------
+// NewEnumerator: rotatingProxy disables HTTP keep-alives (fresh exit IP)
+// ---------------------------------------------------------------------------
+
+// closeObservingWebServer starts a fake GitHub web server whose
+// /email_validity_checks handler records, in sawClose, whether the inbound
+// request for the (non-sanity-check) target email carried r.Close == true —
+// i.e. whether the client sent "Connection: close" — then returns 200
+// (available) so enumeration completes successfully regardless of the
+// keep-alive setting under test.
+func closeObservingWebServer(t *testing.T, sawClose *atomic.Bool) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/join", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprint(w, `<!DOCTYPE html><html><body>
+<auto-check src="/email_validity_checks">
+  <input type="hidden" value="csrf-keepalive-test">
+</auto-check>
+</body></html>`)
+	})
+	mux.HandleFunc("/email_validity_checks", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if !strings.HasSuffix(r.FormValue("value"), "@foobar.com") {
+			sawClose.Store(r.Close)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestNewEnumerator_RotatingProxyDisablesKeepAlives verifies the behavioral
+// effect of the DisableKeepAlives wiring in NewEnumerator: under
+// rotatingProxy=true every existence request must carry "Connection: close"
+// (observed server-side as http.Request.Close == true) so each retry opens a
+// fresh TCP connection — and thus a fresh proxy exit IP — instead of reusing a
+// pooled, already-blocked connection. Under rotatingProxy=false, connections
+// must be kept alive as normal (r.Close == false).
+//
+// This test goes through NewEnumerator directly so the real *http.Transport
+// built by brutus.NewHTTPClientWithProxy is exercised, rather than asserting
+// on the unexported field directly. The rotatingProxy=true case must supply a
+// non-empty proxyURL — NewEnumerator only treats --rotating-proxy as
+// effective when a proxy is actually configured (Codex P2 fix) — so it passes
+// webSrv itself as the proxyURL: Go's http.Transport sends plain-HTTP
+// requests to a configured proxy in absolute form (see pkg/brutus/proxy_test.go's
+// TestProxyAuthorization_EndToEnd), and since the proxy target here is the
+// same server as webBaseURL, webSrv's own mux handles the request directly —
+// no separate forwarding proxy implementation is needed.
+func TestNewEnumerator_RotatingProxyDisablesKeepAlives(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rotatingProxy=true sends Connection: close", func(t *testing.T) {
+		t.Parallel()
+
+		var sawClose atomic.Bool
+		webSrv := closeObservingWebServer(t, &sawClose)
+
+		e, err := NewEnumerator(webSrv.URL, 5*time.Second, "", true)
+		require.NoError(t, err)
+		e.webBaseURL = webSrv.URL
+		e.sleep = noopSleep
+		e.newName = deterministicName
+
+		results := e.Enumerate(context.Background(), []string{"alice@example.com"}, 1, 0, 0)
+
+		require.Len(t, results, 1)
+		require.NoError(t, results[0].Error, "enumeration against the fake server must succeed")
+		assert.True(t, sawClose.Load(),
+			"rotatingProxy=true must set DisableKeepAlives so requests carry Connection: close (r.Close == true)")
+	})
+
+	t.Run("rotatingProxy=false keeps connections alive", func(t *testing.T) {
+		t.Parallel()
+
+		var sawClose atomic.Bool
+		webSrv := closeObservingWebServer(t, &sawClose)
+
+		e, err := NewEnumerator("", 5*time.Second, "", false)
+		require.NoError(t, err)
+		e.webBaseURL = webSrv.URL
+		e.sleep = noopSleep
+		e.newName = deterministicName
+
+		results := e.Enumerate(context.Background(), []string{"alice@example.com"}, 1, 0, 0)
+
+		require.Len(t, results, 1)
+		require.NoError(t, results[0].Error, "enumeration against the fake server must succeed")
+		assert.False(t, sawClose.Load(),
+			"rotatingProxy=false must NOT set DisableKeepAlives — connections must be kept alive (r.Close == false)")
+	})
+}
+
+// ---------------------------------------------------------------------------
+// NewEnumerator: --rotating-proxy without --proxy is not effectively rotating
+// ---------------------------------------------------------------------------
+
+// TestNewEnumerator_RotatingProxyRequiresProxy is a regression test for a
+// Codex P2 fix: --rotating-proxy without --proxy connects directly, so
+// treating it as rotating caused up to rotatingProxyMaxRetries (15) pointless
+// same-IP retries on every blocked request. NewEnumerator now computes the
+// effective rotating flag as rotatingProxy && proxyURL != "", so a bare
+// --rotating-proxy (no proxy configured) must behave exactly like
+// rotatingProxy=false: the rotatingProxy field is false and the tuning
+// (existenceMaxRetries) falls back to maxRateLimitRetries. Configuring both
+// flags together must still enable the rotating behavior and its faster
+// retry budget.
+func TestNewEnumerator_RotatingProxyRequiresProxy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rotatingProxy=true without a proxy is not effective", func(t *testing.T) {
+		t.Parallel()
+
+		e, err := NewEnumerator("", time.Second, "", true)
+		require.NoError(t, err)
+		assert.False(t, e.rotatingProxy,
+			"rotatingProxy field must be false when --rotating-proxy is set but no proxyURL is configured")
+		assert.Equal(t, maxRateLimitRetries, e.existenceMaxRetries,
+			"existenceMaxRetries must fall back to the non-rotating default (maxRateLimitRetries) without a proxy")
+	})
+
+	t.Run("rotatingProxy=true with a proxy is effective", func(t *testing.T) {
+		t.Parallel()
+
+		e, err := NewEnumerator("socks5://127.0.0.1:1080", time.Second, "", true)
+		require.NoError(t, err)
+		assert.True(t, e.rotatingProxy,
+			"rotatingProxy field must be true when --rotating-proxy is set and a proxyURL is configured")
+		assert.Equal(t, rotatingProxyMaxRetries, e.existenceMaxRetries,
+			"existenceMaxRetries must use the rotating-proxy tuning (rotatingProxyMaxRetries) when a proxy is configured")
+	})
 }

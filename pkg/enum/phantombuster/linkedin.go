@@ -60,12 +60,14 @@ type ScrapeResult struct {
 
 // ParseSalesNavCSV parses the CSV output from a PhantomBuster Sales Navigator
 // Profile Scraper run. The parser is lenient: missing columns map to empty
-// strings. PhantomBuster does not publish a formal CSV schema, so column
-// names are mapped best-effort from documented and observed field names.
-func ParseSalesNavCSV(data []byte) (*ScrapeResult, error) {
-	reader := csv.NewReader(strings.NewReader(string(data)))
+// strings and rows with fewer fields are accepted. PhantomBuster does not
+// publish a formal CSV schema, so column names are mapped best-effort from
+// documented and observed field names.
+func ParseSalesNavCSV(r io.Reader) (*ScrapeResult, error) {
+	reader := csv.NewReader(r)
 	reader.LazyQuotes = true
 	reader.TrimLeadingSpace = true
+	reader.FieldsPerRecord = -1
 
 	headers, err := reader.Read()
 	if err != nil {

@@ -121,6 +121,16 @@ type Enumerator struct {
 	// them, giving GitHub time to resolve author logins. Overridable by tests.
 	settleDelay time.Duration
 
+	// OnSessionProgress, if non-nil, is invoked at the start of each
+	// session-establishment attempt with the 1-based attempt number, the total
+	// attempt budget (existenceMaxRetries+1), and the previous attempt's error
+	// (nil on the first attempt). It lets the operator CLI surface live feedback
+	// during the up-front CSRF-session gate — which otherwise runs silently and,
+	// under a slow or IP-blocked proxy, looks like a hang. The library leaves it
+	// nil (no output, no behavior change) so pkg/enum stays print-free for its
+	// SaaS/Guard importers.
+	OnSessionProgress func(attempt, maxAttempts int, lastErr error)
+
 	// sleep waits for d or until ctx is canceled; overridable by tests to avoid
 	// real delays. newName generates a random hex name for repos and files;
 	// overridable by tests for determinism.

@@ -180,6 +180,30 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 		progress.Update(processed, fmt.Sprintf("%d found", found))
 	}
 
+	// Surface live progress during the up-front CSRF-session gate. That gate runs
+	// before any email completes, so the progress bar correctly sits at 0/N;
+	// against a slow or IP-blocked proxy it can retry for tens of seconds with no
+	// feedback and look like a hang. Emitting a status line per attempt — with
+	// the failing reason (e.g. HTTP 403) on retries — makes the wait and its
+	// cause visible immediately. Interactive output only; quiet/JSON stay clean.
+	// Only the existence path has this gate (the map/reveal path uses the token
+	// flow), so wiring it here is sufficient.
+	if !flagQuiet && !flagJSON {
+		enumerator.OnSessionProgress = func(attempt, maxAttempts int, lastErr error) {
+			// Clear the in-place bar before printing so the bar's partial line
+			// doesn't corrupt the status line; the bar redraws on the next tick.
+			progress.Clear()
+			if lastErr == nil {
+				fmt.Fprintf(os.Stderr, "%s Establishing GitHub session (attempt %d/%d)…\n",
+					dim(useColor, SymbolInfo), attempt, maxAttempts)
+				return
+			}
+			fmt.Fprintf(os.Stderr, "%s Establishing GitHub session (attempt %d/%d; previous: %s)…\n",
+				dim(useColor, SymbolInfo), attempt, maxAttempts,
+				truncate(sanitizeTerminal(lastErr.Error()), 100))
+		}
+	}
+
 	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
 	progress.Stop()
 

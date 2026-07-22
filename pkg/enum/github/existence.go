@@ -152,7 +152,11 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 // that signals a genuine endpoint change, so it fails fast.
 func (e *Enumerator) establishSession(ctx context.Context) (*session, error) {
 	var lastErr error
+	maxAttempts := e.existenceMaxRetries + 1
 	for attempt := 0; ; attempt++ {
+		if e.OnSessionProgress != nil {
+			e.OnSessionProgress(attempt+1, maxAttempts, lastErr)
+		}
 		sess, retryable, err := e.tryEstablishSession(ctx)
 		if err == nil {
 			return sess, nil

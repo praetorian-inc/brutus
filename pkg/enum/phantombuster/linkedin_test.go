@@ -15,6 +15,7 @@
 package phantombuster
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -23,7 +24,7 @@ func TestParseSalesNavCSV_BasicFields(t *testing.T) {
 Jane Doe,Jane,Doe,VP Engineering,Acme Corp,San Francisco,https://linkedin.com/in/janedoe,https://salesnavigator.linkedin.com/in/janedoe,VP Engineering at Acme
 John Smith,John,Smith,CTO,Widgets Inc,New York,https://linkedin.com/in/johnsmith,,CTO at Widgets
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestParseSalesNavCSV_AlternateColumnNames(t *testing.T) {
 	csv := `fullName,firstName,lastName,job,company,region,profileUrl
 Alice Lee,Alice,Lee,Manager,BigCo,London,https://linkedin.com/in/alicelee
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -91,7 +92,7 @@ func TestParseSalesNavCSV_FullNameFallback(t *testing.T) {
 	csv := `firstName,lastName,jobTitle,companyName,linkedinProfileUrl
 Bob,Jones,Engineer,StartupXYZ,https://linkedin.com/in/bobjones
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -104,7 +105,7 @@ Bob,Jones,Engineer,StartupXYZ,https://linkedin.com/in/bobjones
 func TestParseSalesNavCSV_Empty(t *testing.T) {
 	csv := `fullName,firstName,lastName,jobTitle,companyName
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -117,7 +118,7 @@ func TestParseSalesNavCSV_MissingColumns(t *testing.T) {
 	csv := `firstName,lastName
 Charlie,Brown
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -134,7 +135,7 @@ Charlie,Brown
 }
 
 func TestParseSalesNavCSV_NoHeaders(t *testing.T) {
-	_, err := ParseSalesNavCSV([]byte(""))
+	_, err := ParseSalesNavCSV(strings.NewReader(""))
 	if err == nil {
 		t.Fatal("expected error for empty CSV")
 	}
@@ -144,7 +145,7 @@ func TestParseSalesNavCSV_QuotedFields(t *testing.T) {
 	csv := `fullName,firstName,lastName,jobTitle,companyName,headline
 "O'Brien, Pat",Pat,O'Brien,"Sr. Director, Engineering","Acme, Inc.","Director at Acme, Inc."
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -164,7 +165,7 @@ func TestParseSalesNavCSV_DeptSeniorityFromCSV(t *testing.T) {
 	csv := `fullName,firstName,lastName,jobTitle,department,seniority,companyName
 Jane Doe,Jane,Doe,VP Engineering,Engineering,VP,Acme Corp
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -182,7 +183,7 @@ func TestParseSalesNavCSV_DeptSeniorityInferred(t *testing.T) {
 Jane Doe,Jane,Doe,VP Engineering,Acme Corp,VP Engineering at Acme
 John Smith,John,Smith,CTO,Widgets Inc,CTO at Widgets
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}
@@ -205,7 +206,7 @@ func TestParseSalesNavCSV_CSVOverridesInference(t *testing.T) {
 	csv := `fullName,jobTitle,department,seniority,headline
 Jane Doe,VP Engineering,Ops,Executive,VP Engineering at Acme
 `
-	result, err := ParseSalesNavCSV([]byte(csv))
+	result, err := ParseSalesNavCSV(strings.NewReader(csv))
 	if err != nil {
 		t.Fatalf("ParseSalesNavCSV: %v", err)
 	}

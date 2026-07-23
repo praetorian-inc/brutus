@@ -49,7 +49,7 @@ const (
 	defaultPollInit  = 5 * time.Second
 	defaultPollMax   = 30 * time.Second
 	defaultPollMult  = 1.5
-	maxResponseBytes = 10 << 20 // 10 MB for S3 result files
+	maxResponseBytes = 50 << 20 // 50 MB — safety cap for non-streaming callers
 )
 
 // ContainerStatus values returned by the output endpoint.
@@ -200,9 +200,10 @@ func (c *Client) FetchAgentInfo(ctx context.Context, agentID string) (*AgentInfo
 	return &info, nil
 }
 
-// DownloadResult fetches the result file (CSV or JSON) from the agent's
-// S3 bucket. The filename is typically "result.csv" for Sales Nav scrapers.
-func (c *Client) DownloadResult(ctx context.Context, info *AgentInfo, filename string) ([]byte, error) {
+// DownloadResultStream fetches the result file from the agent's S3 bucket and
+// returns the response body as a stream. The caller is responsible for closing
+// the returned ReadCloser. This avoids buffering large files into memory.
+func (c *Client) DownloadResultStream(ctx context.Context, info *AgentInfo, filename string) (io.ReadCloser, error) {
 	url := fmt.Sprintf("%s/%s/%s/%s", s3BaseURL, info.OrgS3Folder, info.S3Folder, filename)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
@@ -214,13 +215,25 @@ func (c *Client) DownloadResult(ctx context.Context, info *AgentInfo, filename s
 	if err != nil {
 		return nil, fmt.Errorf("downloading result from S3: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("S3 download failed (HTTP %d)", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	return resp.Body, nil
+}
+
+// DownloadResult fetches the result file and returns its contents as bytes.
+// For large files, prefer DownloadResultStream to avoid buffering.
+func (c *Client) DownloadResult(ctx context.Context, info *AgentInfo, filename string) ([]byte, error) {
+	rc, err := c.DownloadResultStream(ctx, info, filename)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rc.Close() }()
+
+	data, err := io.ReadAll(io.LimitReader(rc, maxResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("reading S3 result: %w", err)
 	}

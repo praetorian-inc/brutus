@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -147,7 +148,7 @@ func runEnumLinkedin(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	result, err := pb.ParseSalesNavCSV(resultData)
+	result, err := pb.ParseSalesNavCSV(bytes.NewReader(resultData))
 	if err != nil {
 		return fmt.Errorf("parsing Sales Navigator results: %w", err)
 	}

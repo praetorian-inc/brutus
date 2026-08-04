@@ -21,20 +21,30 @@ updates:
       # broken bump — which is how #229 was learned the expensive way. Until
       # that caller exists the entry is simply a no-op.
       #
-      # The EXACT NAMES are what do the work here, so ADDING A NEW LEADERBOARD
-      # REUSABLE MEANS ADDING ITS EXACT NAME to this list. The `leaderboard-*`
-      # wildcard below is OPPORTUNISTIC FORWARD COVERAGE and is NOT
-      # load-bearing: its match semantics against a reusable-workflow dependency
-      # name are unverified in this org, and — the part that matters — they
-      # CANNOT be verified by watching this rule work, because dependabot
-      # suppresses a bump if EITHER the wildcard or an exact name matches. A
-      # quiet dependabot run therefore only proves the exact names held and says
-      # nothing about the wildcard. Reading it as "a reusable added later needs
-      # no edit here" would rebuild the very failure mode this rule exists to
-      # stop — a control that looks present, does nothing, and tells no one.
+      # ADDING A NEW LEADERBOARD REUSABLE MEANS ADDING ITS EXACT NAME to this
+      # list. The two exact entries below are the load-bearing control. The
+      # `leaderboard-*` wildcard is forward coverage for the window between "a
+      # new coupled reusable lands" and "someone remembers to add its exact
+      # name" — which is exactly how this was learned the expensive way.
+      #
+      # The wildcard's behaviour is NOT observable from here, in either
+      # direction. An ignore list is match-ANY, so a quiet dependabot run proves
+      # only that SOMETHING matched and never which entry; watching this rule
+      # work can therefore never confirm the wildcard fires. Its match semantics
+      # against a reusable-workflow dependency name are unverified in this org.
+      #
+      # So do not read the wildcard EITHER way:
+      #   - NOT as "a reusable added later needs no edit here". If it does not
+      #     match, metrics go dark silently. Always add the exact name.
+      #   - NOT as inert. If it DOES match, it equally suppresses a future
+      #     leaderboard-*.yml that has NO IAM coupling and would be safe to
+      #     auto-bump — silently, with no error and nothing to alert on. If you
+      #     add such a reusable and its pin never updates, this line is why, and
+      #     the remedy is to narrow or remove the wildcard.
       - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-metrics.yml"
       - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-backfill.yml"
-      # Non-load-bearing; see above. Never a substitute for an exact entry.
+      # Forward coverage only. Never a substitute for an exact entry, and see
+      # the over-suppression note above before adding an uncoupled reusable.
       - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-*"
 
   - package-ecosystem: "gomod"

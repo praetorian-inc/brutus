@@ -13,7 +13,29 @@ updates:
       # Auto-bumping it breaks OIDC AssumeRole (metrics silently stop) unless
       # the new SHA is added to the trust first via the ENG-4164 runbook, so it
       # must be rolled manually — not by dependabot. (See #229, which broke it.)
+      #
+      # leaderboard-backfill.yml is a SECOND reusable with the same coupling and
+      # its own separately-trusted pin (6c715ccf…, v2.17.0). It is added here
+      # BEFORE the ENG-5688 fan-out lands a backfill caller in this repo, so the
+      # rule is in place ahead of the dependency rather than after the first
+      # broken bump — which is how #229 was learned the expensive way. Until
+      # that caller exists the entry is simply a no-op.
+      #
+      # The EXACT NAMES are what do the work here, so ADDING A NEW LEADERBOARD
+      # REUSABLE MEANS ADDING ITS EXACT NAME to this list. The `leaderboard-*`
+      # wildcard below is OPPORTUNISTIC FORWARD COVERAGE and is NOT
+      # load-bearing: its match semantics against a reusable-workflow dependency
+      # name are unverified in this org, and — the part that matters — they
+      # CANNOT be verified by watching this rule work, because dependabot
+      # suppresses a bump if EITHER the wildcard or an exact name matches. A
+      # quiet dependabot run therefore only proves the exact names held and says
+      # nothing about the wildcard. Reading it as "a reusable added later needs
+      # no edit here" would rebuild the very failure mode this rule exists to
+      # stop — a control that looks present, does nothing, and tells no one.
       - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-metrics.yml"
+      - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-backfill.yml"
+      # Non-load-bearing; see above. Never a substitute for an exact entry.
+      - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-*"
 
   - package-ecosystem: "gomod"
     directory: "/"

@@ -59,6 +59,8 @@ import (
 // and are NOT sanitized here; sanitization happens at the output layer.
 type Result struct {
 	Email    string
+	First    string // generated given name; empty if the address was supplied
+	Last     string // generated surname; empty if the address was supplied
 	Exists   bool
 	Username string
 	Error    error

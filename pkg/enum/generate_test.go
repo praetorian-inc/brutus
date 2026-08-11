@@ -679,3 +679,95 @@ func TestGenerateCandidates_AllFormatsPopulated(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------------------
+// 10T-535: Candidate.Target
+//
+// Target carries a generated (or supplied) email together with the name it
+// was built from, all the way through the enumeration framework to Result,
+// so consumers never need to reverse-derive a name from an address (the
+// "jsmith" could be John/James/Jane problem). Candidate.Target(domain) is the
+// conversion point from generator output to framework input.
+// ---------------------------------------------------------------------------
+
+// TestCandidate_Target verifies that Candidate.Target(domain) produces an
+// Email identical to Candidate.Email(domain), and carries First/Last through
+// unchanged. Table-driven over several Candidate shapes, including a
+// Candidate with empty First/Last (representing an operator-supplied address
+// rather than a generated one) to verify nothing is invented.
+func TestCandidate_Target(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		candidate Candidate
+		domain    string
+	}{
+		{
+			name:      "simple",
+			candidate: Candidate{First: "john", Last: "smith", Username: "jsmith"},
+			domain:    "example.com",
+		},
+		{
+			name:      "dotted username and multi-label domain",
+			candidate: Candidate{First: "john", Last: "smith", Username: "john.smith"},
+			domain:    "corp.example.co.uk",
+		},
+		{
+			name:      "dotted last name preserved",
+			candidate: Candidate{First: "abdullah", Last: "al.mamun", Username: "abdullah.al.mamun"},
+			domain:    "fox.com",
+		},
+		{
+			name:      "empty First/Last stays empty (supplied, not generated)",
+			candidate: Candidate{First: "", Last: "", Username: "jsmith"},
+			domain:    "example.com",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			target := tc.candidate.Target(tc.domain)
+
+			assert.Equal(t, tc.candidate.Email(tc.domain), target.Email,
+				"Target.Email must equal Candidate.Email(domain)")
+			assert.Equal(t, tc.candidate.First, target.First,
+				"Target.First must carry Candidate.First unchanged")
+			assert.Equal(t, tc.candidate.Last, target.Last,
+				"Target.Last must carry Candidate.Last unchanged")
+		})
+	}
+}
+
+// TestGenerateCandidates_TargetRoundTrip verifies the GenerateCandidates ->
+// .Target(domain) round trip for a real format: every resulting Target has
+// non-empty First, Last, and Email, and Email matches the corresponding
+// GenerateEmails entry at the same index (order preserved).
+func TestGenerateCandidates_TargetRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	const domain = "example.com"
+
+	candidates, err := GenerateCandidates(FormatFirstDotLast)
+	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+
+	emails, err := GenerateEmails(FormatFirstDotLast, domain)
+	require.NoError(t, err)
+	require.Equal(t, len(candidates), len(emails),
+		"GenerateCandidates and GenerateEmails must produce the same count")
+
+	for i, c := range candidates {
+		target := c.Target(domain)
+
+		require.NotEmpty(t, target.Email, "candidate %d: Target.Email must not be empty", i)
+		require.NotEmpty(t, target.First, "candidate %d: Target.First must not be empty", i)
+		require.NotEmpty(t, target.Last, "candidate %d: Target.Last must not be empty", i)
+
+		assert.Equal(t, emails[i], target.Email,
+			"candidate %d: Target.Email must match GenerateEmails[%d] (order preserved)", i, i)
+	}
+}

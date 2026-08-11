@@ -90,6 +90,17 @@ func (c Candidate) Email(domain string) string {
 	return c.Username + "@" + domain
 }
 
+// Target converts a generated Candidate into a Target for domain, carrying the
+// name the username was built from so the enumeration framework can stamp it
+// onto each Result.
+func (c Candidate) Target(domain string) Target {
+	return Target{
+		Email: c.Email(domain),
+		First: c.First,
+		Last:  c.Last,
+	}
+}
+
 // GenerateCandidates derives usernames in the requested format from the
 // frequency-ranked likely-names wordlist, each paired with the name it was built
 // from. Each source line is a "first.last" pair; the requested format is built

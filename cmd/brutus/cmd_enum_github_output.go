@@ -135,6 +135,8 @@ func outputGithubEnumJSONL(w io.Writer, results []githubenum.Result) {
 	type githubEnumJSON struct {
 		Type     string `json:"type"`
 		Email    string `json:"email"`
+		First    string `json:"first,omitempty"`
+		Last     string `json:"last,omitempty"`
 		Exists   bool   `json:"exists"`
 		Username string `json:"username,omitempty"`
 		Error    string `json:"error,omitempty"`
@@ -146,6 +148,8 @@ func outputGithubEnumJSONL(w io.Writer, results []githubenum.Result) {
 		jr := githubEnumJSON{
 			Type:     "github_account",
 			Email:    r.Email,
+			First:    r.First,
+			Last:     r.Last,
 			Exists:   r.Exists,
 			Username: r.Username,
 		}

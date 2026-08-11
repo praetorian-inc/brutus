@@ -52,6 +52,8 @@ func HashEmail(email string) string {
 // endpoint.
 type Result struct {
 	Email    string
+	First    string // generated given name; empty if the address was supplied
+	Last     string // generated surname; empty if the address was supplied
 	Hash     string
 	Exists   bool
 	Error    error

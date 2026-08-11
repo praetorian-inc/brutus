@@ -24,6 +24,60 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestExecuteWorkerPool_PanicResultsNotDropped is a regression test for a bug
+// where the panic-recovery path used mu.TryLock() instead of mu.Lock(). Under
+// mutex contention (many workers panicking concurrently), TryLock would fail
+// and the panic Result was silently discarded instead of recorded. This test
+// drives enough concurrent panicking attempts to create genuine contention and
+// asserts the conservation property: every credential attempt that panics
+// still produces exactly one recorded Result carrying the panic error.
+func TestExecuteWorkerPool_PanicResultsNotDropped(t *testing.T) {
+	mock := &panickingPlugin{}
+
+	const numPasswords = 300
+	passwords := make([]string, numPasswords)
+	for i := range passwords {
+		passwords[i] = fmt.Sprintf("pass%d", i)
+	}
+
+	cfg := &Config{
+		Target:    "test:22",
+		Protocol:  "panic-mock",
+		Usernames: []string{"user"},
+		Passwords: passwords,
+		Threads:   32,
+		Timeout:   1 * time.Second,
+		Plugin:    mock,
+	}
+
+	results, err := Brute(cfg)
+	assert.NoError(t, err)
+
+	invocations := int(atomic.LoadInt64(&mock.invocations))
+	dropped := invocations - len(results)
+	assert.Equal(t, invocations, len(results),
+		"dropped %d of %d panic results (invocations=%d, results=%d)",
+		dropped, invocations, invocations, len(results))
+
+	for _, r := range results {
+		assert.Error(t, r.Error, "panic result should carry a non-nil Error")
+	}
+}
+
+// panickingPlugin counts every Test invocation and then panics, simulating a
+// plugin bug. The worker pool must recover from the panic and still record a
+// Result for every invocation.
+type panickingPlugin struct {
+	invocations int64
+}
+
+func (p *panickingPlugin) Name() string { return "panic-mock" }
+
+func (p *panickingPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	atomic.AddInt64(&p.invocations, 1)
+	panic("simulated plugin panic for regression test")
+}
+
 func TestCaptureBanner_EmptyUsernames(t *testing.T) {
 	// Setup: Config with only Credentials (no Usernames), HTTP protocol, LLM enabled
 	cfg := &Config{

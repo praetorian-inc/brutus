@@ -20,9 +20,13 @@ import (
 	"errors"
 )
 
-// EnumerateWithPlugin runs cfg.Emails against a single provided Plugin instance,
-// bypassing the registry. It is used by runtime-constructed oracles (e.g. the
-// custom declarative oracle) that are not registered globally.
+// EnumerateWithPlugin runs cfg.Targets against a single provided Plugin
+// instance, bypassing the registry. It is used by runtime-constructed oracles
+// (e.g. the custom declarative oracle) that are not registered globally.
+//
+// Each Target's First/Last is stamped onto the Result it produced, on every
+// path including errors and panics. The Plugin itself only ever sees the
+// email — see runTasks.
 //
 // The same Plugin instance is shared across all goroutines, so the Plugin MUST
 // be stateless (enum.Plugin contract). cfg.Services is ignored.
@@ -37,10 +41,12 @@ func EnumerateWithPlugin(ctx context.Context, cfg *Config, p Plugin) ([]Result, 
 		return nil, err
 	}
 
-	tasks := make([]enumTask, 0, len(cfg.Emails))
-	for _, subject := range cfg.Emails {
+	tasks := make([]enumTask, 0, len(cfg.Targets))
+	for _, subject := range cfg.Targets {
 		tasks = append(tasks, enumTask{
-			email:   subject,
+			email:   subject.Email,
+			first:   subject.First,
+			last:    subject.Last,
 			service: p.Name(),
 			plugin:  p,
 		})

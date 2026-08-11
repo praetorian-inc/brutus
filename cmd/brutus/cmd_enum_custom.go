@@ -88,11 +88,11 @@ func runEnumCustom(cmd *cobra.Command, args []string) error {
 	}
 	plugin := custom.New(spec)
 
-	subjects, err := buildCustomSubjects()
+	targets, err := buildCustomTargets()
 	if err != nil {
 		return err
 	}
-	if len(subjects) == 0 {
+	if len(targets) == 0 {
 		return fmt.Errorf("no subjects: provide -e/-E or --generate")
 	}
 
@@ -114,7 +114,7 @@ func runEnumCustom(cmd *cobra.Command, args []string) error {
 	}
 
 	cfg := &enum.Config{
-		Emails:    subjects,
+		Targets:   targets,
 		Threads:   flagThreads,
 		Timeout:   flagTimeout,
 		RateLimit: flagRateLimit,
@@ -175,15 +175,18 @@ func loadOracleSpec(path string) (*custom.Spec, error) {
 	return spec, nil
 }
 
-// buildCustomSubjects assembles the ordered subject list from CLI flags
-// (-e/-E/--generate), de-duplicated and preserving first-seen order.
-func buildCustomSubjects() ([]string, error) {
-	var subjects []string
+// buildCustomTargets assembles the ordered target list from CLI flags
+// (-e/-E/--generate), de-duplicated on the subject and preserving first-seen
+// order. Generated targets carry the name they were built from; subjects
+// supplied via -e/-E are nameless, because a supplied subject says nothing
+// about whose it is.
+func buildCustomTargets() ([]enum.Target, error) {
+	var targets []enum.Target
 
 	if flagCustomEmails != "" {
 		for _, e := range strings.Split(flagCustomEmails, ",") {
 			if e = strings.TrimSpace(e); e != "" {
-				subjects = append(subjects, e)
+				targets = append(targets, enum.Target{Email: e})
 			}
 		}
 	}
@@ -193,47 +196,55 @@ func buildCustomSubjects() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("loading subject file: %w", err)
 		}
-		subjects = append(subjects, fileSubjects...)
+		for _, s := range fileSubjects {
+			targets = append(targets, enum.Target{Email: s})
+		}
 	}
 
 	if flagCustomGenerate {
-		generated, err := generateCustomSubjects()
+		generated, err := generateCustomTargets()
 		if err != nil {
 			return nil, err
 		}
-		subjects = append(subjects, generated...)
+		targets = append(targets, generated...)
 	}
 
-	return dedupe(subjects), nil
+	return dedupeTargets(targets), nil
 }
 
-// generateCustomSubjects generates usernames or emails depending on whether a
-// domain was provided.
-func generateCustomSubjects() ([]string, error) {
-	if flagEnumDomain == "" {
-		usernames, err := enum.GenerateUsernames(flagEnumFormat)
-		if err != nil {
-			return nil, fmt.Errorf("generating usernames: %w", err)
-		}
-		return usernames, nil
-	}
-	emails, err := enum.GenerateEmails(flagEnumFormat, flagEnumDomain)
+// generateCustomTargets generates subjects from the embedded name lists, each
+// carrying the name it was built from. The subject is a bare username when no
+// domain was provided and a full email when one was — the custom oracle
+// substitutes either into its {{username}} placeholder.
+func generateCustomTargets() ([]enum.Target, error) {
+	candidates, err := enum.GenerateCandidates(flagEnumFormat)
 	if err != nil {
-		return nil, fmt.Errorf("generating emails: %w", err)
+		return nil, fmt.Errorf("generating subjects: %w", err)
 	}
-	return emails, nil
-}
 
-// dedupe removes duplicate subjects while preserving first-seen order.
-func dedupe(in []string) []string {
-	seen := make(map[string]bool, len(in))
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if seen[s] {
+	targets := make([]enum.Target, len(candidates))
+	for i, c := range candidates {
+		if flagEnumDomain == "" {
+			targets[i] = enum.Target{Email: c.Username, First: c.First, Last: c.Last}
 			continue
 		}
-		seen[s] = true
-		out = append(out, s)
+		targets[i] = c.Target(flagEnumDomain)
+	}
+	return targets, nil
+}
+
+// dedupeTargets removes targets with a duplicate subject while preserving
+// first-seen order, so the name attached to the surviving target is the one
+// that first produced that subject.
+func dedupeTargets(in []enum.Target) []enum.Target {
+	seen := make(map[string]bool, len(in))
+	out := make([]enum.Target, 0, len(in))
+	for _, t := range in {
+		if seen[t.Email] {
+			continue
+		}
+		seen[t.Email] = true
+		out = append(out, t)
 	}
 	return out
 }

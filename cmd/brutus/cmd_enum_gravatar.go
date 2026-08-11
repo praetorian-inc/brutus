@@ -101,10 +101,12 @@ func runEnumGravatar(cmd *cobra.Command, args []string) error {
 		flagJSON = true
 	}
 
-	emails, err := gravatarEnumTargets()
+	targets, err := gravatarEnumTargetList()
 	if err != nil {
 		return err
 	}
+	emails := enumTargetEmails(targets)
+	names := enumNamesByEmail(targets)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -136,6 +138,12 @@ func runEnumGravatar(cmd *cobra.Command, args []string) error {
 	progress.Start()
 	var processed, found int
 	onResult := func(res gravatar.Result) {
+		// Stamp the generated name onto the result the checker just returned.
+		// The checker only ever sees the address, so the name is attached here;
+		// an address that came from --emails/--email-file is absent from names
+		// and stays nameless.
+		res.First, res.Last = enumNameFor(names, res.Email)
+
 		processed++
 		if res.Exists {
 			found++
@@ -162,20 +170,28 @@ func runEnumGravatar(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// gravatarEnumTargets parses, trims, lower-cases, and dedups the email targets
-// from --emails and --email-file, plus any --domain-generated candidates. It
+// gravatarEnumTargetList parses, trims, lower-cases, and dedups the email
+// targets from --emails and --email-file, plus any --domain-generated
+// candidates. Each generated target carries the name its username was built
+// from; supplied addresses carry none, because an address the operator provided
+// says nothing about whose it is. Dedup keeps the first-seen entry, so a
+// supplied address that a generated candidate duplicates stays nameless. It
 // errors when no targets are supplied.
-func gravatarEnumTargets() ([]string, error) {
-	var raw []string
+func gravatarEnumTargetList() ([]enum.Target, error) {
+	var raw []enum.Target
 	if flagGravatarEnumEmails != "" {
-		raw = append(raw, strings.Split(flagGravatarEnumEmails, ",")...)
+		for _, e := range strings.Split(flagGravatarEnumEmails, ",") {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 	if flagGravatarEnumEmailFile != "" {
 		lines, err := loadLinesFromFile(flagGravatarEnumEmailFile)
 		if err != nil {
 			return nil, fmt.Errorf("reading --email-file: %w", err)
 		}
-		raw = append(raw, lines...)
+		for _, e := range lines {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 
 	// --domain generates the candidate wordlist internally (reusing the same
@@ -183,7 +199,7 @@ func gravatarEnumTargets() ([]string, error) {
 	// Generated candidates are appended to any -e/-E targets and flow through
 	// the same dedup + enumeration path.
 	if flagGravatarEnumDomain != "" {
-		generated, err := gravatarEnumGenerate()
+		generated, err := gravatarEnumGenerateTargets()
 		if err != nil {
 			return nil, err
 		}
@@ -191,42 +207,51 @@ func gravatarEnumTargets() ([]string, error) {
 	}
 
 	seen := make(map[string]struct{})
-	var emails []string
-	for _, e := range raw {
-		e = strings.ToLower(strings.TrimSpace(e))
-		if e == "" {
+	var targets []enum.Target
+	for _, t := range raw {
+		// Lower-case here too, so the address on the target is exactly the one
+		// handed to the checker and echoed back on its Result.
+		t.Email = strings.ToLower(strings.TrimSpace(t.Email))
+		if t.Email == "" {
 			continue
 		}
-		if _, ok := seen[e]; ok {
+		if _, ok := seen[t.Email]; ok {
 			continue
 		}
-		seen[e] = struct{}{}
-		emails = append(emails, e)
+		seen[t.Email] = struct{}{}
+		targets = append(targets, t)
 	}
 
-	if len(emails) == 0 {
+	if len(targets) == 0 {
 		return nil, fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain")
 	}
-	return emails, nil
+	return targets, nil
 }
 
-// gravatarEnumGenerate produces the candidate email wordlist for --domain by
-// reusing the shared, frequency-ranked generator (enum.GenerateEmails) and the
-// shared capResults helper — no duplicated generation logic. The requested
-// format is validated against enum.ListFormats() first, because GenerateEmails
-// silently yields an empty list for an unknown format. A status line goes to
-// stderr (never stdout, so --json/-o output stays clean) unless quiet or JSON.
-func gravatarEnumGenerate() ([]string, error) {
+// gravatarEnumGenerateTargets produces the candidate email wordlist for --domain
+// by reusing the shared, frequency-ranked generator (enum.GenerateCandidates)
+// and the shared capResults helper — no duplicated generation logic.
+// Candidates, not bare addresses, are generated so each target keeps the name
+// its username was built from, which is knowable for free here and lossy to
+// recover later. The requested format is validated against enum.ListFormats()
+// first, because the generator silently yields an empty list for an unknown
+// format. A status line goes to stderr (never stdout, so --json/-o output stays
+// clean) unless quiet or JSON.
+func gravatarEnumGenerateTargets() ([]enum.Target, error) {
 	if !slices.Contains(enum.ListFormats(), flagGravatarEnumFormat) {
 		return nil, fmt.Errorf("invalid --format %q; valid formats: %s",
 			flagGravatarEnumFormat, strings.Join(enum.ListFormats(), ", "))
 	}
 
-	generated, err := enum.GenerateEmails(flagGravatarEnumFormat, flagGravatarEnumDomain)
+	candidates, err := enum.GenerateCandidates(flagGravatarEnumFormat)
 	if err != nil {
 		return nil, fmt.Errorf("generating candidate emails: %w", err)
 	}
-	generated = capResults(generated, flagGravatarEnumLimit)
+	candidates = capResults(candidates, flagGravatarEnumLimit)
+	generated := make([]enum.Target, len(candidates))
+	for i, c := range candidates {
+		generated[i] = c.Target(flagGravatarEnumDomain)
+	}
 
 	if !flagQuiet && !flagJSON {
 		useColor := isColorEnabled(flagNoColor)

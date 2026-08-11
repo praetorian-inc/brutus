@@ -101,10 +101,12 @@ func runEnumGoogle(cmd *cobra.Command, args []string) error {
 		flagJSON = true
 	}
 
-	emails, err := googleEnumTargets()
+	targets, err := googleEnumTargetList()
 	if err != nil {
 		return err
 	}
+	emails := enumTargetEmails(targets)
+	names := enumNamesByEmail(targets)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -136,6 +138,12 @@ func runEnumGoogle(cmd *cobra.Command, args []string) error {
 	progress.Start()
 	var processed, found int
 	onResult := func(res google.Result) {
+		// Stamp the generated name onto the result the checker just returned.
+		// The checker only ever sees the address, so the name is attached here;
+		// an address that came from --emails/--email-file is absent from names
+		// and stays nameless.
+		res.First, res.Last = enumNameFor(names, res.Email)
+
 		processed++
 		if res.Exists {
 			found++
@@ -162,20 +170,28 @@ func runEnumGoogle(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// googleEnumTargets parses, trims, and dedups the email targets from --emails
-// and --email-file, plus any --domain-generated candidates. It errors when no
+// googleEnumTargetList parses, trims, and dedups the email targets from
+// --emails and --email-file, plus any --domain-generated candidates. Each
+// generated target carries the name its username was built from; supplied
+// addresses carry none, because an address the operator provided says nothing
+// about whose it is. Dedup keeps the first-seen entry, so a supplied address
+// that a generated candidate duplicates stays nameless. It errors when no
 // targets are supplied.
-func googleEnumTargets() ([]string, error) {
-	var raw []string
+func googleEnumTargetList() ([]enum.Target, error) {
+	var raw []enum.Target
 	if flagGoogleEnumEmails != "" {
-		raw = append(raw, strings.Split(flagGoogleEnumEmails, ",")...)
+		for _, e := range strings.Split(flagGoogleEnumEmails, ",") {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 	if flagGoogleEnumEmailFile != "" {
 		lines, err := loadLinesFromFile(flagGoogleEnumEmailFile)
 		if err != nil {
 			return nil, fmt.Errorf("reading --email-file: %w", err)
 		}
-		raw = append(raw, lines...)
+		for _, e := range lines {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 
 	// --domain generates the candidate wordlist internally (reusing the same
@@ -191,42 +207,49 @@ func googleEnumTargets() ([]string, error) {
 	}
 
 	seen := make(map[string]struct{})
-	var emails []string
-	for _, e := range raw {
-		e = strings.TrimSpace(e)
-		if e == "" {
+	var targets []enum.Target
+	for _, t := range raw {
+		t.Email = strings.TrimSpace(t.Email)
+		if t.Email == "" {
 			continue
 		}
-		if _, ok := seen[e]; ok {
+		if _, ok := seen[t.Email]; ok {
 			continue
 		}
-		seen[e] = struct{}{}
-		emails = append(emails, e)
+		seen[t.Email] = struct{}{}
+		targets = append(targets, t)
 	}
 
-	if len(emails) == 0 {
+	if len(targets) == 0 {
 		return nil, fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain")
 	}
-	return emails, nil
+	return targets, nil
 }
 
 // googleEnumGenerate produces the candidate email wordlist for --domain by
-// reusing the shared, frequency-ranked generator (enum.GenerateEmails) and the
-// shared capResults helper — no duplicated generation logic. The requested
-// format is validated against enum.ListFormats() first, because GenerateEmails
-// silently yields an empty list for an unknown format. A status line goes to
-// stderr (never stdout, so --json/-o output stays clean) unless quiet or JSON.
-func googleEnumGenerate() ([]string, error) {
+// reusing the shared, frequency-ranked generator (enum.GenerateCandidates) and
+// the shared capResults helper — no duplicated generation logic. Candidates,
+// not bare addresses, are generated so each target keeps the name its username
+// was built from, which is knowable for free here and lossy to recover later.
+// The requested format is validated against enum.ListFormats() first, because
+// the generator silently yields an empty list for an unknown format. A status
+// line goes to stderr (never stdout, so --json/-o output stays clean) unless
+// quiet or JSON.
+func googleEnumGenerate() ([]enum.Target, error) {
 	if !slices.Contains(enum.ListFormats(), flagGoogleEnumFormat) {
 		return nil, fmt.Errorf("invalid --format %q; valid formats: %s",
 			flagGoogleEnumFormat, strings.Join(enum.ListFormats(), ", "))
 	}
 
-	generated, err := enum.GenerateEmails(flagGoogleEnumFormat, flagGoogleEnumDomain)
+	candidates, err := enum.GenerateCandidates(flagGoogleEnumFormat)
 	if err != nil {
 		return nil, fmt.Errorf("generating candidate emails: %w", err)
 	}
-	generated = capResults(generated, flagGoogleEnumLimit)
+	candidates = capResults(candidates, flagGoogleEnumLimit)
+	generated := make([]enum.Target, len(candidates))
+	for i, c := range candidates {
+		generated[i] = c.Target(flagGoogleEnumDomain)
+	}
 
 	if !flagQuiet && !flagJSON {
 		useColor := isColorEnabled(flagNoColor)

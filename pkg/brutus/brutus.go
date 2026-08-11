@@ -311,7 +311,10 @@ func (c *Config) validate() error {
 	if c.Timeout == 0 {
 		c.Timeout = 10 * time.Second
 	}
-	if c.Threads == 0 {
+	// Non-positive thread counts fall back to the default. Negative values are
+	// especially dangerous: errgroup.SetLimit treats a negative limit as
+	// unlimited, which would spawn one goroutine per credential.
+	if c.Threads <= 0 {
 		c.Threads = 10
 	}
 

@@ -235,15 +235,16 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Phase 2: Build email list
-	var emails []string
+	// Phase 2: Build target list. Addresses supplied via -e/-E are nameless;
+	// generated ones carry the name they were built from.
+	var targets []enum.Target
 
 	// From --emails flag
 	if flagOraclesEmails != "" {
 		for _, e := range strings.Split(flagOraclesEmails, ",") {
 			e = strings.TrimSpace(e)
 			if e != "" {
-				emails = append(emails, e)
+				targets = append(targets, enum.Target{Email: e})
 			}
 		}
 	}
@@ -254,7 +255,9 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		if loadErr != nil {
 			return fmt.Errorf("loading email file: %w", loadErr)
 		}
-		emails = append(emails, fileEmails...)
+		for _, e := range fileEmails {
+			targets = append(targets, enum.Target{Email: e})
+		}
 	}
 
 	// From --generate flag
@@ -266,18 +269,20 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "%s Generating emails with format %q for %s...\n",
 				dim(useColor, SymbolInfo), flagEnumFormat, flagEnumDomain)
 		}
-		generated, genErr := enum.GenerateEmails(flagEnumFormat, flagEnumDomain)
+		candidates, genErr := enum.GenerateCandidates(flagEnumFormat)
 		if genErr != nil {
 			return fmt.Errorf("generating emails: %w", genErr)
 		}
-		logVerbose(flagVerbose, "Generated %d emails", len(generated))
-		emails = append(emails, generated...)
+		logVerbose(flagVerbose, "Generated %d emails", len(candidates))
+		for _, c := range candidates {
+			targets = append(targets, c.Target(flagEnumDomain))
+		}
 	}
 
 	// Determine the oracle-check label up front: the domain when provided,
 	// otherwise the explicit targets, so the Oracle Check block can announce
 	// what was checked even when there are no emails to enumerate.
-	checkLabel := oracleCheckLabel(emails)
+	checkLabel := oracleCheckLabel(targets)
 
 	// Phase 3: Determine oracles to check
 	var services []string
@@ -325,7 +330,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		}
 
 		validCfg := &enum.Config{
-			Emails:   []string{flagOraclesKnownValid},
+			Targets:  []enum.Target{{Email: flagOraclesKnownValid}},
 			Services: svcList,
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
@@ -362,7 +367,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 
 			// If there are no emails to enumerate, the oracle check IS the
 			// output: emit the JSON results and return without enumerating.
-			if len(emails) == 0 {
+			if len(targets) == 0 {
 				if flagJSON {
 					if dnsResult != nil {
 						outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
@@ -386,7 +391,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 
 	// If there were no oracles to check at all and no emails, there is nothing
 	// left to do beyond the DNS recon already surfaced above.
-	if len(emails) == 0 {
+	if len(targets) == 0 {
 		if dnsResult != nil && flagJSON {
 			outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
 		}
@@ -402,12 +407,12 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 			svcNames = enum.ListPlugins()
 		}
 		fmt.Fprintf(os.Stderr, "%s Enumerating %d email(s) against %d working oracle(s): %s\n",
-			dim(useColor, SymbolInfo), len(emails), len(svcNames), strings.Join(svcNames, ", "))
+			dim(useColor, SymbolInfo), len(targets), len(svcNames), strings.Join(svcNames, ", "))
 	}
 
 	// Phase 4: Run enumeration against the working oracles
 	cfg := &enum.Config{
-		Emails:    emails,
+		Targets:   targets,
 		Services:  services,
 		Threads:   flagThreads,
 		Timeout:   flagTimeout,
@@ -513,7 +518,7 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 
 		// Phase 2: Test oracles
 		cfg := &enum.Config{
-			Emails:   []string{flagOraclesKnownValid},
+			Targets:  []enum.Target{{Email: flagOraclesKnownValid}},
 			Services: services,
 			Threads:  flagThreads,
 			Timeout:  flagTimeout,
@@ -684,12 +689,16 @@ func outputDiscoverTeamsJSONL(w io.Writer, statusLine string) {
 
 // oracleCheckLabel returns the label for the Oracle Check header: the --domain
 // when one was provided, otherwise a compact list of the explicit email targets.
-func oracleCheckLabel(emails []string) string {
+func oracleCheckLabel(targets []enum.Target) string {
 	if flagEnumDomain != "" {
 		return flagEnumDomain
 	}
-	if len(emails) > 0 {
-		return strings.Join(emails, ", ")
+	if len(targets) > 0 {
+		addrs := make([]string, len(targets))
+		for i, t := range targets {
+			addrs[i] = t.Email
+		}
+		return strings.Join(addrs, ", ")
 	}
 	return "(no targets)"
 }

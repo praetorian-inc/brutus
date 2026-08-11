@@ -252,6 +252,91 @@ func TestOutputTeamsEnumJSONL_AccountType(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Test: outputTeamsEnumJSONL — First/Last name propagation (10T-535)
+// ---------------------------------------------------------------------------
+
+// TestOutputTeamsEnumJSONL_NameFields pins the never-invent-a-name rule: a
+// Result carrying First/Last emits "first"/"last" in the JSONL row, while a
+// Result with empty First/Last (a supplied address) omits both keys entirely
+// rather than emitting them as "". Pre-existing fields (type/email/exists/
+// account_type) must be unaffected.
+func TestOutputTeamsEnumJSONL_NameFields(t *testing.T) {
+	named := teams.EnumResult{
+		Email:  "john.smith@contoso.com",
+		Exists: teams.ExistenceYes,
+		MRI:    "8:orgid:some-guid",
+		First:  "john",
+		Last:   "smith",
+	}
+	unnamed := teams.EnumResult{
+		Email:  "supplied@contoso.com",
+		Exists: teams.ExistenceYes,
+		MRI:    "8:orgid:other-guid",
+	}
+
+	t.Run("named result emits first and last", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputTeamsEnumJSONL(&buf, []teams.EnumResult{named})
+
+		line := strings.TrimSpace(buf.String())
+		require.NotEmpty(t, line, "outputTeamsEnumJSONL must produce a JSONL line")
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(line), &obj),
+			"JSONL output must be valid JSON: %q", line)
+
+		assert.Equal(t, "john", obj["first"], `first field must be "john"`)
+		assert.Equal(t, "smith", obj["last"], `last field must be "smith"`)
+
+		// Pre-existing fields must remain unaffected.
+		assert.Equal(t, "teams_enum", obj["type"])
+		assert.Equal(t, named.Email, obj["email"])
+		assert.Equal(t, string(teams.ExistenceYes), obj["exists"])
+		assert.Equal(t, "corporate", obj["account_type"])
+	})
+
+	t.Run("unnamed result omits first and last keys", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputTeamsEnumJSONL(&buf, []teams.EnumResult{unnamed})
+
+		line := strings.TrimSpace(buf.String())
+		require.NotEmpty(t, line, "outputTeamsEnumJSONL must produce a JSONL line")
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(line), &obj),
+			"JSONL output must be valid JSON: %q", line)
+
+		assert.NotContains(t, obj, "first",
+			`first key must be absent (omitempty), not emitted as ""`)
+		assert.NotContains(t, obj, "last",
+			`last key must be absent (omitempty), not emitted as ""`)
+
+		// Pre-existing fields must remain unaffected.
+		assert.Equal(t, "teams_enum", obj["type"])
+		assert.Equal(t, unnamed.Email, obj["email"])
+		assert.Equal(t, string(teams.ExistenceYes), obj["exists"])
+	})
+
+	t.Run("mixed batch: one named, one unnamed", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputTeamsEnumJSONL(&buf, []teams.EnumResult{named, unnamed})
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 2, "must emit exactly one JSONL line per result")
+
+		var first map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))
+		assert.Equal(t, "john", first["first"])
+		assert.Equal(t, "smith", first["last"])
+
+		var second map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[1]), &second))
+		assert.NotContains(t, second, "first")
+		assert.NotContains(t, second, "last")
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Test: outputTeamsEnumJSONL — ExistenceBlocked shape and existence value coverage
 // ---------------------------------------------------------------------------
 

@@ -120,10 +120,12 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 		flagJSON = true
 	}
 
-	emails, err := githubEnumTargets()
+	targets, err := githubEnumTargetList()
 	if err != nil {
 		return err
 	}
+	emails := enumTargetEmails(targets)
+	names := enumNamesByEmail(targets)
 
 	token := resolveGithubToken(flagGithubEnumToken, useColor)
 
@@ -159,6 +161,12 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 	progress.Start()
 	var processed, found int
 	onResult := func(res githubenum.Result) {
+		// Stamp the generated name onto the result the enumerator just returned.
+		// The enumerator only ever sees the address, so the name is attached
+		// here; an address that came from --emails/--email-file is absent from
+		// names and stays nameless.
+		res.First, res.Last = enumNameFor(names, res.Email)
+
 		processed++
 		if res.Exists {
 			found++
@@ -207,6 +215,12 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
 	progress.Stop()
 
+	// onResult received copies, so the returned slice is still unnamed. Stamp it
+	// too: the post-reveal re-emit below encodes its rows from this slice.
+	for i := range results {
+		results[i].First, results[i].Last = enumNameFor(names, results[i].Email)
+	}
+
 	// Username reveal: only when not disabled, a token is set, and at least one
 	// account exists.
 	existing := existingEmails(results)
@@ -250,11 +264,12 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// githubEnumTargets parses, trims, and dedups the email targets from --emails
-// and --email-file, plus any --domain-generated candidates. It errors when no
-// targets are supplied.
-func githubEnumTargets() ([]string, error) {
-	var generated []string
+// githubEnumTargetList resolves the email targets from --emails and
+// --email-file, plus any --domain-generated candidates, each generated target
+// carrying the name its username was built from. It errors when no targets are
+// supplied.
+func githubEnumTargetList() ([]enum.Target, error) {
+	var generated []enum.Target
 	if flagGithubEnumDomain != "" {
 		g, err := githubEnumGenerate()
 		if err != nil {
@@ -263,65 +278,93 @@ func githubEnumTargets() ([]string, error) {
 		generated = g
 	}
 
-	return collectGithubEmails(flagGithubEnumEmails, flagGithubEnumEmailFile, generated,
+	return collectGithubTargets(flagGithubEnumEmails, flagGithubEnumEmailFile, generated,
 		fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain"))
 }
 
-// collectGithubEmails parses, trims, and dedups email targets from an --emails
-// CSV and an --email-file (preserving first-seen order), then appends any
-// pre-generated candidates. noSourceErr is returned verbatim when no targets
-// resolve, letting each subcommand phrase its own guidance (the parent allows
-// --domain; the map subcommand does not).
+// collectGithubEmails returns just the addresses resolved by
+// collectGithubTargets. The map subcommand uses it: it never generates, so none
+// of its addresses have a name to carry.
 func collectGithubEmails(emailsCSV, emailFile string, generated []string, noSourceErr error) ([]string, error) {
-	var raw []string
+	targets := make([]enum.Target, len(generated))
+	for i, e := range generated {
+		targets[i] = enum.Target{Email: e}
+	}
+	resolved, err := collectGithubTargets(emailsCSV, emailFile, targets, noSourceErr)
+	if err != nil {
+		return nil, err
+	}
+	return enumTargetEmails(resolved), nil
+}
+
+// collectGithubTargets parses, trims, and dedups email targets from an --emails
+// CSV and an --email-file (preserving first-seen order), then appends any
+// pre-generated candidates. Supplied addresses carry no name, because an address
+// the operator provided says nothing about whose it is; dedup keeps the
+// first-seen entry, so a supplied address that a generated candidate duplicates
+// stays nameless. noSourceErr is returned verbatim when no targets resolve,
+// letting each subcommand phrase its own guidance (the parent allows --domain;
+// the map subcommand does not).
+func collectGithubTargets(emailsCSV, emailFile string, generated []enum.Target, noSourceErr error) ([]enum.Target, error) {
+	var raw []enum.Target
 	if emailsCSV != "" {
-		raw = append(raw, strings.Split(emailsCSV, ",")...)
+		for _, e := range strings.Split(emailsCSV, ",") {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 	if emailFile != "" {
 		lines, err := loadLinesFromFile(emailFile)
 		if err != nil {
 			return nil, fmt.Errorf("reading --email-file: %w", err)
 		}
-		raw = append(raw, lines...)
+		for _, e := range lines {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 	raw = append(raw, generated...)
 
 	seen := make(map[string]struct{})
-	var emails []string
-	for _, e := range raw {
-		e = strings.TrimSpace(e)
-		if e == "" {
+	var targets []enum.Target
+	for _, t := range raw {
+		t.Email = strings.TrimSpace(t.Email)
+		if t.Email == "" {
 			continue
 		}
-		if _, ok := seen[e]; ok {
+		if _, ok := seen[t.Email]; ok {
 			continue
 		}
-		seen[e] = struct{}{}
-		emails = append(emails, e)
+		seen[t.Email] = struct{}{}
+		targets = append(targets, t)
 	}
 
-	if len(emails) == 0 {
+	if len(targets) == 0 {
 		return nil, noSourceErr
 	}
-	return emails, nil
+	return targets, nil
 }
 
 // githubEnumGenerate produces the candidate email wordlist for --domain by
-// reusing the shared, frequency-ranked generator (enum.GenerateEmails) and the
-// shared capResults helper — no duplicated generation logic. The format is
-// validated against enum.ListFormats() first. A status line goes to stderr
-// (never stdout) unless quiet or JSON.
-func githubEnumGenerate() ([]string, error) {
+// reusing the shared, frequency-ranked generator (enum.GenerateCandidates) and
+// the shared capResults helper — no duplicated generation logic. Candidates, not
+// bare addresses, are generated so each target keeps the name its username was
+// built from, which is knowable for free here and lossy to recover later. The
+// format is validated against enum.ListFormats() first. A status line goes to
+// stderr (never stdout) unless quiet or JSON.
+func githubEnumGenerate() ([]enum.Target, error) {
 	if !slices.Contains(enum.ListFormats(), flagGithubEnumFormat) {
 		return nil, fmt.Errorf("invalid --format %q; valid formats: %s",
 			flagGithubEnumFormat, strings.Join(enum.ListFormats(), ", "))
 	}
 
-	generated, err := enum.GenerateEmails(flagGithubEnumFormat, flagGithubEnumDomain)
+	candidates, err := enum.GenerateCandidates(flagGithubEnumFormat)
 	if err != nil {
 		return nil, fmt.Errorf("generating candidate emails: %w", err)
 	}
-	generated = capResults(generated, flagGithubEnumLimit)
+	candidates = capResults(candidates, flagGithubEnumLimit)
+	generated := make([]enum.Target, len(candidates))
+	for i, c := range candidates {
+		generated[i] = c.Target(flagGithubEnumDomain)
+	}
 
 	if !flagQuiet && !flagJSON {
 		useColor := isColorEnabled(flagNoColor)

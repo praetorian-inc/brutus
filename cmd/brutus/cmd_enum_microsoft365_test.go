@@ -240,6 +240,97 @@ func TestEncodeMicrosoft365EnumResult(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// TestEncodeMicrosoft365EnumResult_NameFields
+// Pins the never-invent-a-name rule: a Result carrying First/Last emits
+// "first"/"last" in the JSONL row, while a Result with empty First/Last (a
+// supplied address) omits both keys entirely rather than emitting them as "".
+// Pre-existing fields (type/email/exists/if_exists_result/federated) must be
+// unaffected.
+// ---------------------------------------------------------------------------
+
+func TestEncodeMicrosoft365EnumResult_NameFields(t *testing.T) {
+	named := m365.Result{
+		Email:          "john.smith@example.com",
+		Exists:         true,
+		IfExistsResult: m365.IfExistsResultExists,
+		First:          "john",
+		Last:           "smith",
+	}
+	unnamed := m365.Result{
+		Email:          "supplied@example.com",
+		Exists:         true,
+		IfExistsResult: m365.IfExistsResultExists,
+	}
+
+	t.Run("named result emits first and last", func(t *testing.T) {
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		encodeMicrosoft365EnumResult(enc, named)
+
+		line := strings.TrimSpace(buf.String())
+		require.NotEmpty(t, line, "encodeMicrosoft365EnumResult must produce a JSONL line")
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(line), &obj),
+			"JSONL output must be valid JSON: %q", line)
+
+		assert.Equal(t, "john", obj["first"], `first field must be "john"`)
+		assert.Equal(t, "smith", obj["last"], `last field must be "smith"`)
+
+		// Pre-existing fields must remain unaffected.
+		assert.Equal(t, "microsoft365_account", obj["type"])
+		assert.Equal(t, named.Email, obj["email"])
+		assert.Equal(t, true, obj["exists"])
+		gotIfExists, ok := obj["if_exists_result"].(float64)
+		require.True(t, ok, "if_exists_result must be numeric")
+		assert.Equal(t, 0, int(gotIfExists))
+	})
+
+	t.Run("unnamed result omits first and last keys", func(t *testing.T) {
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		encodeMicrosoft365EnumResult(enc, unnamed)
+
+		line := strings.TrimSpace(buf.String())
+		require.NotEmpty(t, line, "encodeMicrosoft365EnumResult must produce a JSONL line")
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(line), &obj),
+			"JSONL output must be valid JSON: %q", line)
+
+		assert.NotContains(t, obj, "first",
+			`first key must be absent (omitempty), not emitted as ""`)
+		assert.NotContains(t, obj, "last",
+			`last key must be absent (omitempty), not emitted as ""`)
+
+		// Pre-existing fields must remain unaffected.
+		assert.Equal(t, "microsoft365_account", obj["type"])
+		assert.Equal(t, unnamed.Email, obj["email"])
+		assert.Equal(t, true, obj["exists"])
+	})
+
+	t.Run("mixed batch: one named, one unnamed", func(t *testing.T) {
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		encodeMicrosoft365EnumResult(enc, named)
+		encodeMicrosoft365EnumResult(enc, unnamed)
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 2, "must emit exactly one JSONL line per result")
+
+		var first map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))
+		assert.Equal(t, "john", first["first"])
+		assert.Equal(t, "smith", first["last"])
+
+		var second map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[1]), &second))
+		assert.NotContains(t, second, "first")
+		assert.NotContains(t, second, "last")
+	})
+}
+
+// ---------------------------------------------------------------------------
 // TestOutputMicrosoft365EnumResultLine
 // Verifies human-readable line output for EXISTS, federation, and ANSI safety.
 // ---------------------------------------------------------------------------
@@ -359,12 +450,20 @@ func TestOutputMicrosoft365EnumResultLine(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// TestMicrosoft365EnumTargets
-// Exercises microsoft365EnumTargets() using the file-local flag variables
+// TestMicrosoft365EnumTargetList
+//
+// 10T-535: microsoft365EnumTargets() ([]string, error) was a dead []string
+// adapter kept alive only by these tests (the real logic — and the only
+// production caller, runEnumMicrosoft365 — lives in
+// microsoft365EnumTargetList() ([]enum.Target, error)). Retargeted onto
+// microsoft365EnumTargetList and strengthened to assert that supplied
+// (--emails/--email-file) targets carry no name, using the targetEmails
+// helper from cmd_enum_custom_test.go for compact address assertions.
+// Exercises microsoft365EnumTargetList() using the file-local flag variables
 // directly, saving and restoring them with defer.
 // ---------------------------------------------------------------------------
 
-func TestMicrosoft365EnumTargets_InlineEmails(t *testing.T) {
+func TestMicrosoft365EnumTargetList_InlineEmails(t *testing.T) {
 	// Save and restore flag globals.
 	origEmails := flagM365EnumEmails
 	origEmailFile := flagM365EnumEmailFile
@@ -379,16 +478,22 @@ func TestMicrosoft365EnumTargets_InlineEmails(t *testing.T) {
 	flagM365EnumEmailFile = ""
 	flagM365EnumDomain = ""
 
-	emails, err := microsoft365EnumTargets()
+	got, err := microsoft365EnumTargetList()
 	require.NoError(t, err)
 
+	emails := targetEmails(got)
 	// Deduplication: alice@example.com appears twice but must appear once.
 	assert.Len(t, emails, 2, "deduplication must collapse duplicate emails")
 	assert.Contains(t, emails, "alice@example.com")
 	assert.Contains(t, emails, "bob@example.com")
+
+	for i, target := range got {
+		assert.Empty(t, target.First, "target %d (%q): CLI-supplied address must have empty First", i, target.Email)
+		assert.Empty(t, target.Last, "target %d (%q): CLI-supplied address must have empty Last", i, target.Email)
+	}
 }
 
-func TestMicrosoft365EnumTargets_NoSource(t *testing.T) {
+func TestMicrosoft365EnumTargetList_NoSource(t *testing.T) {
 	origEmails := flagM365EnumEmails
 	origEmailFile := flagM365EnumEmailFile
 	origDomain := flagM365EnumDomain
@@ -402,16 +507,17 @@ func TestMicrosoft365EnumTargets_NoSource(t *testing.T) {
 	flagM365EnumEmailFile = ""
 	flagM365EnumDomain = ""
 
-	_, err := microsoft365EnumTargets()
-	require.Error(t, err, "microsoft365EnumTargets must fail when no source is supplied")
+	_, err := microsoft365EnumTargetList()
+	require.Error(t, err, "microsoft365EnumTargetList must fail when no source is supplied")
 	assert.Contains(t, err.Error(), "provide",
 		"error message must guide the user to supply a target source")
 }
 
-// TestMicrosoft365EnumTargets_CaseInsensitiveDedup verifies that dedup keys on
-// the lowercased email (the GetCredentialType API is case-insensitive) while
-// preserving the first-seen casing in the returned results.
-func TestMicrosoft365EnumTargets_CaseInsensitiveDedup(t *testing.T) {
+// TestMicrosoft365EnumTargetList_CaseInsensitiveDedup verifies that dedup keys
+// on the lowercased email (the GetCredentialType API is case-insensitive)
+// while preserving the first-seen casing in the returned targets. None of
+// these targets are generated, so all must carry no name.
+func TestMicrosoft365EnumTargetList_CaseInsensitiveDedup(t *testing.T) {
 	origEmails := flagM365EnumEmails
 	origEmailFile := flagM365EnumEmailFile
 	origDomain := flagM365EnumDomain
@@ -425,9 +531,10 @@ func TestMicrosoft365EnumTargets_CaseInsensitiveDedup(t *testing.T) {
 	flagM365EnumEmailFile = ""
 	flagM365EnumDomain = ""
 
-	emails, err := microsoft365EnumTargets()
+	got, err := microsoft365EnumTargetList()
 	require.NoError(t, err)
 
+	emails := targetEmails(got)
 	// Case-variant duplicates collapse: "Alice@Example.com" and
 	// "alice@example.com" are the same target.
 	assert.Len(t, emails, 2, "case-variant duplicates must collapse")
@@ -438,4 +545,73 @@ func TestMicrosoft365EnumTargets_CaseInsensitiveDedup(t *testing.T) {
 	assert.NotContains(t, emails, "alice@example.com",
 		"the later-seen lowercase duplicate must not also appear")
 	assert.Contains(t, emails, "BOB@example.com")
+
+	for i, target := range got {
+		assert.Empty(t, target.First, "target %d (%q): CLI-supplied address must have empty First", i, target.Email)
+		assert.Empty(t, target.Last, "target %d (%q): CLI-supplied address must have empty Last", i, target.Email)
+	}
+}
+
+// TestMicrosoft365EnumTargetList_NamesSurviveMixedCaseDomain pins a
+// normalization behavior the developer found a real bug in: microsoft365
+// dedups on the LOWERCASED email (the GetCredentialType API is
+// case-insensitive) but keeps each target's ORIGINAL casing on Email, and
+// m365.Result.Email echoes that original casing back verbatim (see
+// microsoft365.Checker.CheckAccount). A --domain value typed in mixed case
+// (e.g. "Example.com") therefore produces generated targets whose Email is
+// NOT all-lowercase. The name-lookup helpers (enumNamesByEmail/enumNameFor)
+// key on the exact target Email, so this test proves that round trip holds:
+// the name attached to a mixed-case generated target is still found when
+// looked up by that target's own (mixed-case) Email — the name is not lost
+// or mismatched because of the casing.
+func TestMicrosoft365EnumTargetList_NamesSurviveMixedCaseDomain(t *testing.T) {
+	origEmails := flagM365EnumEmails
+	origEmailFile := flagM365EnumEmailFile
+	origDomain := flagM365EnumDomain
+	origFormat := flagM365EnumFormat
+	origLimit := flagM365EnumLimit
+	origQuiet := flagQuiet
+	origJSON := flagJSON
+	defer func() {
+		flagM365EnumEmails = origEmails
+		flagM365EnumEmailFile = origEmailFile
+		flagM365EnumDomain = origDomain
+		flagM365EnumFormat = origFormat
+		flagM365EnumLimit = origLimit
+		flagQuiet = origQuiet
+		flagJSON = origJSON
+	}()
+
+	flagM365EnumEmails = ""
+	flagM365EnumEmailFile = ""
+	flagM365EnumDomain = "Example.com" // mixed case, as an operator might type it
+	flagM365EnumFormat = "first.last"
+	flagM365EnumLimit = 5
+	flagQuiet = true
+	flagJSON = false
+
+	got, err := microsoft365EnumTargetList()
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+
+	for i, target := range got {
+		// The domain casing the operator typed must survive verbatim on Email —
+		// dedup only lowercases the map KEY, never the stored Email.
+		assert.True(t, strings.HasSuffix(target.Email, "@Example.com"),
+			"target %d: generated Email must preserve the mixed-case --domain verbatim, got %q", i, target.Email)
+		require.NotEmpty(t, target.First, "target %d (%q): generated target must have non-empty First", i, target.Email)
+		require.NotEmpty(t, target.Last, "target %d (%q): generated target must have non-empty Last", i, target.Email)
+	}
+
+	// The real production round trip: enumNamesByEmail indexes by each target's
+	// exact Email, and enumNameFor looks up by that same string (the one the
+	// checker would echo back on Result.Email). If the index key ever diverged
+	// from the target's stored (mixed-case) Email, every one of these lookups
+	// would silently miss and return empty names.
+	names := enumNamesByEmail(got)
+	for i, target := range got {
+		first, last := enumNameFor(names, target.Email)
+		assert.Equal(t, target.First, first, "target %d (%q): name lookup by the target's own mixed-case Email must find First", i, target.Email)
+		assert.Equal(t, target.Last, last, "target %d (%q): name lookup by the target's own mixed-case Email must find Last", i, target.Email)
+	}
 }

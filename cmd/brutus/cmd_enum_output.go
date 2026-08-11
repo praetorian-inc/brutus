@@ -268,6 +268,8 @@ func outputEnumJSONL(w io.Writer, results []enum.Result) {
 		Type       string `json:"type"`
 		Service    string `json:"service"`
 		Email      string `json:"email"`
+		First      string `json:"first,omitempty"`
+		Last       string `json:"last,omitempty"`
 		Exists     bool   `json:"exists"`
 		Confidence string `json:"confidence,omitempty"`
 		Error      string `json:"error,omitempty"`
@@ -281,6 +283,8 @@ func outputEnumJSONL(w io.Writer, results []enum.Result) {
 			Type:       "enum",
 			Service:    r.Service,
 			Email:      r.Email,
+			First:      r.First,
+			Last:       r.Last,
 			Exists:     r.Exists,
 			Confidence: string(r.Confidence),
 			Duration:   r.Duration.String(),
@@ -620,6 +624,8 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 	type teamsEnumJSON struct {
 		Type              string `json:"type"`
 		Email             string `json:"email"`
+		First             string `json:"first,omitempty"`
+		Last              string `json:"last,omitempty"`
 		Exists            string `json:"exists"`
 		DetailsRestricted bool   `json:"details_restricted,omitempty"`
 		DisplayName       string `json:"display_name,omitempty"`
@@ -641,9 +647,14 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 	enc := json.NewEncoder(w)
 	for i := range results {
 		r := &results[i]
+		// First/Last are set here, outside the existence switch: the generated
+		// name is a property of the address, not of the check outcome, so a
+		// blocked (403) hit carries it exactly like a resolved one.
 		jr := teamsEnumJSON{
 			Type:  "teams_enum",
 			Email: r.Email,
+			First: r.First,
+			Last:  r.Last,
 		}
 		// Map internal existence to the output shape. A 403/blocked result is a
 		// confirmed hit whose details the tenant withholds, so it is presented as
@@ -974,6 +985,8 @@ func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
 	type googleEnumJSON struct {
 		Type   string `json:"type"`
 		Email  string `json:"email"`
+		First  string `json:"first,omitempty"`
+		Last   string `json:"last,omitempty"`
 		Exists bool   `json:"exists"`
 		Method string `json:"method,omitempty"`
 		IdP    string `json:"idp,omitempty"`
@@ -986,6 +999,8 @@ func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
 		jr := googleEnumJSON{
 			Type:   "google_account",
 			Email:  r.Email,
+			First:  r.First,
+			Last:   r.Last,
 			Exists: r.Exists,
 			Method: string(r.Method),
 			IdP:    r.IdP,
@@ -1116,6 +1131,8 @@ func outputMicrosoft365EnumSummary(w io.Writer, results []m365.Result, useColor 
 type microsoft365EnumJSON struct {
 	Type           string `json:"type"`
 	Email          string `json:"email"`
+	First          string `json:"first,omitempty"`
+	Last           string `json:"last,omitempty"`
 	Exists         bool   `json:"exists"`
 	IfExistsResult *int   `json:"if_exists_result,omitempty"`
 	Federated      bool   `json:"federated,omitempty"`
@@ -1132,6 +1149,8 @@ func encodeMicrosoft365EnumResult(enc *json.Encoder, r m365.Result) { //nolint:g
 	jr := microsoft365EnumJSON{
 		Type:          "microsoft365_account",
 		Email:         r.Email,
+		First:         r.First,
+		Last:          r.Last,
 		Exists:        r.Exists,
 		Federated:     r.Federated,
 		FederationURL: r.FederationURL,

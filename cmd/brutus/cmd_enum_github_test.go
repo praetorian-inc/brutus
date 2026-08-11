@@ -146,12 +146,21 @@ func TestEnumGithubCmd_NoRevealFlag(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// githubEnumTargets
+// githubEnumTargetList
+//
+// 10T-535: githubEnumTargets() ([]string, error) was a dead []string adapter
+// kept alive only by these tests (the real logic — and the only production
+// caller, runEnumGithub — lives in githubEnumTargetList() ([]enum.Target,
+// error)). Retargeted onto githubEnumTargetList and strengthened to assert
+// that supplied (--emails/--email-file) targets carry no name, using the
+// targetEmails helper from cmd_enum_custom_test.go for compact address
+// assertions.
 // ---------------------------------------------------------------------------
 
-// TestGithubEnumTargets_InlineEmails verifies that --emails CSV is parsed,
-// trimmed, and deduplicated.
-func TestGithubEnumTargets_InlineEmails(t *testing.T) {
+// TestGithubEnumTargetList_InlineEmails verifies that --emails CSV is parsed,
+// trimmed, and deduplicated, and that every CLI-supplied target carries no
+// name (a supplied address says nothing about whose it is).
+func TestGithubEnumTargetList_InlineEmails(t *testing.T) {
 	origEmails := flagGithubEnumEmails
 	origEmailFile := flagGithubEnumEmailFile
 	origDomain := flagGithubEnumDomain
@@ -165,18 +174,24 @@ func TestGithubEnumTargets_InlineEmails(t *testing.T) {
 	flagGithubEnumEmailFile = ""
 	flagGithubEnumDomain = ""
 
-	emails, err := githubEnumTargets()
+	got, err := githubEnumTargetList()
 	require.NoError(t, err)
 
+	emails := targetEmails(got)
 	// Dedup: alice appears twice but must appear once.
 	assert.Len(t, emails, 2, "deduplication must collapse duplicate emails")
 	assert.Contains(t, emails, "alice@example.com")
 	assert.Contains(t, emails, "bob@example.com")
+
+	for i, target := range got {
+		assert.Empty(t, target.First, "target %d (%q): CLI-supplied address must have empty First", i, target.Email)
+		assert.Empty(t, target.Last, "target %d (%q): CLI-supplied address must have empty Last", i, target.Email)
+	}
 }
 
-// TestGithubEnumTargets_NoSource verifies that an error is returned (and
+// TestGithubEnumTargetList_NoSource verifies that an error is returned (and
 // mentions "provide") when no --emails, --email-file, or --domain is given.
-func TestGithubEnumTargets_NoSource(t *testing.T) {
+func TestGithubEnumTargetList_NoSource(t *testing.T) {
 	origEmails := flagGithubEnumEmails
 	origEmailFile := flagGithubEnumEmailFile
 	origDomain := flagGithubEnumDomain
@@ -190,8 +205,8 @@ func TestGithubEnumTargets_NoSource(t *testing.T) {
 	flagGithubEnumEmailFile = ""
 	flagGithubEnumDomain = ""
 
-	_, err := githubEnumTargets()
-	require.Error(t, err, "githubEnumTargets must fail when no source is supplied")
+	_, err := githubEnumTargetList()
+	require.Error(t, err, "githubEnumTargetList must fail when no source is supplied")
 	assert.Contains(t, err.Error(), "provide",
 		"error must guide the user to supply a target source")
 }
@@ -355,6 +370,92 @@ func TestOutputGithubEnumJSONL(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// outputGithubEnumJSONL — First/Last name propagation (10T-535)
+// ---------------------------------------------------------------------------
+
+// TestOutputGithubEnumJSONL_NameFields pins the never-invent-a-name rule: a
+// Result carrying First/Last (from --generate) must emit "first"/"last" in
+// the JSONL row, while a Result with empty First/Last (supplied via --emails
+// or --email-file) must OMIT both keys entirely rather than emit them as "".
+// Pre-existing fields (type/email/exists/username) must be unaffected.
+func TestOutputGithubEnumJSONL_NameFields(t *testing.T) {
+	named := githubenum.Result{
+		Email:    "john.smith@example.com",
+		Exists:   true,
+		Username: "jsmith-gh",
+		First:    "john",
+		Last:     "smith",
+	}
+	unnamed := githubenum.Result{
+		Email:    "supplied@example.com",
+		Exists:   true,
+		Username: "supplied-gh",
+	}
+
+	t.Run("named result emits first and last", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputGithubEnumJSONL(&buf, []githubenum.Result{named})
+
+		line := strings.TrimSpace(buf.String())
+		require.NotEmpty(t, line, "outputGithubEnumJSONL must produce a JSONL line")
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(line), &obj),
+			"JSONL output must be valid JSON: %q", line)
+
+		assert.Equal(t, "john", obj["first"], `first field must be "john"`)
+		assert.Equal(t, "smith", obj["last"], `last field must be "smith"`)
+
+		// Pre-existing fields must remain unaffected by the new ones.
+		assert.Equal(t, "github_account", obj["type"])
+		assert.Equal(t, named.Email, obj["email"])
+		assert.Equal(t, true, obj["exists"])
+		assert.Equal(t, "jsmith-gh", obj["username"])
+	})
+
+	t.Run("unnamed result omits first and last keys", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputGithubEnumJSONL(&buf, []githubenum.Result{unnamed})
+
+		line := strings.TrimSpace(buf.String())
+		require.NotEmpty(t, line, "outputGithubEnumJSONL must produce a JSONL line")
+
+		var obj map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(line), &obj),
+			"JSONL output must be valid JSON: %q", line)
+
+		assert.NotContains(t, obj, "first",
+			`first key must be absent (omitempty), not emitted as ""`)
+		assert.NotContains(t, obj, "last",
+			`last key must be absent (omitempty), not emitted as ""`)
+
+		// Pre-existing fields must remain unaffected.
+		assert.Equal(t, "github_account", obj["type"])
+		assert.Equal(t, unnamed.Email, obj["email"])
+		assert.Equal(t, true, obj["exists"])
+		assert.Equal(t, "supplied-gh", obj["username"])
+	})
+
+	t.Run("mixed batch: one named, one unnamed", func(t *testing.T) {
+		var buf bytes.Buffer
+		outputGithubEnumJSONL(&buf, []githubenum.Result{named, unnamed})
+
+		lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+		require.Len(t, lines, 2, "must emit exactly one JSONL line per result")
+
+		var first map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[0]), &first))
+		assert.Equal(t, "john", first["first"])
+		assert.Equal(t, "smith", first["last"])
+
+		var second map[string]interface{}
+		require.NoError(t, json.Unmarshal([]byte(lines[1]), &second))
+		assert.NotContains(t, second, "first")
+		assert.NotContains(t, second, "last")
+	})
 }
 
 // ---------------------------------------------------------------------------

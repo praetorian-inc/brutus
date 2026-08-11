@@ -78,6 +78,8 @@ func outputGravatarEnumSummary(w io.Writer, results []gravatar.Result, useColor 
 // avatar URL is derived from the hash for convenience.
 type gravatarEnumJSON struct {
 	Email     string `json:"email"`
+	First     string `json:"first,omitempty"`
+	Last      string `json:"last,omitempty"`
 	Hash      string `json:"hash"`
 	Exists    bool   `json:"exists"`
 	AvatarURL string `json:"avatar_url"`
@@ -88,6 +90,8 @@ type gravatarEnumJSON struct {
 func encodeGravatarEnumResult(r gravatar.Result) gravatarEnumJSON {
 	jr := gravatarEnumJSON{
 		Email:     r.Email,
+		First:     r.First,
+		Last:      r.Last,
 		Hash:      r.Hash,
 		Exists:    r.Exists,
 		AvatarURL: fmt.Sprintf("https://www.gravatar.com/avatar/%s", r.Hash),

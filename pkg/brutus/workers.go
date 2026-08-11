@@ -180,18 +180,19 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 				if r := recover(); r != nil {
 					fmt.Fprintf(os.Stderr, "brutus: panic in worker for %s@%s: %v\n%s\n",
 						cred.username, cfg.Target, r, debug.Stack())
-					// Use TryLock to avoid deadlock if panic occurred while mu was held
-					if mu.TryLock() {
-						results = append(results, Result{
-							Protocol: cfg.Protocol,
-							Target:   cfg.Target,
-							Username: cred.username,
-							Password: cred.password,
-							Success:  false,
-							Error:    fmt.Errorf("plugin panic: %v", r),
-						})
-						mu.Unlock()
-					}
+					// Safe to block on mu: no evaluation that can panic happens
+					// while mu is held, so this lock is always acquirable and
+					// the panic result is never dropped.
+					mu.Lock()
+					results = append(results, Result{
+						Protocol: cfg.Protocol,
+						Target:   cfg.Target,
+						Username: cred.username,
+						Password: cred.password,
+						Success:  false,
+						Error:    fmt.Errorf("plugin panic: %v", r),
+					})
+					mu.Unlock()
 				}
 			}()
 
@@ -314,9 +315,12 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 				result.LLMSuggestedCreds = llmSuggestions
 			}
 
-			// Collect result
+			// Collect result. Dereference before locking so no evaluation that
+			// can panic happens while mu is held, which would deadlock the
+			// recover path above (sync.Mutex is not reentrant).
+			collected := *result
 			mu.Lock()
-			results = append(results, *result)
+			results = append(results, collected)
 			mu.Unlock()
 
 			// Mark user as cracked to skip remaining passwords for this user

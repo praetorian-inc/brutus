@@ -81,9 +81,22 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Read response (should be +OK)
-	_, err = brutus.ReadLine(reader)
+	response, err := brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
+		return result
+	}
+
+	// Only proceed to PASS if the server accepted USER. Per RFC 1939 a -ERR
+	// here means the mailbox was rejected, so PASS cannot succeed and sending
+	// it would waste an attempt against lockout thresholds.
+	if !strings.HasPrefix(response, "+OK") {
+		if strings.HasPrefix(response, "-ERR") || strings.HasPrefix(response, "-err") {
+			// Mailbox rejected at the USER stage - auth failure, not an error.
+			result.Error = nil
+			return result
+		}
+		result.Error = fmt.Errorf("connection error: unexpected POP3 response to USER: %s", response)
 		return result
 	}
 
@@ -95,7 +108,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 
 	// Read response (+OK = success, -ERR = failure)
-	response, err := brutus.ReadLine(reader)
+	response, err = brutus.ReadLine(reader)
 	if err != nil {
 		result.Error = classifyAuthError(err)
 		return result

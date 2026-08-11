@@ -29,8 +29,14 @@ import (
 )
 
 // enumTask represents a single enumeration check to perform.
+//
+// first/last carry the name the email was generated from (empty for supplied
+// addresses) so runTasks can stamp it onto the resulting Result. They are
+// never passed to the Plugin.
 type enumTask struct {
 	email   string
+	first   string
+	last    string
 	service string
 	plugin  Plugin
 }
@@ -44,16 +50,18 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 		services = ListPlugins()
 	}
 
-	// Build task list: emails x services
+	// Build task list: targets x services
 	var tasks []enumTask
-	for _, email := range cfg.Emails {
+	for _, target := range cfg.Targets {
 		for _, svcName := range services {
 			plug, err := GetPlugin(svcName)
 			if err != nil {
 				return nil, fmt.Errorf("resolving service %q: %w", svcName, err)
 			}
 			tasks = append(tasks, enumTask{
-				email:   email,
+				email:   target.Email,
+				first:   target.First,
+				last:    target.Last,
 				service: svcName,
 				plugin:  plug,
 			})
@@ -114,6 +122,8 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 					results = append(results, Result{
 						Service: task.service,
 						Email:   task.email,
+						First:   task.first,
+						Last:    task.last,
 						Error:   fmt.Errorf("plugin panicked: %v", r),
 					})
 					mu.Unlock()
@@ -141,7 +151,9 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 				}
 			}
 
-			// Execute check
+			// Execute check. The Plugin receives only the email — names are
+			// stamped on afterwards, which is what keeps the Plugin interface
+			// (and every per-service checker) unaware of them.
 			result := task.plugin.Check(ctx, task.email, cfg.Timeout)
 			if result == nil {
 				result = &Result{
@@ -150,6 +162,13 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 					Error:   fmt.Errorf("plugin returned nil result"),
 				}
 			}
+
+			// Stamp the generated name onto the result. A name is a property of
+			// the address, not of the check outcome, so this applies on every
+			// path: clean checks, plugin errors, and the nil-result substitute
+			// above (the panic path stamps it in the deferred recover).
+			result.First = task.first
+			result.Last = task.last
 
 			if cfg.Verbose && result.Error != nil {
 				fmt.Fprintf(os.Stderr, "enum: error checking %s on %s: %v\n",

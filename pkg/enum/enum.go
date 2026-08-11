@@ -22,9 +22,27 @@ import (
 	"time"
 )
 
+// Target is an address to check, plus the name it was generated from.
+//
+// Address and name travel together deliberately. brutus generates most of the
+// addresses it checks, and at generation time it already knows the name behind
+// each one (see Candidate). Passing addresses alone would force consumers to
+// reverse-derive the name from the local part, which is lossy for
+// initial-based formats — "jsmith" could be John, James, or Jane. Keeping the
+// two in one value means a name can never desync from its address.
+//
+// First/Last are empty when the address was supplied by the operator (--emails
+// or --email-file) rather than generated: a supplied address says nothing about
+// whose it is, and the framework must not invent one.
+type Target struct {
+	Email string
+	First string // empty when the address was supplied rather than generated
+	Last  string
+}
+
 // Config defines the configuration for account enumeration.
 type Config struct {
-	Emails    []string      // emails to enumerate
+	Targets   []Target      // addresses to enumerate, with generated names when known
 	Services  []string      // service names to check (empty = all registered)
 	Threads   int           // concurrent workers (default: 10)
 	Timeout   time.Duration // per-check timeout (default: 10s)
@@ -70,7 +88,7 @@ func ProxyURLFromContext(ctx context.Context) string {
 
 // validate checks the configuration and applies defaults.
 func (c *Config) validate() error {
-	if len(c.Emails) == 0 {
+	if len(c.Targets) == 0 {
 		return errors.New("emails required")
 	}
 	if c.Threads < 0 {

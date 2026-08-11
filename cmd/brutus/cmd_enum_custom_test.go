@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/praetorian-inc/brutus/pkg/enum"
 	"github.com/praetorian-inc/brutus/pkg/enum/custom"
 )
 
@@ -192,50 +193,16 @@ func TestRunEnumCustom_OversizeFile(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// F1: Subject-building helpers (dedupe, buildCustomSubjects)
+// F1: Target-building helpers (buildCustomTargets)
+//
+// 10T-535: buildCustomSubjects()/dedupe() were address-only. buildCustomTargets
+// is now the single merger of file-supplied and generated addresses, and it
+// carries the generated name (First/Last) alongside each address so it can
+// never be reverse-derived downstream. These tests exercise buildCustomTargets
+// directly, asserting on []enum.Target rather than []string, so a bug that
+// stamped a name onto a supplied address (or dropped a name from a generated
+// one) fails here rather than just failing to compile.
 // ---------------------------------------------------------------------------
-
-// TestDedupe_RemovesDuplicatesPreservingOrder verifies that dedupe removes
-// repeated values while preserving the first-seen order.
-func TestDedupe_RemovesDuplicatesPreservingOrder(t *testing.T) {
-	tests := []struct {
-		name string
-		in   []string
-		want []string
-	}{
-		{
-			name: "no duplicates — unchanged",
-			in:   []string{"a", "b", "c"},
-			want: []string{"a", "b", "c"},
-		},
-		{
-			name: "all duplicates — single element",
-			in:   []string{"x", "x", "x"},
-			want: []string{"x"},
-		},
-		{
-			name: "duplicates across non-adjacent positions",
-			in:   []string{"a", "b", "a", "c", "b"},
-			want: []string{"a", "b", "c"},
-		},
-		{
-			name: "empty input",
-			in:   nil,
-			want: []string{},
-		},
-		{
-			name: "single element",
-			in:   []string{"only"},
-			want: []string{"only"},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := dedupe(tc.in)
-			assert.Equal(t, tc.want, got)
-		})
-	}
-}
 
 // parseSpec is a test helper that parses and validates a spec from JSON.
 func parseSpec(t *testing.T, data string) *custom.Spec {
@@ -246,9 +213,20 @@ func parseSpec(t *testing.T, data string) *custom.Spec {
 	return spec
 }
 
-// TestBuildCustomSubjects_InlineEmails verifies the -e flag CSV path:
-// subjects are split on comma, trimmed of whitespace, and returned in order.
-func TestBuildCustomSubjects_InlineEmails(t *testing.T) {
+// targetEmails extracts the Email field from a []enum.Target slice, in order,
+// for compact order/content assertions.
+func targetEmails(targets []enum.Target) []string {
+	out := make([]string, len(targets))
+	for i, t := range targets {
+		out[i] = t.Email
+	}
+	return out
+}
+
+// TestBuildCustomTargets_InlineEmails verifies the -e flag CSV path: subjects
+// are split on comma, trimmed of whitespace, returned in order, and — because
+// a CLI-supplied subject says nothing about whose it is — carry no name.
+func TestBuildCustomTargets_InlineEmails(t *testing.T) {
 	origEmails := flagCustomEmails
 	origFile := flagCustomEmailFile
 	origGen := flagCustomGenerate
@@ -262,14 +240,19 @@ func TestBuildCustomSubjects_InlineEmails(t *testing.T) {
 	flagCustomEmailFile = ""
 	flagCustomGenerate = false
 
-	got, err := buildCustomSubjects()
+	got, err := buildCustomTargets()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"alice", "bob", "charlie"}, got)
+	assert.Equal(t, []string{"alice", "bob", "charlie"}, targetEmails(got))
+	for i, target := range got {
+		assert.Empty(t, target.First, "target %d (%q): CLI-supplied address must have empty First", i, target.Email)
+		assert.Empty(t, target.Last, "target %d (%q): CLI-supplied address must have empty Last", i, target.Email)
+	}
 }
 
-// TestBuildCustomSubjects_EmailFile verifies the -E file path: subjects are
-// read one-per-line from the file.
-func TestBuildCustomSubjects_EmailFile(t *testing.T) {
+// TestBuildCustomTargets_EmailFile verifies the -E file path: subjects are
+// read one-per-line from the file and carry no name (file-supplied, not
+// generated).
+func TestBuildCustomTargets_EmailFile(t *testing.T) {
 	origEmails := flagCustomEmails
 	origFile := flagCustomEmailFile
 	origGen := flagCustomGenerate
@@ -290,14 +273,18 @@ func TestBuildCustomSubjects_EmailFile(t *testing.T) {
 	flagCustomEmailFile = tmp.Name()
 	flagCustomGenerate = false
 
-	got, err := buildCustomSubjects()
+	got, err := buildCustomTargets()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"user1", "user2"}, got)
+	assert.Equal(t, []string{"user1", "user2"}, targetEmails(got))
+	for i, target := range got {
+		assert.Empty(t, target.First, "target %d (%q): file-supplied address must have empty First", i, target.Email)
+		assert.Empty(t, target.Last, "target %d (%q): file-supplied address must have empty Last", i, target.Email)
+	}
 }
 
-// TestBuildCustomSubjects_Dedupe verifies that buildCustomSubjects de-duplicates
-// subjects supplied via -e, preserving first-seen order.
-func TestBuildCustomSubjects_Dedupe(t *testing.T) {
+// TestBuildCustomTargets_Dedupe verifies that buildCustomTargets de-duplicates
+// on Email for subjects supplied via -e, preserving first-seen order.
+func TestBuildCustomTargets_Dedupe(t *testing.T) {
 	origEmails := flagCustomEmails
 	origFile := flagCustomEmailFile
 	origGen := flagCustomGenerate
@@ -312,19 +299,19 @@ func TestBuildCustomSubjects_Dedupe(t *testing.T) {
 	flagCustomEmailFile = ""
 	flagCustomGenerate = false
 
-	got, err := buildCustomSubjects()
+	got, err := buildCustomTargets()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"alice", "bob", "charlie"}, got)
+	assert.Equal(t, []string{"alice", "bob", "charlie"}, targetEmails(got))
 }
 
-// TestBuildCustomSubjects_ConstraintRateLimitDefault verifies that the spec's
+// TestBuildCustomTargets_ConstraintRateLimitDefault verifies that the spec's
 // constraints.rate_limit_rps is applied to the enum config as a default only
 // when --rate-limit has not been set by the operator (isFlagChanged is false).
 //
-// buildCustomSubjects itself does not apply the rate-limit — that logic lives
+// buildCustomTargets itself does not apply the rate-limit — that logic lives
 // in runEnumCustom. This test verifies the constraint field is accessible via
 // the Spec type (it's the glue the command wires up).
-func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
+func TestBuildCustomTargets_ConstraintRateLimitDefault(t *testing.T) {
 	const constraintRPS = `{
 		"version": "1",
 		"oracle": {
@@ -347,7 +334,7 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 	assert.Equal(t, 5.0, spec.Constraints.RateLimitRPS,
 		"Constraints.RateLimitRPS must equal the spec value (5.0)")
 
-	// Also verify buildCustomSubjects succeeds with a subject supplied via CLI.
+	// Also verify buildCustomTargets succeeds with a subject supplied via CLI.
 	origEmails := flagCustomEmails
 	origFile := flagCustomEmailFile
 	origGen := flagCustomGenerate
@@ -360,9 +347,181 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 	flagCustomEmailFile = ""
 	flagCustomGenerate = false
 
-	got, err := buildCustomSubjects()
+	got, err := buildCustomTargets()
 	require.NoError(t, err)
-	assert.Equal(t, []string{"seed@example.com"}, got)
+	assert.Equal(t, []string{"seed@example.com"}, targetEmails(got))
+	require.Len(t, got, 1)
+	assert.Empty(t, got[0].First, "CLI-supplied address must have empty First")
+	assert.Empty(t, got[0].Last, "CLI-supplied address must have empty Last")
+}
+
+// TestBuildCustomTargets_GeneratedNoDomain is THE POINT OF 10T-535 for this
+// command: with --generate and no --domain, buildCustomTargets must build
+// Target{Email: c.Username, First: c.First, Last: c.Last} directly rather
+// than going through Candidate.Target(domain) — appending "@" to a bare
+// username would be wrong. This pins that no-domain branch: every generated
+// Target's Email is the bare username (no "@"), and First/Last are non-empty,
+// carrying the name the generator actually used.
+func TestBuildCustomTargets_GeneratedNoDomain(t *testing.T) {
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	origFormat := flagEnumFormat
+	origDomain := flagEnumDomain
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+		flagEnumFormat = origFormat
+		flagEnumDomain = origDomain
+	})
+
+	flagCustomEmails = ""
+	flagCustomEmailFile = ""
+	flagCustomGenerate = true
+	flagEnumFormat = enum.FormatFirstDotLast
+	flagEnumDomain = ""
+
+	got, err := buildCustomTargets()
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+
+	// Compare against the real generator output (not a reimplementation) so
+	// this fails if generateCustomTargets ever diverges from GenerateCandidates.
+	candidates, genErr := enum.GenerateCandidates(enum.FormatFirstDotLast)
+	require.NoError(t, genErr)
+	require.Len(t, got, len(candidates),
+		"no-domain generation must produce exactly one target per candidate")
+
+	for i, c := range candidates {
+		assert.Equal(t, c.Username, got[i].Email,
+			"target %d: Email must be the bare username (no domain) when --domain is unset", i)
+		assert.NotContains(t, got[i].Email, "@",
+			"target %d: no-domain Email must not contain '@'", i)
+		assert.Equal(t, c.First, got[i].First, "target %d: First must match the generated candidate", i)
+		assert.Equal(t, c.Last, got[i].Last, "target %d: Last must match the generated candidate", i)
+		require.NotEmpty(t, got[i].First, "target %d: generated First must be non-empty", i)
+		require.NotEmpty(t, got[i].Last, "target %d: generated Last must be non-empty", i)
+	}
+}
+
+// TestBuildCustomTargets_GeneratedWithDomain verifies the --generate +
+// --domain branch: buildCustomTargets must build each Target via
+// Candidate.Target(domain), so Email is "username@domain" and First/Last are
+// still populated from the candidate.
+func TestBuildCustomTargets_GeneratedWithDomain(t *testing.T) {
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	origFormat := flagEnumFormat
+	origDomain := flagEnumDomain
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+		flagEnumFormat = origFormat
+		flagEnumDomain = origDomain
+	})
+
+	const domain = "example.com"
+	flagCustomEmails = ""
+	flagCustomEmailFile = ""
+	flagCustomGenerate = true
+	flagEnumFormat = enum.FormatFirstDotLast
+	flagEnumDomain = domain
+
+	got, err := buildCustomTargets()
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+
+	candidates, genErr := enum.GenerateCandidates(enum.FormatFirstDotLast)
+	require.NoError(t, genErr)
+	require.Len(t, got, len(candidates),
+		"with-domain generation must produce exactly one target per candidate")
+
+	for i, c := range candidates {
+		assert.Equal(t, c.Target(domain), got[i],
+			"target %d: must equal Candidate.Target(domain) exactly", i)
+		assert.True(t, strings.HasSuffix(got[i].Email, "@"+domain),
+			"target %d: with-domain Email must end with @%s", i, domain)
+		require.NotEmpty(t, got[i].First, "target %d: generated First must be non-empty", i)
+		require.NotEmpty(t, got[i].Last, "target %d: generated Last must be non-empty", i)
+	}
+}
+
+// TestBuildCustomTargets_MergeDedupePrecedence covers the merge, the dedup,
+// the first-seen order, and the precedence between a file-supplied address
+// and a generated one, all in a single scenario: -E supplies the exact
+// address that --generate would also produce as its #1-ranked candidate
+// ("john.smith", from FormatFirstDotLast's top-ranked pair — pinned by
+// TestGenerateUsernames_FirstDotLast in pkg/enum/generate_test.go).
+//
+//   - Merge: the result contains both the -E entry and the --generate entries.
+//   - Order: -E is appended before --generate (source order), so the
+//     file-supplied "john.smith" occupies index 0.
+//   - Dedupe: the generated candidate that would also produce "john.smith" is
+//     dropped as a duplicate, not appended a second time.
+//   - Precedence: the surviving "john.smith" target is the file-supplied one
+//     (empty First/Last) — first-seen wins, so a generated duplicate can never
+//     retroactively attach a name to an address the operator supplied.
+func TestBuildCustomTargets_MergeDedupePrecedence(t *testing.T) {
+	origEmails := flagCustomEmails
+	origFile := flagCustomEmailFile
+	origGen := flagCustomGenerate
+	origFormat := flagEnumFormat
+	origDomain := flagEnumDomain
+	t.Cleanup(func() {
+		flagCustomEmails = origEmails
+		flagCustomEmailFile = origFile
+		flagCustomGenerate = origGen
+		flagEnumFormat = origFormat
+		flagEnumDomain = origDomain
+	})
+
+	// Write a one-line subject file containing the #1-ranked generated
+	// username, so it collides with the first generated candidate.
+	tmp, err := os.CreateTemp(t.TempDir(), "collide-*.txt")
+	require.NoError(t, err)
+	_, err = tmp.WriteString("john.smith\n")
+	require.NoError(t, err)
+	require.NoError(t, tmp.Close())
+
+	flagCustomEmails = ""
+	flagCustomEmailFile = tmp.Name()
+	flagCustomGenerate = true
+	flagEnumFormat = enum.FormatFirstDotLast
+	flagEnumDomain = ""
+
+	got, err := buildCustomTargets()
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+
+	candidates, genErr := enum.GenerateCandidates(enum.FormatFirstDotLast)
+	require.NoError(t, genErr)
+	require.Equal(t, "john.smith", candidates[0].Username,
+		"test assumption: FormatFirstDotLast's #1-ranked candidate must be john.smith")
+
+	// Merge + dedupe: exactly one target per unique candidate — the collision
+	// on "john.smith" means the file entry and the #1 candidate collapse to
+	// one target, so the total count equals len(candidates), not len+1.
+	assert.Len(t, got, len(candidates),
+		"merge+dedupe: file-supplied duplicate of the #1 candidate must not double-count")
+
+	// Order + precedence: index 0 is the file-supplied "john.smith", unnamed —
+	// not the generated candidate that would also produce it.
+	require.Equal(t, "john.smith", got[0].Email)
+	assert.Empty(t, got[0].First,
+		"precedence: file-supplied address must win over the colliding generated one — First must stay empty")
+	assert.Empty(t, got[0].Last,
+		"precedence: file-supplied address must win over the colliding generated one — Last must stay empty")
+
+	// Every remaining target came only from --generate (no other collisions
+	// are possible: GenerateCandidates guarantees unique usernames), so each
+	// must carry a name.
+	for i := 1; i < len(got); i++ {
+		assert.NotEmpty(t, got[i].First, "target %d (%q): generated target must have non-empty First", i, got[i].Email)
+		assert.NotEmpty(t, got[i].Last, "target %d (%q): generated target must have non-empty Last", i, got[i].Email)
+	}
 }
 
 // ---------------------------------------------------------------------------

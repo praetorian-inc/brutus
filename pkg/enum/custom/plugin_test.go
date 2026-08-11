@@ -314,7 +314,7 @@ func TestE2E_ForgotPassword(t *testing.T) {
 	results, enumErr := enum.EnumerateWithPlugin(
 		context.Background(),
 		&enum.Config{
-			Emails:  []string{"jsmith", "nobody"},
+			Targets: []enum.Target{{Email: "jsmith"}, {Email: "nobody"}},
 			Threads: 2,
 			Timeout: 5 * time.Second,
 		},

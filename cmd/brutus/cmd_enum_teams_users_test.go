@@ -238,26 +238,51 @@ func TestEnumTeamsUsersCmd_GenerationFlags(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Test 22: teamsEnumGenerate — basic generation, limit, domain suffix
+// Tests 22-26: teamsEnumTargetList / teamsEnumGenerate (10T-535, 7/8)
+//
+// teamsEnumTargets() ([]string, error) is retargeted onto
+// teamsEnumTargetList() ([]enum.Target, error) — the Target-returning
+// function that carries each generated address's name (mirrors
+// googleEnumTargetList / githubEnumTargetList / gravatarEnumTargetList /
+// microsoft365EnumTargetList). teamsEnumGenerate() is retargeted from
+// ([]string, error) to ([]enum.Target, error) for the same reason. Every
+// prior assertion (trim, dedup, "provide --domain" error, --limit capping,
+// invalid-format error, limit-zero-returns-all, frequency-ranked ordering)
+// is preserved below; there is no dead adapter left behind pinning the old
+// []string signatures.
 // ---------------------------------------------------------------------------
 
-// TestTeamsEnumGenerate_Basic verifies that teamsEnumGenerate produces the
-// expected number of emails ending with the target domain and that the
-// statistically most-likely first name / last name pair leads the list.
-func TestTeamsEnumGenerate_Basic(t *testing.T) {
-	// Save and restore all package-level flag vars mutated below.
+// resetTeamsEnumTargetFlags saves and restores every package-level flag var
+// touched by the teamsEnumTargetList/teamsEnumGenerate tests below, so tests
+// in this file (and cmd_enum_teams_names_test.go, which shares this helper)
+// never leak flag state into each other or into other test files.
+func resetTeamsEnumTargetFlags() (restore func()) {
+	origEmails := flagTeamsEnumEmails
+	origEmailFile := flagTeamsEnumEmailFile
 	origDomain := flagTeamsEnumDomain
 	origFormat := flagTeamsEnumFormat
 	origLimit := flagTeamsEnumLimit
 	origQuiet := flagQuiet
 	origJSON := flagJSON
-	defer func() {
+	return func() {
+		flagTeamsEnumEmails = origEmails
+		flagTeamsEnumEmailFile = origEmailFile
 		flagTeamsEnumDomain = origDomain
 		flagTeamsEnumFormat = origFormat
 		flagTeamsEnumLimit = origLimit
 		flagQuiet = origQuiet
 		flagJSON = origJSON
-	}()
+	}
+}
+
+// TestTeamsEnumGenerate_Basic verifies that teamsEnumGenerate produces the
+// expected number of Targets whose Email ends with the target domain, that
+// every generated Target carries a non-empty First/Last, and that the
+// statistically most-likely first name / last name pair leads the list —
+// retargeted from the []string-returning teamsEnumGenerate onto the
+// []enum.Target-returning one.
+func TestTeamsEnumGenerate_Basic(t *testing.T) {
+	defer resetTeamsEnumTargetFlags()()
 
 	flagTeamsEnumDomain = "example.com"
 	flagTeamsEnumFormat = "first.last"
@@ -266,42 +291,30 @@ func TestTeamsEnumGenerate_Basic(t *testing.T) {
 	flagQuiet = true
 	flagJSON = false
 
-	emails, err := teamsEnumGenerate()
+	targets, err := teamsEnumGenerate()
 	require.NoError(t, err, "teamsEnumGenerate must not return an error for a valid format")
-	require.Len(t, emails, 5, "teamsEnumGenerate must return exactly --limit emails")
+	require.Len(t, targets, 5, "teamsEnumGenerate must return exactly --limit targets")
 
-	for _, e := range emails {
-		assert.True(t, strings.HasSuffix(e, "@example.com"),
-			"every generated email must end with @example.com, got: %q", e)
+	for i, target := range targets {
+		assert.True(t, strings.HasSuffix(target.Email, "@example.com"),
+			"every generated target's Email must end with @example.com, got: %q", target.Email)
+		assert.NotEmpty(t, target.First, "target %d (%q): a generated target must carry a non-empty First", i, target.Email)
+		assert.NotEmpty(t, target.Last, "target %d (%q): a generated target must carry a non-empty Last", i, target.Email)
 	}
 
 	// The frequency-ranked list places john.smith first, so the leading entry
 	// must be john.smith@example.com.
-	assert.Equal(t, "john.smith@example.com", emails[0],
-		"first generated email must be john.smith@example.com (highest-ranked pair)")
+	assert.Equal(t, "john.smith@example.com", targets[0].Email,
+		"first generated target's Email must be john.smith@example.com (highest-ranked pair)")
 }
-
-// ---------------------------------------------------------------------------
-// Test 23: teamsEnumGenerate — invalid format returns error
-// ---------------------------------------------------------------------------
 
 // TestTeamsEnumGenerate_InvalidFormat verifies that teamsEnumGenerate returns
 // a non-nil error containing valid format names when an unknown format is
-// provided, exercising the ListFormats validation gate added to protect
-// against GenerateEmails silently returning an empty list.
+// provided, and returns nil targets, exercising the ListFormats validation
+// gate added to protect against GenerateEmails silently returning an empty
+// list — retargeted onto the []enum.Target signature.
 func TestTeamsEnumGenerate_InvalidFormat(t *testing.T) {
-	origDomain := flagTeamsEnumDomain
-	origFormat := flagTeamsEnumFormat
-	origLimit := flagTeamsEnumLimit
-	origQuiet := flagQuiet
-	origJSON := flagJSON
-	defer func() {
-		flagTeamsEnumDomain = origDomain
-		flagTeamsEnumFormat = origFormat
-		flagTeamsEnumLimit = origLimit
-		flagQuiet = origQuiet
-		flagJSON = origJSON
-	}()
+	defer resetTeamsEnumTargetFlags()()
 
 	flagTeamsEnumDomain = "example.com"
 	flagTeamsEnumFormat = "bogus"
@@ -309,38 +322,22 @@ func TestTeamsEnumGenerate_InvalidFormat(t *testing.T) {
 	flagQuiet = true
 	flagJSON = false
 
-	emails, err := teamsEnumGenerate()
+	targets, err := teamsEnumGenerate()
 	require.Error(t, err, "teamsEnumGenerate must return an error for an invalid format")
-	assert.Nil(t, emails, "no emails must be returned on error")
+	assert.Nil(t, targets, "no targets must be returned on error")
 	// The error message must mention at least one valid format to be actionable.
 	assert.Contains(t, err.Error(), "first.last",
 		"error message must list valid formats so the user knows what to fix")
 }
 
-// ---------------------------------------------------------------------------
-// Test 24: teamsEnumTargets — --domain appended to -e emails, deduped
-// ---------------------------------------------------------------------------
-
-// TestTeamsEnumTargets_DomainCombinesWithEmails verifies that when both
-// --emails and --domain are provided, teamsEnumTargets returns the -e address
-// alongside the generated @example.com emails, with no duplicates.
-func TestTeamsEnumTargets_DomainCombinesWithEmails(t *testing.T) {
-	origEmails := flagTeamsEnumEmails
-	origEmailFile := flagTeamsEnumEmailFile
-	origDomain := flagTeamsEnumDomain
-	origFormat := flagTeamsEnumFormat
-	origLimit := flagTeamsEnumLimit
-	origQuiet := flagQuiet
-	origJSON := flagJSON
-	defer func() {
-		flagTeamsEnumEmails = origEmails
-		flagTeamsEnumEmailFile = origEmailFile
-		flagTeamsEnumDomain = origDomain
-		flagTeamsEnumFormat = origFormat
-		flagTeamsEnumLimit = origLimit
-		flagQuiet = origQuiet
-		flagJSON = origJSON
-	}()
+// TestTeamsEnumTargetList_DomainCombinesWithEmails verifies that when both
+// --emails and --domain are provided, teamsEnumTargetList returns the -e
+// address alongside the generated @example.com targets, with no duplicates,
+// and that the explicit -e target carries no name while the generated ones
+// do — retargeted from TestTeamsEnumTargets_DomainCombinesWithEmails onto the
+// []enum.Target signature.
+func TestTeamsEnumTargetList_DomainCombinesWithEmails(t *testing.T) {
+	defer resetTeamsEnumTargetFlags()()
 
 	flagTeamsEnumEmails = "alice@x.com"
 	flagTeamsEnumEmailFile = ""
@@ -350,87 +347,78 @@ func TestTeamsEnumTargets_DomainCombinesWithEmails(t *testing.T) {
 	flagQuiet = true
 	flagJSON = false
 
-	result, err := teamsEnumTargets()
-	require.NoError(t, err, "teamsEnumTargets must not error when both -e and --domain are set")
+	result, err := teamsEnumTargetList()
+	require.NoError(t, err, "teamsEnumTargetList must not error when both -e and --domain are set")
+
+	emails := enumTargetEmails(result)
 
 	// Must contain the explicit -e address.
-	assert.Contains(t, result, "alice@x.com",
+	assert.Contains(t, emails, "alice@x.com",
 		"result must contain the explicit -e email address")
 
 	// Count generated @example.com emails.
 	var exampleCount int
-	for _, e := range result {
+	for _, e := range emails {
 		if strings.HasSuffix(e, "@example.com") {
 			exampleCount++
 		}
 	}
 	assert.Equal(t, 3, exampleCount,
-		"result must contain exactly --limit (3) generated @example.com emails")
+		"result must contain exactly --limit (3) generated @example.com targets")
 
 	// Total must be at least 4 (1 explicit + 3 generated).
 	assert.GreaterOrEqual(t, len(result), 4,
-		"result must have at least 4 addresses (1 explicit + 3 generated)")
+		"result must have at least 4 targets (1 explicit + 3 generated)")
 
 	// Verify deduplication: no address appears twice.
 	seen := make(map[string]int)
-	for _, e := range result {
+	for _, e := range emails {
 		seen[e]++
 	}
 	for addr, count := range seen {
 		assert.Equal(t, 1, count,
 			"address %q appears %d times; dedup must ensure each address appears exactly once", addr, count)
 	}
+
+	// The explicit -e target carries no name (a supplied address says nothing
+	// about whose it is); every --domain-generated target does.
+	for _, target := range result {
+		if target.Email == "alice@x.com" {
+			assert.Empty(t, target.First, "the explicit -e target must have empty First")
+			assert.Empty(t, target.Last, "the explicit -e target must have empty Last")
+		} else {
+			assert.NotEmpty(t, target.First, "target %q: --domain-generated target must carry a non-empty First", target.Email)
+			assert.NotEmpty(t, target.Last, "target %q: --domain-generated target must carry a non-empty Last", target.Email)
+		}
+	}
 }
 
-// ---------------------------------------------------------------------------
-// Test 25: teamsEnumTargets — no sources → error mentioning --domain
-// ---------------------------------------------------------------------------
-
-// TestTeamsEnumTargets_NoSourcesErrors verifies that teamsEnumTargets returns
-// an error when all of --emails, --email-file, and --domain are empty. The
-// error message must mention --domain so the user knows generation is an option.
-func TestTeamsEnumTargets_NoSourcesErrors(t *testing.T) {
-	origEmails := flagTeamsEnumEmails
-	origEmailFile := flagTeamsEnumEmailFile
-	origDomain := flagTeamsEnumDomain
-	defer func() {
-		flagTeamsEnumEmails = origEmails
-		flagTeamsEnumEmailFile = origEmailFile
-		flagTeamsEnumDomain = origDomain
-	}()
+// TestTeamsEnumTargetList_NoSourcesErrors verifies that teamsEnumTargetList
+// returns an error when all of --emails, --email-file, and --domain are
+// empty. The error message must mention --domain so the user knows
+// generation is an option — retargeted from
+// TestTeamsEnumTargets_NoSourcesErrors onto the []enum.Target signature.
+func TestTeamsEnumTargetList_NoSourcesErrors(t *testing.T) {
+	defer resetTeamsEnumTargetFlags()()
 
 	flagTeamsEnumEmails = ""
 	flagTeamsEnumEmailFile = ""
 	flagTeamsEnumDomain = ""
 
-	result, err := teamsEnumTargets()
-	require.Error(t, err, "teamsEnumTargets must return an error when no email sources are set")
+	result, err := teamsEnumTargetList()
+	require.Error(t, err, "teamsEnumTargetList must return an error when no email sources are set")
 	assert.Nil(t, result, "no results must be returned when there is an error")
 	assert.Contains(t, err.Error(), "--domain",
 		"error message must mention --domain as a valid source of targets")
 }
 
-// ---------------------------------------------------------------------------
-// Test 26 (optional): teamsEnumGenerate — limit=0 returns the full list
-// ---------------------------------------------------------------------------
-
 // TestTeamsEnumGenerate_LimitZeroReturnsAll verifies that limit=0 causes
-// teamsEnumGenerate to return the entire embedded wordlist (~248k entries).
-// It does not pin the exact count to avoid brittleness if the wordlist is
-// updated; it checks the list is large (>1000) and bounded (<250k+margin).
+// teamsEnumGenerate to return the entire embedded wordlist (~248k entries) as
+// Targets. It does not pin the exact count to avoid brittleness if the
+// wordlist is updated; it checks the list is large (>1000) and bounded
+// (<250k+margin) — retargeted onto the []enum.Target signature.
 func TestTeamsEnumGenerate_LimitZeroReturnsAll(t *testing.T) {
-	origDomain := flagTeamsEnumDomain
-	origFormat := flagTeamsEnumFormat
-	origLimit := flagTeamsEnumLimit
-	origQuiet := flagQuiet
-	origJSON := flagJSON
-	defer func() {
-		flagTeamsEnumDomain = origDomain
-		flagTeamsEnumFormat = origFormat
-		flagTeamsEnumLimit = origLimit
-		flagQuiet = origQuiet
-		flagJSON = origJSON
-	}()
+	defer resetTeamsEnumTargetFlags()()
 
 	flagTeamsEnumDomain = "example.com"
 	flagTeamsEnumFormat = "first.last"
@@ -438,11 +426,11 @@ func TestTeamsEnumGenerate_LimitZeroReturnsAll(t *testing.T) {
 	flagQuiet = true
 	flagJSON = false
 
-	emails, err := teamsEnumGenerate()
+	targets, err := teamsEnumGenerate()
 	require.NoError(t, err, "teamsEnumGenerate with limit=0 must not error")
-	assert.Greater(t, len(emails), 1000,
+	assert.Greater(t, len(targets), 1000,
 		"limit=0 must return a large list (>1000 entries)")
-	assert.Less(t, len(emails), 300_000,
+	assert.Less(t, len(targets), 300_000,
 		"limit=0 list must be bounded (<300,000 entries; embedded wordlist sanity check)")
 }
 

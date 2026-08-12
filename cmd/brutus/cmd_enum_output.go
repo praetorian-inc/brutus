@@ -626,6 +626,8 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 	type teamsEnumJSON struct {
 		Type              string `json:"type"`
 		Email             string `json:"email"`
+		First             string `json:"first,omitempty"`
+		Last              string `json:"last,omitempty"`
 		Exists            string `json:"exists"`
 		DetailsRestricted bool   `json:"details_restricted,omitempty"`
 		DisplayName       string `json:"display_name,omitempty"`
@@ -650,11 +652,24 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 		jr := teamsEnumJSON{
 			Type:  "teams_enum",
 			Email: r.Email,
+			// The generated first/last are a property of the ADDRESS brutus
+			// built, not of whether the tenant let brutus see details about it.
+			// They are therefore set here, alongside Email and ahead of the
+			// existence switch, so BOTH the ExistenceBlocked (details-restricted)
+			// branch and the default branch carry them — a 403 withholds tenant
+			// metadata, never the name brutus generated itself.
+			//
+			// They are also deliberately separate from the tenant-provided
+			// DisplayName below: "first"/"last" are brutus's own guesses and
+			// "display_name" is the tenant's claim, so neither ever falls back to
+			// or overwrites the other, in either direction.
+			First: r.First,
+			Last:  r.Last,
 		}
 		// Map internal existence to the output shape. A 403/blocked result is a
 		// confirmed hit whose details the tenant withholds, so it is presented as
-		// "exists":"yes" with "details_restricted":true and no metadata fields (a
-		// 403 carries none).
+		// "exists":"yes" with "details_restricted":true and no tenant-provided
+		// metadata fields (a 403 carries none).
 		switch r.Exists {
 		case teams.ExistenceBlocked:
 			jr.Exists = string(teams.ExistenceYes)

@@ -169,12 +169,48 @@ func runEnumGenerate(cmd *cobra.Command, args []string) error {
 }
 
 // capResults returns the first limit elements of results (the most likely,
-// since results are frequency-ranked). A limit <= 0 means no cap.
-func capResults(results []string, limit int) []string {
+// since results are frequency-ranked). A limit <= 0 means no cap. It is generic
+// so the same cap applies whether a command carries bare addresses or the
+// enum.Candidate/enum.Target values that keep each address's generated name.
+func capResults[T any](results []T, limit int) []T {
 	if limit <= 0 || limit >= len(results) {
 		return results
 	}
 	return results[:limit]
+}
+
+// enumTargetEmails returns just the addresses of targets, in order, for the
+// per-service checkers (which take a []string of addresses).
+func enumTargetEmails(targets []enum.Target) []string {
+	emails := make([]string, len(targets))
+	for i, t := range targets {
+		emails[i] = t.Email
+	}
+	return emails
+}
+
+// enumNamesByEmail indexes the GENERATED targets by address, so a per-service
+// Result can be stamped with the name behind its address once the check
+// returns. Addresses the operator supplied (--emails/--email-file) carry no
+// name and are deliberately omitted: a supplied address says nothing about
+// whose it is, so a lookup for one must yield nothing rather than a guess.
+func enumNamesByEmail(targets []enum.Target) map[string]enum.Target {
+	names := make(map[string]enum.Target, len(targets))
+	for _, t := range targets {
+		if t.First == "" && t.Last == "" {
+			continue
+		}
+		names[t.Email] = t
+	}
+	return names
+}
+
+// enumNameFor returns the generated name behind email, or empty strings when
+// the address was not generated. Nothing invents a name here: an address that
+// is absent from names simply has none.
+func enumNameFor(names map[string]enum.Target, email string) (first, last string) {
+	t := names[email]
+	return t.First, t.Last
 }
 
 // pageSizeForLimit derives an API page size from a --limit total cap: min(limit,100),

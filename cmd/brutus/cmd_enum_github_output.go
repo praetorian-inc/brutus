@@ -133,9 +133,13 @@ func firstGithubEnumError(results []githubenum.Result) string {
 // control characters, so no sanitization is needed.
 func outputGithubEnumJSONL(w io.Writer, results []githubenum.Result) {
 	type githubEnumJSON struct {
-		Type     string `json:"type"`
-		Email    string `json:"email"`
-		Exists   bool   `json:"exists"`
+		Type   string `json:"type"`
+		Email  string `json:"email"`
+		Exists bool   `json:"exists"`
+		// First/Last are omitempty on purpose: an address the operator supplied
+		// has no name, and emitting "" would assert a name we do not have.
+		First    string `json:"first,omitempty"`
+		Last     string `json:"last,omitempty"`
 		Username string `json:"username,omitempty"`
 		Error    string `json:"error,omitempty"`
 	}
@@ -147,6 +151,8 @@ func outputGithubEnumJSONL(w io.Writer, results []githubenum.Result) {
 			Type:     "github_account",
 			Email:    r.Email,
 			Exists:   r.Exists,
+			First:    r.First,
+			Last:     r.Last,
 			Username: r.Username,
 		}
 		if r.Error != nil {

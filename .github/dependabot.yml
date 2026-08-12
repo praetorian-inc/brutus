@@ -8,12 +8,14 @@ updates:
       - "dependencies"
       - "ci"
     ignore:
-      # The leaderboard-metrics reusable workflow is SHA-pinned to a commit
-      # whose job_workflow_ref is on the LeaderboardMetricsRole IAM trust list.
-      # Auto-bumping it breaks OIDC AssumeRole (metrics silently stop) unless
-      # the new SHA is added to the trust first via the ENG-4164 runbook, so it
-      # must be rolled manually — not by dependabot. (See #229, which broke it.)
+      # Both leaderboard reusables are SHA-pinned to commits whose
+      # job_workflow_ref is on the LeaderboardMetricsRole IAM trust list.
+      # Auto-bumping either breaks OIDC AssumeRole (metrics silently stop)
+      # unless the new SHA is added to the trust first via the ENG-4164
+      # runbook, so both must be rolled manually — not by dependabot.
+      # (See #229, which broke the metrics pin exactly this way.)
       - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-metrics.yml"
+      - dependency-name: "praetorian-inc/public-workflows/.github/workflows/leaderboard-backfill.yml"
 
   - package-ecosystem: "gomod"
     directory: "/"

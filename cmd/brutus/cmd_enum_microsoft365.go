@@ -103,10 +103,12 @@ func runEnumMicrosoft365(cmd *cobra.Command, args []string) error {
 		flagJSON = true
 	}
 
-	emails, err := microsoft365EnumTargets()
+	targets, err := microsoft365EnumTargetList()
 	if err != nil {
 		return err
 	}
+	emails := enumTargetEmails(targets)
+	names := enumNamesByEmail(targets)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -143,6 +145,17 @@ func runEnumMicrosoft365(cmd *cobra.Command, args []string) error {
 	progress.Start()
 	var processed, found int
 	onResult := func(res m365.Result) {
+		// Stamp the generated name onto the result the checker just returned.
+		// The checker only ever sees the address, so the name is attached here;
+		// an address that came from --emails/--email-file is absent from names
+		// and stays nameless.
+		//
+		// One stamp is enough, like google's and gravatar's (unlike github's
+		// two): all JSON is emitted from this callback, and the slice
+		// EnumerateWith returns feeds outputMicrosoft365EnumSummary alone,
+		// which only counts Error/Exists/Federated and never re-encodes.
+		res.First, res.Last = enumNameFor(names, res.Email)
+
 		processed++
 		if res.Exists {
 			found++
@@ -169,20 +182,28 @@ func runEnumMicrosoft365(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// microsoft365EnumTargets parses, trims, and dedups the email targets from
-// --emails and --email-file, plus any --domain-generated candidates. It errors
-// when no targets are supplied.
-func microsoft365EnumTargets() ([]string, error) {
-	var raw []string
+// microsoft365EnumTargetList parses, trims, and dedups the email targets from
+// --emails and --email-file, plus any --domain-generated candidates. Each
+// generated target carries the name its username was built from; supplied
+// addresses carry none, because an address the operator provided says nothing
+// about whose it is. Dedup keeps the first-seen entry, so a supplied address
+// that a generated candidate duplicates stays nameless. It errors when no
+// targets are supplied.
+func microsoft365EnumTargetList() ([]enum.Target, error) {
+	var raw []enum.Target
 	if flagM365EnumEmails != "" {
-		raw = append(raw, strings.Split(flagM365EnumEmails, ",")...)
+		for _, e := range strings.Split(flagM365EnumEmails, ",") {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 	if flagM365EnumEmailFile != "" {
 		lines, err := loadLinesFromFile(flagM365EnumEmailFile)
 		if err != nil {
 			return nil, fmt.Errorf("reading --email-file: %w", err)
 		}
-		raw = append(raw, lines...)
+		for _, e := range lines {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 
 	// --domain generates the candidate wordlist internally (reusing the same
@@ -198,45 +219,65 @@ func microsoft365EnumTargets() ([]string, error) {
 	}
 
 	seen := make(map[string]struct{})
-	var emails []string
-	for _, e := range raw {
-		e = strings.TrimSpace(e)
-		if e == "" {
+	var targets []enum.Target
+	for _, t := range raw {
+		t.Email = strings.TrimSpace(t.Email)
+		if t.Email == "" {
 			continue
 		}
-		// Key on the lowercased address (the API is case-insensitive) while
-		// appending the original-cased email to the results.
-		key := strings.ToLower(e)
+		// Key the dedup set on the lowercased address (GetCredentialType is
+		// case-insensitive, so case variants are the same target) while STORING
+		// the original-cased address on the Target.
+		//
+		// This is deliberately the opposite of gravatarEnumTargetList, which
+		// lower-cases the Target.Email field itself. The two differ because
+		// their checkers differ: gravatar.CheckAccount lower-cases the address
+		// for HashEmail's digest, whereas microsoft365.CheckAccount echoes the
+		// address back verbatim (`result := &Result{Email: email}`, never
+		// re-cased). Storing the original casing here is what keeps the stored
+		// address byte-identical to the one Result.Email carries, so
+		// enumNamesByEmail/enumNameFor recover the generated name. Lower-casing
+		// the field here (copying gravatar) would desync the index from the
+		// echoed address and silently drop every generated name — and would
+		// discard the operator's --domain casing.
+		key := strings.ToLower(t.Email)
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		seen[key] = struct{}{}
-		emails = append(emails, e)
+		targets = append(targets, t)
 	}
 
-	if len(emails) == 0 {
+	if len(targets) == 0 {
 		return nil, fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain")
 	}
-	return emails, nil
+	return targets, nil
 }
 
 // microsoft365EnumGenerate produces the candidate email wordlist for --domain by
-// reusing the shared, frequency-ranked generator (enum.GenerateEmails) and the
-// shared capResults helper — no duplicated generation logic. The requested
-// format is validated against enum.ListFormats() first, because GenerateEmails
-// silently yields an empty list for an unknown format. A status line goes to
-// stderr (never stdout, so --json/-o output stays clean) unless quiet or JSON.
-func microsoft365EnumGenerate() ([]string, error) {
+// reusing the shared, frequency-ranked generator (enum.GenerateCandidates) and
+// the shared capResults helper — no duplicated generation logic. Candidates,
+// not bare addresses, are generated so each target keeps the name its username
+// was built from, which is knowable for free here and lossy to recover later.
+// The requested format is validated against enum.ListFormats() first, because
+// the generator silently yields an empty list for an unknown format. A status
+// line goes to stderr (never stdout, so --json/-o output stays clean) unless
+// quiet or JSON.
+func microsoft365EnumGenerate() ([]enum.Target, error) {
 	if !slices.Contains(enum.ListFormats(), flagM365EnumFormat) {
 		return nil, fmt.Errorf("invalid --format %q; valid formats: %s",
 			flagM365EnumFormat, strings.Join(enum.ListFormats(), ", "))
 	}
 
-	generated, err := enum.GenerateEmails(flagM365EnumFormat, flagM365EnumDomain)
+	candidates, err := enum.GenerateCandidates(flagM365EnumFormat)
 	if err != nil {
 		return nil, fmt.Errorf("generating candidate emails: %w", err)
 	}
-	generated = capResults(generated, flagM365EnumLimit)
+	candidates = capResults(candidates, flagM365EnumLimit)
+	generated := make([]enum.Target, len(candidates))
+	for i, c := range candidates {
+		generated[i] = c.Target(flagM365EnumDomain)
+	}
 
 	if !flagQuiet && !flagJSON {
 		useColor := isColorEnabled(flagNoColor)

@@ -1126,9 +1126,16 @@ func outputMicrosoft365EnumSummary(w io.Writer, results []m365.Result, useColor 
 // an actual API code was decoded (i.e. no error): on a pre-response failure the
 // zero value 0 would otherwise be indistinguishable from the API's "account
 // exists" code, contradicting the accompanying error.
+//
+// first/last carry the generated name behind the address. They are omitempty
+// because an address the operator supplied (--emails/--email-file) has no known
+// name: the keys are absent rather than emitted as "", so a consumer can never
+// mistake an unknown name for an empty one.
 type microsoft365EnumJSON struct {
 	Type           string `json:"type"`
 	Email          string `json:"email"`
+	First          string `json:"first,omitempty"`
+	Last           string `json:"last,omitempty"`
 	Exists         bool   `json:"exists"`
 	IfExistsResult *int   `json:"if_exists_result,omitempty"`
 	Federated      bool   `json:"federated,omitempty"`
@@ -1145,6 +1152,8 @@ func encodeMicrosoft365EnumResult(enc *json.Encoder, r m365.Result) { //nolint:g
 	jr := microsoft365EnumJSON{
 		Type:          "microsoft365_account",
 		Email:         r.Email,
+		First:         r.First,
+		Last:          r.Last,
 		Exists:        r.Exists,
 		Federated:     r.Federated,
 		FederationURL: r.FederationURL,

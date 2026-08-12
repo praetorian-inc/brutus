@@ -977,9 +977,14 @@ func outputGoogleEnumSummary(w io.Writer, results []google.Result, useColor bool
 // outputGoogleEnumJSONL writes one JSON object per result. encoding/json escapes
 // control characters, so no sanitization is needed.
 func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
+	// First/Last carry the generated name behind the address. They are omitempty
+	// because an address the operator supplied has no name, and an empty string
+	// would read as a claim that it does.
 	type googleEnumJSON struct {
 		Type   string `json:"type"`
 		Email  string `json:"email"`
+		First  string `json:"first,omitempty"`
+		Last   string `json:"last,omitempty"`
 		Exists bool   `json:"exists"`
 		Method string `json:"method,omitempty"`
 		IdP    string `json:"idp,omitempty"`
@@ -992,6 +997,8 @@ func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
 		jr := googleEnumJSON{
 			Type:   "google_account",
 			Email:  r.Email,
+			First:  r.First,
+			Last:   r.Last,
 			Exists: r.Exists,
 			Method: string(r.Method),
 			IdP:    r.IdP,

@@ -542,7 +542,7 @@ func TestOutputGithubEnumResultLine_Error(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	outputGithubEnumResultLine(&buf, r, false)
+	outputGithubEnumResultLine(&buf, &r, false)
 	out := buf.String()
 
 	assert.Contains(t, out, SymbolError, "error row must show the error symbol")
@@ -561,7 +561,7 @@ func TestOutputGithubEnumResultLine_NotFoundStillWorks(t *testing.T) {
 	r := githubenum.Result{Email: "b@x.com"}
 
 	var buf bytes.Buffer
-	outputGithubEnumResultLine(&buf, r, false)
+	outputGithubEnumResultLine(&buf, &r, false)
 	out := buf.String()
 
 	assert.Contains(t, out, "[ ] not found", "a result with no error/no match must render the not-found row")

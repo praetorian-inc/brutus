@@ -31,7 +31,7 @@ import (
 // EXISTS rows show the email and an "[+] EXISTS" label; not-found rows render as
 // "[ ] not found". Callers decide which results to print (e.g. EXISTS only,
 // unless verbose); this helper renders whatever it is given.
-func outputGravatarEnumResultLine(w io.Writer, r gravatar.Result, useColor bool) {
+func outputGravatarEnumResultLine(w io.Writer, r *gravatar.Result, useColor bool) {
 	email := truncate(sanitizeTerminal(r.Email), 40)
 
 	if !r.Exists {
@@ -91,7 +91,7 @@ type gravatarEnumJSON struct {
 }
 
 // encodeGravatarEnumResult maps a gravatar.Result to its JSONL row.
-func encodeGravatarEnumResult(r gravatar.Result) gravatarEnumJSON {
+func encodeGravatarEnumResult(r *gravatar.Result) gravatarEnumJSON {
 	jr := gravatarEnumJSON{
 		Email:     r.Email,
 		First:     r.First,
@@ -111,7 +111,7 @@ func encodeGravatarEnumResult(r gravatar.Result) gravatarEnumJSON {
 func outputGravatarEnumJSONL(w io.Writer, results []gravatar.Result) {
 	enc := json.NewEncoder(w)
 	for i := range results {
-		if err := enc.Encode(encodeGravatarEnumResult(results[i])); err != nil {
+		if err := enc.Encode(encodeGravatarEnumResult(&results[i])); err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error encoding gravatar enum JSON: %v\n", err)
 		}
 	}

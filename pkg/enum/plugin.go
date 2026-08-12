@@ -40,6 +40,8 @@ const (
 type Result struct {
 	Service    string        // service name (e.g., "microsoft365")
 	Email      string        // email tested
+	First      string        // generated given name; empty if the address was supplied
+	Last       string        // generated surname; empty if the address was supplied
 	Exists     bool          // account exists on this service?
 	Confidence Confidence    // high/medium/low
 	Error      error         // service/connection error (nil = clean check)

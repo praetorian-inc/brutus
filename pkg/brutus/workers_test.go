@@ -16,11 +16,67 @@ package brutus
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// TestExecuteWorkerPool_PanicResultsNotDropped is a regression test for a bug
+// where the panic-recovery path used mu.TryLock() instead of mu.Lock(). Under
+// mutex contention (many workers panicking concurrently), TryLock would fail
+// and the panic Result was silently discarded instead of recorded. This test
+// drives enough concurrent panicking attempts to create genuine contention and
+// asserts the conservation property: every credential attempt that panics
+// still produces exactly one recorded Result carrying the panic error.
+func TestExecuteWorkerPool_PanicResultsNotDropped(t *testing.T) {
+	mock := &panickingPlugin{}
+
+	const numPasswords = 300
+	passwords := make([]string, numPasswords)
+	for i := range passwords {
+		passwords[i] = fmt.Sprintf("pass%d", i)
+	}
+
+	cfg := &Config{
+		Target:    "test:22",
+		Protocol:  "panic-mock",
+		Usernames: []string{"user"},
+		Passwords: passwords,
+		Threads:   32,
+		Timeout:   1 * time.Second,
+		Plugin:    mock,
+	}
+
+	results, err := Brute(cfg)
+	assert.NoError(t, err)
+
+	invocations := int(atomic.LoadInt64(&mock.invocations))
+	dropped := invocations - len(results)
+	assert.Equal(t, invocations, len(results),
+		"dropped %d of %d panic results (invocations=%d, results=%d)",
+		dropped, invocations, invocations, len(results))
+
+	for _, r := range results {
+		assert.Error(t, r.Error, "panic result should carry a non-nil Error")
+	}
+}
+
+// panickingPlugin counts every Test invocation and then panics, simulating a
+// plugin bug. The worker pool must recover from the panic and still record a
+// Result for every invocation.
+type panickingPlugin struct {
+	invocations int64
+}
+
+func (p *panickingPlugin) Name() string { return "panic-mock" }
+
+func (p *panickingPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	atomic.AddInt64(&p.invocations, 1)
+	panic("simulated plugin panic for regression test")
+}
 
 func TestCaptureBanner_EmptyUsernames(t *testing.T) {
 	// Setup: Config with only Credentials (no Usernames), HTTP protocol, LLM enabled
@@ -49,6 +105,103 @@ func TestCaptureBanner_EmptyUsernames(t *testing.T) {
 	assert.Equal(t, "http", banner.Protocol)
 	assert.Equal(t, "example.com:80", banner.Target)
 	// Banner may be empty, which is fine
+}
+
+// TestThreadsClampsConcurrency is a regression test for a bug where
+// Config.Threads was only defaulted when equal to 0 (`if c.Threads == 0`),
+// leaving negative values (e.g. Threads: -1) untouched. errgroup.SetLimit
+// treats a negative limit as unlimited, so a negative Threads value spawned
+// one goroutine per credential instead of being bounded.
+//
+// This test drives real credential attempts through Brute() with a mock
+// plugin that tracks the high-water mark of concurrently in-flight
+// Test() calls, and asserts the observed peak concurrency never exceeds
+// the expected effective limit. A field-equality check on cfg.Threads would
+// not catch this bug, since the bug is about how the (correctly defaulted
+// or not) value is enforced by the worker pool, not about the field value
+// itself.
+func TestThreadsClampsConcurrency(t *testing.T) {
+	// Enough credentials that unbounded concurrency (the bug) would clearly
+	// exceed any of the expected bounds below.
+	const numCredentials = 150
+
+	usernames := make([]string, numCredentials)
+	for i := range usernames {
+		usernames[i] = fmt.Sprintf("user%d", i)
+	}
+
+	tests := []struct {
+		name        string
+		threads     int
+		expectedMax int64
+	}{
+		{name: "negative threads clamps to default limit", threads: -1, expectedMax: 10},
+		{name: "zero threads defaults to default limit", threads: 0, expectedMax: 10},
+		{name: "positive threads respected as limit", threads: 3, expectedMax: 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := &concurrencyTrackingPlugin{}
+
+			cfg := &Config{
+				Target:    "test:22",
+				Protocol:  "mock-concurrency",
+				Usernames: usernames,
+				Passwords: []string{"password"},
+				Threads:   tt.threads,
+				Timeout:   1 * time.Second,
+				Plugin:    plugin,
+			}
+
+			_, err := Brute(cfg)
+			assert.NoError(t, err)
+
+			peak := atomic.LoadInt64(&plugin.peak)
+			assert.LessOrEqual(t, peak, tt.expectedMax,
+				"observed peak concurrency %d exceeds expected bound %d (Threads=%d)",
+				peak, tt.expectedMax, tt.threads)
+		})
+	}
+}
+
+// concurrencyTrackingPlugin is a mock Plugin that records the high-water
+// mark of concurrently in-flight Test() calls using atomic operations, so
+// tests can assert on real observed concurrency rather than config values.
+type concurrencyTrackingPlugin struct {
+	current int64
+	peak    int64
+}
+
+func (p *concurrencyTrackingPlugin) Name() string { return "mock-concurrency" }
+
+func (p *concurrencyTrackingPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	n := atomic.AddInt64(&p.current, 1)
+
+	// CAS loop to record the high-water mark without losing updates from
+	// concurrent goroutines.
+	for {
+		old := atomic.LoadInt64(&p.peak)
+		if n <= old {
+			break
+		}
+		if atomic.CompareAndSwapInt64(&p.peak, old, n) {
+			break
+		}
+	}
+
+	// Hold the "attempt" open briefly so overlapping calls are observable.
+	time.Sleep(5 * time.Millisecond)
+
+	atomic.AddInt64(&p.current, -1)
+
+	return &Result{
+		Protocol: "mock-concurrency",
+		Target:   target,
+		Username: username,
+		Password: password,
+		Success:  false,
+	}
 }
 
 type mockHTTPPlugin struct{}

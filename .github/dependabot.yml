@@ -8,24 +8,18 @@ updates:
       - "dependencies"
       - "ci"
     ignore:
-      # The leaderboard-metrics reusable workflow is SHA-pinned to a commit
-      # whose job_workflow_ref is on the LeaderboardMetricsRole IAM trust list.
-      # Auto-bumping it breaks OIDC AssumeRole (metrics silently stop) unless
-      # the new SHA is added to the trust first via the ENG-4164 runbook, so it
-      # must be rolled manually — not by dependabot. (See #229, which broke it.)
-      #
-      # leaderboard-backfill.yml is a SECOND reusable with the same coupling and
-      # its own separately-trusted pin (6c715ccf…, v2.17.0). It is added here
-      # BEFORE the ENG-5688 fan-out lands a backfill caller in this repo, so the
-      # rule is in place ahead of the dependency rather than after the first
-      # broken bump — which is how #229 was learned the expensive way. Until
-      # that caller exists the entry is simply a no-op.
+      # Both leaderboard reusables are SHA-pinned to commits whose
+      # job_workflow_ref is on the LeaderboardMetricsRole IAM trust list.
+      # Auto-bumping either breaks OIDC AssumeRole (metrics silently stop)
+      # unless the new SHA is added to the trust first via the ENG-4164
+      # runbook, so both must be rolled manually — not by dependabot.
+      # (See #229, which broke the metrics pin exactly this way.)
       #
       # ADDING A NEW LEADERBOARD REUSABLE MEANS ADDING ITS EXACT NAME to this
       # list. The two exact entries below are the load-bearing control. The
       # `leaderboard-*` wildcard is forward coverage for the window between "a
       # new coupled reusable lands" and "someone remembers to add its exact
-      # name" — which is exactly how this was learned the expensive way.
+      # name" — which is exactly how #229 was learned the expensive way.
       #
       # The wildcard's behaviour is NOT observable from here, in either
       # direction. An ignore list is match-ANY, so a quiet dependabot run proves

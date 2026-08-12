@@ -60,6 +60,8 @@ type credTypeResponse struct {
 // GetCredentialType API.
 type Result struct {
 	Email          string
+	First          string // generated given name; empty if the address was supplied
+	Last           string // generated surname; empty if the address was supplied
 	Exists         bool
 	IfExistsResult int
 	Federated      bool

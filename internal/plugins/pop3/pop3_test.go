@@ -15,10 +15,17 @@
 package pop3
 
 import (
+	"bufio"
+	"context"
 	"errors"
+	"fmt"
+	"net"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -106,4 +113,142 @@ func TestClassifyAuthError(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mockPOP3Server starts a TCP listener that speaks a scripted POP3 conversation.
+// handler receives the server-side conn and a reader for consuming client commands.
+func mockPOP3Server(t *testing.T, handler func(conn net.Conn, reader *bufio.Reader)) (addr string, cleanup func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, acceptErr := ln.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		reader := bufio.NewReader(conn)
+		handler(conn, reader)
+	}()
+
+	cleanup = func() {
+		_ = ln.Close()
+		<-done
+	}
+	return ln.Addr().String(), cleanup
+}
+
+// pop3Send writes a POP3 response line to the connection.
+func pop3Send(conn net.Conn, msg string) {
+	_, _ = fmt.Fprint(conn, msg)
+}
+
+// pop3Recv reads one line from the connection (a client command), returning
+// ok=false if the connection was closed/errored before a line arrived. This
+// lets tests distinguish "no command sent" from "command sent".
+func pop3Recv(reader *bufio.Reader) (cmd string, ok bool) {
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimRight(line, "\r\n"), true
+}
+
+func TestPlugin_USER_Rejected(t *testing.T) {
+	var commands []string
+	addr, cleanup := mockPOP3Server(t, func(conn net.Conn, reader *bufio.Reader) {
+		pop3Send(conn, "+OK POP3 server ready\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // USER
+			commands = append(commands, cmd)
+		}
+		pop3Send(conn, "-ERR no such mailbox\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // would be PASS, if sent
+			commands = append(commands, cmd)
+		}
+	})
+
+	p := &Plugin{}
+	result := p.Test(context.Background(), addr, "blocked", "hunter2", 5*time.Second, brutus.PluginConfig{})
+	cleanup() // synchronize with server goroutine before inspecting commands
+
+	assert.False(t, result.Success)
+	assert.Nil(t, result.Error)
+	require.Len(t, commands, 1, "PASS must not be sent after USER is rejected")
+	assert.Equal(t, "USER blocked", commands[0])
+}
+
+func TestPlugin_USER_UnexpectedResponse(t *testing.T) {
+	var commands []string
+	addr, cleanup := mockPOP3Server(t, func(conn net.Conn, reader *bufio.Reader) {
+		pop3Send(conn, "+OK POP3 server ready\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // USER
+			commands = append(commands, cmd)
+		}
+		pop3Send(conn, "500 Syntax error\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // would be PASS, if sent
+			commands = append(commands, cmd)
+		}
+	})
+
+	p := &Plugin{}
+	result := p.Test(context.Background(), addr, "admin", "hunter2", 5*time.Second, brutus.PluginConfig{})
+	cleanup()
+
+	assert.False(t, result.Success)
+	require.NotNil(t, result.Error)
+	require.Len(t, commands, 1, "PASS must not be sent after an unexpected USER response")
+	assert.Equal(t, "USER admin", commands[0])
+}
+
+func TestPlugin_ValidCredentials(t *testing.T) {
+	var commands []string
+	addr, cleanup := mockPOP3Server(t, func(conn net.Conn, reader *bufio.Reader) {
+		pop3Send(conn, "+OK POP3 server ready\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // USER
+			commands = append(commands, cmd)
+		}
+		pop3Send(conn, "+OK\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // PASS
+			commands = append(commands, cmd)
+		}
+		pop3Send(conn, "+OK Logged in\r\n")
+	})
+
+	p := &Plugin{}
+	result := p.Test(context.Background(), addr, "admin", "hunter2", 5*time.Second, brutus.PluginConfig{})
+	cleanup()
+
+	assert.True(t, result.Success)
+	assert.Nil(t, result.Error)
+	require.Len(t, commands, 2, "both USER and PASS must be sent for the happy path")
+	assert.Equal(t, "USER admin", commands[0])
+	assert.Equal(t, "PASS hunter2", commands[1])
+}
+
+func TestPlugin_InvalidPassword(t *testing.T) {
+	var commands []string
+	addr, cleanup := mockPOP3Server(t, func(conn net.Conn, reader *bufio.Reader) {
+		pop3Send(conn, "+OK POP3 server ready\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // USER
+			commands = append(commands, cmd)
+		}
+		pop3Send(conn, "+OK\r\n")
+		if cmd, ok := pop3Recv(reader); ok { // PASS
+			commands = append(commands, cmd)
+		}
+		pop3Send(conn, "-ERR Invalid password\r\n")
+	})
+
+	p := &Plugin{}
+	result := p.Test(context.Background(), addr, "admin", "wrongpass", 5*time.Second, brutus.PluginConfig{})
+	cleanup()
+
+	assert.False(t, result.Success)
+	assert.Nil(t, result.Error)
+	require.Len(t, commands, 2, "USER and PASS are both sent on a normal auth failure")
+	assert.Equal(t, "USER admin", commands[0])
+	assert.Equal(t, "PASS wrongpass", commands[1])
 }

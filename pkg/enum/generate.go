@@ -64,25 +64,66 @@ func ListFormats() []string {
 	}
 }
 
-// GenerateUsernames derives usernames in the requested format from the
-// frequency-ranked likely-names wordlist. Each source line is a "first.last"
-// pair; the requested format is built from its parts. Results are lowercased,
-// deduplicated preserving order (first occurrence wins, so output stays ranked
-// by likelihood), and bounded by the wordlist size (<=248k).
-func GenerateUsernames(format string) ([]string, error) {
+// Candidate is a generated username together with the name it was built from.
+//
+// The name is knowable for free at generation time: every username is derived
+// from a "first.last" pair in the wordlist, so we already hold First and Last
+// when we format the username. Returning only the username throws that away and
+// forces consumers to reverse-derive a name from the local part, which is lossy
+// for initial-based formats — "jsmith" could be John, James, or Jane, and there
+// is no way to recover which one was actually used. Carrying the pair forward
+// keeps the generator's own knowledge intact.
+//
+// Note that for formats which do not use both parts (e.g. FormatFirst, where
+// every "john.*" pair collapses to "john"), dedup keeps the first occurrence, so
+// the surviving candidate's Last is whichever pair ranked highest. That is still
+// the name that actually produced the username, but it is not the only name that
+// could have.
+type Candidate struct {
+	First    string
+	Last     string
+	Username string
+}
+
+// Email returns the candidate's username qualified with domain.
+func (c Candidate) Email(domain string) string {
+	return c.Username + "@" + domain
+}
+
+// Target converts a generated Candidate into a Target for domain, carrying the
+// name the username was built from so the enumeration framework can stamp it
+// onto each Result.
+func (c Candidate) Target(domain string) Target {
+	return Target{
+		Email: c.Email(domain),
+		First: c.First,
+		Last:  c.Last,
+	}
+}
+
+// GenerateCandidates derives usernames in the requested format from the
+// frequency-ranked likely-names wordlist, each paired with the name it was built
+// from. Each source line is a "first.last" pair; the requested format is built
+// from its parts. Results are lowercased, deduplicated on the username while
+// preserving order (first occurrence wins, so output stays ranked by
+// likelihood), and bounded by the wordlist size (<=248k). An unrecognized format
+// yields no candidates and no error, because formatUsername returns "" for every
+// pair and empty usernames are skipped.
+func GenerateCandidates(format string) ([]Candidate, error) {
 	pairs, err := loadGzippedWordlist("wordlists/likely-names.txt.gz")
 	if err != nil {
 		return nil, fmt.Errorf("loading likely names: %w", err)
 	}
 
 	seen := make(map[string]bool, len(pairs))
-	usernames := make([]string, 0, len(pairs))
+	candidates := make([]Candidate, 0, len(pairs))
 
 	for _, pair := range pairs {
 		pair = strings.ToLower(strings.TrimSpace(pair))
 
 		// Split on the FIRST "." only. lastRaw may itself contain dots
-		// (e.g. "al.mamun"), which FormatFirstDotLast preserves.
+		// (e.g. "al.mamun"), which FormatFirstDotLast preserves. It is kept whole
+		// on Last: re-splitting it later would silently truncate the surname.
 		first, lastRaw, ok := strings.Cut(pair, ".")
 		if !ok || first == "" || lastRaw == "" {
 			continue
@@ -92,23 +133,37 @@ func GenerateUsernames(format string) ([]string, error) {
 		if u == "" || seen[u] {
 			continue
 		}
-		usernames = append(usernames, u)
+		candidates = append(candidates, Candidate{First: first, Last: lastRaw, Username: u})
 		seen[u] = true
 	}
 
-	return usernames, nil
+	return candidates, nil
 }
 
-// GenerateEmails generates emails by appending @domain to usernames.
-func GenerateEmails(format, domain string) ([]string, error) {
-	usernames, err := GenerateUsernames(format)
+// GenerateUsernames returns just the usernames from GenerateCandidates, in the
+// same order. Callers that need the originating name should use
+// GenerateCandidates directly.
+func GenerateUsernames(format string) ([]string, error) {
+	candidates, err := GenerateCandidates(format)
 	if err != nil {
 		return nil, err
 	}
-	emails := make([]string, len(usernames))
-	suffix := "@" + domain
-	for i, u := range usernames {
-		emails[i] = u + suffix
+	usernames := make([]string, len(candidates))
+	for i, c := range candidates {
+		usernames[i] = c.Username
+	}
+	return usernames, nil
+}
+
+// GenerateEmails generates emails by appending @domain to generated usernames.
+func GenerateEmails(format, domain string) ([]string, error) {
+	candidates, err := GenerateCandidates(format)
+	if err != nil {
+		return nil, err
+	}
+	emails := make([]string, len(candidates))
+	for i, c := range candidates {
+		emails[i] = c.Email(domain)
 	}
 	return emails, nil
 }

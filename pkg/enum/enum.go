@@ -22,9 +22,34 @@ import (
 	"time"
 )
 
+// Target is an address to check, plus the name it was generated from.
+//
+// Address and name travel together deliberately. brutus generates most of the
+// addresses it checks, and at generation time it already knows the name behind
+// each one (see Candidate). Passing addresses alone would force consumers to
+// reverse-derive the name from the local part, which is lossy for
+// initial-based formats — "jsmith" could be John, James, or Jane. Keeping the
+// two in one value means a name can never desync from its address.
+//
+// First/Last are empty when the address was supplied by the operator (--emails
+// or --email-file) rather than generated: a supplied address says nothing about
+// whose it is, and the framework must not invent one.
+type Target struct {
+	Email string
+	First string // empty when the address was supplied rather than generated
+	Last  string
+}
+
 // Config defines the configuration for account enumeration.
+//
+// Emails and Targets are two spellings of the same input. Targets is the
+// richer one — it carries the name behind each generated address — and
+// supersedes Emails, which remains for callers that only ever had bare
+// addresses to offer. Exactly one of them is consulted per run; see
+// resolveTargets for the rule.
 type Config struct {
-	Emails    []string      // emails to enumerate
+	Emails    []string      // legacy: addresses without names. Superseded by Targets.
+	Targets   []Target      // addresses to enumerate, with generated names when known
 	Services  []string      // service names to check (empty = all registered)
 	Threads   int           // concurrent workers (default: 10)
 	Timeout   time.Duration // per-check timeout (default: 10s)
@@ -70,7 +95,10 @@ func ProxyURLFromContext(ctx context.Context) string {
 
 // validate checks the configuration and applies defaults.
 func (c *Config) validate() error {
-	if len(c.Emails) == 0 {
+	// Either spelling of the input satisfies this; only supplying neither is a
+	// misconfiguration. The message predates Targets and is kept verbatim
+	// because callers and tests match on it.
+	if len(c.Emails) == 0 && len(c.Targets) == 0 {
 		return errors.New("emails required")
 	}
 	if c.Threads < 0 {
@@ -88,6 +116,27 @@ func (c *Config) validate() error {
 	}
 
 	return nil
+}
+
+// resolveTargets returns the addresses to enumerate, reconciling the two ways a
+// caller can supply them. Targets wins outright when populated — Emails is not
+// merged in — otherwise each Emails entry is promoted to a nameless Target.
+// The promotion leaves First/Last empty rather than deriving them from the
+// local part: a bare address says nothing about whose it is.
+//
+// This is the ONLY place that decides between the two fields. Both
+// EnumerateWithPlugin and runWorkers call it instead of reading either field
+// directly, so the two entry points can never disagree about the input.
+func (c *Config) resolveTargets() []Target {
+	if len(c.Targets) > 0 {
+		return c.Targets
+	}
+
+	targets := make([]Target, 0, len(c.Emails))
+	for _, email := range c.Emails {
+		targets = append(targets, Target{Email: email})
+	}
+	return targets
 }
 
 // EnumerateWithContext runs account enumeration with context support.

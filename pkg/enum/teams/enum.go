@@ -57,6 +57,8 @@ const (
 // struct, in logs, or in Error.
 type EnumResult struct {
 	Email        string
+	First        string // generated given name; empty if the address was supplied
+	Last         string // generated surname; empty if the address was supplied
 	Exists       Existence
 	DisplayName  string
 	MRI          string

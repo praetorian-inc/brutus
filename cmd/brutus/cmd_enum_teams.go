@@ -360,10 +360,12 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 		flagJSON = true
 	}
 
-	emails, err := teamsEnumTargets()
+	targets, err := teamsEnumTargetList()
 	if err != nil {
 		return err
 	}
+	emails := enumTargetEmails(targets)
+	names := enumNamesByEmail(targets)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -425,6 +427,18 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 	progress.Start()
 	var processed, found, blocked int
 	onResult := func(res teams.EnumResult) {
+		// Stamp the generated name onto the result the enumerator just returned.
+		// The enumerator only ever sees the address, so the name is attached
+		// here; an address that came from --emails/--email-file is absent from
+		// names and stays nameless. This is a brutus-generated guess and is kept
+		// strictly apart from res.DisplayName, which is the tenant's own claim.
+		//
+		// One stamp is enough, like microsoft365's (unlike github's two): every
+		// JSON line is emitted from this callback, and the slice EnumerateWith
+		// returns feeds only teams.DerivePosture and outputTeamsEnumSummary,
+		// which tally existence counts and never re-encode a result.
+		res.First, res.Last = enumNameFor(names, res.Email)
+
 		processed++
 		switch res.Exists {
 		case teams.ExistenceYes:
@@ -576,19 +590,27 @@ func teamsEnumDomain(emails []string) string {
 	return domain
 }
 
-// teamsEnumTargets parses, trims, and dedups the email targets from --emails
-// and --email-file. It errors when no targets are supplied.
-func teamsEnumTargets() ([]string, error) {
-	var raw []string
+// teamsEnumTargetList parses, trims, and dedups the email targets from --emails
+// and --email-file, plus any --domain-generated candidates. Each generated
+// target carries the name its username was built from; supplied addresses carry
+// none, because an address the operator provided says nothing about whose it is.
+// Dedup keeps the first-seen entry, so a supplied address that a generated
+// candidate duplicates stays nameless. It errors when no targets are supplied.
+func teamsEnumTargetList() ([]enum.Target, error) {
+	var raw []enum.Target
 	if flagTeamsEnumEmails != "" {
-		raw = append(raw, strings.Split(flagTeamsEnumEmails, ",")...)
+		for _, e := range strings.Split(flagTeamsEnumEmails, ",") {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 	if flagTeamsEnumEmailFile != "" {
 		lines, err := loadLinesFromFile(flagTeamsEnumEmailFile)
 		if err != nil {
 			return nil, fmt.Errorf("reading --email-file: %w", err)
 		}
-		raw = append(raw, lines...)
+		for _, e := range lines {
+			raw = append(raw, enum.Target{Email: e})
+		}
 	}
 
 	// --domain generates the candidate wordlist internally (reusing the same
@@ -604,42 +626,65 @@ func teamsEnumTargets() ([]string, error) {
 	}
 
 	seen := make(map[string]struct{})
-	var emails []string
-	for _, e := range raw {
-		e = strings.TrimSpace(e)
-		if e == "" {
+	var targets []enum.Target
+	for _, t := range raw {
+		t.Email = strings.TrimSpace(t.Email)
+		if t.Email == "" {
 			continue
 		}
-		if _, ok := seen[e]; ok {
+		// Key the dedup set on the lowercased address (the Teams directory
+		// lookup is case-insensitive, so case variants are the same target)
+		// while STORING the original-cased address on the Target.
+		//
+		// This is deliberately the opposite of gravatarEnumTargetList, which
+		// lower-cases the Target.Email field itself. The two differ because
+		// their checkers differ: gravatar.CheckAccount lower-cases the address
+		// for HashEmail's digest, whereas teams.EnumerateOne echoes the address
+		// back verbatim (`res := EnumResult{Email: email}`, never re-cased),
+		// exactly like microsoft365. Storing the original casing here is what
+		// keeps the stored address byte-identical to the one EnumResult.Email
+		// carries, so enumNamesByEmail/enumNameFor recover the generated name.
+		// Lower-casing the field here (copying gravatar) would desync the index
+		// from the echoed address and silently drop every generated name — and
+		// would discard the operator's --domain casing.
+		key := strings.ToLower(t.Email)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[e] = struct{}{}
-		emails = append(emails, e)
+		seen[key] = struct{}{}
+		targets = append(targets, t)
 	}
 
-	if len(emails) == 0 {
+	if len(targets) == 0 {
 		return nil, fmt.Errorf("provide --emails/-e, --email-file/-E, or --domain")
 	}
-	return emails, nil
+	return targets, nil
 }
 
 // teamsEnumGenerate produces the candidate email wordlist for --domain by
-// reusing the shared, frequency-ranked generator (enum.GenerateEmails) and the
-// shared capResults helper — no duplicated generation logic. The requested
-// format is validated against enum.ListFormats() first, because GenerateEmails
-// silently yields an empty list for an unknown format. A status line goes to
-// stderr (never stdout, so --json/-o output stays clean) unless quiet or JSON.
-func teamsEnumGenerate() ([]string, error) {
+// reusing the shared, frequency-ranked generator (enum.GenerateCandidates) and
+// the shared capResults helper — no duplicated generation logic. Candidates,
+// not bare addresses, are generated so each target keeps the name its username
+// was built from, which is knowable for free here and lossy to recover later.
+// The requested format is validated against enum.ListFormats() first, because
+// the generator silently yields an empty list for an unknown format. A status
+// line goes to stderr (never stdout, so --json/-o output stays clean) unless
+// quiet or JSON.
+func teamsEnumGenerate() ([]enum.Target, error) {
 	if !slices.Contains(enum.ListFormats(), flagTeamsEnumFormat) {
 		return nil, fmt.Errorf("invalid --format %q; valid formats: %s",
 			flagTeamsEnumFormat, strings.Join(enum.ListFormats(), ", "))
 	}
 
-	generated, err := enum.GenerateEmails(flagTeamsEnumFormat, flagTeamsEnumDomain)
+	candidates, err := enum.GenerateCandidates(flagTeamsEnumFormat)
 	if err != nil {
 		return nil, fmt.Errorf("generating candidate emails: %w", err)
 	}
-	generated = capResults(generated, flagTeamsEnumLimit)
+	candidates = capResults(candidates, flagTeamsEnumLimit)
+	generated := make([]enum.Target, len(candidates))
+	for i, c := range candidates {
+		generated[i] = c.Target(flagTeamsEnumDomain)
+	}
 
 	if !flagQuiet && !flagJSON {
 		useColor := isColorEnabled(flagNoColor)

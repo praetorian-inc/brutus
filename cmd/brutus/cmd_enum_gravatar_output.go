@@ -76,8 +76,14 @@ func outputGravatarEnumSummary(w io.Writer, results []gravatar.Result, useColor 
 
 // gravatarEnumJSON is the JSONL row shape for a Gravatar enumeration result. The
 // avatar URL is derived from the hash for convenience.
+//
+// first/last are omitempty because a supplied address (--emails/--email-file)
+// has no known name: the keys are absent rather than emitted as "", so a
+// consumer can never mistake an unknown name for an empty one.
 type gravatarEnumJSON struct {
 	Email     string `json:"email"`
+	First     string `json:"first,omitempty"`
+	Last      string `json:"last,omitempty"`
 	Hash      string `json:"hash"`
 	Exists    bool   `json:"exists"`
 	AvatarURL string `json:"avatar_url"`
@@ -88,6 +94,8 @@ type gravatarEnumJSON struct {
 func encodeGravatarEnumResult(r gravatar.Result) gravatarEnumJSON {
 	jr := gravatarEnumJSON{
 		Email:     r.Email,
+		First:     r.First,
+		Last:      r.Last,
 		Hash:      r.Hash,
 		Exists:    r.Exists,
 		AvatarURL: fmt.Sprintf("https://www.gravatar.com/avatar/%s", r.Hash),

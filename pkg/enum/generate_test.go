@@ -406,3 +406,368 @@ func TestGenerateEmails_FirstUnderLast(t *testing.T) {
 	assert.Equal(t, len(usernames), len(emails),
 		"GenerateEmails must produce the same count as GenerateUsernames for first_last")
 }
+
+// ---------------------------------------------------------------------------
+// 10T-535: GenerateCandidates
+//
+// GenerateUsernames/GenerateEmails throw away the (first, lastRaw) pair that
+// formatUsername was derived from, forcing downstream consumers to
+// reverse-derive a name from an ambiguous username (e.g. "jsmith" could be
+// John, James, or Jane). GenerateCandidates must expose the name that was
+// actually used, and GenerateUsernames/GenerateEmails must become thin
+// wrappers over it so all existing call sites keep working unchanged.
+// ---------------------------------------------------------------------------
+
+// TestGenerateCandidates_UsernameParity verifies that GenerateCandidates and
+// GenerateUsernames produce the exact same usernames, in the exact same
+// order, for the same format. This pins the "thin wrapper" equivalence that
+// the fix must preserve for all 8+ existing GenerateUsernames call sites.
+func TestGenerateCandidates_UsernameParity(t *testing.T) {
+	t.Parallel()
+
+	formats := []string{FormatFirstDotLast, FormatFLast}
+
+	for _, format := range formats {
+		format := format
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			candidates, err := GenerateCandidates(format)
+			require.NoError(t, err, "format %q must not error", format)
+
+			usernames, err := GenerateUsernames(format)
+			require.NoError(t, err, "format %q must not error", format)
+
+			require.Equal(t, len(usernames), len(candidates),
+				"format %q: GenerateCandidates and GenerateUsernames must produce the same count", format)
+
+			for i := range usernames {
+				assert.Equal(t, usernames[i], candidates[i].Username,
+					"format %q: candidate %d Username must match GenerateUsernames[%d] (order preserved)",
+					format, i, i)
+			}
+		})
+	}
+}
+
+// TestGenerateCandidates_EmailParity verifies that, for a given domain,
+// candidates[i].Email(domain) equals GenerateEmails(format, domain)[i] for
+// every index, preserving both count and order.
+func TestGenerateCandidates_EmailParity(t *testing.T) {
+	t.Parallel()
+
+	const domain = "example.com"
+	formats := []string{FormatFirstDotLast, FormatFLast}
+
+	for _, format := range formats {
+		format := format
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			candidates, err := GenerateCandidates(format)
+			require.NoError(t, err, "format %q must not error", format)
+
+			emails, err := GenerateEmails(format, domain)
+			require.NoError(t, err, "format %q must not error", format)
+
+			require.Equal(t, len(emails), len(candidates),
+				"format %q: GenerateCandidates and GenerateEmails must produce the same count", format)
+
+			for i := range emails {
+				assert.Equal(t, emails[i], candidates[i].Email(domain),
+					"format %q: candidate %d Email(%q) must match GenerateEmails[%d]",
+					format, i, domain, i)
+			}
+		})
+	}
+}
+
+// TestGenerateCandidates_NamesPopulated verifies that every candidate carries
+// a non-empty First and Last, for both a dotted format and an initial-based
+// format.
+func TestGenerateCandidates_NamesPopulated(t *testing.T) {
+	t.Parallel()
+
+	for _, format := range []string{FormatFirstDotLast, FormatFLast} {
+		format := format
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			candidates, err := GenerateCandidates(format)
+			require.NoError(t, err, "format %q must not error", format)
+			require.NotEmpty(t, candidates, "format %q must produce at least one candidate", format)
+
+			for i, c := range candidates {
+				assert.NotEmpty(t, c.First, "format %q: candidate %d must have non-empty First", format, i)
+				assert.NotEmpty(t, c.Last, "format %q: candidate %d must have non-empty Last", format, i)
+			}
+		})
+	}
+}
+
+// TestGenerateCandidates_FullFirstNameSurvivesInitialFormat is THE POINT OF
+// 10T-535: for an initial-based format (FormatFLast, e.g. "jsmith"), the
+// candidate's First must be the full first name that was actually used to
+// build the username, not a name reverse-derived from a single initial.
+//
+// FormatFLast usernames are always "<initial><lastname>" by construction
+// (formatUsername returns first[:1]+lastConcat), so EVERY candidate's
+// Username begins with a single-letter initial. If GenerateCandidates
+// reduced First to that initial (or reverse-derived it from the username),
+// First would never be longer than 1 character. This test would fail today
+// under such an implementation because it requires at least one candidate
+// with len(First) > 1, and it cross-checks every candidate's Username
+// against the real formatUsername function to catch inconsistent
+// First/Last/Username triples.
+func TestGenerateCandidates_FullFirstNameSurvivesInitialFormat(t *testing.T) {
+	t.Parallel()
+
+	candidates, err := GenerateCandidates(FormatFLast)
+	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+
+	var found bool
+	for _, c := range candidates {
+		require.NotEmpty(t, c.Username, "candidate must have a non-empty Username")
+		require.NotEmpty(t, c.First, "candidate must have a non-empty First")
+
+		// Cross-check against the real production formatting function (not a
+		// reimplementation) to ensure First/Last actually produced Username.
+		wantUsername := formatUsername(c.First, c.Last, FormatFLast)
+		assert.Equal(t, wantUsername, c.Username,
+			"candidate Username %q must be derivable from First %q / Last %q via formatUsername for FormatFLast",
+			c.Username, c.First, c.Last)
+
+		if len(c.First) > 1 {
+			found = true
+		}
+	}
+
+	assert.True(t, found,
+		"expected at least one FormatFLast candidate with a full First name (len > 1) — "+
+			"the point of 10T-535 is that the full first name survives even though the "+
+			"username itself only exposes a single initial")
+}
+
+// TestGenerateCandidates_DottedLastNamesPreserved verifies that lastRaw
+// components which themselves contain a dot (e.g. "al.mamun" from the source
+// pair "abdullah.al.mamun") are preserved verbatim on Last, and that
+// FormatFirstDotLast's Username reflects the full dotted Last name rather
+// than being rebuilt by naively re-splitting the username on ".".
+func TestGenerateCandidates_DottedLastNamesPreserved(t *testing.T) {
+	t.Parallel()
+
+	candidates, err := GenerateCandidates(FormatFirstDotLast)
+	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+
+	var found bool
+	for _, c := range candidates {
+		if !strings.Contains(c.Last, ".") {
+			continue
+		}
+		found = true
+
+		// The username must be exactly First + "." + Last verbatim. A naive
+		// implementation that re-splits the formatted username on the first
+		// "." to recover First/Last would instead truncate Last to only the
+		// portion after the first inner dot.
+		assert.Equal(t, c.First+"."+c.Last, c.Username,
+			"FormatFirstDotLast username must be First + \".\" + Last with the dotted Last preserved verbatim: got username %q, first %q, last %q",
+			c.Username, c.First, c.Last)
+
+		wantUsername := formatUsername(c.First, c.Last, FormatFirstDotLast)
+		assert.Equal(t, wantUsername, c.Username,
+			"candidate Username must match formatUsername(First, Last, FormatFirstDotLast)")
+	}
+
+	assert.True(t, found,
+		"expected at least one FormatFirstDotLast candidate with a dotted Last "+
+			"(e.g. \"al.mamun\" from source pair \"abdullah.al.mamun\")")
+}
+
+// TestGenerateCandidates_DedupMatchesUsernames verifies that GenerateCandidates
+// dedups on Username with the same first-occurrence-wins semantics as
+// GenerateUsernames: no two candidates share a Username, and the order of
+// Usernames exactly matches GenerateUsernames.
+func TestGenerateCandidates_DedupMatchesUsernames(t *testing.T) {
+	t.Parallel()
+
+	candidates, err := GenerateCandidates(FormatFLast)
+	require.NoError(t, err)
+
+	usernames, err := GenerateUsernames(FormatFLast)
+	require.NoError(t, err)
+
+	require.Equal(t, len(usernames), len(candidates))
+
+	seen := make(map[string]bool, len(candidates))
+	for i, c := range candidates {
+		assert.False(t, seen[c.Username], "duplicate Username found in candidates: %q", c.Username)
+		seen[c.Username] = true
+		assert.Equal(t, usernames[i], c.Username,
+			"candidate order must exactly match GenerateUsernames order (first occurrence wins)")
+	}
+}
+
+// TestCandidate_Email verifies the Email method builds "username@domain".
+func TestCandidate_Email(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		username string
+		domain   string
+		want     string
+	}{
+		{"simple", "jsmith", "example.com", "jsmith@example.com"},
+		{"dotted username and multi-label domain", "john.smith", "corp.example.co.uk", "john.smith@corp.example.co.uk"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := Candidate{Username: tc.username}
+			assert.Equal(t, tc.want, c.Email(tc.domain))
+		})
+	}
+}
+
+// TestGenerateCandidates_UnknownFormat verifies GenerateCandidates pins the
+// exact current behavior of GenerateUsernames for a bogus format string:
+// empty result, no error (formatUsername's default branch returns "" for
+// every pair, and empty-string usernames are skipped). See
+// TestGenerateUsernames_UnknownFormat above for the behavior being pinned.
+func TestGenerateCandidates_UnknownFormat(t *testing.T) {
+	t.Parallel()
+
+	const bogusFormat = "totally-unknown-format"
+
+	wantUsernames, err := GenerateUsernames(bogusFormat)
+	require.NoError(t, err, "GenerateUsernames must not error on unknown format (current behavior)")
+	assert.Empty(t, wantUsernames, "GenerateUsernames must return empty result on unknown format (current behavior)")
+
+	candidates, err := GenerateCandidates(bogusFormat)
+	require.NoError(t, err, "GenerateCandidates must not error on unknown format")
+	assert.Empty(t, candidates, "GenerateCandidates must return an empty slice on unknown format")
+	assert.Equal(t, len(wantUsernames), len(candidates),
+		"GenerateCandidates must match GenerateUsernames's current unknown-format behavior exactly")
+}
+
+// TestGenerateCandidates_AllFormatsPopulated is a table-driven test verifying
+// every supported format produces a non-empty result with fully populated
+// First/Last/Username on every candidate.
+func TestGenerateCandidates_AllFormatsPopulated(t *testing.T) {
+	t.Parallel()
+
+	for _, format := range ListFormats() {
+		format := format
+		t.Run(format, func(t *testing.T) {
+			t.Parallel()
+
+			candidates, err := GenerateCandidates(format)
+			require.NoError(t, err, "format %q must not error", format)
+			require.NotEmpty(t, candidates, "format %q must produce at least one candidate", format)
+
+			for i, c := range candidates {
+				assert.NotEmpty(t, c.Username, "format %q: candidate %d must have non-empty Username", format, i)
+				assert.NotEmpty(t, c.First, "format %q: candidate %d must have non-empty First", format, i)
+				assert.NotEmpty(t, c.Last, "format %q: candidate %d must have non-empty Last", format, i)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 10T-535: Candidate.Target
+//
+// Target carries a generated (or supplied) email together with the name it
+// was built from, all the way through the enumeration framework to Result,
+// so consumers never need to reverse-derive a name from an address (the
+// "jsmith" could be John/James/Jane problem). Candidate.Target(domain) is the
+// conversion point from generator output to framework input.
+// ---------------------------------------------------------------------------
+
+// TestCandidate_Target verifies that Candidate.Target(domain) produces an
+// Email identical to Candidate.Email(domain), and carries First/Last through
+// unchanged. Table-driven over several Candidate shapes, including a
+// Candidate with empty First/Last (representing an operator-supplied address
+// rather than a generated one) to verify nothing is invented.
+func TestCandidate_Target(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		candidate Candidate
+		domain    string
+	}{
+		{
+			name:      "simple",
+			candidate: Candidate{First: "john", Last: "smith", Username: "jsmith"},
+			domain:    "example.com",
+		},
+		{
+			name:      "dotted username and multi-label domain",
+			candidate: Candidate{First: "john", Last: "smith", Username: "john.smith"},
+			domain:    "corp.example.co.uk",
+		},
+		{
+			name:      "dotted last name preserved",
+			candidate: Candidate{First: "abdullah", Last: "al.mamun", Username: "abdullah.al.mamun"},
+			domain:    "fox.com",
+		},
+		{
+			name:      "empty First/Last stays empty (supplied, not generated)",
+			candidate: Candidate{First: "", Last: "", Username: "jsmith"},
+			domain:    "example.com",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			target := tc.candidate.Target(tc.domain)
+
+			assert.Equal(t, tc.candidate.Email(tc.domain), target.Email,
+				"Target.Email must equal Candidate.Email(domain)")
+			assert.Equal(t, tc.candidate.First, target.First,
+				"Target.First must carry Candidate.First unchanged")
+			assert.Equal(t, tc.candidate.Last, target.Last,
+				"Target.Last must carry Candidate.Last unchanged")
+		})
+	}
+}
+
+// TestGenerateCandidates_TargetRoundTrip verifies the GenerateCandidates ->
+// .Target(domain) round trip for a real format: every resulting Target has
+// non-empty First, Last, and Email, and Email matches the corresponding
+// GenerateEmails entry at the same index (order preserved).
+func TestGenerateCandidates_TargetRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	const domain = "example.com"
+
+	candidates, err := GenerateCandidates(FormatFirstDotLast)
+	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+
+	emails, err := GenerateEmails(FormatFirstDotLast, domain)
+	require.NoError(t, err)
+	require.Equal(t, len(candidates), len(emails),
+		"GenerateCandidates and GenerateEmails must produce the same count")
+
+	for i, c := range candidates {
+		target := c.Target(domain)
+
+		require.NotEmpty(t, target.Email, "candidate %d: Target.Email must not be empty", i)
+		require.NotEmpty(t, target.First, "candidate %d: Target.First must not be empty", i)
+		require.NotEmpty(t, target.Last, "candidate %d: Target.Last must not be empty", i)
+
+		assert.Equal(t, emails[i], target.Email,
+			"candidate %d: Target.Email must match GenerateEmails[%d] (order preserved)", i, i)
+	}
+}

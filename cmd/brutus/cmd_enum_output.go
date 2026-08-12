@@ -265,9 +265,13 @@ func outputOracleValidationHuman(results []enum.Result, useColor bool) {
 // outputEnumJSONL writes enumeration results as JSONL.
 func outputEnumJSONL(w io.Writer, results []enum.Result) {
 	type enumResultJSON struct {
-		Type       string `json:"type"`
-		Service    string `json:"service"`
-		Email      string `json:"email"`
+		Type    string `json:"type"`
+		Service string `json:"service"`
+		Email   string `json:"email"`
+		// omitempty is deliberate: a supplied address has no name, and an
+		// absent key says that more honestly than an empty string.
+		First      string `json:"first,omitempty"`
+		Last       string `json:"last,omitempty"`
 		Exists     bool   `json:"exists"`
 		Confidence string `json:"confidence,omitempty"`
 		Error      string `json:"error,omitempty"`
@@ -281,6 +285,8 @@ func outputEnumJSONL(w io.Writer, results []enum.Result) {
 			Type:       "enum",
 			Service:    r.Service,
 			Email:      r.Email,
+			First:      r.First,
+			Last:       r.Last,
 			Exists:     r.Exists,
 			Confidence: string(r.Confidence),
 			Duration:   r.Duration.String(),
@@ -620,6 +626,8 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 	type teamsEnumJSON struct {
 		Type              string `json:"type"`
 		Email             string `json:"email"`
+		First             string `json:"first,omitempty"`
+		Last              string `json:"last,omitempty"`
 		Exists            string `json:"exists"`
 		DetailsRestricted bool   `json:"details_restricted,omitempty"`
 		DisplayName       string `json:"display_name,omitempty"`
@@ -644,11 +652,24 @@ func outputTeamsEnumJSONL(w io.Writer, results []teams.EnumResult) {
 		jr := teamsEnumJSON{
 			Type:  "teams_enum",
 			Email: r.Email,
+			// The generated first/last are a property of the ADDRESS brutus
+			// built, not of whether the tenant let brutus see details about it.
+			// They are therefore set here, alongside Email and ahead of the
+			// existence switch, so BOTH the ExistenceBlocked (details-restricted)
+			// branch and the default branch carry them — a 403 withholds tenant
+			// metadata, never the name brutus generated itself.
+			//
+			// They are also deliberately separate from the tenant-provided
+			// DisplayName below: "first"/"last" are brutus's own guesses and
+			// "display_name" is the tenant's claim, so neither ever falls back to
+			// or overwrites the other, in either direction.
+			First: r.First,
+			Last:  r.Last,
 		}
 		// Map internal existence to the output shape. A 403/blocked result is a
 		// confirmed hit whose details the tenant withholds, so it is presented as
-		// "exists":"yes" with "details_restricted":true and no metadata fields (a
-		// 403 carries none).
+		// "exists":"yes" with "details_restricted":true and no tenant-provided
+		// metadata fields (a 403 carries none).
 		switch r.Exists {
 		case teams.ExistenceBlocked:
 			jr.Exists = string(teams.ExistenceYes)
@@ -971,9 +992,14 @@ func outputGoogleEnumSummary(w io.Writer, results []google.Result, useColor bool
 // outputGoogleEnumJSONL writes one JSON object per result. encoding/json escapes
 // control characters, so no sanitization is needed.
 func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
+	// First/Last carry the generated name behind the address. They are omitempty
+	// because an address the operator supplied has no name, and an empty string
+	// would read as a claim that it does.
 	type googleEnumJSON struct {
 		Type   string `json:"type"`
 		Email  string `json:"email"`
+		First  string `json:"first,omitempty"`
+		Last   string `json:"last,omitempty"`
 		Exists bool   `json:"exists"`
 		Method string `json:"method,omitempty"`
 		IdP    string `json:"idp,omitempty"`
@@ -986,6 +1012,8 @@ func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
 		jr := googleEnumJSON{
 			Type:   "google_account",
 			Email:  r.Email,
+			First:  r.First,
+			Last:   r.Last,
 			Exists: r.Exists,
 			Method: string(r.Method),
 			IdP:    r.IdP,
@@ -1113,9 +1141,16 @@ func outputMicrosoft365EnumSummary(w io.Writer, results []m365.Result, useColor 
 // an actual API code was decoded (i.e. no error): on a pre-response failure the
 // zero value 0 would otherwise be indistinguishable from the API's "account
 // exists" code, contradicting the accompanying error.
+//
+// first/last carry the generated name behind the address. They are omitempty
+// because an address the operator supplied (--emails/--email-file) has no known
+// name: the keys are absent rather than emitted as "", so a consumer can never
+// mistake an unknown name for an empty one.
 type microsoft365EnumJSON struct {
 	Type           string `json:"type"`
 	Email          string `json:"email"`
+	First          string `json:"first,omitempty"`
+	Last           string `json:"last,omitempty"`
 	Exists         bool   `json:"exists"`
 	IfExistsResult *int   `json:"if_exists_result,omitempty"`
 	Federated      bool   `json:"federated,omitempty"`
@@ -1132,6 +1167,8 @@ func encodeMicrosoft365EnumResult(enc *json.Encoder, r m365.Result) { //nolint:g
 	jr := microsoft365EnumJSON{
 		Type:          "microsoft365_account",
 		Email:         r.Email,
+		First:         r.First,
+		Last:          r.Last,
 		Exists:        r.Exists,
 		Federated:     r.Federated,
 		FederationURL: r.FederationURL,

@@ -28,7 +28,7 @@ import (
 // any) as " (<username>)". Not-found rows render as "[ ] not found". The
 // server-/user-derived email and username are sanitized via sanitizeTerminal
 // (P0-4) before rendering. Callers decide which results to print.
-func outputGithubEnumResultLine(w io.Writer, r githubenum.Result, useColor bool) {
+func outputGithubEnumResultLine(w io.Writer, r *githubenum.Result, useColor bool) {
 	email := truncate(sanitizeTerminal(r.Email), 40)
 
 	if r.Error != nil {

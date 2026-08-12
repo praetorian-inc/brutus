@@ -933,7 +933,7 @@ func presence(token string) string {
 // The server-controlled IdP host is sanitized via sanitizeTerminal (P0-4).
 // Callers decide which results to print (e.g. EXISTS only, unless verbose); this
 // helper renders whatever it is given.
-func outputGoogleEnumResultLine(w io.Writer, r google.Result, useColor bool) {
+func outputGoogleEnumResultLine(w io.Writer, r *google.Result, useColor bool) {
 	email := truncate(sanitizeTerminal(r.Email), 40)
 
 	if !r.Exists {

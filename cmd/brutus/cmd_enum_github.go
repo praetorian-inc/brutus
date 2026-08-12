@@ -182,7 +182,7 @@ func runEnumGithub(cmd *cobra.Command, args []string) error {
 			// Clear the in-place bar before printing a result row so the bar's
 			// partial line doesn't corrupt it; the bar redraws on the next tick.
 			progress.Clear()
-			outputGithubEnumResultLine(os.Stdout, res, useColor)
+			outputGithubEnumResultLine(os.Stdout, &res, useColor)
 		}
 
 		progress.Update(processed, fmt.Sprintf("%d found", found))

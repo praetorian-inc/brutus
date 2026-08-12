@@ -297,7 +297,7 @@ func TestOutputGoogleEnumResultLine(t *testing.T) {
 			IdP:    "login.okta.com",
 		}
 		var buf bytes.Buffer
-		outputGoogleEnumResultLine(&buf, r, false /* useColor */)
+		outputGoogleEnumResultLine(&buf, &r, false /* useColor */)
 		out := buf.String()
 
 		assert.Contains(t, out, "EXISTS",
@@ -315,7 +315,7 @@ func TestOutputGoogleEnumResultLine(t *testing.T) {
 			Method: google.MethodGmail,
 		}
 		var buf bytes.Buffer
-		outputGoogleEnumResultLine(&buf, r, false)
+		outputGoogleEnumResultLine(&buf, &r, false)
 		out := buf.String()
 
 		assert.Contains(t, out, "EXISTS",
@@ -332,7 +332,7 @@ func TestOutputGoogleEnumResultLine(t *testing.T) {
 			Exists: false,
 		}
 		var buf bytes.Buffer
-		outputGoogleEnumResultLine(&buf, r, false)
+		outputGoogleEnumResultLine(&buf, &r, false)
 		out := buf.String()
 
 		assert.Contains(t, out, "not found",
@@ -352,7 +352,7 @@ func TestOutputGoogleEnumResultLine(t *testing.T) {
 			IdP:    maliciousIdP,
 		}
 		var buf bytes.Buffer
-		outputGoogleEnumResultLine(&buf, r, false)
+		outputGoogleEnumResultLine(&buf, &r, false)
 		out := buf.String()
 
 		// Raw ESC byte must not appear in the output.

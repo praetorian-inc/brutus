@@ -136,7 +136,7 @@ func runEnumGithubMap(cmd *cobra.Command, args []string) error {
 
 	for i := range results {
 		if results[i].Exists || flagVerbose {
-			outputGithubEnumResultLine(os.Stdout, results[i], useColor)
+			outputGithubEnumResultLine(os.Stdout, &results[i], useColor)
 		}
 	}
 	outputGithubEnumSummary(os.Stdout, results, useColor)

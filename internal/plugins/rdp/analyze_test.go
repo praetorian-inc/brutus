@@ -15,13 +15,9 @@
 package rdp
 
 import (
-	"context"
-	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAnalyzeStickyKeysResponse_Clean(t *testing.T) {
@@ -146,8 +142,7 @@ func TestRunUtilmanAnalysis_Clean(t *testing.T) {
 		response[i+3] = 255
 	}
 
-	ctx := context.Background()
-	result := runUtilmanAnalysis(ctx, baseline, response, w, h, "")
+	result := runUtilmanAnalysis(baseline, response, w, h)
 	assert.True(t, result.Performed)
 	assert.Equal(t, "clean", result.OverallVerdict)
 }
@@ -271,7 +266,7 @@ func TestDecideVerdict(t *testing.T) {
 		{"clean keepHigh=true → clean", "clean", true, "clean"},
 		// Gate never touches indeterminate.
 		{"indeterminate keepHigh=false → indeterminate", verdictIndeterminate, false, verdictIndeterminate},
-		// Vision positives (backdoor_confirmed, vulnerable) are never downgraded.
+		// Positive verdicts (backdoor_confirmed, vulnerable) are never downgraded.
 		{"backdoor_confirmed keepHigh=false → backdoor_confirmed", "backdoor_confirmed", false, "backdoor_confirmed"},
 		{"vulnerable keepHigh=false → vulnerable", "vulnerable", false, "vulnerable"},
 	}
@@ -435,9 +430,8 @@ func TestConsoleGate_EndToEnd(t *testing.T) {
 	// runBoth drives the same frame through both analysis functions and returns
 	// (stickyVerdict, utilmanVerdict) so a single assertion loop covers both.
 	runBoth := func(response []byte) (string, string) {
-		ctx := context.Background()
-		sticky := runStickyKeysAnalysis(ctx, baseline, response, W, H, "")
-		utilman := runUtilmanAnalysis(ctx, baseline, response, W, H, "")
+		sticky := runStickyKeysAnalysis(baseline, response, W, H)
+		utilman := runUtilmanAnalysis(baseline, response, W, H)
 		return sticky.OverallVerdict, utilman.OverallVerdict
 	}
 
@@ -519,7 +513,7 @@ func TestConsoleGate_EndToEnd(t *testing.T) {
 
 	t.Run("unchanged_behavior: light dialog → clean", func(t *testing.T) {
 		// Light small centered dialog (gray 200) adds almost no dark pixels → clean.
-		// Mirrors existing TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean.
+		// Mirrors existing TestRunStickyKeysAnalysis_LightDialog_Clean.
 		resp := newResponse()
 		paintBox(resp, int(W), 440, 280, 580, 480, 200)
 
@@ -538,7 +532,7 @@ func TestConsoleGate_EndToEnd(t *testing.T) {
 // This is the better outcome vs. the old behavioral approach.
 // ---------------------------------------------------------------------------
 
-func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
+func TestRunStickyKeysAnalysis_LightDialog_Clean(t *testing.T) {
 	w, h := uint32(1000), uint32(1000)
 	size := int(w) * int(h) * 4
 	baseline := make([]byte, size)
@@ -550,7 +544,7 @@ func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	// Light small centered dialog (220×220 = 4.84% area, gray 200).
 	// Gray 200 >> darkBrightnessMax(60), so adds zero dark pixels → clean.
 	paintBox(response, int(w), 390, 390, 610, 610, 200)
-	res := runStickyKeysAnalysis(context.Background(), baseline, response, w, h, "")
+	res := runStickyKeysAnalysis(baseline, response, w, h)
 	assert.Equal(t, "clean", res.OverallVerdict)
 	assert.NotEqual(t, "backdoor_likely", res.OverallVerdict,
 		"a light legit dialog must not be flagged as backdoor_likely")
@@ -696,28 +690,6 @@ func TestDarkDeltaVerdict(t *testing.T) {
 				"dark box of edge %d (frac %.3f) must not yield clean", edge, frac)
 		}
 	})
-}
-
-// ---------------------------------------------------------------------------
-// C1: structural guard — runStickyKeysAnalysis must have the vulnerable branch
-// ---------------------------------------------------------------------------
-
-// TestRunStickyKeysAnalysis_HasVulnerableBranch guards that runStickyKeysAnalysis
-// contains a symmetric `visionVerdict == "vulnerable"` branch matching the one
-// already present in runUtilmanAnalysis (analyze.go ~line 456).
-// The test reads analyze.go as source text and asserts the string
-// `visionVerdict == "vulnerable"` appears at least twice — once per analysis
-// function. Currently it appears only once (utilman only), so this test is RED
-// until the developer adds the symmetric branch to runStickyKeysAnalysis.
-func TestRunStickyKeysAnalysis_HasVulnerableBranch(t *testing.T) {
-	src, err := os.ReadFile("analyze.go")
-	require.NoError(t, err, "analyze.go must be readable")
-
-	const needle = `visionVerdict == "vulnerable"`
-	count := strings.Count(string(src), needle)
-	assert.GreaterOrEqual(t, count, 2,
-		"runStickyKeysAnalysis is missing the visionVerdict == \"vulnerable\" branch; "+
-			"found %d occurrence(s), need >= 2 (one per analysis function)", count)
 }
 
 // ---------------------------------------------------------------------------

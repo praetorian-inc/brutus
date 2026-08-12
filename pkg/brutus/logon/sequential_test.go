@@ -39,8 +39,8 @@ import (
 //
 // Seam-var signatures assumed (developer must match exactly):
 //
-//	var detectSticky  = rdp.DetectStickyKeys   // func(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result
-//	var detectUtilman = rdp.DetectUtilman      // func(ctx context.Context, target string, timeout time.Duration, username string, noVision bool) *brutus.Result
+//	var detectSticky  = rdp.DetectStickyKeys   // func(ctx context.Context, target string, timeout time.Duration, username string, fast bool) *brutus.Result
+//	var detectUtilman = rdp.DetectUtilman      // func(ctx context.Context, target string, timeout time.Duration, username string, fast bool) *brutus.Result
 func TestSequential(t *testing.T) {
 	// Use a small semaphore so the decode slot is available.
 	withDecodeSlots(t, 1)
@@ -72,7 +72,7 @@ func TestSequential(t *testing.T) {
 
 	// Sticky fake: returns a positive (backdoor_confirmed / Success=true) result
 	// so we can assert that a positive sticky does NOT suppress the utilman check.
-	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, fast bool) *brutus.Result {
 		invocationOrder = append(invocationOrder, "sticky")
 		// Signal that sticky has finished its work.
 		stickyDone.Store(true)
@@ -87,7 +87,7 @@ func TestSequential(t *testing.T) {
 	}
 
 	// Utilman fake: asserts that sticky completed before utilman started.
-	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, fast bool) *brutus.Result {
 		// If sticky did not finish before utilman began, the sequential ordering
 		// guarantee is violated. This assertion fires inside the fake so that a
 		// parallel implementation causes the test to fail during DetectBackdoors.
@@ -153,13 +153,13 @@ func TestDetectBackdoors_FastPropagates(t *testing.T) {
 	}
 	var seenFast []bool
 	origSticky := detectSticky
-	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+	detectSticky = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, fast bool) *brutus.Result {
 		seenFast = append(seenFast, fast)
 		return &brutus.Result{Protocol: "rdp", Target: target, Username: username, ScanType: "sticky_keys", Indeterminate: true,
 			Banner: "[WARN] INDETERMINATE"}
 	}
 	origUtilman := detectUtilman
-	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+	detectUtilman = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, fast bool) *brutus.Result {
 		seenFast = append(seenFast, fast)
 		return &brutus.Result{Protocol: "rdp", Target: target, Username: username, ScanType: "utilman", Indeterminate: true,
 			Banner: "[WARN] INDETERMINATE"}

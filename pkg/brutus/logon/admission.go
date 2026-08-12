@@ -78,7 +78,10 @@ func DecodeSlotCount() int64 {
 // records peak concurrency without a live RDP server. DetectBackdoors acquires a
 // decode slot before invoking it.
 var runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
-	noVision := !aiMode
+	// aiMode is retained for API compatibility (DetectBackdoors is part of the
+	// public surface) but no longer affects RDP detection: logon detection is
+	// 100% AI-free and driven solely by the bitmap dark-delta heuristic.
+	_ = aiMode
 
 	// Sticky keys and utilman detection run sequentially under the single held
 	// decode slot: sticky first, then utilman. The shared-connection design was
@@ -91,11 +94,11 @@ var runDetection = func(ctx context.Context, target string, connectTimeout, time
 	var sticky, utilman *brutus.Result
 
 	if checks != CheckUtilman {
-		sticky = detectSticky(ctx, target, connectTimeout, timeout, "(sticky-keys)", noVision, fast)
+		sticky = detectSticky(ctx, target, connectTimeout, timeout, "(sticky-keys)", fast)
 		results = append(results, *sticky)
 	}
 	if checks != CheckStickyKeys {
-		utilman = detectUtilman(ctx, target, connectTimeout, timeout, "(utilman)", noVision, fast)
+		utilman = detectUtilman(ctx, target, connectTimeout, timeout, "(utilman)", fast)
 		results = append(results, *utilman)
 	}
 

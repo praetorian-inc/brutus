@@ -43,13 +43,13 @@ const unreachableScanBanner = "[INFO] unreachable (no RDP/TCP connection to host
 // This function wraps RunStickyKeysCheck and interprets the StickyKeysResult into
 // a standardized Result format suitable for CLI output. fast selects the short
 // FastBudget settle profile and enforces the never-clean invariant.
-func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, fast bool) *brutus.Result {
 	plugin := &Plugin{}
 	budget := CarefulBudget
 	if fast {
 		budget = FastBudget
 	}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
+	stickyResult := plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, budget, fast)
 	result := mapStickyResult(stickyResult, username)
 	result.Target = target
 	return result
@@ -120,13 +120,13 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 // This function wraps RunUtilmanCheck and interprets the UtilmanResult into
 // a standardized Result format suitable for CLI output. fast selects the short
 // FastBudget settle profile and enforces the never-clean invariant.
-func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
+func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, fast bool) *brutus.Result {
 	plugin := &Plugin{}
 	budget := CarefulBudget
 	if fast {
 		budget = FastBudget
 	}
-	utilmanResult := plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
+	utilmanResult := plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, budget, fast)
 	result := mapUtilmanResult(utilmanResult, username)
 	result.Target = target
 	return result
@@ -196,9 +196,8 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 // ---------------------------------------------------------------------------
 
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
-// The noVision flag disables Vision API confirmation. budget selects the settle
-// profile; fast enforces the never-clean invariant.
-func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *StickyKeysResult {
+// budget selects the settle profile; fast enforces the never-clean invariant.
+func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, budget SettleBudget, fast bool) *StickyKeysResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -219,7 +218,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision, timeout, budget, fast)
+	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, timeout, budget, fast)
 	if err != nil {
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -229,7 +228,7 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string
 
 // RunUtilmanCheck performs utilman backdoor detection on a separate connection.
 // budget selects the settle profile; fast enforces the never-clean invariant.
-func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *UtilmanResult {
+func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, budget SettleBudget, fast bool) *UtilmanResult {
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -250,7 +249,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, c
 	}
 	defer func() { _ = inst.close(ctx) }()
 
-	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision, timeout, budget, fast)
+	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, timeout, budget, fast)
 	if err != nil {
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("detection failed: %v", err)}
 	}
@@ -265,7 +264,7 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, c
 // runStickyKeysDetection performs the full detection sequence on a non-NLA connection.
 // timeout is the per-host budget passed to each session pump phase. budget selects
 // the settle profile; fast enforces the never-clean invariant in stabilizedVerdict.
-func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration, budget SettleBudget, fast bool) (*StickyKeysResult, error) {
+func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance, addr string, timeout time.Duration, budget SettleBudget, fast bool) (*StickyKeysResult, error) {
 	result := &StickyKeysResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -307,13 +306,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 		dumpFrame(dir, addr, "sticky_keys", "response", response, width, height)
 	}
 
-	// Vision API confirmation is optional: requires ANTHROPIC_API_KEY and
-	// can be disabled with --no-vision flag.
-	var visionAPIKey string
-	if !noVision {
-		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
-	}
-	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
+	*result = runStickyKeysAnalysis(baseline, response, width, height)
 	result.Performed = true
 	result.Stabilized = stabilized
 
@@ -329,7 +322,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 // runUtilmanDetection performs the full utilman detection sequence on a non-NLA connection.
 // timeout is the per-host budget passed to each session pump phase. budget selects
 // the settle profile; fast enforces the never-clean invariant in stabilizedVerdict.
-func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, noVision bool, timeout time.Duration, budget SettleBudget, fast bool) (*UtilmanResult, error) {
+func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, addr string, timeout time.Duration, budget SettleBudget, fast bool) (*UtilmanResult, error) {
 	result := &UtilmanResult{Performed: true}
 
 	cfg := rdpConfig{
@@ -371,13 +364,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 		dumpFrame(dir, addr, "utilman", "response", response, width, height)
 	}
 
-	// Vision API confirmation is optional: requires ANTHROPIC_API_KEY and
-	// can be disabled with --no-vision flag.
-	var visionAPIKey string
-	if !noVision {
-		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
-	}
-	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
+	*result = runUtilmanAnalysis(baseline, response, width, height)
 	result.Performed = true
 	result.Stabilized = stabilized
 
@@ -456,9 +443,6 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 		banner += fmt.Sprintf("[HIGH] Sticky keys backdoor likely (confidence: %.0f%%)\n", result.Confidence*100)
 		banner += "A dark window appeared after 5x Shift on the login screen.\n"
 		banner += "Heuristic: " + result.HeuristicResult
-		if result.VisionResult != "" {
-			banner += " | Vision: " + result.VisionResult
-		}
 	case "vulnerable":
 		banner += "[INFO] Non-NLA RDP target. Sticky Keys triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if sethc.exe is later replaced."
@@ -508,9 +492,6 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 		banner += fmt.Sprintf("[HIGH] Utilman backdoor likely (confidence: %.0f%%)\n", result.Confidence*100)
 		banner += "A window appeared after Win+U on the login screen.\n"
 		banner += "Heuristic: " + result.HeuristicResult
-		if result.VisionResult != "" {
-			banner += " | Vision: " + result.VisionResult
-		}
 	case "vulnerable":
 		banner += "[INFO] Non-NLA RDP target. Utilman triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if utilman.exe is later replaced."

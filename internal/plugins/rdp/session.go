@@ -45,7 +45,6 @@ type StickyKeysResult struct {
 	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean", "indeterminate"
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
-	VisionResult    string
 	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
 	// Unreachable is true only when the TCP dial itself failed (no connection to
 	// the host). It distinguishes a terminal-unreachable host from other
@@ -63,7 +62,6 @@ type UtilmanResult struct {
 	OverallVerdict  string  // "backdoor_confirmed", "backdoor_likely", "vulnerable", "clean", "indeterminate"
 	Confidence      float64 // 0.0-1.0
 	HeuristicResult string
-	VisionResult    string
 	RegionNote      string // diagnostic geometry note from classifyRegion (never changes the verdict)
 	// Unreachable is true only when the TCP dial itself failed (no connection to
 	// the host). It distinguishes a terminal-unreachable host from other

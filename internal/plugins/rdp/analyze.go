@@ -16,7 +16,6 @@ package rdp
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -512,13 +511,11 @@ func rgbaToPNG(rgba []byte, width, height uint32) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// runStickyKeysAnalysis performs the dual-check: dark-delta heuristic first, then Vision
-// API if available. The dark-pixel-delta discriminator is the primary heuristic (it
-// distinguishes the dark cmd console from the light legit dialog); Vision still wins when
-// present (confirmed/vulnerable branches sit above the heuristic verdict).
-func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
-	width, height uint32, visionAPIKey string) StickyKeysResult {
-
+// runStickyKeysAnalysis decides the sticky-keys verdict from the bitmap dark-delta
+// heuristic alone. The dark-pixel-delta discriminator is the sole detection signal (it
+// distinguishes the dark cmd console from the light legit dialog); there is no
+// AI/Vision confirmation step.
+func runStickyKeysAnalysis(baseline, response []byte, width, height uint32) StickyKeysResult {
 	result := StickyKeysResult{Performed: true}
 
 	// Step 1: Primary heuristic — dark-pixel-delta discriminator. The changed-pixels
@@ -533,36 +530,7 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 		return result
 	}
 
-	// Step 2: Try Vision API for confirmation if key available (Vision wins when present).
-	if visionAPIKey != "" {
-		pngData, err := rgbaToPNG(response, width, height)
-		if err == nil {
-			visionVerdict, visionDesc := analyzeStickyKeysVision(ctx, pngData, visionAPIKey)
-			result.VisionResult = visionDesc
-
-			if visionVerdict == "backdoor_confirmed" {
-				result.OverallVerdict = "backdoor_confirmed"
-				result.Confidence = math.Min(1.0, confidence+0.3)
-				return result
-			}
-
-			// If Vision says "vulnerable" (normal Ease of Access on non-NLA), respect that
-			if visionVerdict == "vulnerable" {
-				result.OverallVerdict = "vulnerable"
-				result.Confidence = 0.8 // High confidence when Vision confirms normal behavior
-				return result
-			}
-
-			if visionVerdict == "clean" && verdict == "backdoor_likely" {
-				// Heuristic says backdoor, Vision says clean -- downgrade
-				result.OverallVerdict = "vulnerable"
-				result.Confidence = confidence * 0.5
-				return result
-			}
-		}
-	}
-
-	// No-Vision (or inconclusive Vision) baseline: pass the dark-delta verdict through
+	// Step 2: pass the dark-delta verdict through
 	// decideVerdict (cardinal rule — a positive never becomes clean). The region signal
 	// never changes the verdict; it only enriches confidence and the diagnostic banner
 	// via regionConfidenceAndNote.
@@ -574,11 +542,9 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 	return result
 }
 
-// runUtilmanAnalysis performs the dual-check for utilman backdoor: dark-delta heuristic
-// first, then Vision API. Same wiring as runStickyKeysAnalysis.
-func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
-	width, height uint32, visionAPIKey string) UtilmanResult {
-
+// runUtilmanAnalysis decides the utilman verdict from the bitmap dark-delta heuristic
+// alone. Same wiring as runStickyKeysAnalysis.
+func runUtilmanAnalysis(baseline, response []byte, width, height uint32) UtilmanResult {
 	result := UtilmanResult{Performed: true}
 
 	// Step 1: Primary heuristic — dark-pixel-delta discriminator. The changed-pixels
@@ -593,35 +559,7 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 		return result
 	}
 
-	// Step 2: Try Vision API for confirmation if key available (Vision wins when present).
-	if visionAPIKey != "" {
-		pngData, err := rgbaToPNG(response, width, height)
-		if err == nil {
-			visionVerdict, visionDesc := analyzeUtilmanVision(ctx, pngData, visionAPIKey)
-			result.VisionResult = visionDesc
-
-			if visionVerdict == "backdoor_confirmed" {
-				result.OverallVerdict = "backdoor_confirmed"
-				result.Confidence = math.Min(1.0, confidence+0.3)
-				return result
-			}
-
-			// If Vision says "vulnerable" (normal Ease of Access on non-NLA), respect that
-			if visionVerdict == "vulnerable" {
-				result.OverallVerdict = "vulnerable"
-				result.Confidence = 0.8 // High confidence when Vision confirms normal behavior
-				return result
-			}
-
-			if visionVerdict == "clean" && verdict == "backdoor_likely" {
-				result.OverallVerdict = "vulnerable"
-				result.Confidence = confidence * 0.5
-				return result
-			}
-		}
-	}
-
-	// No-Vision (or inconclusive Vision) baseline: pass the dark-delta verdict through
+	// Step 2: pass the dark-delta verdict through
 	// decideVerdict (cardinal rule — a positive never becomes clean). The region signal
 	// never changes the verdict; it only enriches confidence and the diagnostic banner
 	// via regionConfidenceAndNote.

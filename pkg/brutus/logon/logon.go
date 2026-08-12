@@ -120,8 +120,10 @@ func retryBackoff(ctx context.Context, attempt int) {
 
 // ExecConfig holds parameters for sticky-keys command execution.
 type ExecConfig struct {
-	Target       string
-	Timeout      time.Duration
+	Target  string
+	Timeout time.Duration
+	// AIMode and AnthropicKey are retained for API compatibility and no longer
+	// affect RDP detection or exec: the logon path is 100% AI-free.
 	AIMode       bool
 	AnthropicKey string
 }
@@ -135,23 +137,14 @@ func RunExec(ctx context.Context, cfg ExecConfig, command string) (brutus.Result
 		Username: "(sticky-keys)",
 	}
 
-	var execAPIKey string
-	if cfg.AIMode {
-		execAPIKey = cfg.AnthropicKey
-	}
-	execResult := rdp.RunStickyKeysExec(ctx, cfg.Target, command, cfg.Timeout, execAPIKey)
+	execResult := rdp.RunStickyKeysExec(ctx, cfg.Target, command, cfg.Timeout)
 	if execResult.Error != "" {
 		result.Error = fmt.Errorf("%s", execResult.Error)
 		return result, false
 	}
 	result.Success = execResult.BackdoorDetected
-	if execResult.Output != "" {
-		result.Banner = fmt.Sprintf("[INFO] Sticky keys exec: backdoor=%v, output:\n%s",
-			execResult.BackdoorDetected, execResult.Output)
-	} else {
-		result.Banner = fmt.Sprintf("[INFO] Sticky keys exec: backdoor=%v, screenshot=%s",
-			execResult.BackdoorDetected, execResult.ScreenshotPath)
-	}
+	result.Banner = fmt.Sprintf("[INFO] Sticky keys exec: backdoor=%v, screenshot=%s",
+		execResult.BackdoorDetected, execResult.ScreenshotPath)
 	return result, execResult.BackdoorDetected
 }
 

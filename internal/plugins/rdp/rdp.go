@@ -146,7 +146,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if !pluginCfg.NoStickyKeys {
 		// Creds path (brutus rdp): one-shot, human-driven, no bulk-scan dead-host
 		// amplification — keep --timeout for the dial (connectTimeout == timeout).
-		stickyResult := p.RunStickyKeysCheck(ctx, target, pluginCfg.ProxyURL, timeout, timeout, pluginCfg.NoVision, CarefulBudget, false)
+		stickyResult := p.RunStickyKeysCheck(ctx, target, pluginCfg.ProxyURL, timeout, timeout, CarefulBudget, false)
 		if stickyResult != nil {
 			result.Banner = formatStickyKeysBanner(result.Banner, stickyResult)
 		}
@@ -154,7 +154,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	// Utilman detection: same approach as sticky keys but uses Win+U trigger.
 	if !pluginCfg.NoStickyKeys {
-		utilmanResult := p.RunUtilmanCheck(ctx, target, pluginCfg.ProxyURL, timeout, timeout, pluginCfg.NoVision, CarefulBudget, false)
+		utilmanResult := p.RunUtilmanCheck(ctx, target, pluginCfg.ProxyURL, timeout, timeout, CarefulBudget, false)
 		if utilmanResult != nil {
 			result.Banner = formatUtilmanBanner(result.Banner, utilmanResult)
 		}

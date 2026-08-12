@@ -210,7 +210,6 @@ func registerLogonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&flagExec, "exec", "", "Execute command via detected backdoor")
 	cmd.Flags().BoolVar(&flagWeb, "web", false, "Start interactive web terminal via detected backdoor")
 	cmd.Flags().BoolVar(&flagOpen, "open", false, "Auto-open browser when web terminal starts")
-	cmd.Flags().BoolVar(&flagAIMode, "experimental-ai", false, "Enable Vision API for backdoor confirmation")
 	cmd.Flags().BoolVar(&flagNoNLAProbe, "no-nla-probe", false, "Disable the pre-WASM RDP negotiation probe (always run the full WASM session)")
 	cmd.Flags().BoolVar(&flagFast, "fast", false, "fast triage: shorter settle budget for internet-scale sweeps; reports HIGH/CRITICAL or indeterminate, never clean (rerun indeterminates without --fast for a careful verdict)")
 }

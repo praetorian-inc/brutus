@@ -76,7 +76,7 @@ import (
 // through context.WithValue.
 type PluginConfig struct {
 	TLSMode      string // "disable", "verify", "skip-verify" (default: "disable")
-	NoVision     bool   // disable Vision API for screenshot analysis (RDP)
+	NoVision     bool   // retained for API compatibility; no longer affects RDP detection (logon is AI-free)
 	NoStickyKeys bool   // disable sticky keys backdoor detection (RDP)
 	ProxyURL     string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
 }
@@ -112,7 +112,7 @@ type Config struct {
 	MaxRetries      int           // max retries per credential on connection error (0 = no retry, default: 0)
 	Verbose         bool          // enable verbose logging to stderr (default: false)
 	StickyKeys      bool          // enable sticky keys backdoor detection (RDP)
-	AIMode          bool          // enable Vision API for screenshot analysis (RDP)
+	AIMode          bool          // retained for API compatibility; no longer affects RDP detection (logon is AI-free)
 	SkipUnauthCheck bool          // skip CheckUnauth probe (when Nerva already detected it)
 	Mode            Mode          // aggressiveness tier for wordlist depth (default: ModeDefault)
 	ProxyURL        string        // SOCKS5 proxy URL for all connections (e.g., "socks5://127.0.0.1:1080")

@@ -15,7 +15,6 @@
 package rdp
 
 import (
-	"context"
 	"fmt"
 	"image"
 	"image/draw"
@@ -98,11 +97,10 @@ var realFrameFixtures = []realFrameFixture{
 
 // runFixture drives a fixture through its real public analysis path and returns the result verdict.
 func runFixtureVerdict(fx realFrameFixture, baseline, response []byte, w, h uint32) string {
-	ctx := context.Background()
 	if fx.analysis == "sticky" {
-		return runStickyKeysAnalysis(ctx, baseline, response, w, h, "").OverallVerdict
+		return runStickyKeysAnalysis(baseline, response, w, h).OverallVerdict
 	}
-	return runUtilmanAnalysis(ctx, baseline, response, w, h, "").OverallVerdict
+	return runUtilmanAnalysis(baseline, response, w, h).OverallVerdict
 }
 
 // TestRealFrames_SanityDecode confirms the PNG→RGBA decode round-trips the framebuffer:

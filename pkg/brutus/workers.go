@@ -98,7 +98,8 @@ func reorderForSpray(creds []credential) []credential {
 // This replaces the former pattern of copying config into context values.
 func pluginConfigFromConfig(cfg *Config) PluginConfig {
 	return PluginConfig{
-		TLSMode:      cfg.TLSMode,
+		TLSMode: cfg.TLSMode,
+		// Retained for API compatibility; NoVision no longer affects RDP detection.
 		NoVision:     !cfg.AIMode,
 		NoStickyKeys: !cfg.StickyKeys,
 		ProxyURL:     cfg.ProxyURL,

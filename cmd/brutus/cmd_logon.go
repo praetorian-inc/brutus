@@ -43,14 +43,9 @@ Modes:
   Detection:    brutus logon --target host:3389
   Exec:         brutus logon --target host:3389 --exec "whoami"
   Web terminal: brutus logon --target host:3389 --web
-
-Use --experimental-ai to enable Vision API for more accurate backdoor
-confirmation via screenshot analysis.`,
+`,
 	Example: `  # Detect sticky keys and utilman backdoors (heuristic)
   brutus logon --target 10.0.0.50:3389
-
-  # Vision API confirmation (more accurate)
-  brutus logon --target 10.0.0.50:3389 --experimental-ai
 
   # Execute a command via detected backdoor
   brutus logon --target 10.0.0.50:3389 --exec "whoami"
@@ -83,10 +78,7 @@ Unlike "brutus logon" (which runs both checks), this runs ONLY the sticky-keys
 check on a clean screen, so a positive result is reliably attributable to the
 sethc.exe backdoor. The protocol defaults to RDP.`,
 	Example: `  # Detect the sticky-keys backdoor only
-  brutus stickykeys --target 10.0.0.50:3389
-
-  # Vision API confirmation (more accurate)
-  brutus stickykeys --target 10.0.0.50:3389 --experimental-ai`,
+  brutus stickykeys --target 10.0.0.50:3389`,
 	RunE: runStickykeys,
 }
 
@@ -101,10 +93,7 @@ Unlike "brutus logon" (which runs both checks), this runs ONLY the utilman check
 on a clean screen, so a positive result is reliably attributable to the utilman
 backdoor. The protocol defaults to RDP.`,
 	Example: `  # Detect the utilman backdoor only
-  brutus utilman --target 10.0.0.50:3389
-
-  # Vision API confirmation (more accurate)
-  brutus utilman --target 10.0.0.50:3389 --experimental-ai`,
+  brutus utilman --target 10.0.0.50:3389`,
 	RunE: runUtilman,
 }
 
@@ -175,15 +164,6 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 		return err
 	}
 	base.checks = checks
-
-	// AI config (logon-specific)
-	if base.aiMode {
-		llmCfg, aiErr := setupAIConfig(true, base.anthropicKey, base.perplexityKey)
-		if aiErr != nil {
-			return aiErr
-		}
-		base.llmConfig = llmCfg
-	}
 
 	// Logon mode defaults to RDP
 	if base.protocolOverride == "" {

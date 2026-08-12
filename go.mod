@@ -9,7 +9,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/gocql/gocql v1.7.0
-	github.com/gosnmp/gosnmp v1.43.2
+	github.com/gosnmp/gosnmp v1.44.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/lib/pq v1.12.3

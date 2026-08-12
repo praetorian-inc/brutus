@@ -265,9 +265,13 @@ func outputOracleValidationHuman(results []enum.Result, useColor bool) {
 // outputEnumJSONL writes enumeration results as JSONL.
 func outputEnumJSONL(w io.Writer, results []enum.Result) {
 	type enumResultJSON struct {
-		Type       string `json:"type"`
-		Service    string `json:"service"`
-		Email      string `json:"email"`
+		Type    string `json:"type"`
+		Service string `json:"service"`
+		Email   string `json:"email"`
+		// omitempty is deliberate: a supplied address has no name, and an
+		// absent key says that more honestly than an empty string.
+		First      string `json:"first,omitempty"`
+		Last       string `json:"last,omitempty"`
 		Exists     bool   `json:"exists"`
 		Confidence string `json:"confidence,omitempty"`
 		Error      string `json:"error,omitempty"`
@@ -281,6 +285,8 @@ func outputEnumJSONL(w io.Writer, results []enum.Result) {
 			Type:       "enum",
 			Service:    r.Service,
 			Email:      r.Email,
+			First:      r.First,
+			Last:       r.Last,
 			Exists:     r.Exists,
 			Confidence: string(r.Confidence),
 			Duration:   r.Duration.String(),

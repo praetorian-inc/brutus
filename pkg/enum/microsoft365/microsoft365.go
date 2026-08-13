@@ -23,15 +23,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
-	"os"
-	"runtime/debug"
-	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
@@ -132,6 +125,36 @@ func (c *Checker) EnumerateWith(ctx context.Context, emails []string, threads in
 	return c.EnumerateTargetsWith(ctx, targets, threads, rateLimit, jitter, onResult)
 }
 
+// newError builds the Result for failures the worker pool detects rather than
+// the probe: cancellation, a rate-limiter error, a nil result from CheckAccount,
+// and panic recovery. microsoft365's failure results carry no fields beyond the
+// address and the error.
+func newError(email string, err error) Result {
+	return Result{Email: email, Error: err}
+}
+
+// worker returns the shared bounded worker pool configured for this checker. It
+// is a method (rather than inline in EnumerateTargetsWith) so tests can assert
+// the four hooks — in particular the Label that drives the panic diagnostics,
+// and newError's field shape — without running a pool.
+func (c *Checker) worker() enum.TargetWorker[Result] {
+	return enum.TargetWorker[Result]{
+		Label: "microsoft365 enum",
+		// CheckAccount returns *Result, so the nil guard lives here rather than
+		// in the shared worker: the message is this package's text, and keeping
+		// Check value-returning keeps a pointer/value duality out of the generic.
+		Check: func(ctx context.Context, email string) Result {
+			r := c.CheckAccount(ctx, email)
+			if r == nil {
+				return newError(email, fmt.Errorf("microsoft365 enum: nil result for %s", email))
+			}
+			return *r
+		},
+		NewError:  newError,
+		StampName: func(r *Result, t enum.Target) { r.First, r.Last = t.First, t.Last },
+	}
+}
+
 // EnumerateTargetsWith runs enumeration with bounded concurrency over targets
 // that carry the name behind each address, and invokes onResult (if non-nil) for
 // each completed result, serialized so callers can print/stream safely. It
@@ -154,103 +177,10 @@ func (c *Checker) EnumerateWith(ctx context.Context, emails []string, threads in
 // must therefore be cheap and self-contained: it may write to an io.Writer or
 // update counters, but it must NOT call back into the Checker (doing so risks
 // deadlock and defeats the serialization guarantee).
+//
+// The pool itself is enum.TargetWorker; see its doc comment for the full contract.
 func (c *Checker) EnumerateTargetsWith(ctx context.Context, targets []enum.Target, threads int, rateLimit float64, jitter time.Duration, onResult func(Result)) []Result {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	g, ctx := errgroup.WithContext(ctx)
-	// Normalize thread count: 0 would deadlock errgroup.SetLimit (no goroutine
-	// can ever run) and a negative value means unbounded. Clamp to a safe
-	// positive default of 1 (serial execution).
-	if threads <= 0 {
-		threads = 1
-	}
-	g.SetLimit(threads)
-
-	var limiter *rate.Limiter
-	if rateLimit > 0 {
-		limiter = rate.NewLimiter(rate.Limit(rateLimit), 1)
-	}
-
-	results := make([]Result, len(targets))
-	var mu sync.Mutex
-
-	// record stamps the originating target's name onto the result, stores it and,
-	// under the same lock, invokes the caller's callback so streamed output is
-	// serialized and slice-safe.
-	//
-	// The stamp lives here, at the single point every outcome funnels through, so
-	// that error and panic-recovery results carry their name too. Stamping at the
-	// individual call sites instead is how names end up on successes but not
-	// failures. targets is read-only, so the copy needs no lock.
-	record := func(i int, res Result) {
-		res.First, res.Last = targets[i].First, targets[i].Last
-
-		mu.Lock()
-		defer mu.Unlock()
-		results[i] = res
-		if onResult != nil {
-			onResult(res)
-		}
-	}
-
-	for i, t := range targets {
-		email := t.Email
-		g.Go(func() error {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Fprintf(os.Stderr, "microsoft365 enum: panic checking %s: %v\n%s\n", email, r, debug.Stack())
-					record(i, Result{
-						Email: email,
-						Error: fmt.Errorf("microsoft365 enum: panicked: %v", r),
-					})
-				}
-			}()
-
-			select {
-			case <-ctx.Done():
-				// Record before returning so every index is filled and the callback fires exactly once per email.
-				record(i, Result{Email: email, Error: ctx.Err()})
-				return nil
-			default:
-			}
-
-			if limiter != nil {
-				if err := limiter.Wait(ctx); err != nil {
-					// Record before returning so every index is filled and the callback fires exactly once per email.
-					record(i, Result{Email: email, Error: err})
-					return nil
-				}
-				if jitter > 0 {
-					delay := time.Duration(rand.Int63n(int64(jitter)))
-					select {
-					case <-time.After(delay):
-					case <-ctx.Done():
-						// Record before returning so every index is filled and the callback fires exactly once per email.
-						record(i, Result{Email: email, Error: ctx.Err()})
-						return nil
-					}
-				}
-			}
-
-			r := c.CheckAccount(ctx, email)
-			if r == nil {
-				record(i, Result{
-					Email: email,
-					Error: fmt.Errorf("microsoft365 enum: nil result for %s", email),
-				})
-				return nil
-			}
-			record(i, *r)
-			return nil
-		})
-	}
-
-	// Discarding g.Wait()'s error is deliberate: worker goroutines never return
-	// a non-nil error (per-email failures are encoded in each Result), so the
-	// returned error is always nil.
-	_ = g.Wait()
-	return results
+	return c.worker().Run(ctx, targets, threads, rateLimit, jitter, onResult)
 }
 
 // CheckAccount tests if an email account exists on Microsoft 365 via the

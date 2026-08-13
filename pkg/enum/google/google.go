@@ -23,17 +23,10 @@ package google
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
-	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -143,6 +136,26 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 	return e.EnumerateTargetsWith(ctx, targets, threads, rateLimit, jitter, onResult)
 }
 
+// newError builds the Result for failures the worker pool detects rather than
+// the probe: cancellation, a rate-limiter error, and panic recovery. google's
+// failure results carry no fields beyond the address and the error.
+func newError(email string, err error) Result {
+	return Result{Email: email, Error: err}
+}
+
+// worker returns the shared bounded worker pool configured for this
+// enumerator. It is a method (rather than inline in EnumerateTargetsWith) so
+// tests can assert the four hooks — in particular the Label that drives the
+// panic diagnostics, and newError's field shape — without running a pool.
+func (e *Enumerator) worker() enum.TargetWorker[Result] {
+	return enum.TargetWorker[Result]{
+		Label:     "google enum",
+		Check:     e.CheckAccount,
+		NewError:  newError,
+		StampName: func(r *Result, t enum.Target) { r.First, r.Last = t.First, t.Last },
+	}
+}
+
 // EnumerateTargetsWith runs enumeration with bounded concurrency over targets
 // that carry the name behind each address, and invokes onResult (if non-nil) for
 // each completed result, serialized so callers can print/stream safely. It
@@ -165,95 +178,10 @@ func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads
 // must therefore be cheap and self-contained: it may write to an io.Writer or
 // update counters, but it must NOT call back into the Enumerator (doing so risks
 // deadlock and defeats the serialization guarantee).
+//
+// The pool itself is enum.TargetWorker; see its doc comment for the full contract.
 func (e *Enumerator) EnumerateTargetsWith(ctx context.Context, targets []enum.Target, threads int, rateLimit float64, jitter time.Duration, onResult func(Result)) []Result {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	g, ctx := errgroup.WithContext(ctx)
-	// Normalize thread count: 0 would deadlock errgroup.SetLimit (no goroutine
-	// can ever run) and a negative value means unbounded. Clamp to a safe
-	// positive default of 1 (serial execution).
-	if threads <= 0 {
-		threads = 1
-	}
-	g.SetLimit(threads)
-
-	var limiter *rate.Limiter
-	if rateLimit > 0 {
-		limiter = rate.NewLimiter(rate.Limit(rateLimit), 1)
-	}
-
-	results := make([]Result, len(targets))
-	var mu sync.Mutex
-
-	// record stamps the originating target's name onto the result, stores it and,
-	// under the same lock, invokes the caller's callback so streamed output is
-	// serialized and slice-safe.
-	//
-	// The stamp lives here, at the single point every outcome funnels through, so
-	// that error and panic-recovery results carry their name too. Stamping at the
-	// individual call sites instead is how names end up on successes but not
-	// failures. targets is read-only, so the copy needs no lock.
-	record := func(i int, res Result) {
-		res.First, res.Last = targets[i].First, targets[i].Last
-
-		mu.Lock()
-		defer mu.Unlock()
-		results[i] = res
-		if onResult != nil {
-			onResult(res)
-		}
-	}
-
-	for i, t := range targets {
-		email := t.Email
-		g.Go(func() error {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Fprintf(os.Stderr, "google enum: panic checking %s: %v\n%s\n", email, r, debug.Stack())
-					record(i, Result{
-						Email: email,
-						Error: fmt.Errorf("google enum: panicked: %v", r),
-					})
-				}
-			}()
-
-			select {
-			case <-ctx.Done():
-				// Record before returning so every index is filled and the callback fires exactly once per email.
-				record(i, Result{Email: email, Error: ctx.Err()})
-				return nil
-			default:
-			}
-
-			if limiter != nil {
-				if err := limiter.Wait(ctx); err != nil {
-					// Record before returning so every index is filled and the callback fires exactly once per email.
-					record(i, Result{Email: email, Error: err})
-					return nil
-				}
-				if jitter > 0 {
-					delay := time.Duration(rand.Int63n(int64(jitter)))
-					select {
-					case <-time.After(delay):
-					case <-ctx.Done():
-						// Record before returning so every index is filled and the callback fires exactly once per email.
-						record(i, Result{Email: email, Error: ctx.Err()})
-						return nil
-					}
-				}
-			}
-
-			record(i, e.CheckAccount(ctx, email))
-			return nil
-		})
-	}
-
-	// Discarding g.Wait()'s error is deliberate: worker goroutines never return
-	// a non-nil error (per-email failures are encoded in each Result), so the
-	// returned error is always nil.
-	_ = g.Wait()
-	return results
+	return e.worker().Run(ctx, targets, threads, rateLimit, jitter, onResult)
 }
 
 // CheckAccount checks whether a single Google account exists, trying the

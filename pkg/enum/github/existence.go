@@ -18,17 +18,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
-	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
-
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
@@ -44,98 +38,112 @@ func (e *Enumerator) Enumerate(ctx context.Context, emails []string, threads int
 	return e.EnumerateWith(ctx, emails, threads, rateLimit, jitter, nil)
 }
 
-// EnumerateWith runs existence enumeration with bounded concurrency and invokes
-// onResult (if non-nil) for each completed result, serialized so callers can
-// print/stream safely. It still returns all results in input order.
+// EnumerateWith runs existence enumeration over bare addresses. It is a thin
+// adapter over EnumerateTargetsWith, which holds the single implementation: each
+// address is promoted to a nameless enum.Target. Because a bare address says
+// nothing about whose it is, every returned Result has empty First/Last —
+// callers that know the name behind an address should use EnumerateTargetsWith
+// instead.
+//
+// The signature, ordering and callback semantics are unchanged; see
+// EnumerateTargetsWith for the session gate, the callback contract, and for the
+// one deliberate behavior change this delegation brings: abort paths now record
+// a result rather than dropping it.
+func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration, onResult func(Result)) []Result {
+	targets := make([]enum.Target, len(emails))
+	for i, email := range emails {
+		targets[i] = enum.Target{Email: email}
+	}
+	return e.EnumerateTargetsWith(ctx, targets, threads, rateLimit, jitter, onResult)
+}
+
+// newError builds the Result for failures detected outside the probe: session
+// establishment, cancellation, a rate-limiter error, cancellation during jitter,
+// and panic recovery. github's failure results carry no fields beyond the
+// address and the error.
+func newError(email string, err error) Result {
+	return Result{Email: email, Error: err}
+}
+
+// worker returns the shared bounded worker pool bound to an established session.
+// The session is a parameter rather than enumerator state because it is
+// established once per EnumerateTargetsWith call and shared read-only by every
+// worker.
+//
+// It is a method (rather than inline in EnumerateTargetsWith) so tests can
+// assert the four hooks — in particular the Label that drives the panic
+// diagnostics, and newError's field shape — without running a pool or a live
+// join/validity endpoint.
+func (e *Enumerator) worker(sess *session) enum.TargetWorker[Result] {
+	return enum.TargetWorker[Result]{
+		Label: "github enum",
+		Check: func(ctx context.Context, email string) Result {
+			return e.checkEmail(ctx, sess, email)
+		},
+		NewError:  newError,
+		StampName: func(r *Result, t enum.Target) { r.First, r.Last = t.First, t.Last },
+	}
+}
+
+// EnumerateTargetsWith runs existence enumeration with bounded concurrency over
+// targets that carry the name behind each address, and invokes onResult (if
+// non-nil) for each completed result, serialized so callers can print/stream
+// safely. It returns all results in input order.
+//
+// The name travels with the target rather than being recovered afterwards, so a
+// consumer of this package never has to reverse-derive a name from the local
+// part — a lossy guess for initial-based formats, where "jsmith" could be John,
+// James or Jane. Each Result is stamped with the name of the target that
+// produced it (never a neighboring target's).
+//
+// A name is a property of the address, not of the check outcome, so the stamp is
+// applied on every path: a completed check, session-establishment failure,
+// context cancellation, a rate-limiter error, cancellation during jitter, and
+// panic recovery. A failed probe still reports whose address failed. Targets
+// without a name (operator-supplied addresses) stay nameless; no name is ever
+// invented.
 //
 // The session (CSRF token + cookies) is established ONCE before the worker pool
-// and shared read-only across workers. If session establishment fails, every
-// Result is returned carrying that error.
+// and shared read-only across workers. If session establishment fails, no check
+// is possible, so every Target is returned carrying that error — still stamped
+// with its name, and still delivered to onResult exactly once — rather than
+// running a pool that would fail identically for every address.
+//
+// Behavior change (deliberate): before this package delegated to
+// enum.TargetWorker, the pool's own abort paths returned without recording,
+// leaving that slot a zero Result (Email empty, Error nil) and never firing
+// onResult. Every abort now records newError(email, <cause>) and fires onResult
+// exactly once, matching google, microsoft365 and gravatar. An interrupted run
+// therefore emits one error result per un-probed address instead of dropping it
+// silently. The session-failure gate above is unaffected — it always filled
+// every slot.
 //
 // onResult is called under the same mutex that guards the results slice, so
 // callback invocations never interleave and never race the slice. The callback
 // must be cheap and self-contained and must NOT call back into the Enumerator.
-func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration, onResult func(Result)) []Result {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	results := make([]Result, len(emails))
-	var mu sync.Mutex
-	record := func(i int, res Result) {
-		mu.Lock()
-		defer mu.Unlock()
-		results[i] = res
-		if onResult != nil {
-			onResult(res)
-		}
-	}
-
+//
+// The pool itself is enum.TargetWorker; see its doc comment for the full contract.
+func (e *Enumerator) EnumerateTargetsWith(ctx context.Context, targets []enum.Target, threads int, rateLimit float64, jitter time.Duration, onResult func(Result)) []Result {
 	sess, err := e.establishSession(ctx)
 	if err != nil {
 		// Without a session no checks are possible; surface the error on every
 		// result so the caller (and JSONL output) reflects the failure per email.
-		for i, email := range emails {
-			record(i, Result{Email: email, Error: err})
+		// This gate runs before the pool, on this goroutine, so no lock is
+		// needed — but the stamp and the exactly-once callback contract still
+		// hold, exactly as they do inside the pool.
+		results := make([]Result, len(targets))
+		for i, t := range targets {
+			res := newError(t.Email, err)
+			res.First, res.Last = t.First, t.Last
+			results[i] = res
+			if onResult != nil {
+				onResult(res)
+			}
 		}
 		return results
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
-	// Normalize thread count: 0 would deadlock errgroup.SetLimit (no goroutine
-	// can ever run) and a negative value means unbounded. Clamp to a safe
-	// positive default of 1 (serial execution).
-	if threads <= 0 {
-		threads = 1
-	}
-	g.SetLimit(threads)
-
-	var limiter *rate.Limiter
-	if rateLimit > 0 {
-		limiter = rate.NewLimiter(rate.Limit(rateLimit), 1)
-	}
-
-	for i, email := range emails {
-		i, email := i, email
-		g.Go(func() error {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Fprintf(os.Stderr, "github enum: panic checking %s: %v\n%s\n", email, r, debug.Stack())
-					record(i, Result{
-						Email: email,
-						Error: fmt.Errorf("github enum: panicked: %v", r),
-					})
-				}
-			}()
-
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-			}
-
-			if limiter != nil {
-				if err := limiter.Wait(ctx); err != nil {
-					return nil
-				}
-				if jitter > 0 {
-					delay := time.Duration(rand.Int63n(int64(jitter)))
-					select {
-					case <-time.After(delay):
-					case <-ctx.Done():
-						return nil
-					}
-				}
-			}
-
-			record(i, e.checkEmail(ctx, sess, email))
-			return nil
-		})
-	}
-
-	// Worker goroutines never return a non-nil error (per-email failures are
-	// encoded in each Result), so the returned error is always nil.
-	_ = g.Wait()
-	return results
+	return e.worker(sess).Run(ctx, targets, threads, rateLimit, jitter, onResult)
 }
 
 // ---------------------------------------------------------------------------

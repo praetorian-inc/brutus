@@ -58,9 +58,13 @@ import (
 // author email to an account login. Email and Username are server-/user-derived
 // and are NOT sanitized here; sanitization happens at the output layer.
 type Result struct {
-	Email    string
-	First    string // generated given name; empty if the address was supplied
-	Last     string // generated surname; empty if the address was supplied
+	Email string
+	// First and Last are copied from the originating enum.Target when
+	// enumerating via EnumerateTargetsWith. They are empty when the address
+	// arrived through EnumerateWith, which takes bare addresses and so has no
+	// name to carry. This package never derives a name from the local part.
+	First    string
+	Last     string
 	Exists   bool
 	Username string
 	Error    error

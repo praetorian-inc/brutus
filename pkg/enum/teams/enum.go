@@ -20,19 +20,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
-	"os"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
-
 	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
 // Existence is the tri-state (plus unknown) result of a Teams user lookup.
@@ -56,9 +51,13 @@ const (
 // sanitization happens at the output layer. Token values never appear in this
 // struct, in logs, or in Error.
 type EnumResult struct {
-	Email        string
-	First        string // generated given name; empty if the address was supplied
-	Last         string // generated surname; empty if the address was supplied
+	Email string
+	// First and Last are copied from the originating enum.Target when
+	// enumerating via EnumerateTargetsWith. They are empty when the address
+	// arrived through EnumerateWith, which takes bare addresses and so has no
+	// name to carry. This package never derives a name from the local part.
+	First        string
+	Last         string
 	Exists       Existence
 	DisplayName  string
 	MRI          string
@@ -178,91 +177,88 @@ func (e *Enumerator) Enumerate(ctx context.Context, emails []string, threads int
 	return e.EnumerateWith(ctx, emails, threads, rateLimit, jitter, nil)
 }
 
-// EnumerateWith runs enumeration with bounded concurrency and invokes onResult
-// (if non-nil) for each completed result, serialized so callers can print/stream
-// safely. It still returns all results in input order.
+// EnumerateWith runs enumeration over bare addresses. It is a thin adapter over
+// EnumerateTargetsWith, which holds the single implementation: each address is
+// promoted to a nameless enum.Target. Because a bare address says nothing about
+// whose it is, every returned EnumResult has empty First/Last — callers that
+// know the name behind an address should use EnumerateTargetsWith instead.
+//
+// The signature, ordering and callback semantics are unchanged; see
+// EnumerateTargetsWith for the callback contract and for the one deliberate
+// behavior change this delegation brings: abort paths now record a result
+// rather than dropping it.
+func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration, onResult func(EnumResult)) []EnumResult {
+	targets := make([]enum.Target, len(emails))
+	for i, email := range emails {
+		targets[i] = enum.Target{Email: email}
+	}
+	return e.EnumerateTargetsWith(ctx, targets, threads, rateLimit, jitter, onResult)
+}
+
+// newError builds the EnumResult for failures the worker pool detects rather
+// than the lookup: cancellation, a rate-limiter error, cancellation during
+// jitter, and panic recovery.
+//
+// Exists: ExistenceUnknown is load-bearing, not decorative. Existence is a
+// tri-state plus unknown, and a result whose Exists is the empty string is not a
+// valid member of that set — DerivePosture reads the field. A generic
+// zero-value construction in the shared worker would produce exactly that
+// invalid value, which is why NewError is a per-package hook.
+func newError(email string, err error) EnumResult {
+	return EnumResult{Email: email, Exists: ExistenceUnknown, Error: err}
+}
+
+// worker returns the shared bounded worker pool configured for this enumerator.
+// It is a method (rather than inline in EnumerateTargetsWith) so tests can
+// assert the four hooks — in particular the Label that drives the panic
+// diagnostics, and newError's field shape — without running a pool.
+func (e *Enumerator) worker() enum.TargetWorker[EnumResult] {
+	return enum.TargetWorker[EnumResult]{
+		Label: "teams enum",
+		// EnumerateOne's signature already matches Check exactly, so it is used
+		// as a method value with no adapter closure: it takes (ctx, email) and
+		// returns an EnumResult by value, encoding every failure in that
+		// result's own Exists/Error fields.
+		Check:     e.EnumerateOne,
+		NewError:  newError,
+		StampName: func(r *EnumResult, t enum.Target) { r.First, r.Last = t.First, t.Last },
+	}
+}
+
+// EnumerateTargetsWith runs enumeration with bounded concurrency over targets
+// that carry the name behind each address, and invokes onResult (if non-nil) for
+// each completed result, serialized so callers can print/stream safely. It
+// returns all results in input order.
+//
+// The name travels with the target rather than being recovered afterwards, so a
+// consumer of this package never has to reverse-derive a name from the local
+// part — a lossy guess for initial-based formats, where "jsmith" could be John,
+// James or Jane. Each EnumResult is stamped with the name of the target that
+// produced it (never a neighboring target's).
+//
+// A name is a property of the address, not of the check outcome, so the stamp is
+// applied on every path: a completed lookup, context cancellation, a
+// rate-limiter error, cancellation during jitter, and panic recovery. A failed
+// lookup still reports whose address failed. Targets without a name
+// (operator-supplied addresses) stay nameless; no name is ever invented.
+//
+// Behavior change (deliberate): before this package delegated to
+// enum.TargetWorker, its abort paths returned without recording, leaving that
+// slot a zero EnumResult — Email empty and Exists the empty string, which is not
+// a valid member of the Existence set — and never firing onResult. Every abort
+// now records newError(email, <cause>) and fires onResult exactly once, matching
+// google, microsoft365 and gravatar. An interrupted run therefore emits one
+// error result per un-probed address instead of dropping it silently.
 //
 // onResult is called under the same mutex that guards the results slice, so
 // callback invocations never interleave and never race the slice. The callback
 // must therefore be cheap and self-contained: it may write to an io.Writer or
 // update counters, but it must NOT call back into the Enumerator (doing so risks
 // deadlock and defeats the serialization guarantee).
-func (e *Enumerator) EnumerateWith(ctx context.Context, emails []string, threads int, rateLimit float64, jitter time.Duration, onResult func(EnumResult)) []EnumResult {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	g, ctx := errgroup.WithContext(ctx)
-	// Normalize thread count: 0 would deadlock errgroup.SetLimit (no goroutine
-	// can ever run) and a negative value means unbounded. Clamp to a safe
-	// positive default of 1 (serial execution).
-	if threads <= 0 {
-		threads = 1
-	}
-	g.SetLimit(threads)
-
-	var limiter *rate.Limiter
-	if rateLimit > 0 {
-		limiter = rate.NewLimiter(rate.Limit(rateLimit), 1)
-	}
-
-	results := make([]EnumResult, len(emails))
-	var mu sync.Mutex
-
-	// record stores a completed result and, under the same lock, invokes the
-	// caller's callback so streamed output is serialized and slice-safe.
-	record := func(i int, res EnumResult) {
-		mu.Lock()
-		defer mu.Unlock()
-		results[i] = res
-		if onResult != nil {
-			onResult(res)
-		}
-	}
-
-	for i, email := range emails {
-		i, email := i, email
-		g.Go(func() error {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Fprintf(os.Stderr, "teams enum: panic checking %s: %v\n%s\n", email, r, debug.Stack())
-					record(i, EnumResult{
-						Email:  email,
-						Exists: ExistenceUnknown,
-						Error:  fmt.Errorf("teams enum: panicked: %v", r),
-					})
-				}
-			}()
-
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-			}
-
-			if limiter != nil {
-				if err := limiter.Wait(ctx); err != nil {
-					return nil
-				}
-				if jitter > 0 {
-					delay := time.Duration(rand.Int63n(int64(jitter)))
-					select {
-					case <-time.After(delay):
-					case <-ctx.Done():
-						return nil
-					}
-				}
-			}
-
-			record(i, e.EnumerateOne(ctx, email))
-			return nil
-		})
-	}
-
-	// Discarding g.Wait()'s error is deliberate: worker goroutines never return
-	// a non-nil error (per-email failures are encoded in each EnumResult), so the
-	// returned error is always nil.
-	_ = g.Wait()
-	return results
+//
+// The pool itself is enum.TargetWorker; see its doc comment for the full contract.
+func (e *Enumerator) EnumerateTargetsWith(ctx context.Context, targets []enum.Target, threads int, rateLimit float64, jitter time.Duration, onResult func(EnumResult)) []EnumResult {
+	return e.worker().Run(ctx, targets, threads, rateLimit, jitter, onResult)
 }
 
 // AccountType classifies a Teams MRI: "corporate" (8:orgid:), "consumer"

@@ -87,8 +87,17 @@ const (
 	// private to the one call that created it — so these bound a failure mode
 	// that only persistent mode introduces. The backoff is jittered because two
 	// contending runs that back off by the same amount simply collide again.
-	maxConflictRetries      = 5
-	conflictBackoffBase     = 500 * time.Millisecond
+	maxConflictRetries  = 5
+	conflictBackoffBase = 500 * time.Millisecond
+	// maxRunBranchAttempts bounds retries when a generated run-branch name is
+	// already taken. Random names make that essentially impossible in
+	// production; the bound exists so a caller with a deterministic name
+	// generator degrades into an error instead of spinning.
+	maxRunBranchAttempts = 3
+	// baseInitEmail authors the one commit that initializes an empty reveal
+	// repo. It is never a target address, and the requested-email filter in
+	// listCommitLogins drops it from every result.
+	baseInitEmail           = "reveal-init@example.invalid"
 	rotatingProxyBackoff    = 100 * time.Millisecond
 	rotatingProxyMaxRetries = 15
 	defaultBranchDefault    = "main"

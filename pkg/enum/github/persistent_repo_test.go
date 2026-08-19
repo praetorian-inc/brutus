@@ -50,9 +50,22 @@ type revealRecorder struct {
 	repoDeletes   int          // DELETE /repos/{owner}/{repo}
 	pushes        int          // PUT /repos/{owner}/{repo}/contents/{file}
 	pushPaths     []string     // the {file} segment of each PUT, in request order
+	pushBranches  []*string    // the "branch" field of each PUT body; nil means the key was absent
 	commitQueries []url.Values // one per GET /repos/{owner}/{repo}/commits page
 
 	createNames []string // request bodies' "name" for each POST /user/repos
+
+	refReads   []string           // branch requested on each GET .../git/ref/heads/{branch}
+	refCreates []refCreateRequest // ref+sha of each POST .../git/refs, in request order
+	refDeletes []string           // branch requested on each DELETE .../git/refs/heads/{branch}
+}
+
+// refCreateRequest is one POST .../git/refs request body, as reveal.go sends
+// it from startRunBranch: ref is "refs/heads/<name>" and sha is the base
+// commit the new branch points at.
+type refCreateRequest struct {
+	ref string
+	sha string
 }
 
 func (r *revealRecorder) snapshot() revealRecorder {
@@ -64,14 +77,26 @@ func (r *revealRecorder) snapshot() revealRecorder {
 	copy(names, r.createNames)
 	paths := make([]string, len(r.pushPaths))
 	copy(paths, r.pushPaths)
+	branches := make([]*string, len(r.pushBranches))
+	copy(branches, r.pushBranches)
+	refReads := make([]string, len(r.refReads))
+	copy(refReads, r.refReads)
+	refCreates := make([]refCreateRequest, len(r.refCreates))
+	copy(refCreates, r.refCreates)
+	refDeletes := make([]string, len(r.refDeletes))
+	copy(refDeletes, r.refDeletes)
 	return revealRecorder{
 		repoReads:     r.repoReads,
 		repoCreates:   r.repoCreates,
 		repoDeletes:   r.repoDeletes,
 		pushes:        r.pushes,
 		pushPaths:     paths,
+		pushBranches:  branches,
 		commitQueries: queries,
 		createNames:   names,
+		refReads:      refReads,
+		refCreates:    refCreates,
+		refDeletes:    refDeletes,
 	}
 }
 
@@ -110,6 +135,55 @@ type revealServerOpts struct {
 	// means 201 Created (the prior hardcoded behavior, unchanged for every
 	// existing caller of this helper).
 	pushStatuses []int
+
+	// commitsStatus, when non-zero, makes EVERY GET .../commits page answer
+	// with this status instead of a rendered commitPages entry — used to
+	// simulate a mid-flow listing failure after the push loop already
+	// succeeded (e.g. to prove the run-branch delete still happens).
+	commitsStatus int
+
+	// refSHAStatuses are the statuses GET .../git/ref/heads/{branch} answers
+	// with, in order; the final entry is reused once exhausted. Empty means a
+	// single 200 reporting refSHA — i.e. the reveal repo already has a base
+	// commit, so ensureBaseCommit need not initialize it. A test exercising
+	// the empty-repo path scripts 404 or 409 for the first read.
+	refSHAStatuses []int
+	// refSHA is the commit SHA a 200 ref-read reports. Defaults to a constant
+	// non-empty value when unset (refSHA's own decoding rejects an empty SHA,
+	// so this must never be the zero value on a 200).
+	refSHA string
+
+	// refCreateStatuses are the statuses POST .../git/refs answers with, in
+	// order; the final entry is reused once exhausted. Empty means a single
+	// 201 Created — the run branch is created on the first attempt. A test
+	// exercising the name-collision retry scripts one or more 422s.
+	refCreateStatuses []int
+
+	// refDeleteStatuses are the statuses DELETE .../git/refs/heads/{branch}
+	// answers with, in order; the final entry is reused once exhausted. Empty
+	// means a single 204 No Content.
+	refDeleteStatuses []int
+}
+
+// defaultRefSHA is the commit SHA newRevealServer's ref-read route reports on
+// a 200 when a test does not override revealServerOpts.refSHA.
+const defaultRefSHA = "0000000000000000000000000000000000base0"
+
+// scriptedStatus returns statuses[n-1] (n is the 1-based call count for the
+// route), clamped to the last entry once the script is exhausted, or def when
+// statuses is empty. It exists for the three new run-branch/base-commit routes
+// added to newRevealServer, so their scripting logic is not copy-pasted three
+// times; the pre-existing repoReadStatuses/pushStatuses routes are left as
+// they were to avoid touching passing tests' surrounding code.
+func scriptedStatus(statuses []int, n, def int) int {
+	if len(statuses) == 0 {
+		return def
+	}
+	idx := n - 1
+	if idx >= len(statuses) {
+		idx = len(statuses) - 1
+	}
+	return statuses[idx]
 }
 
 // fakeCommit is one entry of the commits listing. login == "" renders the
@@ -182,19 +256,57 @@ func newRevealServer(t *testing.T, token string, opts *revealServerOpts) (*httpt
 		}
 
 		switch {
+		// Ref delete (DELETE .../git/refs/heads/{branch}) must be checked BEFORE
+		// the generic repo-delete case below: both are DELETE, and the repo
+		// delete's path (.../repos/{owner}/{repo}) is a prefix of the ref
+		// delete's, so this more specific match has to come first.
+		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/git/refs/heads/"):
+			idx := strings.Index(r.URL.Path, "/git/refs/heads/")
+			branchEnc := r.URL.Path[idx+len("/git/refs/heads/"):]
+			branch, _ := url.PathUnescape(branchEnc)
+
+			rec.mu.Lock()
+			rec.refDeletes = append(rec.refDeletes, branch)
+			n := len(rec.refDeletes)
+			rec.mu.Unlock()
+
+			w.WriteHeader(scriptedStatus(opts.refDeleteStatuses, n, http.StatusNoContent))
+
 		case r.Method == http.MethodDelete:
 			rec.mu.Lock()
 			rec.repoDeletes++
 			rec.mu.Unlock()
 			w.WriteHeader(http.StatusNoContent)
 
+		// Run-branch creation: POST .../git/refs, no branch segment in the path
+		// (the new ref's name travels in the JSON body).
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/refs"):
+			var payload struct {
+				Ref string `json:"ref"`
+				SHA string `json:"sha"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&payload)
+
+			rec.mu.Lock()
+			rec.refCreates = append(rec.refCreates, refCreateRequest{ref: payload.Ref, sha: payload.SHA})
+			n := len(rec.refCreates)
+			rec.mu.Unlock()
+
+			w.WriteHeader(scriptedStatus(opts.refCreateStatuses, n, http.StatusCreated))
+
 		case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/contents/"):
+			var payload struct {
+				Branch *string `json:"branch"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&payload)
+
 			rec.mu.Lock()
 			rec.pushes++
 			n := rec.pushes
 			if idx := strings.Index(r.URL.Path, "/contents/"); idx >= 0 {
 				rec.pushPaths = append(rec.pushPaths, r.URL.Path[idx+len("/contents/"):])
 			}
+			rec.pushBranches = append(rec.pushBranches, payload.Branch)
 			rec.mu.Unlock()
 
 			status := http.StatusCreated
@@ -208,6 +320,11 @@ func newRevealServer(t *testing.T, token string, opts *revealServerOpts) (*httpt
 			w.WriteHeader(status)
 
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/commits"):
+			if opts.commitsStatus != 0 {
+				w.WriteHeader(opts.commitsStatus)
+				return
+			}
+
 			query := r.URL.Query()
 			rec.mu.Lock()
 			rec.commitQueries = append(rec.commitQueries, query)
@@ -229,6 +346,31 @@ func newRevealServer(t *testing.T, token string, opts *revealServerOpts) (*httpt
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = fmt.Fprint(w, renderCommits(entries))
+
+		// Base-commit ref read: GET .../git/ref/heads/{branch} (singular "ref"),
+		// checked before the generic repo-read GET case below (which has no
+		// further path constraint and would otherwise swallow this too).
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/git/ref/heads/"):
+			idx := strings.Index(r.URL.Path, "/git/ref/heads/")
+			branchEnc := r.URL.Path[idx+len("/git/ref/heads/"):]
+			branch, _ := url.PathUnescape(branchEnc)
+
+			rec.mu.Lock()
+			rec.refReads = append(rec.refReads, branch)
+			n := len(rec.refReads)
+			rec.mu.Unlock()
+
+			status := scriptedStatus(opts.refSHAStatuses, n, http.StatusOK)
+			if status != http.StatusOK {
+				w.WriteHeader(status)
+				return
+			}
+			sha := opts.refSHA
+			if sha == "" {
+				sha = defaultRefSHA
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"object":{"sha":%q}}`, sha)
 
 		case r.Method == http.MethodGet:
 			rec.mu.Lock()
@@ -420,9 +562,14 @@ func TestRevealWith_Persistent_ReusesExistingRepo(t *testing.T) {
 	assert.Zero(t, got.repoDeletes, "persistent mode must never delete the repo")
 	assert.Equal(t, 1, got.pushes, "one commit per email")
 
+	// The commit listing now reads THIS call's own run branch, not the repo's
+	// default branch — that is the whole point of the run-branch redesign.
+	require.Len(t, got.refCreates, 1, "exactly one run branch is created for this call")
+	runBranch := strings.TrimPrefix(got.refCreates[0].ref, "refs/heads/")
+
 	require.Len(t, got.commitQueries, 1)
-	assert.Equal(t, "trunk", got.commitQueries[0].Get("sha"),
-		"the listing must use the branch reported by the repo read, not a hardcoded default")
+	assert.Equal(t, runBranch, got.commitQueries[0].Get("sha"),
+		"the listing must use this call's own run branch, not the repo's default branch")
 }
 
 // TestRevealWith_Persistent_CreatesRepoWhenAbsent covers the first run for a
@@ -485,9 +632,13 @@ func TestRevealWith_Persistent_Tolerates422AlreadyExists(t *testing.T) {
 	got := rec.snapshot()
 	assert.Equal(t, 2, got.repoReads, "the race is resolved by re-reading the repo")
 	assert.Zero(t, got.repoDeletes)
+
+	require.Len(t, got.refCreates, 1, "exactly one run branch is created for this call")
+	runBranch := strings.TrimPrefix(got.refCreates[0].ref, "refs/heads/")
+
 	require.Len(t, got.commitQueries, 1)
-	assert.Equal(t, "trunk", got.commitQueries[0].Get("sha"),
-		"the re-read must supply the branch")
+	assert.Equal(t, runBranch, got.commitQueries[0].Get("sha"),
+		"the listing must use this call's own run branch")
 }
 
 // TestRevealWith_Persistent_422OtherReasonFails verifies a 422 that is NOT
@@ -660,11 +811,13 @@ func TestRevealWith_Persistent_RaceRereadRefusesPublicRepo(t *testing.T) {
 // Persistent mode: the commit listing is bounded to THIS call
 // ---------------------------------------------------------------------------
 
-// TestRevealWith_Persistent_SendsSinceFloor is the load-bearing assertion of the
-// whole mode: without ?since= a reused repo would be re-walked from its first
-// commit on every call. The floor must sit just before the run, and be sent in
-// the RFC3339 form GitHub expects.
-func TestRevealWith_Persistent_SendsSinceFloor(t *testing.T) {
+// TestRevealWith_Persistent_SendsNoSince pins the redesign's removal of
+// ?since=: persistent mode no longer floors the commit listing by time at
+// all — a reused repo's history is now bounded by giving every call its own
+// branch (see the "run-branch model" tests below), not by a clock-based
+// filter. Server-side clock skew between this host and GitHub is exactly the
+// class of bug that approach removes, so its absence here is deliberate.
+func TestRevealWith_Persistent_SendsNoSince(t *testing.T) {
 	t.Parallel()
 
 	const token = "ghp-persistent-since"
@@ -677,32 +830,31 @@ func TestRevealWith_Persistent_SendsSinceFloor(t *testing.T) {
 	})
 	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
 
-	before := time.Now()
 	_, err := e.RevealWith(context.Background(), []string{"frank@example.com"}, nil)
 	require.NoError(t, err)
-	after := time.Now()
 
 	got := rec.snapshot()
 	require.Len(t, got.commitQueries, 1)
+	assert.Empty(t, got.commitQueries[0].Get("since"),
+		"persistent mode must no longer send ?since= at all")
 
-	raw := got.commitQueries[0].Get("since")
-	require.NotEmpty(t, raw, "persistent mode must floor the listing with ?since=")
-
-	since, parseErr := time.Parse(time.RFC3339, raw)
-	require.NoError(t, parseErr, "since must be RFC3339, got %q", raw)
-
-	// The floor is deliberately nudged into the past by revealSinceSkew to
-	// tolerate clock drift between this host and GitHub, so it must land inside
-	// [start-skew-1s, end] — early enough to include the pushes, never later.
-	assert.False(t, since.After(after), "the floor must not be later than the run")
-	assert.False(t, since.Before(before.Add(-revealSinceSkew).Add(-time.Second)),
-		"the floor must not reach further back than the documented skew allowance")
+	// What replaced it: the listing is scoped to this call's own run branch.
+	require.Len(t, got.refCreates, 1)
+	runBranch := strings.TrimPrefix(got.refCreates[0].ref, "refs/heads/")
+	assert.Equal(t, runBranch, got.commitQueries[0].Get("sha"),
+		"the listing must be scoped by this call's run branch instead")
 }
 
 // TestRevealWith_Ephemeral_SendsNoSince pins the default throwaway path: it must
 // keep issuing exactly the commits query it always has. A throwaway repo is
 // created empty, so it has no history to exclude and no reason to take on
 // clock-skew risk.
+//
+// This is also the regression guard for the run-branch redesign on the
+// DEFAULT mode: the throwaway path must be completely untouched by it — no
+// ref is ever created or deleted, and every push must omit the "branch" key
+// exactly as it always has, so the request the throwaway flow sends is
+// byte-for-byte what it was before persistent mode existed.
 func TestRevealWith_Ephemeral_SendsNoSince(t *testing.T) {
 	t.Parallel()
 
@@ -726,6 +878,12 @@ func TestRevealWith_Ephemeral_SendsNoSince(t *testing.T) {
 	assert.Equal(t, 1, got.repoCreates, "the throwaway path still creates its own repo")
 	assert.Equal(t, 1, got.repoDeletes, "the throwaway path still deletes it")
 	assert.Zero(t, got.repoReads, "the throwaway path has no repo to read")
+
+	assert.Empty(t, got.refCreates, "the throwaway path must never create a run branch")
+	assert.Empty(t, got.refDeletes, "the throwaway path must never delete a run branch")
+	require.Len(t, got.pushBranches, 1)
+	assert.Nil(t, got.pushBranches[0],
+		`the throwaway push must omit the "branch" key entirely, exactly as it always has`)
 }
 
 // TestRevealWith_StopsPagingOnceEveryEmailResolved verifies the second bound on
@@ -924,4 +1082,347 @@ func TestRevealWith_Persistent_DuplicateRequestedEmailStillResolves(t *testing.T
 	assert.Equal(t, 2, got.pushes, "one commit is still pushed per slice entry, duplicate included")
 	assert.Len(t, got.commitQueries, 1,
 		"the duplicate must not prevent the early paging stop once the single distinct email resolves")
+}
+
+// ---------------------------------------------------------------------------
+// Persistent mode: the run-branch model
+//
+// The reused-repo redesign gives every RevealWith call its OWN branch,
+// created off the repo's base commit and deleted when the call ends. That
+// one decision is what replaced ?since=: another run's commits are never on
+// the page a call lists, because they were never pushed to its branch. These
+// tests exercise that lifecycle directly — creation, scoping of pushes and
+// the commit listing, cleanup (including on failure), and the bounded name-
+// collision retry.
+// ---------------------------------------------------------------------------
+
+// TestRevealWith_Persistent_RunBranchLifecycle is the steady-state case: an
+// existing private repo that already has a base commit. Reveal must create
+// exactly one run branch off that base SHA, push every commit onto it, list
+// commits scoped to it, and delete it before returning.
+func TestRevealWith_Persistent_RunBranchLifecycle(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-run-branch-lifecycle"
+	const baseSHA = "basecommitsha0001"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		repoReadBranch:   "main",
+		refSHAStatuses:   []int{http.StatusOK}, // the repo already has a base commit
+		refSHA:           baseSHA,
+		commitPages: [][]fakeCommit{
+			{{email: "nina@example.com", login: "nina-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"nina@example.com"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"nina@example.com": "nina-gh"}, mapping)
+
+	got := rec.snapshot()
+
+	require.Len(t, got.refReads, 1, "the base commit is read once, off the repo's default branch")
+	assert.Equal(t, "main", got.refReads[0])
+
+	require.Len(t, got.refCreates, 1, "exactly one run branch is created for this call")
+	assert.Equal(t, "refs/heads/test-repo-name", got.refCreates[0].ref)
+	assert.Equal(t, baseSHA, got.refCreates[0].sha,
+		"the run branch must be created off the repo's base commit")
+
+	require.Len(t, got.pushBranches, 1)
+	require.NotNil(t, got.pushBranches[0])
+	assert.Equal(t, "test-repo-name", *got.pushBranches[0],
+		"every push must carry this call's own run branch")
+
+	require.Len(t, got.commitQueries, 1)
+	assert.Equal(t, "test-repo-name", got.commitQueries[0].Get("sha"),
+		"the commit listing must be scoped to this call's run branch")
+
+	assert.Equal(t, []string{"test-repo-name"}, got.refDeletes,
+		"the run branch must be deleted before RevealWith returns")
+}
+
+// TestRevealWith_Persistent_RunBranchDeletedDespiteLaterFailure verifies the
+// run branch's cleanup runs even when a LATER step (the commit listing)
+// fails — the same guarantee the throwaway repo delete has always made,
+// carried over to the run-branch delete.
+func TestRevealWith_Persistent_RunBranchDeletedDespiteLaterFailure(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-run-branch-cleanup-on-failure"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitsStatus:    http.StatusInternalServerError, // the listing fails after the pushes succeed
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	_, err := e.RevealWith(context.Background(), []string{"oscar@example.com"}, nil)
+	require.Error(t, err, "a failed commit listing must surface as an error")
+	assert.Contains(t, err.Error(), "500")
+
+	got := rec.snapshot()
+	assert.Equal(t, []string{"test-repo-name"}, got.refDeletes,
+		"the run branch must still be deleted even though a later step failed")
+}
+
+// TestRevealWith_Persistent_RunBranchDeleteFailureSurfaces verifies that a
+// failed run-branch DELETE is not silently swallowed: RevealWith's error must
+// name the branch (mirroring the throwaway repo delete-failure contract), and
+// the mapping already resolved must still be returned rather than discarded.
+func TestRevealWith_Persistent_RunBranchDeleteFailureSurfaces(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-run-branch-delete-failure"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses:  []int{http.StatusOK},
+		refDeleteStatuses: []int{http.StatusInternalServerError},
+		commitPages: [][]fakeCommit{
+			{{email: "paula@example.com", login: "paula-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"paula@example.com"}, nil)
+	require.Error(t, err, "a failed run-branch DELETE must surface as an error")
+	assert.Contains(t, err.Error(), "test-repo-name",
+		"the error must name the branch so the operator can delete it manually")
+	assert.Equal(t, map[string]string{"paula@example.com": "paula-gh"}, mapping,
+		"the resolved mapping must still be returned even when the branch delete fails")
+
+	got := rec.snapshot()
+	assert.Len(t, got.refDeletes, 1, "the delete was still attempted")
+}
+
+// TestRevealWith_Persistent_RunBranchDeleteFailureJoinedWithOriginalError
+// mirrors TestReveal_MidFlowErrorAndDeleteFailure_OriginalErrorJoined for the
+// throwaway repo delete: when RevealWith has ALREADY failed (the commit
+// listing errors) AND the run-branch DELETE also fails, the returned error
+// must reference the original failure rather than being replaced by the
+// delete failure.
+func TestRevealWith_Persistent_RunBranchDeleteFailureJoinedWithOriginalError(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-run-branch-dual-failure"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses:  []int{http.StatusOK},
+		commitsStatus:     http.StatusInternalServerError,
+		refDeleteStatuses: []int{http.StatusInternalServerError},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	_, err := e.RevealWith(context.Background(), []string{"quinn@example.com"}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "500",
+		"the original commit-listing failure must still be present")
+	assert.Contains(t, err.Error(), "test-repo-name",
+		"the delete failure must ALSO be present, joined onto the original rather than replacing it")
+
+	got := rec.snapshot()
+	assert.Len(t, got.refDeletes, 1)
+}
+
+// TestRevealWith_Persistent_RunBranchNameCollisionRetries verifies that a 422
+// "ref already exists" on the run-branch create is retried with a fresh name
+// (via e.newName()) rather than failing outright, succeeding once a name is
+// available.
+func TestRevealWith_Persistent_RunBranchNameCollisionRetries(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-run-branch-collision-retry"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses:  []int{http.StatusOK},
+		refCreateStatuses: []int{http.StatusUnprocessableEntity, http.StatusCreated},
+		commitPages: [][]fakeCommit{
+			{{email: "ruth@example.com", login: "ruth-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+	e.newName = counterName()
+
+	mapping, err := e.RevealWith(context.Background(), []string{"ruth@example.com"}, nil)
+	require.NoError(t, err, "a 422 collision followed by a 201 must not surface as an error")
+	assert.Equal(t, map[string]string{"ruth@example.com": "ruth-gh"}, mapping)
+
+	got := rec.snapshot()
+	require.Len(t, got.refCreates, 2, "the rejected attempt plus the retry that succeeded")
+	assert.NotEqual(t, got.refCreates[0].ref, got.refCreates[1].ref,
+		"the retry must use a fresh name (via e.newName()), not replay the rejected one")
+}
+
+// TestRevealWith_Persistent_RunBranchNameCollisionExhausted verifies the
+// bound: when every run-branch create attempt collides with 422, RevealWith
+// fails after exactly maxRunBranchAttempts retries on top of the initial
+// attempt, rather than looping forever.
+func TestRevealWith_Persistent_RunBranchNameCollisionExhausted(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-run-branch-collision-exhausted"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses:  []int{http.StatusOK},
+		refCreateStatuses: []int{http.StatusUnprocessableEntity}, // every attempt collides
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+	e.newName = counterName()
+
+	_, err := e.RevealWith(context.Background(), []string{"sam@example.com"}, nil)
+	require.Error(t, err, "an exhausted name-collision budget must surface as an error")
+	assert.Contains(t, err.Error(), "422")
+
+	got := rec.snapshot()
+	assert.Len(t, got.refCreates, maxRunBranchAttempts+1,
+		"bounded: the initial attempt plus exactly maxRunBranchAttempts retries, no infinite loop")
+	assert.Zero(t, got.pushes, "no commits may be pushed once the run branch could not be created")
+}
+
+// ---------------------------------------------------------------------------
+// Persistent mode: base commit initialization
+//
+// A newly created reveal repo is empty, and an empty repo has no commit to
+// branch the run branch from. ensureBaseCommit initializes it on the first
+// call, and every later call reuses that one commit as the base. These tests
+// exercise that path directly.
+// ---------------------------------------------------------------------------
+
+// TestRevealWith_Persistent_InitializesEmptyRepoOn404 covers the ref-read
+// answer for a genuinely empty repo (no branch yet): one init commit is
+// pushed to the default branch with NO branch key, the ref is re-read, and
+// that commit becomes the base for the run branch. The init commit's own
+// author (baseInitEmail) must never leak into the returned mapping even when
+// the commit listing includes it.
+func TestRevealWith_Persistent_InitializesEmptyRepoOn404(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-init-404"
+	const baseSHA = "freshbasecommitsha"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		repoReadBranch:   "main",
+		refSHAStatuses:   []int{http.StatusNotFound, http.StatusOK},
+		refSHA:           baseSHA,
+		commitPages: [][]fakeCommit{
+			{
+				{email: baseInitEmail, login: "owner-gh"}, // the init commit's own author
+				{email: "tara@example.com", login: "tara-gh"},
+			},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"tara@example.com"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"tara@example.com": "tara-gh"}, mapping,
+		"the init commit's own author must never appear in the returned mapping")
+
+	got := rec.snapshot()
+	assert.Equal(t, []string{"main", "main"}, got.refReads,
+		"the empty check, then the re-read after initializing")
+
+	require.Len(t, got.pushBranches, 2, "the init commit plus the one requested email")
+	assert.Nil(t, got.pushBranches[0],
+		"the init commit must be pushed with no branch key, onto the repo's default branch")
+	require.NotNil(t, got.pushBranches[1])
+	assert.Equal(t, "test-repo-name", *got.pushBranches[1],
+		"the requested email's commit must land on the run branch")
+
+	require.Len(t, got.refCreates, 1)
+	assert.Equal(t, baseSHA, got.refCreates[0].sha,
+		"the run branch must be created off the freshly-initialized base commit")
+}
+
+// TestRevealWith_Persistent_InitializesEmptyRepoOn409 covers GitHub's OTHER
+// answer for a repository with no commits at all: HTTP 409 on the ref read.
+// ensureBaseCommit must treat it exactly like 404, not as an error.
+func TestRevealWith_Persistent_InitializesEmptyRepoOn409(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-init-409"
+	const baseSHA = "freshbasecommitsha409"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		refSHAStatuses:   []int{http.StatusConflict, http.StatusOK},
+		refSHA:           baseSHA,
+		commitPages: [][]fakeCommit{
+			{{email: "uma@example.com", login: "uma-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"uma@example.com"}, nil)
+	require.NoError(t, err, "a 409 ref read must NOT be treated as an error")
+	assert.Equal(t, map[string]string{"uma@example.com": "uma-gh"}, mapping)
+
+	got := rec.snapshot()
+	require.Len(t, got.pushBranches, 2, "the init commit plus the one requested email")
+	assert.Nil(t, got.pushBranches[0], "the init commit must be pushed with no branch key")
+
+	require.Len(t, got.refCreates, 1)
+	assert.Equal(t, baseSHA, got.refCreates[0].sha)
+}
+
+// TestRevealWith_Persistent_ExistingBaseCommitNotReinitialized verifies a repo
+// that already has a base commit is read once and never re-initialized: no
+// init push occurs, and the ref is read exactly once.
+func TestRevealWith_Persistent_ExistingBaseCommitNotReinitialized(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-no-reinit"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		refSHAStatuses:   []int{http.StatusOK}, // already initialized
+		commitPages: [][]fakeCommit{
+			{{email: "victor@example.com", login: "victor-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"victor@example.com"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"victor@example.com": "victor-gh"}, mapping)
+
+	got := rec.snapshot()
+	assert.Len(t, got.refReads, 1, "an already-initialized repo is read exactly once, never re-checked")
+	assert.Len(t, got.pushBranches, 1, "only the requested email is pushed — no init commit")
+}
+
+// TestRevealWith_Persistent_InitRaceUsesOtherRunsBase covers the race two
+// concurrent first-callers can hit: this call's own init push fails, but a
+// re-read of the ref then succeeds — meaning some OTHER run won the race and
+// its commit is a perfectly good base. RevealWith must use that commit rather
+// than failing.
+func TestRevealWith_Persistent_InitRaceUsesOtherRunsBase(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-init-race"
+	const raceWinnerSHA = "otherrunsbasecommit"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		refSHAStatuses:   []int{http.StatusNotFound, http.StatusOK}, // empty, then found (the other run's commit)
+		refSHA:           raceWinnerSHA,
+		pushStatuses:     []int{http.StatusInternalServerError, http.StatusCreated}, // this run's own init push fails; the email push succeeds
+		commitPages: [][]fakeCommit{
+			{{email: "wendy@example.com", login: "wendy-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"wendy@example.com"}, nil)
+	require.NoError(t, err, "a failed init push must not fail the call when the ref re-read finds a base")
+	assert.Equal(t, map[string]string{"wendy@example.com": "wendy-gh"}, mapping)
+
+	got := rec.snapshot()
+	assert.Equal(t, 2, got.pushes, "the failed init attempt plus the one successful email push")
+	require.Len(t, got.refCreates, 1)
+	assert.Equal(t, raceWinnerSHA, got.refCreates[0].sha,
+		"the run branch must be created off the OTHER run's base commit, not this run's failed attempt")
 }

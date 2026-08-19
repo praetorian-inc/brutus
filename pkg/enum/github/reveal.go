@@ -36,15 +36,6 @@ import (
 const cleanupTimeout = 30 * time.Second
 
 const (
-	// revealSinceSkew is how far before the push loop the commit-listing floor
-	// (?since=) is placed in persistent-repo mode. That filter is applied
-	// SERVER-SIDE, against GitHub's clock rather than ours, so the floor is
-	// nudged into the past to tolerate clock drift between the two; without the
-	// allowance a host running slightly ahead of GitHub would filter out the
-	// very commits it had just pushed. Keep it small — everything inside the
-	// window is history from earlier calls that this call will also see.
-	revealSinceSkew = time.Minute
-
 	// repoNameMaxLen is GitHub's maximum repository-name length.
 	repoNameMaxLen = 100
 
@@ -73,8 +64,10 @@ func (e *Enumerator) Reveal(ctx context.Context, emails []string) (mapping map[s
 // operator can remove it manually. The token is never logged.
 //
 // When SetRevealRepo has been called, the named private repo is REUSED instead
-// (created only if absent) and is never deleted; the commit listing is then
-// bounded to this call with ?since=. See SetRevealRepo.
+// (created only if absent) and is never deleted. This call then works on a
+// branch it creates for itself off that repo's base commit, and deletes the
+// branch before returning — so the listing sees only this call's own commits
+// and the repo does not accumulate history. See SetRevealRepo.
 //
 // onProgress, when non-nil, is invoked after each successful commit push with
 // (done, total) where done is 1-based and total is len(emails). The push loop
@@ -107,6 +100,11 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 	if err != nil {
 		return nil, err
 	}
+
+	// pushBranch is the branch the commit loop writes to. The throwaway flow
+	// writes to the repo's default branch by omitting the parameter entirely, so
+	// it stays byte-for-byte the request it has always sent.
+	var pushBranch string
 
 	if !persistent {
 		// ALWAYS delete the repo, even if a later step fails. RevealWith uses NAMED
@@ -141,23 +139,49 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 		}()
 	}
 
-	// since is the floor for the commit listing below, captured BEFORE the push
-	// loop so every commit this call is about to push falls inside the window.
-	// Without it a reused repo would be re-walked from the beginning on every
-	// call — after a 3,000-person roster that is 30+ pages, growing without
-	// limit, and it would report logins for emails the caller never asked about.
-	//
-	// Only persistent mode needs it. A throwaway repo is created empty, so it
-	// holds no history to exclude, and sending `since` there would add pure
-	// clock-skew risk to a path whose behavior must not change. The zero value
-	// means "send no since parameter".
-	var since time.Time
 	if persistent {
-		since = time.Now().Add(-revealSinceSkew)
+		// Give this call its own branch off the repo's base commit, and delete it
+		// when the call ends. Everything this design does well follows from that
+		// one decision:
+		//
+		//   - the listing below reads only THIS call's branch, so another run's
+		//     commits are not merely filtered out of the result, they are not on
+		//     the page to begin with;
+		//   - two concurrent runs no longer write to one branch head, so they
+		//     cannot make GitHub reject each other with 409;
+		//   - the repo stops growing without limit — each run's commits become
+		//     unreferenced when its branch goes, and the reused repo's own
+		//     default branch keeps exactly the one base commit.
+		var runBranch string
+		runBranch, err = e.startRunBranch(ctx, login, repo, branch)
+		if err != nil {
+			return nil, err
+		}
+		pushBranch, branch = runBranch, runBranch
+
+		// Delete the run branch even if a later step fails, for the same reason
+		// and by the same mechanism as the throwaway repo delete above: named
+		// returns so the failure actually reaches the caller, and WithoutCancel
+		// so a canceled or timed-out reveal still cleans up instead of leaving a
+		// ref behind. A leaked ref is far cheaper than a leaked repo — it holds
+		// no secrets and is trivially removable — so its failure is reported but
+		// does not mask the original error.
+		defer func() {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+			defer cancel()
+			if delErr := e.deleteRef(cleanupCtx, login, repo, runBranch); delErr != nil {
+				ref := login + "/" + repo + "@" + runBranch
+				if err != nil {
+					err = fmt.Errorf("%w; ADDITIONALLY failed to delete run branch %q (delete it manually): %v", err, ref, delErr)
+				} else {
+					err = fmt.Errorf("github reveal: failed to delete run branch %q (delete it manually): %v", ref, delErr)
+				}
+			}
+		}()
 	}
 
 	for i, email := range emails {
-		if perr := e.pushCommit(ctx, login, repo, email); perr != nil {
+		if perr := e.pushCommit(ctx, login, repo, pushBranch, email); perr != nil {
 			return nil, perr
 		}
 		if onProgress != nil {
@@ -169,7 +193,7 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 		return nil, serr
 	}
 
-	mapping, err = e.listCommitLogins(ctx, login, repo, branch, since, emails)
+	mapping, err = e.listCommitLogins(ctx, login, repo, branch, emails)
 	if err != nil {
 		return nil, err
 	}
@@ -188,11 +212,17 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 // nearly all of that churn; because nothing is deleted, the PAT no longer needs
 // the delete_repo scope and the orphaned-private-repo failure mode disappears.
 //
+// Each call still gets its own branch inside that repo, created off the repo's
+// base commit and deleted when the call ends. That is what makes one shared repo
+// safe: concurrent runs never write to the same branch head, a run's commit
+// listing sees only its own pushes, and the repo does not accumulate history —
+// its default branch keeps exactly the one base commit, and every run's commits
+// become unreferenced when its branch goes.
+//
 // name is validated here, so an invalid name is rejected before any HTTP request
-// is issued; on error the enumerator is left in its previous mode. Note that a
-// reused repo accumulates one file and one commit per email forever — the commit
-// LISTING stays bounded (see revealSinceSkew), but the repo itself grows, so it
-// is the operator's to prune.
+// is issued; on error the enumerator is left in its previous mode. A repo that
+// already exists must be PRIVATE — reveal writes target addresses into commit
+// metadata — and reuse is refused otherwise.
 func (e *Enumerator) SetRevealRepo(name string) error {
 	if err := validateRepoName(name); err != nil {
 		return err
@@ -478,12 +508,160 @@ func repoNameTaken(body []byte) bool {
 	return false
 }
 
+// startRunBranch creates a fresh branch for this call, off the reveal repo's
+// base commit, and returns its name.
+//
+// This is what makes a shared repo safe to use concurrently. Runs never write
+// to the same branch, so they cannot reject each other with 409, and each run's
+// commit listing sees only its own pushes. The branch is deleted when the call
+// ends, which is also what keeps the repo from growing without limit.
+//
+// baseBranch is the repo's default branch, used to find the commit to branch
+// from — an empty repo has no commit to point a new ref at, so the first call
+// for a given repo initializes it (see ensureBaseCommit).
+func (e *Enumerator) startRunBranch(ctx context.Context, owner, repo, baseBranch string) (string, error) {
+	base, err := e.ensureBaseCommit(ctx, owner, repo, baseBranch)
+	if err != nil {
+		return "", err
+	}
+
+	// A random name per attempt. Retry a taken name rather than failing: the
+	// generator makes collisions vanishingly unlikely in production, but a
+	// caller with a deterministic newName (tests do this) would otherwise break
+	// the moment two runs overlap.
+	for attempt := 0; ; attempt++ {
+		name := e.newName()
+
+		resp, err := e.apiRequest(ctx, http.MethodPost, "/repos/"+owner+"/"+repo+"/git/refs", map[string]any{
+			"ref": "refs/heads/" + name,
+			"sha": base,
+		})
+		if err != nil {
+			return "", err
+		}
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+
+		if status == http.StatusCreated {
+			return name, nil
+		}
+		// 422 is how GitHub reports a ref that already exists.
+		if status == http.StatusUnprocessableEntity && attempt < maxRunBranchAttempts {
+			continue
+		}
+		return "", fmt.Errorf("github reveal: creating run branch returned HTTP %d", status)
+	}
+}
+
+// ensureBaseCommit returns the SHA a run branch can be created from,
+// initializing the repo when it holds no commits yet.
+//
+// A newly created repo is empty, and an empty repo has no SHA to point a ref
+// at, so the first call for a given reveal repo writes one small file to the
+// default branch. Every later call reuses that commit: persistent mode never
+// pushes to the default branch again, so the base stays a single commit no
+// matter how many reveals run.
+func (e *Enumerator) ensureBaseCommit(ctx context.Context, owner, repo, baseBranch string) (string, error) {
+	sha, found, err := e.refSHA(ctx, owner, repo, baseBranch)
+	if err != nil {
+		return "", err
+	}
+	if found {
+		return sha, nil
+	}
+
+	// Empty repo: create the base commit. A concurrent run may be doing exactly
+	// the same thing, so a failure here is re-checked against the ref rather
+	// than reported blindly — if the other run won, its commit is our base too.
+	if initErr := e.pushCommit(ctx, owner, repo, "", baseInitEmail); initErr != nil {
+		sha, found, err = e.refSHA(ctx, owner, repo, baseBranch)
+		if err == nil && found {
+			return sha, nil
+		}
+		return "", fmt.Errorf("github reveal: initializing reveal repo: %w", initErr)
+	}
+
+	sha, found, err = e.refSHA(ctx, owner, repo, baseBranch)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", fmt.Errorf("github reveal: reveal repo %q has no base commit after initialization", owner+"/"+repo)
+	}
+	return sha, nil
+}
+
+// refSHA GETs {api}/repos/{owner}/{repo}/git/ref/heads/{branch} and returns the
+// commit it points at. found is false, with no error, when the ref is not there:
+// GitHub answers 404 for a missing branch and 409 for a repository with no
+// commits at all, and to a caller deciding whether it must initialize the repo
+// those are the same answer.
+func (e *Enumerator) refSHA(ctx context.Context, owner, repo, branch string) (sha string, found bool, err error) {
+	path := "/repos/" + owner + "/" + repo + "/git/ref/heads/" + url.PathEscape(branch)
+
+	resp, err := e.apiRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusConflict {
+		return "", false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", false, fmt.Errorf("github reveal: reading ref returned HTTP %d", resp.StatusCode)
+	}
+
+	// Bounded read — reuses enum.ReadResponseBody (1 MB default) before unmarshal.
+	body, err := enum.ReadResponseBody(resp, 0)
+	if err != nil {
+		return "", false, fmt.Errorf("github reveal: reading ref: %w", err)
+	}
+
+	var ref struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := json.Unmarshal(body, &ref); err != nil {
+		return "", false, fmt.Errorf("github reveal: decoding ref: %w", err)
+	}
+	if ref.Object.SHA == "" {
+		return "", false, fmt.Errorf("github reveal: ref %q carries no commit SHA", branch)
+	}
+	return ref.Object.SHA, true, nil
+}
+
+// deleteRef DELETEs a branch ref. A 404 is success — the branch is already gone,
+// which is the state the caller wanted. Unlike deleting a repo this needs no
+// delete_repo scope, and leaves the reused repo itself untouched.
+func (e *Enumerator) deleteRef(ctx context.Context, owner, repo, branch string) error {
+	path := "/repos/" + owner + "/" + repo + "/git/refs/heads/" + url.PathEscape(branch)
+
+	resp, err := e.apiRequest(ctx, http.MethodDelete, path, nil)
+	if err != nil {
+		return err
+	}
+	status := resp.StatusCode
+	_ = resp.Body.Close()
+
+	if status == http.StatusNoContent || status == http.StatusOK || status == http.StatusNotFound {
+		return nil
+	}
+	return fmt.Errorf("github reveal: deleting run branch returned HTTP %d", status)
+}
+
 // pushCommit PUTs a new file to {api}/repos/{owner}/{repo}/contents/{file} with
 // the target email set as both author and committer, so GitHub attributes the
 // commit to that email. HTTP 429 and HTTP 409 are each retried (bounded, with
 // independent budgets so one cannot consume the other's). Commits are pushed
-// sequentially by the caller (single branch).
-func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, email string) error {
+// sequentially by the caller.
+//
+// branch selects where the commit lands. Empty means "omit the parameter", so
+// the throwaway flow keeps writing to its repo's default branch with exactly
+// the request it has always sent; persistent mode passes its own per-call run
+// branch.
+func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, branch, email string) error {
 	var rateLimits, conflicts int
 	for {
 		file := e.newName()
@@ -492,6 +670,9 @@ func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, email string) 
 			"content":   commitContent,
 			"author":    map[string]string{"name": "TestUser", "email": email},
 			"committer": map[string]string{"name": "TestUser", "email": email},
+		}
+		if branch != "" {
+			payload["branch"] = branch
 		}
 		path := "/repos/" + owner + "/" + repo + "/contents/" + file
 
@@ -515,12 +696,15 @@ func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, email string) 
 			}
 			continue
 		case http.StatusConflict:
-			// Another writer advanced this branch between GitHub reading its head
-			// and applying our commit. Only a REUSED repo (SetRevealRepo) can see
-			// this: a throwaway repo belongs to the single call that created it.
-			// The retry loops back through e.newName(), so it pushes a fresh file
-			// rather than replaying a rejected write, and the email is still
-			// committed exactly once on success.
+			// Something advanced this branch between GitHub reading its head and
+			// applying our commit. By design nothing should: a throwaway repo
+			// belongs to the one call that created it, and persistent mode gives
+			// each call its own run branch. This is kept as a backstop for the
+			// cases the design does not control — a caller driving one enumerator
+			// from several goroutines, or GitHub retrying internally. The retry
+			// loops back through e.newName(), so it pushes a fresh file rather
+			// than replaying a rejected write, and the email is still committed
+			// exactly once on success.
 			if conflicts >= maxConflictRetries {
 				return fmt.Errorf("github reveal: pushing commit conflicted (HTTP 409) after %d retries", conflicts)
 			}
@@ -550,27 +734,26 @@ func conflictBackoff(attempt int) time.Duration {
 // author (the linked GitHub account) is absent/null are omitted (no linked
 // account for that email).
 //
-// since, when non-zero, is sent as ?since= to floor the listing at this call's
-// own commits — required for a reused repo, whose history would otherwise be
-// re-walked in full on every call. The filter is evaluated SERVER-SIDE against
-// GitHub's clock (see revealSinceSkew), so a zero since sends no parameter at all
-// and leaves the query exactly as the throwaway-repo flow has always sent it.
+// branch is this call's own branch in persistent mode, and the throwaway repo's
+// default branch otherwise; either way the listing sees only commits this call
+// pushed (plus, in persistent mode, the repo's single base commit, whose author
+// is the token owner rather than a requested address).
 //
 // emails is the set the caller asked about: it both FILTERS the returned pairs
 // and bounds paging (see requested below).
-func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch string, since time.Time, emails []string) (map[string]string, error) {
+func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch string, emails []string) (map[string]string, error) {
 	mapping := make(map[string]string)
 
 	// requested is the set of addresses this call asked about, and pairs are
 	// added ONLY for emails in it.
 	//
-	// The listing is floored by ?since= but is not restricted to our commits: a
-	// reused repo carries other runs' commits, both from earlier calls inside
-	// the skew window and from runs happening right now. Returning those would
-	// break RevealWith's contract — the caller would receive logins for
-	// addresses it never submitted, and an empty batch could come back holding
-	// another batch's results. Filtering is what keeps the returned map a
-	// function of the caller's own input.
+	// Reading a per-call branch already keeps other runs' commits off these
+	// pages, so this is defense in depth rather than the primary mechanism: it
+	// also drops the persistent repo's base commit (authored by the token owner)
+	// and anything a future caller might push to a branch it did not create.
+	// RevealWith's contract is that the returned map is a function of the
+	// caller's own input — no logins for addresses it never submitted, and an
+	// empty batch returning an empty map.
 	//
 	// It doubles as the paging bound: commits come back newest-first, so a
 	// call's own commits sit on the early pages and there is nothing further to
@@ -582,14 +765,9 @@ func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch s
 		}
 	}
 
-	sinceParam := ""
-	if !since.IsZero() {
-		sinceParam = "&since=" + url.QueryEscape(since.UTC().Format(time.RFC3339))
-	}
-
 	for page := 1; ; page++ {
-		path := fmt.Sprintf("/repos/%s/%s/commits?sha=%s&per_page=%d&page=%d%s",
-			owner, repo, url.QueryEscape(branch), commitsPerPage, page, sinceParam)
+		path := fmt.Sprintf("/repos/%s/%s/commits?sha=%s&per_page=%d&page=%d",
+			owner, repo, url.QueryEscape(branch), commitsPerPage, page)
 
 		resp, err := e.apiRequest(ctx, http.MethodGet, path, nil)
 		if err != nil {

@@ -20,8 +20,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/enum"
@@ -32,6 +34,24 @@ import (
 // canceled or past its deadline), so it needs its own deadline to guarantee it
 // cannot hang.
 const cleanupTimeout = 30 * time.Second
+
+const (
+	// revealSinceSkew is how far before the push loop the commit-listing floor
+	// (?since=) is placed in persistent-repo mode. That filter is applied
+	// SERVER-SIDE, against GitHub's clock rather than ours, so the floor is
+	// nudged into the past to tolerate clock drift between the two; without the
+	// allowance a host running slightly ahead of GitHub would filter out the
+	// very commits it had just pushed. Keep it small — everything inside the
+	// window is history from earlier calls that this call will also see.
+	revealSinceSkew = time.Minute
+
+	// repoNameMaxLen is GitHub's maximum repository-name length.
+	repoNameMaxLen = 100
+
+	// commitsPerPage is the page size requested from the commits endpoint; a
+	// short page means the last page has been reached.
+	commitsPerPage = 100
+)
 
 // ---------------------------------------------------------------------------
 // Username reveal (authenticated)
@@ -52,6 +72,10 @@ func (e *Enumerator) Reveal(ctx context.Context, emails []string) (mapping map[s
 // fails, the returned error is annotated with the full owner/repo so the
 // operator can remove it manually. The token is never logged.
 //
+// When SetRevealRepo has been called, the named private repo is REUSED instead
+// (created only if absent) and is never deleted; the commit listing is then
+// bounded to this call with ?since=. See SetRevealRepo.
+//
 // onProgress, when non-nil, is invoked after each successful commit push with
 // (done, total) where done is 1-based and total is len(emails). The push loop
 // is the long, blind phase of reveal, so this lets callers render live
@@ -70,38 +94,67 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 		return nil, err
 	}
 
+	// persistent reports whether the caller opted into reusing a named repo
+	// (SetRevealRepo) instead of the default create-then-delete throwaway.
+	persistent := e.revealRepo != ""
+
 	var repo, branch string
-	repo, branch, err = e.createRepo(ctx)
+	if persistent {
+		repo, branch, err = e.resolveRevealRepo(ctx, login)
+	} else {
+		repo, branch, err = e.createRepo(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	// ALWAYS delete the repo, even if a later step fails. RevealWith uses NAMED
-	// returns so this deferred reassignment of err actually propagates to the
-	// caller — with unnamed returns the `return mapping, err` value is captured
-	// before the defer runs and a delete failure would be silently lost
-	// (orphaning a private repo under the operator's account). On delete failure
-	// the returned error carries the full owner/repo so the operator can remove
-	// it manually; if the function already failed, the original error is joined
-	// (not overwritten). The token is never included in the error.
-	defer func() {
-		// Detach cleanup from ctx's cancellation/deadline: reveal's ctx may
-		// already be canceled or timed out (e.g. a caller deadline, or the
-		// settle-delay sleep returning early), and reusing it here would make
-		// the DELETE fail to send and orphan the throwaway private repo under
-		// the operator's account. context.WithoutCancel keeps ctx's values
-		// while dropping cancellation; a fresh short timeout bounds the delete.
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
-		defer cancel()
-		if delErr := e.deleteRepo(cleanupCtx, login, repo); delErr != nil {
-			repoURL := login + "/" + repo
-			if err != nil {
-				err = fmt.Errorf("%w; ADDITIONALLY failed to delete temp repo %q (delete it manually): %v", err, repoURL, delErr)
-			} else {
-				err = fmt.Errorf("github reveal: failed to delete temp repo %q (delete it manually): %v", repoURL, delErr)
+	if !persistent {
+		// ALWAYS delete the repo, even if a later step fails. RevealWith uses NAMED
+		// returns so this deferred reassignment of err actually propagates to the
+		// caller — with unnamed returns the `return mapping, err` value is captured
+		// before the defer runs and a delete failure would be silently lost
+		// (orphaning a private repo under the operator's account). On delete failure
+		// the returned error carries the full owner/repo so the operator can remove
+		// it manually; if the function already failed, the original error is joined
+		// (not overwritten). The token is never included in the error.
+		//
+		// Registered only in throwaway mode: a persistent repo is the caller's
+		// long-lived, reused repo, so deleting it would defeat the entire point
+		// of the mode (and is why persistent mode needs no delete_repo scope).
+		defer func() {
+			// Detach cleanup from ctx's cancellation/deadline: reveal's ctx may
+			// already be canceled or timed out (e.g. a caller deadline, or the
+			// settle-delay sleep returning early), and reusing it here would make
+			// the DELETE fail to send and orphan the throwaway private repo under
+			// the operator's account. context.WithoutCancel keeps ctx's values
+			// while dropping cancellation; a fresh short timeout bounds the delete.
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+			defer cancel()
+			if delErr := e.deleteRepo(cleanupCtx, login, repo); delErr != nil {
+				repoURL := login + "/" + repo
+				if err != nil {
+					err = fmt.Errorf("%w; ADDITIONALLY failed to delete temp repo %q (delete it manually): %v", err, repoURL, delErr)
+				} else {
+					err = fmt.Errorf("github reveal: failed to delete temp repo %q (delete it manually): %v", repoURL, delErr)
+				}
 			}
-		}
-	}()
+		}()
+	}
+
+	// since is the floor for the commit listing below, captured BEFORE the push
+	// loop so every commit this call is about to push falls inside the window.
+	// Without it a reused repo would be re-walked from the beginning on every
+	// call — after a 3,000-person roster that is 30+ pages, growing without
+	// limit, and it would report logins for emails the caller never asked about.
+	//
+	// Only persistent mode needs it. A throwaway repo is created empty, so it
+	// holds no history to exclude, and sending `since` there would add pure
+	// clock-skew risk to a path whose behavior must not change. The zero value
+	// means "send no since parameter".
+	var since time.Time
+	if persistent {
+		since = time.Now().Add(-revealSinceSkew)
+	}
 
 	for i, email := range emails {
 		if perr := e.pushCommit(ctx, login, repo, email); perr != nil {
@@ -116,11 +169,36 @@ func (e *Enumerator) RevealWith(ctx context.Context, emails []string, onProgress
 		return nil, serr
 	}
 
-	mapping, err = e.listCommitLogins(ctx, login, repo, branch)
+	mapping, err = e.listCommitLogins(ctx, login, repo, branch, since, emails)
 	if err != nil {
 		return nil, err
 	}
 	return mapping, nil
+}
+
+// SetRevealRepo opts RevealWith into persistent-repo mode: rather than creating
+// a throwaway private repo per call and deleting it afterwards, reveal REUSES
+// the private repo called name under the authenticated account, creating it only
+// when absent and never deleting it.
+//
+// The default flow costs one repo create AND one repo delete per call, so
+// resolving a roster one person at a time drives thousands of create/delete
+// pairs through a single PAT — precisely the pattern GitHub's per-token
+// secondary rate limits and abuse detection react to. Reusing one repo removes
+// nearly all of that churn; because nothing is deleted, the PAT no longer needs
+// the delete_repo scope and the orphaned-private-repo failure mode disappears.
+//
+// name is validated here, so an invalid name is rejected before any HTTP request
+// is issued; on error the enumerator is left in its previous mode. Note that a
+// reused repo accumulates one file and one commit per email forever — the commit
+// LISTING stays bounded (see revealSinceSkew), but the repo itself grows, so it
+// is the operator's to prune.
+func (e *Enumerator) SetRevealRepo(name string) error {
+	if err := validateRepoName(name); err != nil {
+		return err
+	}
+	e.revealRepo = name
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -195,12 +273,187 @@ func (e *Enumerator) createRepo(ctx context.Context) (repo, branch string, err e
 	return created.Name, created.DefaultBranch, nil
 }
 
+// validateRepoName enforces GitHub's repository-name rules: 1..100 characters
+// drawn from letters, digits, "-", "_" and ".". It additionally rejects the
+// pure-dot names "." and "..", which satisfy a naive character check but are
+// path segments rather than repositories — and the name is interpolated into API
+// URL paths.
+func validateRepoName(name string) error {
+	if name == "" {
+		return fmt.Errorf("github reveal: repo name must not be empty")
+	}
+	if len(name) > repoNameMaxLen {
+		return fmt.Errorf("github reveal: repo name %q exceeds the %d-character limit", name, repoNameMaxLen)
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("github reveal: repo name %q is a path segment, not a repository name", name)
+	}
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '-', r == '_', r == '.':
+		default:
+			return fmt.Errorf("github reveal: repo name %q contains invalid character %q (allowed: letters, digits, %q, %q, %q)",
+				name, r, "-", "_", ".")
+		}
+	}
+	return nil
+}
+
+// resolveRevealRepo returns the persistent reveal repo's name and default
+// branch, creating the repo only when it is absent.
+//
+// It READS before creating (GET /repos/{owner}/{name}) rather than
+// creating-then-tolerating-422. In the steady state the repo already exists, so
+// the read is a single request that also yields the default branch, whereas
+// create-first would spend a POST that 422s *plus* a follow-up GET for the
+// branch on every single call — more traffic against the very PAT this mode
+// exists to protect, and it would need the 422 body parsed on the hot path
+// instead of the rare one. The create branch still tolerates HTTP 422 "already
+// exists" to cover the race where the repo appears between our read and our
+// write.
+func (e *Enumerator) resolveRevealRepo(ctx context.Context, owner string) (repo, branch string, err error) {
+	name := e.revealRepo
+
+	branch, found, err := e.getRepo(ctx, owner, name)
+	if err != nil {
+		return "", "", err
+	}
+	if found {
+		return name, branch, nil
+	}
+
+	branch, existed, err := e.createNamedRepo(ctx, name)
+	if err != nil {
+		return "", "", err
+	}
+	if !existed {
+		return name, branch, nil
+	}
+
+	// Raced: something created the repo between our read and our create, so the
+	// create response carried no branch. Re-read to learn it.
+	branch, found, err = e.getRepo(ctx, owner, name)
+	if err != nil {
+		return "", "", err
+	}
+	if !found {
+		return "", "", fmt.Errorf("github reveal: repo %q already exists but could not be read", owner+"/"+name)
+	}
+	return name, branch, nil
+}
+
+// getRepo GETs {api}/repos/{owner}/{repo} and returns that repo's default branch
+// (falling back to "main" when absent). found is false, with no error, when
+// GitHub answers HTTP 404 — the repo simply is not there yet.
+func (e *Enumerator) getRepo(ctx context.Context, owner, repo string) (branch string, found bool, err error) {
+	resp, err := e.apiRequest(ctx, http.MethodGet, "/repos/"+owner+"/"+repo, nil)
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return "", false, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", false, fmt.Errorf("github reveal: reading repo returned HTTP %d", resp.StatusCode)
+	}
+
+	// Bounded read — reuses enum.ReadResponseBody (1 MB default) before unmarshal.
+	body, err := enum.ReadResponseBody(resp, 0)
+	if err != nil {
+		return "", false, fmt.Errorf("github reveal: reading repo: %w", err)
+	}
+
+	var existing struct {
+		DefaultBranch string `json:"default_branch"`
+	}
+	if err := json.Unmarshal(body, &existing); err != nil {
+		return "", false, fmt.Errorf("github reveal: decoding repo: %w", err)
+	}
+	if existing.DefaultBranch == "" {
+		existing.DefaultBranch = defaultBranchDefault
+	}
+	return existing.DefaultBranch, true, nil
+}
+
+// createNamedRepo POSTs {api}/user/repos to create a private repo called name,
+// returning its default branch (falling back to "main" when absent). existed is
+// true when GitHub answered HTTP 422 *because the name is already taken on the
+// account* — a success for persistent mode, not a failure. Any other 422 (an
+// invalid name, an exhausted repository quota) is returned as an error.
+//
+// This deliberately does not share code with createRepo: that function backs the
+// default throwaway flow, whose behavior — including its exact status handling
+// and error strings — must not change, and the two differ in substance anyway
+// (created-or-fail vs. created-or-already-there, random name vs. caller's name).
+func (e *Enumerator) createNamedRepo(ctx context.Context, name string) (branch string, existed bool, err error) {
+	payload := map[string]any{"name": name, "private": true}
+
+	resp, err := e.apiRequest(ctx, http.MethodPost, "/user/repos", payload)
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Bounded read — reuses enum.ReadResponseBody (1 MB default) before
+	// unmarshal. Read before branching on status: a 422 needs its body to tell
+	// "already exists" apart from every other rejection.
+	body, err := enum.ReadResponseBody(resp, 0)
+	if err != nil {
+		return "", false, fmt.Errorf("github reveal: reading repo creation: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusUnprocessableEntity && repoNameTaken(body) {
+		return "", true, nil
+	}
+	if resp.StatusCode != http.StatusCreated {
+		return "", false, fmt.Errorf("github reveal: creating repo returned HTTP %d", resp.StatusCode)
+	}
+
+	var created struct {
+		DefaultBranch string `json:"default_branch"`
+	}
+	if err := json.Unmarshal(body, &created); err != nil {
+		return "", false, fmt.Errorf("github reveal: decoding repo creation: %w", err)
+	}
+	if created.DefaultBranch == "" {
+		created.DefaultBranch = defaultBranchDefault
+	}
+	return created.DefaultBranch, false, nil
+}
+
+// repoNameTaken reports whether an HTTP 422 body from POST /user/repos is the
+// "name already exists on this account" validation error rather than some other
+// rejection (an invalid name, an exhausted repository quota). GitHub reports it
+// per-field inside an errors array.
+func repoNameTaken(body []byte) bool {
+	var payload struct {
+		Errors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false
+	}
+	for _, e := range payload.Errors {
+		if strings.Contains(strings.ToLower(e.Message), "already exists") {
+			return true
+		}
+	}
+	return false
+}
+
 // pushCommit PUTs a new file to {api}/repos/{owner}/{repo}/contents/{file} with
 // the target email set as both author and committer, so GitHub attributes the
-// commit to that email. HTTP 429 is retried (bounded). Commits are pushed
+// commit to that email. HTTP 429 and HTTP 409 are each retried (bounded, with
+// independent budgets so one cannot consume the other's). Commits are pushed
 // sequentially by the caller (single branch).
 func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, email string) error {
-	for attempt := 0; ; attempt++ {
+	var rateLimits, conflicts int
+	for {
 		file := e.newName()
 		payload := map[string]any{
 			"message":   "Test",
@@ -221,10 +474,26 @@ func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, email string) 
 		case http.StatusCreated, http.StatusOK:
 			return nil
 		case http.StatusTooManyRequests:
-			if attempt >= maxRateLimitRetries {
-				return fmt.Errorf("github reveal: pushing commit rate limited (HTTP 429) after %d retries", attempt)
+			if rateLimits >= maxRateLimitRetries {
+				return fmt.Errorf("github reveal: pushing commit rate limited (HTTP 429) after %d retries", rateLimits)
 			}
+			rateLimits++
 			if err := e.sleep(ctx, rateLimitBackoff); err != nil {
+				return err
+			}
+			continue
+		case http.StatusConflict:
+			// Another writer advanced this branch between GitHub reading its head
+			// and applying our commit. Only a REUSED repo (SetRevealRepo) can see
+			// this: a throwaway repo belongs to the single call that created it.
+			// The retry loops back through e.newName(), so it pushes a fresh file
+			// rather than replaying a rejected write, and the email is still
+			// committed exactly once on success.
+			if conflicts >= maxConflictRetries {
+				return fmt.Errorf("github reveal: pushing commit conflicted (HTTP 409) after %d retries", conflicts)
+			}
+			conflicts++
+			if err := e.sleep(ctx, conflictBackoff(conflicts)); err != nil {
 				return err
 			}
 			continue
@@ -234,16 +503,57 @@ func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, email string) 
 	}
 }
 
+// conflictBackoff returns how long to wait before retrying a push that lost a
+// branch-head race, growing with each attempt and carrying up to 50% jitter.
+// The jitter is the point: two runs contending over one reused repo that both
+// waited exactly conflictBackoffBase would simply collide a second time. attempt
+// is 1-based.
+func conflictBackoff(attempt int) time.Duration {
+	base := conflictBackoffBase * time.Duration(attempt)
+	return base + rand.N(base/2+1)
+}
+
 // listCommitLogins paginates {api}/repos/{owner}/{repo}/commits?sha={branch} and
 // returns a map of commit author email -> account login. Commits whose top-level
 // author (the linked GitHub account) is absent/null are omitted (no linked
 // account for that email).
-func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch string) (map[string]string, error) {
+//
+// since, when non-zero, is sent as ?since= to floor the listing at this call's
+// own commits — required for a reused repo, whose history would otherwise be
+// re-walked in full on every call. The filter is evaluated SERVER-SIDE against
+// GitHub's clock (see revealSinceSkew), so a zero since sends no parameter at all
+// and leaves the query exactly as the throwaway-repo flow has always sent it.
+//
+// emails is the set the caller asked about; it bounds paging (see unresolved
+// below) without affecting which pairs are returned.
+func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch string, since time.Time, emails []string) (map[string]string, error) {
 	mapping := make(map[string]string)
 
+	// unresolved tracks requested emails that still have no login. Commits come
+	// back newest-first, so a call's own commits sit on the early pages: once
+	// every requested email is resolved there is nothing further to learn and
+	// paging stops. This bounds the throwaway path too, and cannot change what
+	// that path RETURNS — it fires only when every requested email already has
+	// an entry, and a later page could alter the result only by reporting a
+	// different login for the same email (GitHub resolves email -> login
+	// consistently within one listing) or by carrying emails the caller never
+	// asked about (which a freshly created throwaway repo, holding nothing but
+	// the commits just pushed, does not have).
+	unresolved := make(map[string]struct{}, len(emails))
+	for _, email := range emails {
+		if email != "" {
+			unresolved[email] = struct{}{}
+		}
+	}
+
+	sinceParam := ""
+	if !since.IsZero() {
+		sinceParam = "&since=" + url.QueryEscape(since.UTC().Format(time.RFC3339))
+	}
+
 	for page := 1; ; page++ {
-		path := fmt.Sprintf("/repos/%s/%s/commits?sha=%s&per_page=100&page=%d",
-			owner, repo, url.QueryEscape(branch), page)
+		path := fmt.Sprintf("/repos/%s/%s/commits?sha=%s&per_page=%d&page=%d%s",
+			owner, repo, url.QueryEscape(branch), commitsPerPage, page, sinceParam)
 
 		resp, err := e.apiRequest(ctx, http.MethodGet, path, nil)
 		if err != nil {
@@ -288,7 +598,16 @@ func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch s
 			mapping[email] = commits[i].Author.Login
 		}
 
-		if len(commits) < 100 {
+		for email := range unresolved {
+			if _, ok := mapping[email]; ok {
+				delete(unresolved, email)
+			}
+		}
+		if len(unresolved) == 0 {
+			break
+		}
+
+		if len(commits) < commitsPerPage {
 			break
 		}
 	}

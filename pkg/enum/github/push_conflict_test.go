@@ -120,19 +120,24 @@ func TestPushCommit_IndependentRetryBudgets(t *testing.T) {
 
 	const token = "ghp-independent-budgets"
 
-	// 2 rate-limit responses and 2 conflict responses interleaved, both counts
-	// individually under maxRateLimitRetries and maxConflictRetries (5 each).
-	// If either counter were consuming the other's budget, this sequence of
-	// four retries would exhaust a shared budget of 5 well before success.
+	// 3 rate-limit responses and 3 conflict responses interleaved, both counts
+	// individually under maxRateLimitRetries and maxConflictRetries (5 each) but
+	// their SUM (6) over a shared budget of 5. A shared-budget implementation
+	// would therefore fail this sequence, whereas the 2+2 (4 total) sequence
+	// this test used before would incorrectly succeed under a shared budget of 5
+	// too — unable to actually distinguish independent counters from a shared
+	// one. This sequence can.
 	statuses := []int{
+		http.StatusTooManyRequests,
+		http.StatusConflict,
 		http.StatusTooManyRequests,
 		http.StatusConflict,
 		http.StatusTooManyRequests,
 		http.StatusConflict,
 		http.StatusCreated,
 	}
-	require.Less(t, 2, maxRateLimitRetries, "test assumes 2 429s stays under the rate-limit budget")
-	require.Less(t, 2, maxConflictRetries, "test assumes 2 409s stays under the conflict budget")
+	require.Less(t, 3, maxRateLimitRetries, "test assumes 3 429s stays under the rate-limit budget")
+	require.Less(t, 3, maxConflictRetries, "test assumes 3 409s stays under the conflict budget")
 
 	srv, rec := newRevealServer(t, token, &revealServerOpts{
 		repoReadStatuses: []int{http.StatusOK},

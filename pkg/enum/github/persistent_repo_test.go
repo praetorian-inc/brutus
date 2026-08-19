@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -84,6 +85,16 @@ type revealServerOpts struct {
 	repoReadStatuses []int
 	// repoReadBranch is the default_branch returned on a 200 repo read.
 	repoReadBranch string
+	// repoReadPrivate is the "private" value a 200 repo read reports. It
+	// defaults to true — an existing persistent reveal repo is normally
+	// private — so most tests need not set it; a test exercising the
+	// public-repo-refusal path sets it to a pointer to false. Ignored when
+	// repoReadOmitPrivateField is set.
+	repoReadPrivate *bool
+	// repoReadOmitPrivateField, when true, makes a 200 repo read omit the
+	// "private" key entirely, exercising resolveRevealRepo's fail-closed
+	// behavior for a response that never says either way.
+	repoReadOmitPrivateField bool
 
 	// createStatus/createBody are the response to POST /user/repos. Zero status
 	// means 201 with a default body.
@@ -197,13 +208,23 @@ func newRevealServer(t *testing.T, token string, opts *revealServerOpts) (*httpt
 			w.WriteHeader(status)
 
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/commits"):
+			query := r.URL.Query()
 			rec.mu.Lock()
-			rec.commitQueries = append(rec.commitQueries, r.URL.Query())
-			page := len(rec.commitQueries)
+			rec.commitQueries = append(rec.commitQueries, query)
 			rec.mu.Unlock()
 
+			// Keyed off the request's own ?page= rather than the count of commit
+			// requests seen so far: the latter would report page N correctly only
+			// if the implementation happens to request pages 1..N in order with no
+			// gaps or repeats, so an off-by-one in the real paging loop could go
+			// undetected.
+			page, convErr := strconv.Atoi(query.Get("page"))
+			if convErr != nil || page < 1 {
+				page = 1
+			}
+
 			var entries []fakeCommit
-			if page >= 1 && page <= len(opts.commitPages) {
+			if page <= len(opts.commitPages) {
 				entries = opts.commitPages[page-1]
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -228,7 +249,15 @@ func newRevealServer(t *testing.T, token string, opts *revealServerOpts) (*httpt
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = fmt.Fprintf(w, `{"default_branch":%q}`, opts.repoReadBranch)
+			if opts.repoReadOmitPrivateField {
+				_, _ = fmt.Fprintf(w, `{"default_branch":%q}`, opts.repoReadBranch)
+				return
+			}
+			private := true
+			if opts.repoReadPrivate != nil {
+				private = *opts.repoReadPrivate
+			}
+			_, _ = fmt.Fprintf(w, `{"default_branch":%q,"private":%t}`, opts.repoReadBranch, private)
 
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -274,6 +303,12 @@ func newPersistentEnumerator(t *testing.T, srv *httptest.Server, token, repo str
 	e := newTestEnumerator(t, nil, srv, token)
 	require.NoError(t, e.SetRevealRepo(repo), "SetRevealRepo must accept a valid name")
 	return e
+}
+
+// boolPtr returns a pointer to b, for revealServerOpts.repoReadPrivate
+// literals in test cases.
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 // ---------------------------------------------------------------------------
@@ -480,6 +515,35 @@ func TestRevealWith_Persistent_422OtherReasonFails(t *testing.T) {
 	assert.Zero(t, got.repoDeletes)
 }
 
+// TestRevealWith_Persistent_422AlreadyExistsOnOtherFieldFails verifies
+// repoNameTaken's field check: a 422 whose "already exists" message is
+// attached to some field OTHER than "name" is a different rejection (a
+// duplicate topic, say) and must be treated as a hard failure rather than
+// read as "the repo we asked for already exists" — reusing that reasoning
+// would push commits at a repo resolveRevealRepo never actually resolved.
+func TestRevealWith_Persistent_422AlreadyExistsOnOtherFieldFails(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-422-other-field"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusNotFound},
+		createStatus:     http.StatusUnprocessableEntity,
+		createBody: `{"message":"Repository creation failed.","errors":[` +
+			`{"resource":"Repository","field":"topic","message":"already exists on this repository"}]}`,
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	_, err := e.RevealWith(context.Background(), []string{"dave@example.com"}, nil)
+	require.Error(t, err, `an "already exists" message on a non-name field must not be read as reuse`)
+	assert.Contains(t, err.Error(), "422")
+
+	got := rec.snapshot()
+	assert.Equal(t, 1, got.repoReads, "a rejected create must not trigger the reuse re-read")
+	assert.Zero(t, got.pushes, "no commits may be pushed once repo resolution failed")
+	assert.Zero(t, got.repoDeletes)
+}
+
 // TestRevealWith_Persistent_RepoReadErrorFails verifies a non-404 failure on the
 // repo read aborts before any push, rather than falling through to a create.
 func TestRevealWith_Persistent_RepoReadErrorFails(t *testing.T) {
@@ -499,6 +563,97 @@ func TestRevealWith_Persistent_RepoReadErrorFails(t *testing.T) {
 	got := rec.snapshot()
 	assert.Zero(t, got.repoCreates, "a failed read must not be mistaken for an absent repo")
 	assert.Zero(t, got.pushes)
+}
+
+// ---------------------------------------------------------------------------
+// Persistent mode: an existing repo must be confirmed private before reuse
+// ---------------------------------------------------------------------------
+//
+// Reveal writes every target email into commit metadata. A repo it did not
+// just create itself is not one it can assume anything about, so
+// resolveRevealRepo refuses to push to it unless GitHub's own response says
+// private:true. A test that only checked the returned error would pass even
+// if the implementation pushed the commits and THEN returned an error, which
+// is precisely why every test below also asserts zero pushes.
+
+// TestRevealWith_Persistent_RefusesReuseOfPublicRepo verifies that an existing
+// repo GitHub reports as public is refused outright: RevealWith must error,
+// the error must explain why, and — the assertion that actually matters —
+// not one commit may have been pushed. Emails must never reach a public repo.
+func TestRevealWith_Persistent_RefusesReuseOfPublicRepo(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-public-repo"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		repoReadPrivate:  boolPtr(false),
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	_, err := e.RevealWith(context.Background(), []string{"mallory@example.com"}, nil)
+	require.Error(t, err, "a public existing repo must be refused")
+	assert.Contains(t, err.Error(), "public",
+		"the error must say why the repo was refused, not just that it failed")
+
+	got := rec.snapshot()
+	assert.Zero(t, got.pushes,
+		"zero commits may reach a public repo — a passing error is not enough on its own")
+	assert.Zero(t, got.repoCreates)
+	assert.Zero(t, got.repoDeletes)
+}
+
+// TestRevealWith_Persistent_RefusesReuseWhenPrivacyUnknown verifies the
+// fail-closed direction of the check: a repo read whose JSON omits "private"
+// entirely must be refused exactly like a public one, rather than being
+// treated as private by omission. "Could not confirm private" must never
+// read as "is private".
+func TestRevealWith_Persistent_RefusesReuseWhenPrivacyUnknown(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-privacy-unknown"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses:         []int{http.StatusOK},
+		repoReadOmitPrivateField: true,
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	_, err := e.RevealWith(context.Background(), []string{"mallory@example.com"}, nil)
+	require.Error(t, err, "a repo read that never confirms privacy must be refused")
+	assert.Contains(t, err.Error(), "private")
+
+	got := rec.snapshot()
+	assert.Zero(t, got.pushes, "no commits may be pushed when privacy could not be confirmed")
+}
+
+// TestRevealWith_Persistent_RaceRereadRefusesPublicRepo covers the 422 race
+// path: the initial read 404s, the create loses the race with a 422 "already
+// exists", and the RE-read that follows reports the repo as public. That
+// re-read result must be checked exactly like the direct-read path — the
+// race must not become a way to skip the privacy check.
+func TestRevealWith_Persistent_RaceRereadRefusesPublicRepo(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-race-public"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusNotFound, http.StatusOK},
+		repoReadPrivate:  boolPtr(false),
+		createStatus:     http.StatusUnprocessableEntity,
+		createBody: `{"message":"Repository creation failed.","errors":[` +
+			`{"resource":"Repository","field":"name","message":"name already exists on this account"}]}`,
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	_, err := e.RevealWith(context.Background(), []string{"mallory@example.com"}, nil)
+	require.Error(t, err, "the re-read after a 422 race must be privacy-checked too")
+	assert.Contains(t, err.Error(), "public")
+
+	got := rec.snapshot()
+	assert.Equal(t, 2, got.repoReads, "the race path re-reads before the check runs")
+	assert.Zero(t, got.pushes, "no commits may be pushed after a race onto a public repo")
+	assert.Zero(t, got.repoDeletes)
 }
 
 // ---------------------------------------------------------------------------
@@ -669,4 +824,104 @@ func TestRevealWith_UnlinkedEmailStopsAtShortPage(t *testing.T) {
 
 	got := rec.snapshot()
 	assert.Len(t, got.commitQueries, 1, "a short page ends the listing")
+}
+
+// ---------------------------------------------------------------------------
+// Persistent mode: the returned mapping is filtered to THIS call's emails
+//
+// A reused repo's commit history holds more than this call's own pushes: an
+// earlier call inside the revealSinceSkew window, or a concurrent run against
+// the same repo, leaves its commits on the very pages this call lists. Before
+// the fix, any login found on those pages — belonging to an email the caller
+// never asked about — was added to the returned mapping regardless. These
+// tests pin the fix: listCommitLogins must return pairs for the REQUESTED
+// emails and nothing else, named so the intent survives refactoring.
+// ---------------------------------------------------------------------------
+
+// TestRevealWith_Persistent_OmitsForeignEmailFromSameCommitPage is the direct
+// reproduction of the bug all three reviewers found: a commits page holding
+// both a requested email's commit and another batch's commit must yield a
+// mapping containing ONLY the requested one.
+func TestRevealWith_Persistent_OmitsForeignEmailFromSameCommitPage(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-foreign-email"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitPages: [][]fakeCommit{
+			{
+				{email: "alice@example.com", login: "alice-gh"},     // this call's own request
+				{email: "mallory@example.com", login: "mallory-gh"}, // another batch's commit
+			},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"alice@example.com"}, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{"alice@example.com": "alice-gh"}, mapping,
+		"the mapping must contain ONLY the email this call requested")
+	assert.NotContains(t, mapping, "mallory@example.com",
+		"a commit belonging to another batch must never leak into this call's result")
+
+	got := rec.snapshot()
+	assert.Equal(t, 1, got.pushes, "only the requested email was pushed by this call")
+}
+
+// TestRevealWith_Persistent_EmptyEmailsReturnsEmptyMapping is the "empty batch
+// returns a prior batch's results" case named in review: calling RevealWith
+// with no emails at all must return an EMPTY mapping even though the reused
+// repo's commit page — left behind by an earlier, unrelated call — has real,
+// resolvable commits sitting right there for the taking.
+func TestRevealWith_Persistent_EmptyEmailsReturnsEmptyMapping(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-empty-batch"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitPages: [][]fakeCommit{
+			// Left behind by some earlier, unrelated call against this repo.
+			{{email: "priorbatch@example.com", login: "priorbatch-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{}, nil)
+	require.NoError(t, err)
+	assert.Empty(t, mapping,
+		"an empty request must never return another batch's commits just because they were on the page")
+
+	got := rec.snapshot()
+	assert.Zero(t, got.pushes, "an empty batch pushes nothing")
+}
+
+// TestRevealWith_Persistent_DuplicateRequestedEmailStillResolves verifies that
+// an email appearing twice in the caller's slice does not break the
+// len(mapping) == len(requested) paging-stop condition: requested is built
+// from a set, so the duplicate collapses to one entry and the call must still
+// resolve normally and stop paging once that one entry is found.
+func TestRevealWith_Persistent_DuplicateRequestedEmailStillResolves(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-duplicate-email"
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitPages: [][]fakeCommit{
+			{{email: "kim@example.com", login: "kim-gh"}},
+		},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), []string{"kim@example.com", "kim@example.com"}, nil)
+	require.NoError(t, err, "a duplicate requested email must not break resolution")
+	assert.Equal(t, map[string]string{"kim@example.com": "kim-gh"}, mapping)
+
+	got := rec.snapshot()
+	assert.Equal(t, 2, got.pushes, "one commit is still pushed per slice entry, duplicate included")
+	assert.Len(t, got.commitQueries, 1,
+		"the duplicate must not prevent the early paging stop once the single distinct email resolves")
 }

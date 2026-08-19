@@ -303,6 +303,11 @@ func validateRepoName(name string) error {
 // resolveRevealRepo returns the persistent reveal repo's name and default
 // branch, creating the repo only when it is absent.
 //
+// A repo that already exists is REFUSED unless GitHub confirms it is private.
+// Reveal writes every target email into commit metadata, so reusing a public
+// repo under the caller's name would publish the whole target list. Creation
+// always sets private:true, so only the reuse paths need the check.
+//
 // It READS before creating (GET /repos/{owner}/{name}) rather than
 // creating-then-tolerating-422. In the steady state the repo already exists, so
 // the read is a single request that also yields the default branch, whereas
@@ -315,67 +320,91 @@ func validateRepoName(name string) error {
 func (e *Enumerator) resolveRevealRepo(ctx context.Context, owner string) (repo, branch string, err error) {
 	name := e.revealRepo
 
-	branch, found, err := e.getRepo(ctx, owner, name)
+	info, found, err := e.getRepo(ctx, owner, name)
 	if err != nil {
 		return "", "", err
-	}
-	if found {
-		return name, branch, nil
 	}
 
-	branch, existed, err := e.createNamedRepo(ctx, name)
-	if err != nil {
-		return "", "", err
-	}
-	if !existed {
-		return name, branch, nil
-	}
-
-	// Raced: something created the repo between our read and our create, so the
-	// create response carried no branch. Re-read to learn it.
-	branch, found, err = e.getRepo(ctx, owner, name)
-	if err != nil {
-		return "", "", err
-	}
 	if !found {
-		return "", "", fmt.Errorf("github reveal: repo %q already exists but could not be read", owner+"/"+name)
+		var existed bool
+		branch, existed, err = e.createNamedRepo(ctx, name)
+		if err != nil {
+			return "", "", err
+		}
+		if !existed {
+			// We created it ourselves with private:true, so no check is needed.
+			return name, branch, nil
+		}
+
+		// Raced: something created the repo between our read and our create, so
+		// the create response carried no branch. Re-read to learn it — and to
+		// learn its visibility, since a repo we did not create is not one we can
+		// assume anything about.
+		info, found, err = e.getRepo(ctx, owner, name)
+		if err != nil {
+			return "", "", err
+		}
+		if !found {
+			return "", "", fmt.Errorf("github reveal: repo %q already exists but could not be read", owner+"/"+name)
+		}
 	}
-	return name, branch, nil
+
+	// Both paths that reach here reuse a repo somebody else created.
+	if !info.private {
+		return "", "", fmt.Errorf(
+			"github reveal: refusing to reuse %q because it is public — reveal writes every target email into commit metadata, so the reveal repo must be private",
+			owner+"/"+name)
+	}
+	return name, info.branch, nil
+}
+
+// repoInfo is what the reuse path needs to know about an existing repo: which
+// branch to list commits from, and whether it is private. Visibility travels
+// with the branch rather than being fetched separately so the two can never be
+// read from different responses.
+type repoInfo struct {
+	branch  string
+	private bool
 }
 
 // getRepo GETs {api}/repos/{owner}/{repo} and returns that repo's default branch
-// (falling back to "main" when absent). found is false, with no error, when
-// GitHub answers HTTP 404 — the repo simply is not there yet.
-func (e *Enumerator) getRepo(ctx context.Context, owner, repo string) (branch string, found bool, err error) {
+// (falling back to "main" when absent) together with its visibility. found is
+// false, with no error, when GitHub answers HTTP 404 — the repo simply is not
+// there yet.
+func (e *Enumerator) getRepo(ctx context.Context, owner, repo string) (info repoInfo, found bool, err error) {
 	resp, err := e.apiRequest(ctx, http.MethodGet, "/repos/"+owner+"/"+repo, nil)
 	if err != nil {
-		return "", false, err
+		return repoInfo{}, false, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return "", false, nil
+		return repoInfo{}, false, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", false, fmt.Errorf("github reveal: reading repo returned HTTP %d", resp.StatusCode)
+		return repoInfo{}, false, fmt.Errorf("github reveal: reading repo returned HTTP %d", resp.StatusCode)
 	}
 
 	// Bounded read — reuses enum.ReadResponseBody (1 MB default) before unmarshal.
 	body, err := enum.ReadResponseBody(resp, 0)
 	if err != nil {
-		return "", false, fmt.Errorf("github reveal: reading repo: %w", err)
+		return repoInfo{}, false, fmt.Errorf("github reveal: reading repo: %w", err)
 	}
 
 	var existing struct {
 		DefaultBranch string `json:"default_branch"`
+		Private       bool   `json:"private"`
 	}
 	if err := json.Unmarshal(body, &existing); err != nil {
-		return "", false, fmt.Errorf("github reveal: decoding repo: %w", err)
+		return repoInfo{}, false, fmt.Errorf("github reveal: decoding repo: %w", err)
 	}
 	if existing.DefaultBranch == "" {
 		existing.DefaultBranch = defaultBranchDefault
 	}
-	return existing.DefaultBranch, true, nil
+	// A response that omits "private" decodes to false and is therefore refused
+	// by the caller. That is the safe direction: reveal publishes email
+	// addresses, so "could not confirm private" must not read as "is private".
+	return repoInfo{branch: existing.DefaultBranch, private: existing.Private}, true, nil
 }
 
 // createNamedRepo POSTs {api}/user/repos to create a private repo called name,
@@ -439,7 +468,10 @@ func repoNameTaken(body []byte) bool {
 		return false
 	}
 	for _, e := range payload.Errors {
-		if strings.Contains(strings.ToLower(e.Message), "already exists") {
+		// Require the error to be about the NAME. A 422 whose "already exists"
+		// message concerns some other field is a different rejection, and
+		// treating it as reuse would push commits at a repo we never resolved.
+		if strings.EqualFold(e.Field, "name") && strings.Contains(strings.ToLower(e.Message), "already exists") {
 			return true
 		}
 	}
@@ -524,25 +556,29 @@ func conflictBackoff(attempt int) time.Duration {
 // GitHub's clock (see revealSinceSkew), so a zero since sends no parameter at all
 // and leaves the query exactly as the throwaway-repo flow has always sent it.
 //
-// emails is the set the caller asked about; it bounds paging (see unresolved
-// below) without affecting which pairs are returned.
+// emails is the set the caller asked about: it both FILTERS the returned pairs
+// and bounds paging (see requested below).
 func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch string, since time.Time, emails []string) (map[string]string, error) {
 	mapping := make(map[string]string)
 
-	// unresolved tracks requested emails that still have no login. Commits come
-	// back newest-first, so a call's own commits sit on the early pages: once
-	// every requested email is resolved there is nothing further to learn and
-	// paging stops. This bounds the throwaway path too, and cannot change what
-	// that path RETURNS — it fires only when every requested email already has
-	// an entry, and a later page could alter the result only by reporting a
-	// different login for the same email (GitHub resolves email -> login
-	// consistently within one listing) or by carrying emails the caller never
-	// asked about (which a freshly created throwaway repo, holding nothing but
-	// the commits just pushed, does not have).
-	unresolved := make(map[string]struct{}, len(emails))
+	// requested is the set of addresses this call asked about, and pairs are
+	// added ONLY for emails in it.
+	//
+	// The listing is floored by ?since= but is not restricted to our commits: a
+	// reused repo carries other runs' commits, both from earlier calls inside
+	// the skew window and from runs happening right now. Returning those would
+	// break RevealWith's contract — the caller would receive logins for
+	// addresses it never submitted, and an empty batch could come back holding
+	// another batch's results. Filtering is what keeps the returned map a
+	// function of the caller's own input.
+	//
+	// It doubles as the paging bound: commits come back newest-first, so a
+	// call's own commits sit on the early pages and there is nothing further to
+	// learn once every requested address has a login.
+	requested := make(map[string]struct{}, len(emails))
 	for _, email := range emails {
 		if email != "" {
-			unresolved[email] = struct{}{}
+			requested[email] = struct{}{}
 		}
 	}
 
@@ -592,18 +628,18 @@ func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch s
 			if commits[i].Author == nil || commits[i].Author.Login == "" {
 				continue
 			}
-			if email == "" {
+			// Another run's commit, or one of ours from an earlier call: it is
+			// not part of what this caller asked for, so it is not ours to
+			// report. This also drops the empty-email case for free.
+			if _, ok := requested[email]; !ok {
 				continue
 			}
 			mapping[email] = commits[i].Author.Login
 		}
 
-		for email := range unresolved {
-			if _, ok := mapping[email]; ok {
-				delete(unresolved, email)
-			}
-		}
-		if len(unresolved) == 0 {
+		// mapping's keys are a subset of requested, so equal sizes mean every
+		// requested address resolved and later pages cannot add anything.
+		if len(mapping) == len(requested) {
 			break
 		}
 

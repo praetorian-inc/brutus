@@ -25,6 +25,9 @@
 //     is pushed with that email as the commit author/committer. GitHub resolves
 //     each commit's author.login from the email even when the account has email
 //     privacy enabled, mapping email -> login. The repo is ALWAYS deleted after.
+//     Callers resolving many batches through one PAT can instead opt into
+//     reusing a single named repo via SetRevealRepo, which removes the
+//     per-call create/delete churn (and the need for the delete_repo scope).
 //
 // The existence path mirrors the concurrency model of the google enumerator
 // (errgroup + rate.Limiter + jitter + serialized result callback). The reveal
@@ -71,13 +74,30 @@ type Result struct {
 }
 
 const (
-	webBaseURLDefault       = "https://github.com"
-	apiBaseURLDefault       = "https://api.github.com"
-	settleDelayDefault      = 10 * time.Second
-	validityCheckPath       = "/email_validity_checks"
-	joinPath                = "/join"
-	maxRateLimitRetries     = 5
-	rateLimitBackoff        = 2 * time.Second
+	webBaseURLDefault   = "https://github.com"
+	apiBaseURLDefault   = "https://api.github.com"
+	settleDelayDefault  = 10 * time.Second
+	validityCheckPath   = "/email_validity_checks"
+	joinPath            = "/join"
+	maxRateLimitRetries = 5
+	rateLimitBackoff    = 2 * time.Second
+	// A reused reveal repo (SetRevealRepo) can have several runs pushing to the
+	// same branch at once, and GitHub answers the losing writer with HTTP 409
+	// rather than serializing it. A throwaway repo cannot hit this — it is
+	// private to the one call that created it — so these bound a failure mode
+	// that only persistent mode introduces. The backoff is jittered because two
+	// contending runs that back off by the same amount simply collide again.
+	maxConflictRetries  = 5
+	conflictBackoffBase = 500 * time.Millisecond
+	// maxRunBranchAttempts bounds retries when a generated run-branch name is
+	// already taken. Random names make that essentially impossible in
+	// production; the bound exists so a caller with a deterministic name
+	// generator degrades into an error instead of spinning.
+	maxRunBranchAttempts = 3
+	// baseInitEmail authors the one commit that initializes an empty reveal
+	// repo. It is never a target address, and the requested-email filter in
+	// listCommitLogins drops it from every result.
+	baseInitEmail           = "reveal-init@example.invalid"
 	rotatingProxyBackoff    = 100 * time.Millisecond
 	rotatingProxyMaxRetries = 15
 	defaultBranchDefault    = "main"
@@ -126,6 +146,12 @@ type Enumerator struct {
 	// settleDelay is how long Reveal waits after pushing commits before listing
 	// them, giving GitHub time to resolve author logins. Overridable by tests.
 	settleDelay time.Duration
+
+	// revealRepo, when non-empty, names a private repo that Reveal REUSES across
+	// calls instead of creating and deleting a throwaway one each time. Empty
+	// (the default) preserves the original throwaway-repo behavior exactly. Set
+	// it via SetRevealRepo, which validates the name.
+	revealRepo string
 
 	// OnSessionProgress, if non-nil, is invoked at the start of each
 	// session-establishment attempt with the 1-based attempt number, the total

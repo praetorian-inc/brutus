@@ -765,7 +765,25 @@ func (e *Enumerator) listCommitLogins(ctx context.Context, owner, repo, branch s
 		}
 	}
 
-	for page := 1; ; page++ {
+	// maxPages bounds the walk. Every commit this call pushed is NEWER than
+	// whatever the branch already carried, and GitHub lists commits newest
+	// first, so our commits occupy the first ceil(len(emails)/commitsPerPage)
+	// pages and nothing past them can carry an address we asked about. One
+	// page of slack absorbs the base commit and any boundary wobble.
+	//
+	// Without this the early stop only fires when EVERY requested address
+	// resolves, so a single address with no linked GitHub account — the common
+	// case, not the exotic one — walked the branch to its end. That costs
+	// nothing on a repo we created, whose base is a single commit, but a caller
+	// who points SetRevealRepo at a private repo that already has history paid
+	// for that history on every run.
+	//
+	// Reaching the bound is not an error: the addresses still missing are
+	// simply ones GitHub did not link, which is what an absent entry has always
+	// meant.
+	maxPages := (len(emails)+commitsPerPage-1)/commitsPerPage + 1
+
+	for page := 1; page <= maxPages; page++ {
 		path := fmt.Sprintf("/repos/%s/%s/commits?sha=%s&per_page=%d&page=%d",
 			owner, repo, url.QueryEscape(branch), commitsPerPage, page)
 

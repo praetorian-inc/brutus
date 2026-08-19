@@ -985,6 +985,192 @@ func TestRevealWith_UnlinkedEmailStopsAtShortPage(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// listCommitLogins: maxPages bounds the walk
+//
+// Review feedback on the early-stop mechanism above asked for a bound: without
+// one, a single requested address with no linked GitHub account — the common
+// case, not an exotic one — walked a reused repo's entire branch history on
+// every run. These tests pin maxPages := ceil(len(emails)/commitsPerPage) + 1:
+// it actually stops the walk, reaching it is not an error, a batch bigger than
+// one page still gets every page it needs, and the early stop still wins
+// first when it can.
+// ---------------------------------------------------------------------------
+
+// manyFullCommitPages returns n pages of commitsPerPage entries each, none of
+// which mention any address a test in this section requests — used to script
+// "more branch history than the bound allows" scenarios below.
+func manyFullCommitPages(n int) [][]fakeCommit {
+	pages := make([][]fakeCommit, n)
+	for p := 0; p < n; p++ {
+		page := make([]fakeCommit, 0, commitsPerPage)
+		for i := 0; i < commitsPerPage; i++ {
+			page = append(page, fakeCommit{
+				email: fmt.Sprintf("filler-%d-%d@example.com", p, i),
+				login: fmt.Sprintf("filler-gh-%d-%d", p, i),
+			})
+		}
+		pages[p] = page
+	}
+	return pages
+}
+
+// TestRevealWith_MaxPagesBoundsWalk verifies the bound actually stops the
+// walk: a reused repo whose branch has far more full pages of history than
+// the bound permits, and one requested email that never resolves (it never
+// appears in any scripted commit), must make exactly maxPages requests — not
+// walk every scripted page.
+func TestRevealWith_MaxPagesBoundsWalk(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-maxpages-bound"
+	emails := []string{"unresolved@example.com"}
+	wantMaxPages := (len(emails)+commitsPerPage-1)/commitsPerPage + 1
+
+	// Far more full pages of unrelated history than the bound allows, so an
+	// unbounded "keep going while the page is full" loop would walk well past
+	// wantMaxPages before the server ever answers with a short/empty page.
+	pages := manyFullCommitPages(wantMaxPages + 3)
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitPages:      pages,
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	_, err := e.RevealWith(context.Background(), emails, nil)
+	require.NoError(t, err)
+
+	got := rec.snapshot()
+	assert.Len(t, got.commitQueries, wantMaxPages,
+		"the walk must stop at maxPages rather than continuing through every scripted page")
+}
+
+// TestRevealWith_ReachingMaxPagesIsNotAnError verifies that hitting the bound
+// is a normal outcome, not an error: RevealWith must return successfully with
+// the unresolvable address simply absent from the map.
+func TestRevealWith_ReachingMaxPagesIsNotAnError(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-maxpages-notanerror"
+	const unresolved = "unresolved@example.com"
+	emails := []string{unresolved}
+
+	pages := manyFullCommitPages((len(emails)+commitsPerPage-1)/commitsPerPage + 1 + 3)
+
+	srv, _ := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitPages:      pages,
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), emails, nil)
+
+	require.NoError(t, err, "reaching the page bound must not surface as an error")
+	assert.NotContains(t, mapping, unresolved,
+		"an address GitHub never linked must simply be absent, not reported as an error")
+	assert.Empty(t, mapping, "no other address was requested or could have resolved")
+}
+
+// TestRevealWith_LargeBatchGetsAllPagesWithinBound is the regression guard
+// against the reviewer's originally-suggested fix, a fixed page cap: the bound
+// must scale with input, not sit at a constant. A batch bigger than one page,
+// whose last requested address only appears on the final page the (scaled)
+// bound allows, must still resolve every single address.
+func TestRevealWith_LargeBatchGetsAllPagesWithinBound(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-maxpages-largebatch"
+	const batchSize = commitsPerPage + 50 // more than fits on one page
+
+	emails := make([]string, batchSize)
+	for i := range emails {
+		emails[i] = fmt.Sprintf("user-%03d@example.com", i)
+	}
+	wantMaxPages := (len(emails)+commitsPerPage-1)/commitsPerPage + 1
+	require.Equal(t, 3, wantMaxPages, "sanity: this batch size must need exactly 3 pages")
+
+	// Page 1 resolves the first 100 requested addresses.
+	page1 := make([]fakeCommit, commitsPerPage)
+	for i := 0; i < commitsPerPage; i++ {
+		page1[i] = fakeCommit{email: emails[i], login: fmt.Sprintf("gh-%03d", i)}
+	}
+	// Page 2 resolves the next batch, padded with unrelated filler to stay a
+	// full page — the very last requested address is deliberately withheld.
+	page2 := make([]fakeCommit, 0, commitsPerPage)
+	for i := commitsPerPage; i < batchSize-1; i++ {
+		page2 = append(page2, fakeCommit{email: emails[i], login: fmt.Sprintf("gh-%03d", i)})
+	}
+	for len(page2) < commitsPerPage {
+		page2 = append(page2, fakeCommit{
+			email: fmt.Sprintf("filler-%d@example.com", len(page2)),
+			login: fmt.Sprintf("filler-gh-%d", len(page2)),
+		})
+	}
+	// Page 3 — the final page the bound allows — carries only the last
+	// requested address.
+	last := batchSize - 1
+	page3 := []fakeCommit{{email: emails[last], login: fmt.Sprintf("gh-%03d", last)}}
+
+	srv, _ := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitPages:      [][]fakeCommit{page1, page2, page3},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), emails, nil)
+	require.NoError(t, err)
+
+	for _, email := range emails {
+		assert.Contains(t, mapping, email, "every requested address in a large batch must still resolve")
+	}
+	assert.Len(t, mapping, batchSize)
+}
+
+// TestRevealWith_EarlyStopWinsForBatchEvenWithLargerBound verifies the early
+// stop still wins when it can: when every requested address (a batch, not
+// just one) resolves on page 1, exactly one commits request must be made even
+// though the bound would have permitted a second page.
+func TestRevealWith_EarlyStopWinsForBatchEvenWithLargerBound(t *testing.T) {
+	t.Parallel()
+
+	const token = "ghp-persistent-maxpages-earlystop-batch"
+	const batchSize = commitsPerPage / 2 // fits on one page with room to spare
+
+	emails := make([]string, batchSize)
+	page1 := make([]fakeCommit, 0, commitsPerPage)
+	for i := range emails {
+		emails[i] = fmt.Sprintf("resolved-%02d@example.com", i)
+		page1 = append(page1, fakeCommit{email: emails[i], login: fmt.Sprintf("gh-%02d", i)})
+	}
+	// Pad page1 out to a full page and leave a page 2 present — a naive
+	// "keep going while the page is full" loop would fetch it.
+	for len(page1) < commitsPerPage {
+		page1 = append(page1, fakeCommit{
+			email: fmt.Sprintf("filler-%d@example.com", len(page1)),
+			login: fmt.Sprintf("filler-gh-%d", len(page1)),
+		})
+	}
+	page2 := []fakeCommit{{email: "should-never-be-fetched@example.com", login: "should-never-be-fetched-gh"}}
+
+	wantMaxPages := (len(emails)+commitsPerPage-1)/commitsPerPage + 1
+	require.Greater(t, wantMaxPages, 1, "sanity: the bound must permit more than one page here")
+
+	srv, rec := newRevealServer(t, token, &revealServerOpts{
+		repoReadStatuses: []int{http.StatusOK},
+		commitPages:      [][]fakeCommit{page1, page2},
+	})
+	e := newPersistentEnumerator(t, srv, token, "guard-osint-reveal")
+
+	mapping, err := e.RevealWith(context.Background(), emails, nil)
+	require.NoError(t, err)
+	assert.Len(t, mapping, batchSize)
+
+	got := rec.snapshot()
+	assert.Len(t, got.commitQueries, 1,
+		"the early stop must win as soon as every requested address resolves, even though the bound permits a second page")
+}
+
+// ---------------------------------------------------------------------------
 // Persistent mode: the returned mapping is filtered to THIS call's emails
 //
 // A reused repo's commit history holds more than this call's own pushes: an

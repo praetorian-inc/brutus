@@ -628,7 +628,7 @@ func TestEnrichByIDs_DoesNotRequestPersonalEmails(t *testing.T) {
 	var capturedBody []byte
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, matchPath, r.URL.Path, "EnrichByIDs must call /people/match")
+		assert.Equal(t, matchPath, r.URL.Path, "EnrichByIDs must call /people/match")
 		capturedBody, _ = io.ReadAll(r.Body)
 		var req apolloMatchRequest
 		_ = json.Unmarshal(capturedBody, &req)

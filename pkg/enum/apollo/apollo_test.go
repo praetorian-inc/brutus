@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -614,6 +615,47 @@ func TestEnrichByIDs_ReturnsEnrichedPersons(t *testing.T) {
 		assert.Equal(t, "https://linkedin.com/in/"+id, enriched[i].LinkedinURL)
 		assert.True(t, enriched[i].Revealed, "person[%d] Revealed must be true after EnrichByIDs", i)
 	}
+}
+
+// TestEnrichByIDs_DoesNotRequestPersonalEmails is a compliance guard, not a style
+// preference. Praetorian's rules of engagement forbid ever targeting a person's
+// personal email address, so this client must never ask Apollo for one: doing so
+// would pull out-of-scope personal PII on every paid match credit. Both
+// assertions matter. The decoded value proves we do not opt in; the raw body
+// proves the flag is still transmitted as an explicit "no" rather than dropped,
+// which is what would break if someone later added `omitempty`.
+func TestEnrichByIDs_DoesNotRequestPersonalEmails(t *testing.T) {
+	var capturedBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, matchPath, r.URL.Path, "EnrichByIDs must call /people/match")
+		capturedBody, _ = io.ReadAll(r.Body)
+		var req apolloMatchRequest
+		_ = json.Unmarshal(capturedBody, &req)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(makeMatchResponseForID(req.ID))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	_, err := c.EnrichByIDs(context.Background(), []string{"p1"})
+	require.NoError(t, err)
+	require.NotEmpty(t, capturedBody, "the people/match request body must have been captured")
+
+	// The decoded request must not opt in to personal emails.
+	var req apolloMatchRequest
+	require.NoError(t, json.Unmarshal(capturedBody, &req))
+	assert.False(t, req.RevealPersonalEmails,
+		"people/match must not request personal emails — out of scope by rules of engagement")
+
+	// The raw body must still carry the key, set to false: an affirmative "no" to
+	// Apollo rather than reliance on an undocumented vendor default.
+	assert.Contains(t, string(capturedBody), `"reveal_personal_emails"`,
+		"reveal_personal_emails must be transmitted explicitly, not omitted")
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(capturedBody, &raw))
+	assert.Equal(t, false, raw["reveal_personal_emails"],
+		"reveal_personal_emails must be transmitted as false")
 }
 
 func TestEnrichByIDs_SkipsEmptyIDs(t *testing.T) {

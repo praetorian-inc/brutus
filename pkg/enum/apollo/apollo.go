@@ -328,7 +328,16 @@ func (c *Client) searchPage(ctx context.Context, domain string, titles []string,
 // people/match. Consumes credits. Returns the mapped Person (search + reveal
 // fields), which the caller merges onto the discovered person.
 func (c *Client) matchPerson(ctx context.Context, id string) (Person, error) {
-	reqBody := apolloMatchRequest{ID: id, RevealPersonalEmails: true}
+	// Personal email addresses are OUT OF SCOPE: Praetorian's rules of engagement
+	// forbid ever targeting a person's personal address, so this client must never
+	// ask Apollo for one — it would collect personal PII we are forbidden to use, on
+	// a credit we spend either way. The false is DELIBERATE, not a default: the field
+	// carries no omitempty, so it serializes as "reveal_personal_emails":false and
+	// affirmatively tells Apollo to withhold them rather than trusting an
+	// undocumented vendor default. Do NOT flip this to true, and do NOT add
+	// omitempty (which would silently drop the explicit "no").
+	// Enforced by TestEnrichByIDs_DoesNotRequestPersonalEmails.
+	reqBody := apolloMatchRequest{ID: id, RevealPersonalEmails: false}
 	body, err := c.do(ctx, http.MethodPost, matchPath, reqBody)
 	if err != nil {
 		return Person{}, err

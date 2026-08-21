@@ -1,0 +1,58 @@
+name: CLI Surface Drift
+
+# Fails CI when the documented brutus CLI surface no longer matches what cobra
+# registers, in either direction: a documented flag or subcommand that no longer
+# exists, or a registered one that is not documented.
+#
+# Deliberately carries NO `paths:` filter. Documentation drift usually arrives as
+# a markdown-only change, and `ci.yml` filters on '**/*.go', go.mod, go.sum,
+# '.golangci*' and 'Makefile' — so a README-only pull request runs no CI at all
+# today. This gate has to fire on every pull request to be worth anything.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cli-surface:
+    name: CLI Surface Drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      # The surface is walked out of the live cobra tree, which lives in
+      # `package main`, so the gate is a test in that package rather than a
+      # separate generator binary. `make cli-docs` is the regeneration path the
+      # failure message points contributors at.
+      - name: Check CLI surface and documentation for drift
+        run: go test ./cmd/brutus -run 'TestCLISurface' -count=1 -v
+
+      # Safety net: the gate above compares in memory and must never write. If it
+      # did, a stale golden could be silently "fixed" in CI and pass.
+      - name: Verify the gate did not rewrite the goldens
+        run: |
+          if ! git diff --quiet -- docs/ README.md; then
+            echo "::error::The drift gate modified tracked documentation. It must compare without writing; run 'make cli-docs' locally instead."
+            git --no-pager diff -- docs/ README.md
+            exit 1
+          fi
+
+      - name: Verify library unit tests
+        run: go test ./internal/clisurface/... -race -count=1

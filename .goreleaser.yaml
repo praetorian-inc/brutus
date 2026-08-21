@@ -141,6 +141,11 @@ release:
   draft: false
   prerelease: auto
   name_template: "Brutus {{ .Tag }}"
+  # Attach the machine-readable CLI surface to every release so downstream
+  # consumers (e.g. the guard-skills drift gate) can pin the exact surface a
+  # given brutus version registered, rather than scraping prose.
+  extra_files:
+    - glob: docs/cli-surface.json
   header: |
     ## Installation
 

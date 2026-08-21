@@ -2,7 +2,7 @@
 # Modern credential brute-forcing library in pure Go
 
 .PHONY: all build build-packed build-wasm clean test test-integration lint install help \
-	services-up services-down
+	services-up services-down cli-docs
 
 # Build configuration
 BINARY_NAME := brutus
@@ -111,6 +111,15 @@ lint:
 		echo "golangci-lint not installed, running go vet..."; \
 		GOWORK=off go vet ./...; \
 	fi
+
+# Regenerate the documented CLI surface from the live cobra tree.
+#
+# This is the single command to run after a deliberate rename: it rewrites
+# docs/cli-surface.json, docs/CLI.md and the generated regions of README.md from
+# whatever cobra actually registers. The CI gate (.github/workflows/cli-surface.yml)
+# runs the same walk in check mode and fails when the committed copies disagree.
+cli-docs:
+	GOWORK=off go test ./cmd/brutus -run 'TestCLISurface' -count=1 -update
 
 # Install to GOPATH/bin
 install:
@@ -269,6 +278,7 @@ help:
 	@echo "  services-up      Start integration test services (Docker)"
 	@echo "  services-down    Stop integration test services"
 	@echo "  lint             Run linter"
+	@echo "  cli-docs         Regenerate CLI docs from cobra (docs/, README.md)"
 	@echo "  deps             Check build dependencies"
 	@echo "  version          Show version info"
 	@echo ""

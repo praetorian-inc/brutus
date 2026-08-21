@@ -156,27 +156,33 @@ go install github.com/praetorian-inc/brutus/cmd/brutus@latest
 
 ### Subcommands
 
-Brutus organizes its functionality into six focused subcommands:
+<!-- BEGIN generated: cli-subcommands -->
+Brutus organizes its functionality into these focused subcommands:
 
 ```bash
-brutus creds    # Non-HTTP credential auditing (SSH, databases, SMB, etc.)
-brutus web      # HTTP/web panel auditing (Basic Auth, form login, AI-powered)
-brutus snmp     # SNMP community string testing
-brutus badkeys  # Known weak/compromised SSH key testing
-brutus logon    # Windows logon-screen backdoor detection (sticky keys, utilman)
-brutus enum     # Account enumeration (account-existence oracles, Kerberos, Teams auth, email generation)
+brutus badkeys    # Test known weak/compromised SSH keys against targets
+brutus creds      # Test default credentials on non-HTTP services (SSH, databases, SMB, etc.)
+brutus enum       # Enumerate accounts against account-existence oracles or Active Directory
+brutus logon      # Detect Windows logon-screen backdoors (runs both sticky keys and utilman)
+brutus snmp       # Test SNMP community strings against targets
+brutus stickykeys # Detect the Windows sticky-keys (sethc.exe) logon backdoor only
+brutus utilman    # Detect the Windows utilman (Ease of Access) logon backdoor only
+brutus web        # Audit HTTP/web panel credentials (AI-powered or credential list)
 ```
+<!-- END generated: cli-subcommands -->
 
-Each subcommand has aliases for discoverability:
+<!-- BEGIN generated: cli-aliases -->
+Some subcommands carry aliases for discoverability:
 
 | Subcommand | Aliases |
-|------------|---------|
-| `creds` | `services`, `defaults`, `credentials` |
-| `web` | `http`, `panels` |
-| `snmp` | `community` |
+| --- | --- |
 | `badkeys` | `keys`, `ssh-keys`, `badkey` |
-| `logon` | `stickykeys`, `sticky-keys`, `utilman`, `sethc`, `winlogon`, `accessibility` |
-| `enum` | *(none)* |
+| `creds` | `services`, `defaults`, `credentials` |
+| `snmp` | `community` |
+| `web` | `http`, `panels` |
+
+The full reference — every subcommand, alias and flag, including the ones hidden from `--help` — is generated into [docs/CLI.md](docs/CLI.md).
+<!-- END generated: cli-aliases -->
 
 ```bash
 # Test SSH credentials

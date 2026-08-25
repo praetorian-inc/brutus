@@ -411,7 +411,10 @@ func consoleGatePasses(response []byte, width, height uint32, box changedBox, co
 	}
 
 	// Confidence arm: the analyzeBackdoorResponse score reaches the real-console range.
-	return confidence >= gateConfidenceFloor
+	// A light region (e.g. Windows 11 Accessibility settings flyout triggered by Win+U)
+	// is not a console regardless of rectangularity or pixel-change confidence — only
+	// pass when the changed box is not clearly light.
+	return confidence >= gateConfidenceFloor && mean < dialogMinMeanBrightness
 }
 
 // darkBoxFraction returns the fraction of pixels inside box whose brightness is below

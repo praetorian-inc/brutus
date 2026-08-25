@@ -398,6 +398,18 @@ func TestConsoleGatePasses(t *testing.T) {
 			confidence: 0.0,
 			want:       false,
 		},
+		{
+			// Win11 Accessibility FP: light UI panel (mean brightness > dialogMinMeanBrightness)
+			// with high confidence from rectangularity. The confidence arm must NOT pass
+			// a light region — it's a settings dialog, not a console.
+			name: "FP Win11 accessibility: light region, high confidence → false",
+			buildResp: func() []byte {
+				return newResp(200) // bright white panel
+			},
+			box:        changedBox{minX: 600, minY: 300, maxX: 999, maxY: 699, fillRatio: 0.80, changedCount: 128000},
+			confidence: 0.85,
+			want:       false,
+		},
 	}
 
 	for _, tc := range tests {

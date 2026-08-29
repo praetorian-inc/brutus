@@ -1,6 +1,6 @@
 module github.com/praetorian-inc/brutus
 
-go 1.26
+go 1.27.0
 
 require (
 	github.com/chromedp/chromedp v0.16.0
@@ -17,7 +17,7 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/praetorian-inc/capability-sdk v0.0.0-20260407200040-0c1ef1feb1e6
-	github.com/praetorian-inc/nerva v1.64.3
+	github.com/praetorian-inc/nerva v1.69.2
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/spf13/cobra v1.10.2

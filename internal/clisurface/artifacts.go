@@ -73,11 +73,6 @@ type Artifact struct {
 	Content []byte
 }
 
-// GeneratedPaths lists the artifacts in a stable order, for failure messages.
-func GeneratedPaths() []string {
-	return []string{JSONPath, MarkdownPath, READMEPath}
-}
-
 // Artifacts renders every generated artifact for s. README.md is spliced from
 // its current on-disk content, so the hand-written parts of it are preserved.
 func Artifacts(repoRoot string, s Surface) ([]Artifact, error) {

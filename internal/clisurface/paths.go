@@ -26,3 +26,8 @@ const (
 
 // RegenerateCommand is the single documented way to refresh every artifact.
 const RegenerateCommand = "make cli-docs"
+
+// GeneratedPaths lists the generated artifacts in a stable order, for failure messages.
+func GeneratedPaths() []string {
+	return []string{JSONPath, MarkdownPath, READMEPath}
+}

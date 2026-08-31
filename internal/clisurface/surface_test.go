@@ -16,6 +16,7 @@ package clisurface
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -389,4 +390,38 @@ func forEachCommand(cmd *cobra.Command, fn func(*cobra.Command)) {
 	for _, child := range cmd.Commands() {
 		forEachCommand(child, fn)
 	}
+}
+
+// TestWalkSurvivesAPreRunEThatNeedsArgs pins the probe's recover. Probing calls
+// PreRunE outside cobra's execution lifecycle, where cobra would have validated
+// Args first — so a guard that reasonably assumes args[0] exists panics. The
+// gate must degrade to "no rejections discovered" rather than take the whole
+// build down.
+func TestWalkSurvivesAPreRunEThatNeedsArgs(t *testing.T) {
+	root := &cobra.Command{Use: "tool", RunE: func(*cobra.Command, []string) error { return nil }}
+	root.PersistentFlags().Duration("timeout", time.Second, "timeout")
+
+	needy := &cobra.Command{
+		Use:  "needy",
+		Args: cobra.ExactArgs(1),
+		RunE: func(*cobra.Command, []string) error { return nil },
+	}
+	needy.Flags().String("target", "", "target")
+	needy.PreRunE = func(_ *cobra.Command, args []string) error {
+		// Legitimate under cobra, which validates Args before PreRunE.
+		if strings.HasPrefix(args[0], "-") {
+			return fmt.Errorf("target must not look like a flag")
+		}
+		return nil
+	}
+	root.AddCommand(needy)
+
+	var s Surface
+	require.NotPanics(t, func() { s = Walk(root) }, "a panicking guard must not take the gate down")
+
+	cmd, ok := s.Command("tool needy")
+	require.True(t, ok, "the command is still described")
+	flag, ok := cmd.Flag("timeout")
+	require.True(t, ok, "its inherited flags are still recorded")
+	assert.False(t, flag.Rejected, "an unprobeable command reports no rejections, the conservative answer")
 }

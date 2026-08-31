@@ -8,6 +8,7 @@ Thank you for your interest in contributing to Brutus! This document provides gu
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [Making Changes](#making-changes)
+- [Changing the CLI Surface](#changing-the-cli-surface)
 - [Adding a New Protocol](#adding-a-new-protocol)
 - [Testing](#testing)
 - [Pull Request Process](#pull-request-process)
@@ -117,6 +118,45 @@ test(ftp): add integration tests
 - One logical change per commit
 - Keep commits small and reviewable
 - Squash WIP commits before submitting PR
+
+## Changing the CLI Surface
+
+The documented CLI surface is **generated from the live cobra command tree**, not
+maintained by hand. Three files are generated:
+
+| File | Purpose |
+|------|---------|
+| `docs/cli-surface.json` | Machine-readable surface. Downstream consumers pin this; it is attached to every GitHub release. |
+| `docs/CLI.md` | Full human-readable reference: every command, alias and flag. |
+| `README.md` | Two generated regions in Quick Start, delimited by `<!-- BEGIN generated: ... -->` markers. |
+
+If you add, remove or rename a command or a flag, regenerate them:
+
+```bash
+make cli-docs
+```
+
+Then commit the result alongside your code change.
+
+The `CLI Surface Drift` workflow runs the same walk in check mode on every pull
+request and fails when the committed copies disagree with what cobra registers,
+in either direction:
+
+- a **documented** flag or subcommand that no longer exists, or
+- a **registered** flag or subcommand that is not documented.
+
+It also lints prose. Every `brutus` invocation inside a fenced code block, every
+backticked flag name in prose, and every flag name mentioned in a Go comment
+under `cmd/`, `internal/` and `pkg/` is checked against the real surface. A flag that was
+renamed cannot survive in a comment or an example.
+
+If a document must deliberately name a flag that no longer exists — for example
+when describing a historical rename — add it to `docs/cli-surface-allow.txt`
+with a comment explaining why.
+
+Do not edit the generated files or the generated README regions by hand; the next
+`make cli-docs` will overwrite them, and the gate will reject the difference in
+the meantime.
 
 ## Adding a New Protocol
 
@@ -419,6 +459,12 @@ golangci-lint run
    ```bash
    go test -short ./...
    golangci-lint run
+   ```
+
+   If you touched a command or a flag, also regenerate the CLI documentation
+   (see [Changing the CLI Surface](#changing-the-cli-surface)):
+   ```bash
+   make cli-docs
    ```
 
 3. **Update documentation** if needed

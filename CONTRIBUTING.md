@@ -147,7 +147,7 @@ in either direction:
 
 It also lints prose. Every `brutus` invocation inside a fenced code block, every
 backticked flag name in prose, and every flag name mentioned in a Go comment
-under `cmd/` and `pkg/` is checked against the real surface. A flag that was
+under `cmd/`, `internal/` and `pkg/` is checked against the real surface. A flag that was
 renamed cannot survive in a comment or an example.
 
 If a document must deliberately name a flag that no longer exists — for example

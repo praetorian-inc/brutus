@@ -419,3 +419,60 @@ func TestWalkSurvivesAPreRunEThatNeedsArgs(t *testing.T) {
 	require.True(t, ok, "its inherited flags are still recorded")
 	assert.False(t, flag.Rejected, "an unprobeable command reports no rejections, the conservative answer")
 }
+
+// TestProbeDoesNotWriteThroughACopiedFlagValue pins the frozen Value. A struct copy of
+// a pflag.Flag shares the original's Value, so a guard that normalises a flag rather
+// than only reading it would mutate the tree being described.
+func TestProbeDoesNotWriteThroughACopiedFlagValue(t *testing.T) {
+	root := &cobra.Command{Use: "tool", RunE: func(*cobra.Command, []string) error { return nil }}
+	root.PersistentFlags().Duration("timeout", 10*time.Second, "per-target timeout")
+	kid := &cobra.Command{Use: "kid", RunE: func(*cobra.Command, []string) error { return nil }}
+	kid.PreRunE = func(c *cobra.Command, _ []string) error {
+		_ = c.Flags().Set("timeout", "99s")
+		return nil
+	}
+	root.AddCommand(kid)
+
+	Walk(root)
+
+	assert.Equal(t, "10s", root.PersistentFlags().Lookup("timeout").Value.String(),
+		"probing must not write to the real flag")
+}
+
+// TestProbeSurvivesAShorthandSharedWithAnInheritedFlag pins the shorthand strip. Adding
+// both a local flag and an inherited one carrying the same shorthand to the shadow
+// command made pflag panic, which the probe's recover then swallowed -- so rejection
+// detection silently vanished for that command, and only when the tree had not already
+// been merged by cobra.
+func TestProbeSurvivesAShorthandSharedWithAnInheritedFlag(t *testing.T) {
+	root := &cobra.Command{Use: "tool", RunE: func(*cobra.Command, []string) error { return nil }}
+	root.PersistentFlags().StringP("target", "t", "", "target host")
+	kid := &cobra.Command{Use: "kid", RunE: func(*cobra.Command, []string) error { return nil }}
+	kid.Flags().IntP("threads", "t", 1, "local flag reusing the shorthand")
+	kid.PreRunE = func(c *cobra.Command, _ []string) error {
+		if c.Flags().Changed("threads") {
+			return fmt.Errorf("--threads is not valid here")
+		}
+		return nil
+	}
+	root.AddCommand(kid)
+
+	cmd, ok := Walk(root).Command("tool kid")
+	require.True(t, ok)
+	flag, ok := cmd.Flag("threads")
+	require.True(t, ok)
+	assert.True(t, flag.Rejected, "the rejection must still be discovered despite the shared shorthand")
+}
+
+// TestWalkExcludesCobrasHiddenCompletionHelpers keeps the surface deterministic: cobra
+// injects __complete and __completeNoDesc on the first Execute, so including them would
+// make the surface depend on whether something already ran the tree.
+func TestWalkExcludesCobrasHiddenCompletionHelpers(t *testing.T) {
+	root := newTestTree()
+	root.AddCommand(&cobra.Command{Use: cobra.ShellCompRequestCmd, Hidden: true, RunE: func(*cobra.Command, []string) error { return nil }})
+	root.AddCommand(&cobra.Command{Use: cobra.ShellCompNoDescRequestCmd, Hidden: true, RunE: func(*cobra.Command, []string) error { return nil }})
+
+	for _, c := range Walk(root).Commands {
+		assert.NotContains(t, c.Path, cobra.ShellCompRequestCmd, "cobra's completion helpers are not part of the surface")
+	}
+}

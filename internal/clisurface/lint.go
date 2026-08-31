@@ -588,13 +588,19 @@ func shellSegments(line string) [][]string {
 		argv     []string
 		cur      strings.Builder
 		quote    rune
+		// quoted records that the current token came from an explicit "" or '', so an
+		// empty argument is still an argument. Dropping it shifts everything after it:
+		// given `--<flag> "" --<next>`, the empty value disappears, --<next> is read as
+		// the value of --<flag>, and an invalid --<next> goes unreported.
+		quoted bool
 	)
 
 	endToken := func() {
-		if cur.Len() > 0 {
+		if cur.Len() > 0 || quoted {
 			argv = append(argv, cur.String())
 			cur.Reset()
 		}
+		quoted = false
 	}
 	endSegment := func() {
 		endToken()
@@ -621,6 +627,7 @@ func shellSegments(line string) [][]string {
 			cur.WriteRune(c)
 		case c == '\'' || c == '"':
 			quote = c
+			quoted = true
 		case c == '\\' && i+1 < len(runes):
 			i++
 			cur.WriteRune(runes[i])

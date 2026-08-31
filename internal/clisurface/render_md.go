@@ -294,7 +294,9 @@ func cell(s string) string {
 
 // anchor is the GitHub heading anchor for a "## `path`" heading.
 func anchor(path string) string {
-	return strings.ReplaceAll(path, " ", "-")
+	// GitHub lowercases heading anchors, so a path carrying an uppercase letter would
+	// otherwise render a link that goes nowhere.
+	return strings.ToLower(strings.ReplaceAll(path, " ", "-"))
 }
 
 // dedent removes the common leading-space indent cobra examples carry so the

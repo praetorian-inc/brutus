@@ -112,3 +112,14 @@ func TestMarkersAreHTMLComments(t *testing.T) {
 	assert.Equal(t, "<!-- BEGIN generated: cli-subcommands -->", BeginMarker(RegionSubcommands))
 	assert.Equal(t, "<!-- END generated: cli-aliases -->", EndMarker(RegionAliases))
 }
+
+// TestSpliceRejectsMarkersOnOneLine pins the bounds guard. Both markers on a single line
+// used to splice into a document carrying a duplicated closing marker instead of failing.
+func TestSpliceRejectsMarkersOnOneLine(t *testing.T) {
+	doc := BeginMarker(RegionSubcommands) + " " + EndMarker(RegionSubcommands) + "\n"
+
+	_, err := Splice(doc, RegionSubcommands, "body")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "separate lines")
+}

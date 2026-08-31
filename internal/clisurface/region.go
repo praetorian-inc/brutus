@@ -77,5 +77,11 @@ func regionBounds(doc, name string) (begin, end int, err error) {
 	if nl < 0 {
 		return 0, 0, fmt.Errorf("%q must be followed by a newline", beginMarker)
 	}
-	return afterBegin + nl + 1, endIdx, nil
+	begin = afterBegin + nl + 1
+	// Both markers on one line leaves begin past endIdx. Splicing that produced a
+	// document with a duplicated closing marker rather than an error, so say so.
+	if begin > endIdx {
+		return 0, 0, fmt.Errorf("%q and %q must be on separate lines", beginMarker, endMarker)
+	}
+	return begin, endIdx, nil
 }

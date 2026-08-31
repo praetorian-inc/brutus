@@ -192,3 +192,10 @@ func section(t *testing.T, md, path string) string {
 	}
 	return rest
 }
+
+// TestAnchorMatchesGitHubsCasing keeps the command-index links working: GitHub lowercases
+// heading anchors, so a path with an uppercase letter needs the same treatment.
+func TestAnchorMatchesGitHubsCasing(t *testing.T) {
+	assert.Equal(t, "tool-scan", anchor("tool scan"))
+	assert.Equal(t, "tool-enum-microsoft365", anchor("tool enum Microsoft365"))
+}

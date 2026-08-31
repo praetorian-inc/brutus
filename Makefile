@@ -116,8 +116,8 @@ lint:
 #
 # This is the single command to run after a deliberate rename: it rewrites
 # docs/cli-surface.json, docs/CLI.md and the generated regions of README.md from
-# whatever cobra actually registers. The CI gate (.github/workflows/cli-surface.yml)
-# runs the same walk in check mode and fails when the committed copies disagree.
+# whatever cobra actually registers. CI runs the same walk in check mode and fails when
+# the committed copies disagree.
 cli-docs:
 	GOWORK=off go test ./cmd/brutus -run 'TestCLISurface' -count=1 -update
 

@@ -485,3 +485,18 @@ func TestLintMarkdownJudgesEveryFlagAgainstTheResolvedCommand(t *testing.T) {
 		}
 	})
 }
+
+// TestLintMarkdownKeepsExplicitlyEmptyArguments pins the quoted-empty-token fix. Dropping
+// an explicit "" shifts every later token: the flag after it became its value, and an
+// invalid flag went unreported.
+func TestLintMarkdownKeepsExplicitlyEmptyArguments(t *testing.T) {
+	assert.Equal(t, [][]string{{"tool", "scan", "--target", "", "--gone"}},
+		shellSegments(`tool scan --target "" --gone`),
+		"an explicitly quoted empty argument is still an argument")
+
+	issues := LintMarkdown(Walk(newTestTree()), "README.md",
+		"```bash\ntool group leaf --only-here \"\" --gone\n```", emptyAllowlist(t))
+
+	require.Len(t, issues, 1, "--gone must not be swallowed as the value of --only-here")
+	assert.Equal(t, "--gone", issues[0].Token)
+}

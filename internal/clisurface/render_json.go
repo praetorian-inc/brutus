@@ -56,5 +56,13 @@ func ParseJSON(b []byte) (Surface, error) {
 		return Surface{}, fmt.Errorf("cli surface json has schemaVersion %d, this build renders %d: regenerate with 'make cli-docs'",
 			doc.SchemaVersion, SchemaVersion)
 	}
-	return Surface{Commands: doc.Commands}, nil
+	// The hash has to describe the commands it ships with, or a hand-edited artifact
+	// passes every later comparison: downstream consumers pin the hash, so one that
+	// does not match its own contents is worse than a missing one.
+	s := Surface{Commands: doc.Commands}
+	if got := s.Hash(); doc.SurfaceHash != got {
+		return Surface{}, fmt.Errorf("cli surface json records surfaceHash %s but its commands hash to %s: it looks hand-edited, regenerate with '%s'",
+			doc.SurfaceHash, got, RegenerateCommand)
+	}
+	return s, nil
 }

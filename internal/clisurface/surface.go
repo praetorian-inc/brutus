@@ -38,7 +38,12 @@ const SchemaVersion = 1
 // the surface brutus documents, and whether they are present depends on whether
 // something already executed the tree in this process — so excluding them keeps
 // the walk deterministic regardless of test ordering.
-var builtinCommands = map[string]bool{"help": true, "completion": true}
+var builtinCommands = map[string]bool{
+	"help":                          true,
+	"completion":                    true,
+	cobra.ShellCompRequestCmd:       true,
+	cobra.ShellCompNoDescRequestCmd: true,
+}
 
 // HelpFlag is the flag cobra injects into every command on the first Execute
 // (InitDefaultHelpFlag). Like the built-in commands it is excluded from the
@@ -276,6 +281,15 @@ func probeRejections(cmd *cobra.Command, resolved []resolvedFlag) (rejections ma
 	for i := range resolved {
 		duplicate := *resolved[i].flag
 		duplicate.Changed = false
+		// The struct copy shares the real flag's Value, so a guard calling Set would
+		// write straight through to the live tree. frozenValue makes that a no-op
+		// while still reporting the real value to anything that reads it.
+		duplicate.Value = frozenValue{duplicate.Value}
+		// Drop the shorthand. The probe only needs the flag reachable by name, and a
+		// command declaring a local flag whose shorthand matches an inherited one
+		// would otherwise make pflag panic on the duplicate -- silently aborting the
+		// probe via the recover above, and only when the tree had not been merged yet.
+		duplicate.Shorthand = ""
 		copies = append(copies, &duplicate)
 		shadow.Flags().AddFlag(&duplicate)
 	}
@@ -299,6 +313,16 @@ func probeRejections(cmd *cobra.Command, resolved []resolvedFlag) (rejections ma
 	}
 	return out
 }
+
+// frozenValue is a pflag.Value that reports the real value but refuses to change it,
+// so probing a command's PreRunE cannot write to the tree being described.
+type frozenValue struct {
+	pflag.Value
+}
+
+// Set discards the write. A guard that normalises a flag rather than only reading it
+// would otherwise mutate the live tree during a walk.
+func (frozenValue) Set(string) error { return nil }
 
 // Hash is a stable fingerprint of the structural surface: command paths, names,
 // aliases, visibility, and each flag's name, shorthand, type, default and

@@ -99,3 +99,24 @@ func TestRenderJSONIsByteIdenticalAcrossWalks(t *testing.T) {
 
 	assert.Equal(t, string(first), string(second))
 }
+
+// TestParseJSONRejectsAHashThatDoesNotMatchItsCommands pins the consistency check.
+// Downstream consumers pin surfaceHash, so an artifact whose hash does not describe its
+// own commands is worse than one with no hash at all: it passes every later comparison.
+func TestParseJSONRejectsAHashThatDoesNotMatchItsCommands(t *testing.T) {
+	rendered, err := RenderJSON(Walk(newTestTree()))
+	require.NoError(t, err)
+
+	var lines []string
+	for _, line := range strings.Split(string(rendered), "\n") {
+		if strings.HasPrefix(line, `  "surfaceHash": "`) {
+			line = `  "surfaceHash": "sha256:` + strings.Repeat("0", 64) + `",`
+		}
+		lines = append(lines, line)
+	}
+
+	_, err = ParseJSON([]byte(strings.Join(lines, "\n")))
+	require.Error(t, err, "a hand-edited artifact must not parse")
+	assert.Contains(t, err.Error(), "looks hand-edited")
+	assert.Contains(t, err.Error(), RegenerateCommand)
+}

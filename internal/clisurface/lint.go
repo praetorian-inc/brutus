@@ -44,7 +44,10 @@ type Issue struct {
 	File string
 	// Line is the 1-based line the reference appears on.
 	Line int
-	// Token is the offending token exactly as written, e.g. "--sticky-keys-exec".
+	// Token is the offending token exactly as written, dashes included. No
+	// example of a removed flag is given here: this package's own comments are
+	// linted, and allowlisting a real removed flag to quote it would suppress
+	// that name everywhere, including in the README the gate exists to police.
 	Token string
 	// Command is the command the token was checked against, empty when the
 	// token was checked against the whole surface (prose and Go comments).
@@ -107,7 +110,7 @@ type Allowlist struct {
 }
 
 // ParseAllowlist reads an allowlist file. Every entry is one token
-// ("--flag" or "-x") followed by a '#' comment giving the reason; blank lines
+// ("--<flag>" or "-<x>") followed by a '#' comment giving the reason; blank lines
 // and whole-line comments are ignored. The reason is mandatory: an entry
 // without one is an error, because an unexplained exception is how a stale
 // reference survives forever.
@@ -344,7 +347,8 @@ func lintInvocation(s Surface, file string, line int, argv []string, allow Allow
 	return issues
 }
 
-// checkLongFlag validates a "--name" or "--name=value" token against cmd. The
+// checkLongFlag validates a "--<name>" or "--<name>=<value>" token against cmd.
+// The
 // second return reports whether next is this flag's value and so must not be
 // read as a flag or a subcommand.
 func checkLongFlag(s Surface, cmd *Command, file string, line int, arg, next string, allow Allowlist) ([]Issue, bool) {
@@ -361,7 +365,7 @@ func checkLongFlag(s Surface, cmd *Command, file string, line int, arg, next str
 	}
 
 	flag, known := cmd.Flag(name)
-	// A "--name=value" token carries its own value. Otherwise any non-boolean
+	// A "--<name>=<value>" token carries its own value. Otherwise any non-boolean
 	// flag takes the next argument. An unknown flag is reported below, and its
 	// value is guessed from shape — anything that does not itself look like a
 	// flag — so that one unknown flag does not also get its value reported as a
@@ -623,7 +627,7 @@ func contains(list []string, want string) bool {
 	return false
 }
 
-// nearest returns the closest candidate to name as a "--flag" string, or "" if
+// nearest returns the closest candidate to name as a "--<flag>" string, or "" if
 // nothing is close enough to be a useful suggestion.
 func nearest(name string, candidates []string) string {
 	best, bestDistance := "", 0

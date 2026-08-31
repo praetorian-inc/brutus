@@ -441,3 +441,47 @@ func TestLintMarkdownTreatsHelpAsBoolean(t *testing.T) {
 		assert.Equal(t, "group", issues[i].Suggestion)
 	}
 }
+
+// TestLintMarkdownJudgesEveryFlagAgainstTheResolvedCommand pins the order of the
+// two stages. cobra dispatches to the resolved command and parses the whole argv
+// against that command's flag set, so writing a flag before the subcommand does
+// not excuse it: a flag the command rejects, and a flag local to the root, both
+// fail at runtime wherever they appear.
+func TestLintMarkdownJudgesEveryFlagAgainstTheResolvedCommand(t *testing.T) {
+	s := Walk(newTestTree())
+
+	t.Run("a rejected inherited flag is caught before the subcommand too", func(t *testing.T) {
+		for _, line := range []string{
+			"tool guarded --timeout 30s",
+			"tool --timeout 30s guarded",
+			"tool --timeout=30s guarded --scan-timeout 5s",
+		} {
+			issues := LintMarkdown(s, "README.md", "```bash\n"+line+"\n```", emptyAllowlist(t))
+			require.Len(t, issues, 1, "%q: guarded refuses --timeout wherever it is written", line)
+			assert.Equal(t, "--timeout", issues[0].Token)
+			assert.Equal(t, "tool guarded", issues[0].Command,
+				"the flag is judged against the command cobra would dispatch to")
+			assert.Contains(t, issues[0].Reason, "use --scan-timeout")
+		}
+	})
+
+	t.Run("a root-local flag is not usable once a subcommand is named", func(t *testing.T) {
+		assert.Empty(t, LintMarkdown(s, "README.md", "```bash\ntool --version\n```", emptyAllowlist(t)),
+			"--version is a flag of the root itself")
+
+		issues := LintMarkdown(s, "README.md", "```bash\ntool --version scan\n```", emptyAllowlist(t))
+		require.Len(t, issues, 1, "--version is local to the root, not persistent, so scan does not accept it")
+		assert.Equal(t, "--version", issues[0].Token)
+		assert.Equal(t, "tool scan", issues[0].Command)
+	})
+
+	t.Run("a persistent flag stays usable everywhere", func(t *testing.T) {
+		for _, line := range []string{
+			"tool --json scan --target host",
+			"tool scan --json --target host",
+			"tool --json group leaf --only-here x",
+		} {
+			assert.Empty(t, LintMarkdown(s, "README.md", "```bash\n"+line+"\n```", emptyAllowlist(t)), "%q", line)
+		}
+	})
+}

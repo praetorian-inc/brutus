@@ -521,6 +521,16 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 
 	result := StickyKeysResult{Performed: true}
 
+	// A real screen that went flat is not an observation: the surface was torn down
+	// or never painted, so there is nothing to score. Reject it before any heuristic
+	// runs so it can never become a positive (see isUniformFrame). Both frames flat
+	// is NOT this case -- that is a genuine "nothing changed", which scores clean.
+	if isUniformFrame(response) && !isUniformFrame(baseline) {
+		result.OverallVerdict = verdictIndeterminate
+		result.HeuristicResult = "response framebuffer is a single flat color (no render observed)"
+		return result
+	}
+
 	// Step 1: Primary heuristic — dark-pixel-delta discriminator. The changed-pixels
 	// description is kept for the diagnostic banner; the VERDICT comes from darkDeltaVerdict.
 	verdict := darkDeltaVerdict(baseline, response, width, height)
@@ -581,6 +591,16 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 
 	result := UtilmanResult{Performed: true}
 
+	// A real screen that went flat is not an observation: the surface was torn down
+	// or never painted, so there is nothing to score. Reject it before any heuristic
+	// runs so it can never become a positive (see isUniformFrame). Both frames flat
+	// is NOT this case -- that is a genuine "nothing changed", which scores clean.
+	if isUniformFrame(response) && !isUniformFrame(baseline) {
+		result.OverallVerdict = verdictIndeterminate
+		result.HeuristicResult = "response framebuffer is a single flat color (no render observed)"
+		return result
+	}
+
 	// Step 1: Primary heuristic — dark-pixel-delta discriminator. The changed-pixels
 	// description is kept for the diagnostic banner; the VERDICT comes from darkDeltaVerdict.
 	verdict := darkDeltaVerdict(baseline, response, width, height)
@@ -631,4 +651,34 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 	result.OverallVerdict = decideVerdict(verdict, keepHigh)
 	result.Confidence, result.RegionNote = regionConfidenceAndNote(result.OverallVerdict, region, confidence)
 	return result
+}
+
+// isUniformFrame reports whether every pixel in an RGBA framebuffer carries the
+// SAME color, i.e. the surface is one flat field.
+//
+// Such a frame is never a window. It is what an RDP surface looks like before it
+// has painted or after the session has been torn down (a terminated IronRDP
+// ActiveStage hands back a zeroed DecodedImage). Scored as evidence, an all-black
+// frame differenced against a logon wallpaper that is already ~60% dark changes
+// ~39% of pixels -- inside the 2-80% window-sized band, not caught by the
+// full-screen-change guard -- forms one large contiguous rectangle, and passes
+// every console gate (mean brightness 0, darkBoxFraction 1.0), producing a
+// maximum-confidence "backdoor likely" on a host where no key was pressed.
+//
+// The test is EXACT color equality rather than "mostly dark" on purpose: a real
+// console always carries text, a cursor, or a border, so it can never be uniform,
+// which keeps the guard from suppressing a genuine finding (cardinal rule). Callers
+// gate on a flat RESPONSE against a non-flat BASELINE -- a real screen that went
+// flat. Two flat frames are a genuine "nothing changed" and stay clean.
+func isUniformFrame(buf []byte) bool {
+	if len(buf) < 8 {
+		return true // no pixels (or a single pixel) carries no evidence either
+	}
+	r, g, b := buf[0], buf[1], buf[2]
+	for i := 4; i+2 < len(buf); i += 4 {
+		if buf[i] != r || buf[i+1] != g || buf[i+2] != b {
+			return false
+		}
+	}
+	return true
 }

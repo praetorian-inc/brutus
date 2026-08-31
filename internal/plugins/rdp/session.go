@@ -53,6 +53,14 @@ type StickyKeysResult struct {
 	// indeterminate (rerun). Set only by RunStickyKeysCheck at the
 	// dialer.DialContext failure site.
 	Unreachable bool
+	// SessionTerminated records that the server ended the RDP session mid-scan
+	// (e.g. a pre-auth logon session torn down before the response settled). The
+	// scan observed no trustworthy post-trigger render, so the verdict cannot be a
+	// positive; it also selects the short-budget retry in DetectStickyKeys.
+	SessionTerminated bool
+	// TerminationReason is the server-reported reason behind SessionTerminated,
+	// surfaced in the operator-facing banner instead of being discarded.
+	TerminationReason string
 }
 
 // UtilmanResult holds the outcome of utilman backdoor detection.
@@ -71,6 +79,14 @@ type UtilmanResult struct {
 	// indeterminate (rerun). Set only by RunUtilmanCheck at the
 	// dialer.DialContext failure site.
 	Unreachable bool
+	// SessionTerminated records that the server ended the RDP session mid-scan
+	// (e.g. a pre-auth logon session torn down before the response settled). The
+	// scan observed no trustworthy post-trigger render, so the verdict cannot be a
+	// positive; it also selects the short-budget retry in DetectUtilman.
+	SessionTerminated bool
+	// TerminationReason is the server-reported reason behind SessionTerminated,
+	// surfaced in the operator-facing banner instead of being discarded.
+	TerminationReason string
 }
 
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).
@@ -135,6 +151,25 @@ var FastBudget = SettleBudget{
 // with the careful settle profile (single source of truth).
 var MinViableTimeout = CarefulBudget.minPump + CarefulBudget.quietWindow
 
+// sessionDiag carries what a pump phase observed back to its caller without
+// widening the already-wide runSession return tuple.
+//
+// lastFrame is the most recent framebuffer captured while the session was still
+// alive. It exists because session_get_frame on a TERMINATED ActiveStage hands
+// back a zeroed DecodedImage rather than failing: the Rust side returns
+// image.data() unconditionally (rust/src/session.rs), so a dead session yields a
+// perfectly black 1024x768 frame that looks like a successful capture. Differenced
+// against a logon wallpaper that is already ~60% dark, that black frame lands
+// inside the 2-80% "window-sized change" band, forms one large contiguous
+// rectangle, and satisfies every console gate -- fabricating an 85%-confidence
+// backdoor on a host where no key was ever pressed. Retaining the last live frame
+// lets the caller analyze what was actually on screen instead.
+type sessionDiag struct {
+	lastFrame  []byte // last framebuffer captured while the session was alive
+	terminated bool   // the server ended the session mid-pump
+	reason     string // server-reported termination reason, for the operator-facing banner
+}
+
 // runSession creates a session from the connector, pumps it to receive the login screen bitmap,
 // sends 5x Shift key presses, then captures the post-keystroke bitmap.
 // Returns (baseline_rgba, response_rgba, width, height, stabilized, error).
@@ -143,7 +178,7 @@ var MinViableTimeout = CarefulBudget.minPump + CarefulBudget.quietWindow
 //
 //nolint:gocritic // cohesive multi-return (baseline+response frames, width, height, stabilized, err); a result struct would churn ~20 return sites in this WASM path for no behavior change
 func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32, timeout time.Duration, budget SettleBudget) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
+	width, height uint32, timeout time.Duration, budget SettleBudget, diag *sessionDiag) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
@@ -173,7 +208,7 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// initializing ("Please wait for the Local Session Manager") the login
 	// screen has not painted yet, and capturing/triggering now yields a
 	// half-painted baseline. baselineStable is folded into stabilized below.
-	baselineStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget)
+	baselineStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget, diag)
 	if pumpErr != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
@@ -199,16 +234,21 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	// The exec.go path uses 1s sleep + 2s WaitForFrame; we mirror that here.
 	time.Sleep(budget.postKeystrokeWait)
-	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget)
-	if pumpErr != nil {
-		// Non-fatal -- target might not respond
-		_ = pumpErr
-	}
+	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget, diag)
 
-	// Capture response frame
-	response, err := p.captureFrame(ctx, inst, sessHandle)
+	// Choose the frame to analyze. A clean pump means the live framebuffer is
+	// current, so capture it. A pump that ERRORED means the session is gone, and
+	// session_get_frame on a torn-down ActiveStage returns a zeroed DecodedImage
+	// that reads as a successful capture of a perfectly black screen -- the
+	// fabricated-backdoor path described on sessionDiag. Prefer the last frame
+	// seen while the session was alive, and fall back to the baseline, which
+	// analyzes as "no change" and is mapped to indeterminate by stabilizedVerdict
+	// (never a positive). The last live frame is used rather than discarding the
+	// scan so a payload that painted and only then dropped the session is still
+	// detected (cardinal rule: no new false negatives).
+	response, err := p.responseFrame(ctx, inst, sessHandle, diag, baseline, pumpErr)
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
+		return nil, nil, 0, 0, false, err
 	}
 
 	// Only trust a "clean" reading when BOTH the baseline and the response
@@ -225,7 +265,7 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 //
 //nolint:gocritic // cohesive multi-return (baseline+response frames, width, height, stabilized, err); a result struct would churn ~20 return sites in this WASM path for no behavior change
 func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, connHandle uint32,
-	width, height uint32, timeout time.Duration, budget SettleBudget) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
+	width, height uint32, timeout time.Duration, budget SettleBudget, diag *sessionDiag) (baselineRGBA, responseRGBA []byte, outWidth, outHeight uint32, stabilized bool, err error) {
 
 	callCtx := inst.callCtx(ctx)
 
@@ -255,7 +295,7 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 	// initializing ("Please wait for the Local Session Manager") the login
 	// screen has not painted yet, and capturing/triggering now yields a
 	// half-painted baseline. baselineStable is folded into stabilized below.
-	baselineStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget)
+	baselineStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget, diag)
 	if pumpErr != nil {
 		return nil, nil, 0, 0, false, fmt.Errorf("pump baseline: %w", pumpErr)
 	}
@@ -286,16 +326,21 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	time.Sleep(budget.postKeystrokeWait)
-	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget)
-	if pumpErr != nil {
-		// Non-fatal -- target might not respond
-		_ = pumpErr
-	}
+	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget, diag)
 
-	// Capture response frame
-	response, err := p.captureFrame(ctx, inst, sessHandle)
+	// Choose the frame to analyze. A clean pump means the live framebuffer is
+	// current, so capture it. A pump that ERRORED means the session is gone, and
+	// session_get_frame on a torn-down ActiveStage returns a zeroed DecodedImage
+	// that reads as a successful capture of a perfectly black screen -- the
+	// fabricated-backdoor path described on sessionDiag. Prefer the last frame
+	// seen while the session was alive, and fall back to the baseline, which
+	// analyzes as "no change" and is mapped to indeterminate by stabilizedVerdict
+	// (never a positive). The last live frame is used rather than discarding the
+	// scan so a payload that painted and only then dropped the session is still
+	// detected (cardinal rule: no new false negatives).
+	response, err := p.responseFrame(ctx, inst, sessHandle, diag, baseline, pumpErr)
 	if err != nil {
-		return nil, nil, 0, 0, false, fmt.Errorf("capture response: %w", err)
+		return nil, nil, 0, 0, false, err
 	}
 
 	// Only trust a "clean" reading when BOTH the baseline and the response
@@ -386,7 +431,7 @@ func readRDPFrame(r io.Reader) ([]byte, error) {
 // changed-pixel count used to decide whether a frame is quiet (see framesQuiet).
 // Returns false if the deadline cut it off while frames were still changing (or
 // it never settled).
-func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle, width, height uint32, timeout time.Duration, budget SettleBudget) (stabilized bool, err error) {
+func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle, width, height uint32, timeout time.Duration, budget SettleBudget, diag *sessionDiag) (stabilized bool, err error) {
 	callCtx := inst.callCtx(ctx)
 	sessionStepFn := inst.mod.ExportedFunction("session_step")
 	if sessionStepFn == nil {
@@ -466,6 +511,12 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 					lastChange = time.Now()
 				}
 				prevFrame = frameData
+				// Retain the newest frame observed while the session is alive; if the
+				// server tears the session down later this is the only trustworthy
+				// view of the screen (see sessionDiag).
+				if diag != nil {
+					diag.lastFrame = frameData
+				}
 				if settled(start, lastChange, time.Now(), budget) {
 					return true, nil
 				}
@@ -490,6 +541,10 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 			errBytes := readOutputFromSlots(callCtx, inst, outPtrSlot, outLenSlot)
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
 			inst.freeInWasm(callCtx, outLenSlot, 4)
+			if diag != nil {
+				diag.terminated = true
+				diag.reason = string(errBytes)
+			}
 			return false, fmt.Errorf("session error: %s", string(errBytes))
 
 		default:
@@ -632,4 +687,34 @@ func (p *Plugin) sendKey(ctx context.Context, inst *wasmInstance, sessHandle uin
 	}
 
 	return nil
+}
+
+// responseFrame returns the post-trigger framebuffer to analyze.
+//
+// pumpErr == nil: the session is healthy, so the live framebuffer is authoritative.
+//
+// pumpErr != nil: the session errored or was terminated by the server. Its
+// framebuffer must NOT be read -- see sessionDiag for why a dead session returns
+// an all-black frame that scores as a backdoor. Preference order is the last frame
+// captured while the session was alive, then the baseline. Both are real screens,
+// so a genuine payload that painted before the drop still scores, while a session
+// that died without painting analyzes as "no change".
+func (p *Plugin) responseFrame(ctx context.Context, inst *wasmInstance, sessHandle uint32,
+	diag *sessionDiag, baseline []byte, pumpErr error) ([]byte, error) {
+
+	if pumpErr == nil {
+		frame, err := p.captureFrame(ctx, inst, sessHandle)
+		if err != nil {
+			return nil, fmt.Errorf("capture response: %w", err)
+		}
+		return frame, nil
+	}
+
+	if diag != nil && len(diag.lastFrame) > 0 {
+		return diag.lastFrame, nil
+	}
+	if len(baseline) > 0 {
+		return baseline, nil
+	}
+	return nil, fmt.Errorf("capture response: session unusable and no live frame observed: %w", pumpErr)
 }

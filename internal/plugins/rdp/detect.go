@@ -50,6 +50,14 @@ func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeou
 		budget = FastBudget
 	}
 	stickyResult := plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
+	// Some hosts drop the pre-auth logon session a few seconds in -- sooner than the
+	// careful profile's ~5s settle needs, so the post-trigger screen is never
+	// observed. The short profile completes inside that window, so retry once there
+	// rather than returning a scan that saw no render. Only from the careful budget:
+	// a --fast scan has no shorter profile to fall back to.
+	if !fast && stickyResult != nil && stickyResult.SessionTerminated {
+		stickyResult = plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
+	}
 	result := mapStickyResult(stickyResult, username)
 	result.Target = target
 	return result
@@ -95,7 +103,7 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 		result.Banner = "[INFO] Non-NLA target, sticky keys triggers normally (no backdoor)"
 		result.Success = true
 	case verdictIndeterminate:
-		result.Banner = "[WARN] Sticky keys check INDETERMINATE (render did not stabilize — rerun)"
+		result.Banner = indeterminateBanner("Sticky keys", stickyResult.SessionTerminated, stickyResult.TerminationReason)
 		result.Indeterminate = true
 		// Success stays false
 	case "clean":
@@ -127,6 +135,11 @@ func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout t
 		budget = FastBudget
 	}
 	utilmanResult := plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
+	// See DetectStickyKeys: a host that drops the pre-auth session before the careful
+	// settle completes is still observable on the short profile.
+	if !fast && utilmanResult != nil && utilmanResult.SessionTerminated {
+		utilmanResult = plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
+	}
 	result := mapUtilmanResult(utilmanResult, username)
 	result.Target = target
 	return result
@@ -172,7 +185,7 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 		result.Banner = "[INFO] Non-NLA target, utilman triggers normally (no backdoor)"
 		result.Success = true
 	case verdictIndeterminate:
-		result.Banner = "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"
+		result.Banner = indeterminateBanner("Utilman", utilmanResult.SessionTerminated, utilmanResult.TerminationReason)
 		result.Indeterminate = true
 		// Success stays false
 	case "clean":
@@ -294,12 +307,16 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout, budget)
+	var diag sessionDiag
+	baseline, response, width, height, stabilized, err := p.runSession(ctx, inst, connHandle, 1024, 768, timeout, budget, &diag)
 	if err != nil {
 		result.Performed = false
+		result.SessionTerminated = diag.terminated
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
 		return result, nil
 	}
+	result.SessionTerminated = diag.terminated
+	result.TerminationReason = diag.reason
 
 	// DEBUG: dump captured frames to PNG when BRUTUS_DEBUG_SCREENSHOT_DIR is set.
 	if dir := os.Getenv("BRUTUS_DEBUG_SCREENSHOT_DIR"); dir != "" {
@@ -359,12 +376,16 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 		}
 	}()
 
-	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout, budget)
+	var diag sessionDiag
+	baseline, response, width, height, stabilized, err := p.runUtilmanSession(ctx, inst, connHandle, 1024, 768, timeout, budget, &diag)
 	if err != nil {
 		result.Performed = false
+		result.SessionTerminated = diag.terminated
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
 		return result, nil
 	}
+	result.SessionTerminated = diag.terminated
+	result.TerminationReason = diag.reason
 
 	// DEBUG: dump captured frames to PNG when BRUTUS_DEBUG_SCREENSHOT_DIR is set.
 	if dir := os.Getenv("BRUTUS_DEBUG_SCREENSHOT_DIR"); dir != "" {
@@ -565,4 +586,20 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 	}
 
 	return banner
+}
+
+// indeterminateBanner renders the INDETERMINATE banner for a check that produced no
+// trustworthy render. When the server ended the session mid-scan it says so and
+// names the server's own reason, because "render did not stabilize" sends the
+// operator to rerun an identical scan that will fail identically -- the actionable
+// step is the short settle profile, which completes inside the window such a host
+// allows before it drops the pre-auth session.
+func indeterminateBanner(check string, sessionTerminated bool, reason string) string {
+	if !sessionTerminated {
+		return fmt.Sprintf("[WARN] %s check INDETERMINATE (render did not stabilize — rerun)", check)
+	}
+	if reason == "" {
+		return fmt.Sprintf("[WARN] %s check INDETERMINATE (server ended the session mid-scan — retry with --fast)", check)
+	}
+	return fmt.Sprintf("[WARN] %s check INDETERMINATE (server ended the session mid-scan: %s — retry with --fast)", check, reason)
 }

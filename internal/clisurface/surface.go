@@ -113,13 +113,21 @@ type Flag struct {
 // than from a hand-maintained table, so removing the guard in the command
 // changes the surface and reddens the gate.
 //
-// Walk does not mutate the tree. That is a hard requirement, not a nicety: a
-// cobra tree is usually a package-level variable shared by every test in a
-// binary, so any mutation leaks into whatever runs next. In particular Walk
+// Walk does not mutate the observable tree. That is a hard requirement, not a
+// nicety: a cobra tree is usually a package-level variable shared by every test
+// in a binary, so any mutation leaks into whatever runs next. In particular Walk
 // never calls cobra's LocalFlags or InheritedFlags accessors — both call
 // mergePersistentFlags, which permanently folds every ancestor's persistent
 // flags into the command's own FlagSet — and it never flips a Changed bit on a
 // real flag (see resolveFlags and probeRejections).
+//
+// One cobra-internal write is unavoidable and harmless: cmd.Commands() sorts a
+// command's child slice in place when cobra.EnableCommandSorting is set (the
+// default), which is the only way to enumerate children. It is the same sort
+// cobra performs itself before printing help, it is idempotent, and the slice is
+// unexported — every route to it calls Commands() and therefore sorts first — so
+// no caller can observe the difference. Toggling the package-level
+// EnableCommandSorting to avoid it would be a data race with any parallel test.
 //
 // Only PreRunE is probed. A guard implemented in PersistentPreRunE or in RunE
 // is not visible to Walk.
@@ -240,10 +248,28 @@ func resolveFlags(cmd *cobra.Command) []resolvedFlag {
 //   - The baseline (no flag set) must pass. A PreRunE that fails
 //     unconditionally tells us nothing about individual flags, so nothing is
 //     reported.
-func probeRejections(cmd *cobra.Command, resolved []resolvedFlag) map[string]string {
+//
+// The copies are shallow, so a copy shares the real flag's pflag.Value pointer.
+// Only Changed is written, which lives in the copy — but a future guard that
+// called Set on a flag would write through to the live tree. A guard that reads
+// its inputs is the contract here; see the recover below for the other half.
+//
+// Probing calls PreRunE outside cobra's execution lifecycle, so a guard that
+// assumed cobra had already validated Args and dereferenced args[0] would panic
+// and take the whole gate down. That is recovered rather than propagated: an
+// unprobeable command yields no rejections, which is the same conservative
+// answer as a command with no PreRunE at all, and the deterministic half of the
+// gate still covers it.
+func probeRejections(cmd *cobra.Command, resolved []resolvedFlag) (rejections map[string]string) {
 	if cmd.PreRunE == nil {
 		return nil
 	}
+
+	defer func() {
+		if recover() != nil {
+			rejections = nil
+		}
+	}()
 
 	shadow := &cobra.Command{Use: cmd.Name()}
 	copies := make([]*pflag.Flag, 0, len(resolved))
@@ -258,7 +284,7 @@ func probeRejections(cmd *cobra.Command, resolved []resolvedFlag) map[string]str
 		return nil
 	}
 
-	var out map[string]string
+	out := map[string]string{}
 	for _, f := range copies {
 		f.Changed = true
 		err := cmd.PreRunE(shadow, nil)
@@ -266,10 +292,10 @@ func probeRejections(cmd *cobra.Command, resolved []resolvedFlag) map[string]str
 		if err == nil {
 			continue
 		}
-		if out == nil {
-			out = map[string]string{}
-		}
 		out[f.Name] = err.Error()
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

@@ -332,3 +332,112 @@ func TestTokensOfIssuesAreStable(t *testing.T) {
 	doc := "```bash\ntool scan --aaa --bbb\n```"
 	assert.Equal(t, []string{"--aaa", "--bbb"}, tokensOf(LintMarkdown(s, "README.md", doc, emptyAllowlist(t))))
 }
+
+// TestLintMarkdownResolvesSubcommandsAcrossGlobalFlags pins the fix for the
+// linter's worst failure mode: a global flag written before the subcommand used
+// to stop subcommand resolution, so every later flag was validated against the
+// root and a perfectly valid example was reported as drift.
+func TestLintMarkdownResolvesSubcommandsAcrossGlobalFlags(t *testing.T) {
+	s := Walk(newTestTree())
+
+	for _, line := range []string{
+		"tool --json scan --target host",             // boolean global first
+		"tool --timeout 5s scan --target host",       // value-taking global first
+		"tool --timeout=5s group leaf --only-here x", // attached value, nested path
+		"tool -j scan --target host",                 // boolean shorthand first
+		"tool -j --timeout 5s sc --target host",      // several globals, then an alias
+	} {
+		assert.Empty(t, LintMarkdown(s, "README.md", "```bash\n"+line+"\n```", emptyAllowlist(t)),
+			"%q is a valid invocation: cobra accepts a global flag before the subcommand", line)
+	}
+}
+
+// TestLintMarkdownCatchesABadSubcommandAfterAGlobalFlag is the other half of the
+// same fix. Resolution used to stop at the first flag, which silently swallowed
+// a misspelled subcommand written after one.
+func TestLintMarkdownCatchesABadSubcommandAfterAGlobalFlag(t *testing.T) {
+	s := Walk(newTestTree())
+
+	issues := LintMarkdown(s, "README.md", "```bash\ntool --json groop leaf\n```", emptyAllowlist(t))
+
+	require.Len(t, issues, 1)
+	assert.Equal(t, "groop", issues[0].Token)
+	assert.Equal(t, "tool", issues[0].Command)
+	assert.Contains(t, issues[0].Reason, "is not a subcommand of")
+	assert.Equal(t, "group", issues[0].Suggestion)
+}
+
+// TestLintMarkdownDoesNotReadFlagValuesAsFlags pins the second false-positive
+// class: a value that pflag reads as one token used to be scanned as a cluster
+// of shorthands, so "-thost" became -t plus five invented flags.
+func TestLintMarkdownDoesNotReadFlagValuesAsFlags(t *testing.T) {
+	s := Walk(newTestTree())
+
+	for _, line := range []string{
+		"tool scan -thost",                  // value attached to the shorthand
+		"tool scan -t=host",                 // value attached with =
+		"tool scan -t host",                 // value as the next argument
+		"tool scan -jt host",                // boolean clustered before a value-taking flag
+		"tool scan --target -weird-looking", // a value that starts with a dash
+	} {
+		assert.Empty(t, LintMarkdown(s, "README.md", "```bash\n"+line+"\n```", emptyAllowlist(t)),
+			"%q: the flag's value must not be scanned as flags", line)
+	}
+}
+
+// TestLintMarkdownStopsAtTheDashDashSeparator checks that a token after "--" is
+// a positional argument, however much it looks like a flag.
+func TestLintMarkdownStopsAtTheDashDashSeparator(t *testing.T) {
+	s := Walk(newTestTree())
+
+	assert.Empty(t, LintMarkdown(s, "README.md", "```bash\ntool scan -- --not-a-flag-here\n```", emptyAllowlist(t)),
+		"pflag stops parsing flags at a bare --")
+}
+
+// TestLintMarkdownStillCatchesFlagsAfterAResolvedSubcommand guards against the
+// resolution fix loosening the check: the flags of a correctly resolved deep
+// command must still be validated against that command.
+func TestLintMarkdownStillCatchesFlagsAfterAResolvedSubcommand(t *testing.T) {
+	s := Walk(newTestTree())
+
+	issues := LintMarkdown(s, "README.md", "```bash\ntool --json group leaf --only-here x --gone y\n```", emptyAllowlist(t))
+
+	require.Len(t, issues, 1)
+	assert.Equal(t, "--gone", issues[0].Token)
+	assert.Equal(t, "tool group leaf", issues[0].Command,
+		"the flag is checked against the command the global flag did not hide")
+}
+
+// TestSubcommandIssueDoesNotOfferTheFlagAllowlist checks the advice matches the
+// token. The allowlist holds flag tokens only, so pointing a misspelled
+// subcommand at it would send the reader to write an entry ParseAllowlist
+// rejects.
+func TestSubcommandIssueDoesNotOfferTheFlagAllowlist(t *testing.T) {
+	issue := Issue{
+		File: "README.md", Line: 3, Token: "groop", Command: "tool",
+		Reason: "is not a subcommand of", Suggestion: "group", Subcommand: true,
+	}
+
+	rendered := issue.String()
+	assert.Contains(t, rendered, `README.md:3: groop is not a subcommand of "tool"`)
+	assert.Contains(t, rendered, "nearest subcommand: group")
+	assert.NotContains(t, rendered, "add groop to", "the allowlist parser rejects an entry that is not a flag")
+
+	_, err := ParseAllowlist("groop # what the old message told the reader to write\n")
+	require.Error(t, err, "the advice the message used to give was not even valid")
+}
+
+// TestLintMarkdownTreatsHelpAsBoolean checks that --help and -h do not swallow
+// the token after them: both are boolean, and cobra registers them on every
+// command without them appearing in the surface.
+func TestLintMarkdownTreatsHelpAsBoolean(t *testing.T) {
+	s := Walk(newTestTree())
+
+	issues := LintMarkdown(s, "README.md", "```bash\ntool --help groop\ntool -h groop\n```", emptyAllowlist(t))
+
+	require.Len(t, issues, 2, "the subcommand after --help/-h is still resolved and still checked")
+	for i := range issues {
+		assert.Equal(t, "groop", issues[i].Token)
+		assert.Equal(t, "group", issues[i].Suggestion)
+	}
+}

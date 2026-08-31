@@ -16,10 +16,13 @@ package rdp
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDetectStickyKeys_ConnectionError(t *testing.T) {
@@ -562,4 +565,53 @@ func TestMapUtilmanResult_Unreachable_Terminal(t *testing.T) {
 func TestMapUtilmanResult_WasmFailure_StaysIndeterminate(t *testing.T) {
 	r := mapUtilmanResult(&UtilmanResult{Performed: false, Unreachable: false, SkipReason: "wasm init: boom"}, "(utilman)")
 	assert.True(t, r.Indeterminate)
+}
+
+// TestSafeFilenameComponentCannotEscapeADirectory pins the traversal fix. A target
+// reaches dumpFrame straight from the scan list, and ParseTarget validates a host's
+// shape but not its contents, so a hostile targets-file line arrives intact.
+func TestSafeFilenameComponentCannotEscapeADirectory(t *testing.T) {
+	base := filepath.Clean("/base/dir")
+
+	for _, target := range []string{
+		"10.0.0.5:3389",
+		"../../../../../../tmp/pwned:3389",
+		"../../.ssh/authorized_keys:1",
+		`..\..\windows\system32\x:3389`,
+		"..",
+		"../",
+		"/etc/passwd:3389",
+		"host/../../../escape:3389",
+	} {
+		path := filepath.Join(base, safeFilenameComponent(target)+"_sticky_keys_baseline.png")
+		assert.Equal(t, base, filepath.Dir(path), "target %q escaped the debug directory: %s", target, path)
+	}
+}
+
+// TestSafeFilenameComponentKeepsTargetsReadable is the other half: the sanitizer has to
+// leave a debug capture identifiable, or it defeats the purpose of the dump.
+func TestSafeFilenameComponentKeepsTargetsReadable(t *testing.T) {
+	assert.Equal(t, "10.0.0.5_3389", safeFilenameComponent("10.0.0.5:3389"))
+	assert.Equal(t, "host.example.com_3389", safeFilenameComponent("host.example.com:3389"))
+	// An IPv6 address keeps its digits and separators-turned-underscores.
+	assert.Equal(t, "_2001_db8__1__3389", safeFilenameComponent("[2001:db8::1]:3389"))
+}
+
+// TestDumpFrameRefusesToWriteOutsideTheDebugDirectory exercises dumpFrame end to end
+// with a traversing target, and asserts nothing lands outside the directory it was given.
+func TestDumpFrameRefusesToWriteOutsideTheDebugDirectory(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "shots")
+	canary := filepath.Join(parent, "pwned_3389_sticky_keys_baseline.png")
+
+	// A 1x1 RGBA frame is enough for saveRGBAScreenshot to produce a real PNG.
+	dumpFrame(dir, "../pwned:3389", "sticky_keys", "baseline", []byte{0, 0, 0, 255}, 1, 1)
+
+	_, err := os.Stat(canary)
+	assert.True(t, os.IsNotExist(err), "a traversing target must not write into the parent directory")
+
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "the capture still lands, inside the debug directory")
+	assert.Equal(t, ".._pwned_3389_sticky_keys_baseline.png", entries[0].Name())
 }

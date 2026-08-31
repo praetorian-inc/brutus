@@ -404,9 +404,16 @@ func stabilizedVerdict(verdict string, stabilized, fast bool) string {
 }
 
 // dumpFrame is an env-var-gated DEBUG aid: when dir is non-empty it saves the
-// captured framebuffer as a PNG named <sanitizedTarget>_<scanType>_<phase>.png
-// (target ':' → '_'). All errors are non-fatal (logged to stderr) so detection
-// is never broken by a failed dump. When dir is empty this is a no-op.
+// captured framebuffer as a PNG named <sanitizedTarget>_<scanType>_<phase>.png.
+// All errors are non-fatal (logged to stderr) so detection is never broken by a
+// failed dump. When dir is empty this is a no-op.
+//
+// target reaches here straight from the scan list. ParseTarget splits it with
+// net.SplitHostPort, which validates the shape of a host but not its contents, so a
+// targets-file line like "../../../../tmp/pwned:3389" arrives intact. Replacing only
+// ':' left that as a relative path, and filepath.Join resolves ".." rather than
+// refusing it -- so a scan of an attacker-supplied list wrote a PNG wherever the list
+// pointed, as long as BRUTUS_DEBUG_SCREENSHOT_DIR was set.
 func dumpFrame(dir, target, scanType, phase string, rgba []byte, w, h uint32) {
 	if dir == "" {
 		return
@@ -415,11 +422,41 @@ func dumpFrame(dir, target, scanType, phase string, rgba []byte, w, h uint32) {
 		fmt.Fprintf(os.Stderr, "[!] DEBUG screenshot dir %q: %v\n", dir, err)
 		return
 	}
-	sanitizedTarget := strings.ReplaceAll(target, ":", "_")
-	path := filepath.Join(dir, fmt.Sprintf("%s_%s_%s.png", sanitizedTarget, scanType, phase))
+
+	path := filepath.Join(dir, fmt.Sprintf("%s_%s_%s.png", safeFilenameComponent(target), scanType, phase))
+
+	// Defense in depth: safeFilenameComponent removes every separator, so this cannot
+	// trip today. It stays because a later change to how the name is built would
+	// otherwise reintroduce a silent write outside dir.
+	if filepath.Dir(path) != filepath.Clean(dir) {
+		fmt.Fprintf(os.Stderr, "[!] DEBUG screenshot: refusing to write %q outside %q\n", path, dir)
+		return
+	}
+
 	if err := saveRGBAScreenshot(rgba, w, h, path); err != nil {
 		fmt.Fprintf(os.Stderr, "[!] DEBUG screenshot %q: %v\n", path, err)
 	}
+}
+
+// safeFilenameComponent reduces s to a single path component that cannot escape a
+// directory: every rune outside [A-Za-z0-9.-] becomes '_', which removes the path
+// separators and the colon, and a surviving ".." is inert without one.
+//
+// It sanitizes rather than hashing because this is a debug aid whose whole value is
+// being able to tell which capture belongs to which target -- "10.0.0.5_3389" stays
+// readable, where a digest would not.
+func safeFilenameComponent(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	return b.String()
 }
 
 // ---------------------------------------------------------------------------

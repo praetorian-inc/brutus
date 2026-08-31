@@ -273,26 +273,39 @@ func lintShellLine(s Surface, file string, line int, text string, allow Allowlis
 
 // lintInvocation checks one "brutus ..." invocation.
 //
-// It walks argv the way cobra does: flags and the values they consume are
-// stepped over while the subcommand path keeps resolving, so a global flag
-// written before the subcommand still resolves the command it belongs to.
-// Both halves of that matter, because getting either wrong invents findings on
-// valid examples — and a gate that reddens on correct documentation is the one
-// that gets switched off:
+// It works in the two stages cobra works in. First it resolves the command,
+// stepping over flags and the values they consume; then it validates every flag
+// in the invocation against the command that was finally resolved. That order is
+// not incidental — cobra dispatches to the resolved command and parses the whole
+// argv against *that* command's flag set, so where a flag sits relative to the
+// subcommand does not change whether it is accepted.
 //
-//   - Stopping resolution at the first flag validates every later flag against
-//     the root. `brutus --json enum apollo --domain example.com` is a legal
-//     invocation, but --domain would be reported as not existing on "brutus".
-//   - Reading a flag's value as another flag reports its characters as
-//     nonexistent shorthands. `-oresults.json` is one pflag token, not -o
-//     followed by -r, -e, -s, -u, -l and -t.
+// Validating each flag against whichever command happened to be resolved when it
+// was read gets this wrong in both directions:
+//
+//   - Reporting a flag against the root because it was written before the
+//     subcommand. `brutus --json enum apollo --domain example.com` is legal, but
+//     --domain would be reported as not existing on "brutus".
+//   - Missing a flag the resolved command refuses. `brutus --timeout 5s logon`
+//     fails at runtime because the logon family rejects the inherited --timeout,
+//     and `brutus --version logon` fails because --version is local to the root
+//     — neither is excused by being written early.
+//
+// Values are stepped over using the command resolved so far, which is what cobra
+// does too: a non-boolean flag takes the next argument, a value-taking shorthand
+// takes the rest of its token ("-oresults.json") or the next argument, and "--"
+// ends flag parsing. Reading a value as a flag would report its characters as
+// nonexistent shorthands.
 func lintInvocation(s Surface, file string, line int, argv []string, allow Allowlist) []Issue {
-	var issues []Issue
-
 	cmd, ok := s.Command(s.Root())
 	if !ok {
 		return nil
 	}
+
+	var (
+		issues []Issue
+		flags  []string
+	)
 
 	// resolving stays true across flags and goes false at the first positional
 	// that is not a subcommand: from there on argv holds this command's
@@ -308,22 +321,20 @@ func lintInvocation(s Surface, file string, line int, argv []string, allow Allow
 
 		switch {
 		case arg == "--":
-			// pflag stops parsing at a bare "--": everything after it is a
-			// positional argument, however much it looks like a flag.
-			return issues
+			// pflag stops parsing here: everything after is positional,
+			// however much it looks like a flag.
+			i = len(argv)
 		case arg == "-":
 			// A bare "-" is a positional, conventionally stdin.
 			resolving = false
 		case strings.HasPrefix(arg, "--"):
-			found, consumed := checkLongFlag(s, cmd, file, line, arg, next, allow)
-			issues = append(issues, found...)
-			if consumed {
+			flags = append(flags, arg)
+			if longFlagTakesNext(cmd, arg, next) {
 				i++
 			}
 		case strings.HasPrefix(arg, "-") && len(arg) > 1:
-			found, consumed := checkShortFlags(cmd, file, line, arg, next, allow)
-			issues = append(issues, found...)
-			if consumed {
+			flags = append(flags, arg)
+			if shortFlagTakesNext(cmd, arg, next) {
 				i++
 			}
 		case resolving:
@@ -344,54 +355,87 @@ func lintInvocation(s Surface, file string, line int, argv []string, allow Allow
 			}
 		}
 	}
+
+	for _, arg := range flags {
+		if strings.HasPrefix(arg, "--") {
+			issues = append(issues, checkLongFlag(s, cmd, file, line, arg, allow)...)
+			continue
+		}
+		issues = append(issues, checkShortFlags(cmd, file, line, arg, allow)...)
+	}
 	return issues
 }
 
-// checkLongFlag validates a "--<name>" or "--<name>=<value>" token against cmd.
-// The
-// second return reports whether next is this flag's value and so must not be
-// read as a flag or a subcommand.
-func checkLongFlag(s Surface, cmd *Command, file string, line int, arg, next string, allow Allowlist) ([]Issue, bool) {
+// longFlagTakesNext reports whether the argument after a "--<name>" token is
+// that flag's value rather than a token of its own.
+//
+// A "--<name>=<value>" token carries its own value. Otherwise any non-boolean
+// flag takes the next argument. A flag cmd does not declare is guessed from
+// shape — anything that does not itself look like a flag — so that one unknown
+// flag does not also get its value read as a bogus subcommand.
+func longFlagTakesNext(cmd *Command, arg, next string) bool {
 	name, _, carriesValue := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
+	if next == "" || carriesValue || name == "" || name == HelpFlag {
+		return false
+	}
+	if flag, known := cmd.Flag(name); known {
+		return flag.Type != "bool"
+	}
+	return !strings.HasPrefix(next, "-")
+}
+
+// shortFlagTakesNext reports whether the argument after a "-x" token, or a
+// "-xyz" cluster, is a value of that cluster. pflag clusters booleans freely,
+// and the first flag that takes a value swallows the rest of the token
+// ("-oresults.json", "-o=results.json") or, when the token ends there, the next
+// argument ("-o results.json").
+func shortFlagTakesNext(cmd *Command, arg, next string) bool {
+	if next == "" {
+		return false
+	}
+	cluster := []rune(strings.TrimPrefix(arg, "-"))
+	for i := 0; i < len(cluster); i++ {
+		r := cluster[i]
+		if !isShorthandRune(r) {
+			return false
+		}
+		if r == 'h' {
+			continue
+		}
+		flag, ok := cmd.FlagByShorthand(string(r))
+		switch {
+		case !ok:
+			// Unknown, so whether the rest of the token is more shorthands or a
+			// value is unknowable. Reported by checkShortFlags; guessing here
+			// would only move the damage.
+			return false
+		case flag.Type == "bool":
+			continue
+		}
+		return strings.TrimPrefix(string(cluster[i+1:]), "=") == ""
+	}
+	return false
+}
+
+// checkLongFlag validates a "--<name>" or "--<name>=<value>" token against cmd.
+func checkLongFlag(s Surface, cmd *Command, file string, line int, arg string, allow Allowlist) []Issue {
+	name, _, _ := strings.Cut(strings.TrimPrefix(arg, "--"), "=")
 	written := "--" + name
-	if name == "" {
-		return nil, false
+	if name == "" || name == HelpFlag || allow.Allows(written) {
+		return nil
 	}
 
-	// cobra's --help is boolean and is not part of the surface, so it is
-	// answered here rather than looked up and guessed at below.
-	if name == HelpFlag {
-		return nil, false
-	}
-
-	flag, known := cmd.Flag(name)
-	// A "--<name>=<value>" token carries its own value. Otherwise any non-boolean
-	// flag takes the next argument. An unknown flag is reported below, and its
-	// value is guessed from shape — anything that does not itself look like a
-	// flag — so that one unknown flag does not also get its value reported as a
-	// bogus subcommand.
-	consumesNext := next != "" && !carriesValue
+	flag, ok := cmd.Flag(name)
 	switch {
-	case known:
-		consumesNext = consumesNext && flag.Type != "bool"
-	default:
-		consumesNext = consumesNext && !strings.HasPrefix(next, "-")
-	}
-
-	if allow.Allows(written) {
-		return nil, consumesNext
-	}
-
-	switch {
-	case known && flag.Rejected:
+	case ok && flag.Rejected:
 		// No edit-distance suggestion here: the command's own rejection
 		// message already names the flag to use instead.
 		return []Issue{{
 			File: file, Line: line, Token: written, Command: cmd.Path,
 			Reason: "is rejected by this command: " + flag.RejectedReason + ", so it is not usable on",
-		}}, consumesNext
-	case known:
-		return nil, consumesNext
+		}}
+	case ok:
+		return nil
 	}
 
 	reason := "is not a flag of"
@@ -402,15 +446,14 @@ func checkLongFlag(s Surface, cmd *Command, file string, line int, arg, next str
 		File: file, Line: line, Token: written, Command: cmd.Path,
 		Reason:     reason,
 		Suggestion: nearest(name, usableFlagNames(cmd)),
-	}}, consumesNext
+	}}
 }
 
-// checkShortFlags validates a "-x" token, or a "-xyz" cluster, against cmd the
-// way pflag reads one: booleans cluster freely, and the first flag that takes a
-// value swallows the rest of the token ("-oresults.json", "-o=results.json") or,
-// when the token ends there, the next argument ("-o results.json"). The second
-// return reports whether it took that next argument.
-func checkShortFlags(cmd *Command, file string, line int, arg, next string, allow Allowlist) ([]Issue, bool) {
+// checkShortFlags validates a "-x" token, or a "-xyz" cluster, against cmd. It
+// reads the cluster the way pflag does (see shortFlagTakesNext): scanning a
+// flag's value as more shorthands is how "-oresults.json" turns into six
+// invented flags.
+func checkShortFlags(cmd *Command, file string, line int, arg string, allow Allowlist) []Issue {
 	var issues []Issue
 
 	cluster := []rune(strings.TrimPrefix(arg, "-"))
@@ -418,7 +461,7 @@ func checkShortFlags(cmd *Command, file string, line int, arg, next string, allo
 		r := cluster[i]
 		if !isShorthandRune(r) {
 			// Not a shorthand, so this token is a value rather than a cluster.
-			return issues, false
+			return issues
 		}
 
 		written := "-" + string(r)
@@ -436,7 +479,7 @@ func checkShortFlags(cmd *Command, file string, line int, arg, next string, allo
 			// Stop here. Without knowing whether this shorthand takes a value
 			// there is no way to tell whether the rest of the token is more
 			// shorthands or that value, and guessing invents findings.
-			return issues, false
+			return issues
 		}
 		if flag.Rejected {
 			issues = append(issues, Issue{
@@ -444,16 +487,12 @@ func checkShortFlags(cmd *Command, file string, line int, arg, next string, allo
 				Reason: "is rejected by this command: " + flag.RejectedReason + ", so it is not usable on",
 			})
 		}
-		if flag.Type == "bool" {
-			continue
+		if flag.Type != "bool" {
+			// A value-taking shorthand ends the cluster.
+			return issues
 		}
-
-		// A value-taking shorthand ends the cluster: it takes the rest of the
-		// token, or the next argument when the token ends here.
-		rest := strings.TrimPrefix(string(cluster[i+1:]), "=")
-		return issues, rest == "" && next != ""
 	}
-	return issues, false
+	return issues
 }
 
 // isShorthandRune reports whether r can be a pflag shorthand. Anything else

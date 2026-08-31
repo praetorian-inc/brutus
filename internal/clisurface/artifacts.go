@@ -307,13 +307,3 @@ func lintedGoFiles(repoRoot string) ([]string, error) {
 	sort.Strings(files)
 	return files, nil
 }
-
-// LintReport renders lint issues as a failure message.
-func LintReport(issues []Issue) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "documentation references %d CLI flag(s) or subcommand(s) that do not exist:\n\n", len(issues))
-	for i := range issues {
-		fmt.Fprintf(&b, "  %d. %s\n", i+1, issues[i].String())
-	}
-	return strings.TrimRight(b.String(), "\n")
-}

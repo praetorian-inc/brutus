@@ -42,7 +42,19 @@ const RegenerateCommand = "make cli-docs"
 var LintedMarkdown = []string{READMEPath, "CONTRIBUTING.md"}
 
 // LintedGoDirs are the trees whose Go comments are checked against the surface.
-var LintedGoDirs = []string{"cmd", "pkg"}
+//
+// internal/ is included: a comment naming a flag that no longer exists is the
+// drift this gate was built for, and it does not become harmless by living
+// outside cmd/ and pkg/. Adding it found two RDP comments still describing
+// Vision confirmation as something a removed opt-out flag disabled, when it had
+// become opt-in.
+//
+// A package whose subject is flag syntax has to write its placeholders in
+// angle brackets rather than as bare dashed words, or its own documentation
+// reads as a reference to a flag that does not exist. See this package's
+// comments -- and note that this very comment had to be reworded, because the
+// gate caught it naming the flags above.
+var LintedGoDirs = []string{"cmd", "internal", "pkg"}
 
 // FindRepoRoot walks up from start until it finds the directory holding go.mod.
 // The gate runs as a test, whose working directory is the package directory, so

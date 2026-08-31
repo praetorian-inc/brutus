@@ -1,0 +1,4305 @@
+{
+  "schemaVersion": 1,
+  "surfaceHash": "sha256:1d4cc140290018ebec0060e5db81bb43f05ff38068f9deacee1592ed70cadfa2",
+  "commands": [
+    {
+      "path": "brutus",
+      "use": "brutus",
+      "short": "Brutus - Et tu, Brute?",
+      "runnable": true,
+      "flags": [
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting"
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)"
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080"
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history."
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials"
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads"
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr"
+        },
+        {
+          "name": "version",
+          "type": "bool",
+          "default": "false",
+          "usage": "Show version information"
+        }
+      ]
+    },
+    {
+      "path": "brutus badkeys",
+      "use": "badkeys",
+      "short": "Test known weak/compromised SSH keys against targets",
+      "aliases": [
+        "keys",
+        "ssh-keys",
+        "badkey"
+      ],
+      "runnable": true,
+      "example": "  # Single target\n  brutus badkeys --target 192.168.1.10:22\n\n  # Targets file (auto-fingerprinted, only SSH services tested)\n  brutus badkeys --targets-file targets.txt\n\n  # Pipeline mode\n  naabu -host 10.0.0.0/24 -p 22 -silent | nerva --json | brutus badkeys\n\n  # Pipe plain targets\n  echo \"192.168.1.10:22\" | brutus badkeys\n\n  # URI format\n  echo \"ssh://192.168.1.10:22\" | brutus badkeys\n\n  # Import targets from nmap XML scan (only SSH services tested)\n  brutus badkeys --nmap-file scan.xml",
+      "flags": [
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus creds",
+      "use": "creds",
+      "short": "Test default credentials on non-HTTP services (SSH, databases, SMB, etc.)",
+      "aliases": [
+        "services",
+        "defaults",
+        "credentials"
+      ],
+      "runnable": true,
+      "example": "  # Single target\n  brutus creds --target 192.168.1.10:22 --protocol ssh -p \"password,Password1\"\n\n  # Pre-paired user:pass combos (no Cartesian product)\n  brutus creds --target 10.0.0.50:22 -c \"admin:admin,root:toor,deploy:deploy123\"\n\n  # Credentials file (user:pass per line)\n  brutus creds --target 10.0.0.50:3306 -C creds.txt\n\n  # Targets file (auto-fingerprinted with Nerva)\n  brutus creds --targets-file targets.txt -u admin -P passwords.txt\n\n  # Pipeline mode with Nerva JSON (HTTP and SNMP services are skipped)\n  naabu -host 10.0.0.0/24 -silent | nerva --json | brutus creds -P passwords.txt\n\n  # Pipe URI targets (protocol from scheme, no fingerprinting needed)\n  echo \"ssh://192.168.1.10:22\" | brutus creds -p \"password,Password1\"\n\n  # Import targets from nmap XML scan\n  brutus creds --nmap-file scan.xml -P passwords.txt\n\n  # Import targets from masscan (requires --protocol or auto-fingerprints with Nerva)\n  brutus creds --masscan-file scan.json --protocol ssh -P passwords.txt",
+      "flags": [
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "credentials",
+          "shorthand": "c",
+          "type": "string",
+          "usage": "Comma-separated user:pass pairs (e.g., admin:admin,root:toor)"
+        },
+        {
+          "name": "credentials-file",
+          "shorthand": "C",
+          "type": "string",
+          "usage": "Credentials file (user:pass per line)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "key",
+          "shorthand": "k",
+          "type": "string",
+          "usage": "SSH private key file"
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "max-attempts",
+          "type": "int",
+          "default": "0",
+          "usage": "Max password attempts per user (0 = unlimited)"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "password-file",
+          "shorthand": "P",
+          "type": "string",
+          "usage": "Password file (one per line)"
+        },
+        {
+          "name": "passwords",
+          "shorthand": "p",
+          "type": "string",
+          "usage": "Comma-separated passwords"
+        },
+        {
+          "name": "protocol",
+          "type": "string",
+          "usage": "Protocol to use (auto-detected from nerva)"
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "username-file",
+          "shorthand": "U",
+          "type": "string",
+          "usage": "Username file (one per line)"
+        },
+        {
+          "name": "usernames",
+          "shorthand": "u",
+          "type": "string",
+          "default": "root,admin",
+          "usage": "Comma-separated usernames"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "verify",
+          "type": "bool",
+          "default": "false",
+          "usage": "Require strict TLS certificate verification"
+        }
+      ]
+    },
+    {
+      "path": "brutus enum",
+      "use": "enum",
+      "short": "Enumerate accounts against account-existence oracles or Active Directory",
+      "runnable": false,
+      "example": "  # Account-existence oracle enumeration\n  brutus enum active oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com\n\n  # Kerberos user enumeration\n  brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator\n\n  # Authenticate with Microsoft Entra ID via device code\n  brutus enum active teams auth --tenant contoso.com\n\n  # GitHub account enumeration by email\n  brutus enum active github -e alice@example.com,bob@example.com\n\n  # Generate emails for enumeration\n  brutus enum generate --domain example.com --format flast\n\n  # API-key OSINT/HUMINT sources (employee email/contact discovery)\n  brutus enum passive hunter --domain example.com\n  brutus enum passive apollo --domain example.com\n  brutus enum passive lusha --first-name Jane --last-name Doe --company \"Example Inc\"\n  brutus enum passive dehashed --domain example.com",
+      "flags": [
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active",
+      "use": "active",
+      "short": "Active account-existence enumeration against live oracles & directories",
+      "runnable": false,
+      "example": "  # Account-existence oracle enumeration\n  brutus enum active oracles --domain example.com --known-valid admin@example.com\n\n  # Google Workspace account enumeration\n  brutus enum active google -e alice@example.com,bob@example.com\n\n  # Microsoft 365 account enumeration\n  brutus enum active microsoft365 -e alice@example.com,bob@example.com\n\n  # Kerberos user enumeration\n  brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator\n\n  # Authenticate with Microsoft Entra ID via device code\n  brutus enum active teams auth --tenant contoso.com\n\n  # GitHub account enumeration by email\n  brutus enum active github -e alice@example.com,bob@example.com\n\n  # Gravatar account enumeration by email\n  brutus enum active gravatar -e alice@example.com,bob@example.com\n\n  # Enumerate against a custom oracle definition\n  brutus enum active custom -f oracle.json -e jsmith,asmith",
+      "flags": [
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active custom",
+      "use": "custom",
+      "short": "Run a declaratively-described enumeration oracle from a spec file",
+      "runnable": true,
+      "example": "  # Run an oracle against inline subjects\n  brutus enum active custom -f oracle.json -e jsmith,asmith\n\n  # Run against a subject file\n  brutus enum active custom -f oracle.yaml -E users.txt\n\n  # Generate usernames and run\n  brutus enum active custom -f oracle.json --generate --format flast\n\n  # JSON output to a file\n  brutus enum active custom -f oracle.json -e jsmith -o results.jsonl",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain for email generation (with --generate)"
+        },
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of subjects to enumerate (one per line, use - for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated subjects (usernames or emails) to enumerate"
+        },
+        {
+          "name": "file",
+          "shorthand": "f",
+          "type": "string",
+          "usage": "Oracle spec file (JSON or YAML, required)"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format for generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "generate",
+          "type": "bool",
+          "default": "false",
+          "usage": "Generate subjects from embedded name lists"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active github",
+      "use": "github",
+      "short": "Enumerate GitHub accounts by email (existence + username reveal)",
+      "runnable": true,
+      "example": "  # Existence-only enumeration (unauthenticated)\n  brutus enum active github -e alice@example.com,bob@example.com\n\n  # Generate candidate emails for a domain and enumerate the 5000 most likely\n  brutus enum active github --domain target.com --format first.last --limit 5000\n\n  # Enumerate emails from a file\n  brutus enum active github -E emails.txt\n\n  # Reveal usernames for existing accounts (requires a PAT with repo+delete_repo)\n  export GITHUB_TOKEN=ghp_...\n  brutus enum active github -E emails.txt\n\n  # Pace requests to avoid GitHub's existence-endpoint rate limiting\n  brutus enum active github -E emails.txt --threads 2 --rate-limit 1",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Generate candidate emails for this domain (statistically-likely first/last combos)"
+        },
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of email addresses, one per line (\"-\" for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated email addresses to check"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format for --domain generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-reveal",
+          "type": "bool",
+          "default": "false",
+          "usage": "Skip username reveal after existence enumeration (existence-only; no token used, no temp repo created)"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "rotating-proxy",
+          "type": "bool",
+          "default": "false",
+          "usage": "Signal that --proxy rotates exit IPs (e.g. Bright Data): reduces per-IP rate-limit backoff during GitHub existence enumeration (short retry delay, higher retry ceiling). No effect on token-rate-limited reveal."
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "token",
+          "type": "string",
+          "usage": "GitHub PAT for username reveal (overrides GITHUB_TOKEN; visible in process list — prefer the env var)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active github map",
+      "use": "map",
+      "short": "Correlate known emails to GitHub usernames (reveal-only, skips existence checks)",
+      "runnable": true,
+      "example": "  # Correlate emails from a file (token from the environment)\n  export GITHUB_TOKEN=ghp_...\n  brutus enum active github map -E emails.txt\n\n  # Correlate a couple of emails inline\n  brutus enum active github map -e alice@example.com,bob@example.com",
+      "flags": [
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of email addresses, one per line (\"-\" for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated email addresses to correlate"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "rotating-proxy",
+          "type": "bool",
+          "default": "false",
+          "usage": "Signal that --proxy rotates exit IPs (e.g. Bright Data): reduces per-IP rate-limit backoff during GitHub existence enumeration (short retry delay, higher retry ceiling). No effect on token-rate-limited reveal.",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "token",
+          "type": "string",
+          "usage": "GitHub PAT (overrides GITHUB_TOKEN; visible in process list — prefer the env var)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active google",
+      "use": "google",
+      "short": "Enumerate Google Workspace accounts (existence + SSO/IdP)",
+      "runnable": true,
+      "example": "  # Enumerate a couple of emails\n  brutus enum active google -e alice@example.com,bob@example.com\n\n  # Generate candidate emails for a domain and enumerate the 5000 most likely\n  brutus enum active google --domain target.com --format first.last --limit 5000\n\n  # Enumerate emails from a file\n  brutus enum active google -E emails.txt\n\n  # Route through a SOCKS5 proxy and raise concurrency\n  brutus enum active google -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Generate candidate emails for this domain (statistically-likely first/last combos)"
+        },
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of email addresses, one per line (\"-\" for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated email addresses to check"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format for --domain generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active gravatar",
+      "use": "gravatar",
+      "short": "Enumerate accounts with a registered Gravatar (by email)",
+      "runnable": true,
+      "example": "  # Enumerate a couple of emails\n  brutus enum active gravatar -e alice@example.com,bob@example.com\n\n  # Generate candidate emails for a domain and enumerate the 5000 most likely\n  brutus enum active gravatar --domain target.com --format first.last --limit 5000\n\n  # Enumerate emails from a file\n  brutus enum active gravatar -E emails.txt\n\n  # Route through a SOCKS5 proxy and raise concurrency\n  brutus enum active gravatar -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Generate candidate emails for this domain (statistically-likely first/last combos)"
+        },
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of email addresses, one per line (\"-\" for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated email addresses to check"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format for --domain generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active kerberos",
+      "use": "kerberos",
+      "short": "Enumerate Active Directory users via Kerberos AS-REQ",
+      "runnable": true,
+      "example": "  # Enumerate specific users\n  brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator,guest,krbtgt\n\n  # Enumerate from file\n  brutus enum active kerberos --dc dc01.corp.local --domain CORP.LOCAL -U users.txt\n\n  # Generate usernames and enumerate\n  brutus enum generate --format flast | brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -\n\n  # JSON output\n  brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator --json",
+      "flags": [
+        {
+          "name": "dc",
+          "type": "string",
+          "usage": "KDC (Domain Controller) address (host or host:port)"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Kerberos realm / AD domain (e.g., CORP.LOCAL)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "user-file",
+          "shorthand": "U",
+          "type": "string",
+          "usage": "File of usernames (one per line, use - for stdin)"
+        },
+        {
+          "name": "users",
+          "shorthand": "u",
+          "type": "string",
+          "usage": "Comma-separated usernames to enumerate"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active microsoft365",
+      "use": "microsoft365",
+      "short": "Enumerate Microsoft 365 accounts (existence + federation/tenant)",
+      "runnable": true,
+      "example": "  # Enumerate a couple of emails\n  brutus enum active microsoft365 -e alice@example.com,bob@example.com\n\n  # Generate candidate emails for a domain and enumerate the 5000 most likely\n  brutus enum active microsoft365 --domain target.com --format first.last --limit 5000\n\n  # Enumerate emails from a file\n  brutus enum active microsoft365 -E emails.txt\n\n  # Route through a SOCKS5 proxy and raise concurrency\n  brutus enum active microsoft365 -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Generate candidate emails for this domain (statistically-likely first/last combos)"
+        },
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of email addresses, one per line (\"-\" for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated email addresses to check"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format for --domain generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active oracles",
+      "use": "oracles",
+      "short": "Enumerate which account-existence oracles work for an organization",
+      "runnable": true,
+      "example": "  # Discover candidate oracles via DNS and report which ones work\n  # (domain defaults to the --known-valid email's domain)\n  brutus enum active oracles --known-valid admin@praetorian.com\n\n  # Enumerate specific emails against the working oracles\n  brutus enum active oracles --domain praetorian.com -e test@praetorian.com,admin@praetorian.com --known-valid admin@praetorian.com\n\n  # Enumerate emails from file\n  brutus enum active oracles --domain praetorian.com -E emails.txt --known-valid admin@praetorian.com\n\n  # Generate emails and enumerate against working oracles\n  brutus enum active oracles --domain target.com --generate --format first.last --known-valid admin@target.com\n\n  # Check / enumerate against specific oracles only\n  brutus enum active oracles -e user@example.com -s microsoft365,google --known-valid admin@example.com\n\n  # JSON output\n  brutus enum active oracles --domain praetorian.com -e test@praetorian.com --known-valid admin@praetorian.com --json",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain to enumerate for DNS recon and email generation (defaults to the --known-valid email's domain)"
+        },
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of emails to enumerate (one per line, use - for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated emails to enumerate"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format for generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "generate",
+          "type": "bool",
+          "default": "false",
+          "usage": "Generate emails from embedded name lists"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "known-valid",
+          "type": "string",
+          "usage": "Known-valid email to validate oracles before enumeration (required)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "services",
+          "shorthand": "s",
+          "type": "string",
+          "usage": "Comma-separated oracles to check (default: all discovered/registered)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active oracles discover",
+      "use": "discover",
+      "short": "Discover working oracles by testing a known-valid email",
+      "runnable": true,
+      "example": "  # Test oracles for a domain (auto-discovers candidate oracles from DNS)\n  brutus enum active oracles discover --domain praetorian.com --known-valid admin@praetorian.com\n\n  # Test specific oracles only\n  brutus enum active oracles discover --known-valid admin@example.com -s microsoft365,google",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain to discover candidate oracles from DNS TXT records"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "known-valid",
+          "type": "string",
+          "usage": "Known-valid email to test against oracles (required)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "services",
+          "shorthand": "s",
+          "type": "string",
+          "usage": "Comma-separated oracles to test (default: all registered)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active teams",
+      "use": "teams",
+      "short": "Microsoft Teams: device-code auth, user enumeration, and tenant posture audit",
+      "runnable": false,
+      "flags": [
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active teams audit",
+      "use": "audit",
+      "short": "Audit a Microsoft Teams tenant's external posture into graded findings",
+      "runnable": true,
+      "example": "  # Audit a tenant via a single known-valid seed address (device-code auth inline)\n  brutus enum active teams audit --email alice@contoso.com\n\n  # Skip presence/out-of-office lookups (presence/OOO findings not evaluated)\n  brutus enum active teams audit --email alice@contoso.com --no-presence\n\n  # Reuse a token captured earlier with \"enum active teams auth -o\"\n  brutus enum active teams auth -o token.jsonl\n  brutus enum active teams audit --email alice@contoso.com --token-file token.jsonl\n\n  # Emit findings as JSONL\n  brutus enum active teams audit --email alice@contoso.com --json",
+      "flags": [
+        {
+          "name": "access-token",
+          "type": "string",
+          "usage": "Access token to use (instead of device-code or --token-file)"
+        },
+        {
+          "name": "client-id",
+          "type": "string",
+          "default": "1fec8e78-bce4-4aaf-ab1b-5451cc387264",
+          "usage": "Azure app (client) ID (device-code path)"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "usage": "Single known-valid seed email address to audit (required)"
+        },
+        {
+          "name": "include-consumer",
+          "type": "bool",
+          "default": "false",
+          "usage": "Count consumer/personal (8:live:) Teams accounts as hits (default: only corporate 8:orgid: accounts)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-browser",
+          "type": "bool",
+          "default": "false",
+          "usage": "Don't automatically open the verification URL in a browser"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-presence",
+          "type": "bool",
+          "default": "false",
+          "usage": "Skip Teams presence / out-of-office lookups (fewer requests; presence is gathered by default)"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "refresh-token",
+          "type": "string",
+          "usage": "Refresh token used to renew an expired access token"
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "default": "offline_access https://api.spaces.skype.com/.default",
+          "usage": "Space-separated OAuth2 scopes (device-code path)"
+        },
+        {
+          "name": "tenant",
+          "type": "string",
+          "default": "organizations",
+          "usage": "Tenant ID, domain, or \"organizations\"/\"common\" (device-code path)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "usage": "JSONL token file from \"enum active teams auth -o\" to reuse"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active teams auth",
+      "use": "auth",
+      "short": "Obtain Microsoft access token and refresh token via device code flow",
+      "runnable": true,
+      "example": "  # Authenticate against the default (organizations / work-school) tenant (interactive)\n  brutus enum active teams auth\n\n  # Headless / SSH: print the URL and code, don't open a browser\n  brutus enum active teams auth --no-browser\n\n  # Authenticate against a specific tenant by domain\n  brutus enum active teams auth --tenant contoso.com\n\n  # Use a custom app registration and scopes\n  brutus enum active teams auth --client-id 00000000-0000-0000-0000-000000000000 \\\n    --scope \"offline_access https://api.spaces.skype.com/.default\"\n\n  # Capture the full token set as JSON\n  brutus enum active teams auth -o token.jsonl",
+      "flags": [
+        {
+          "name": "client-id",
+          "type": "string",
+          "default": "1fec8e78-bce4-4aaf-ab1b-5451cc387264",
+          "usage": "Azure app (client) ID"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-browser",
+          "type": "bool",
+          "default": "false",
+          "usage": "Don't automatically open the verification URL in a browser"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "scope",
+          "shorthand": "s",
+          "type": "string",
+          "default": "offline_access https://api.spaces.skype.com/.default",
+          "usage": "Space-separated OAuth2 scopes"
+        },
+        {
+          "name": "tenant",
+          "type": "string",
+          "default": "organizations",
+          "usage": "Tenant ID, domain, or \"organizations\"/\"common\""
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum active teams users",
+      "use": "users",
+      "short": "Enumerate corporate Microsoft Teams users by email address",
+      "runnable": true,
+      "example": "  # Device-code auth inline, then enumerate a few emails\n  brutus enum active teams users -e alice@contoso.com,bob@contoso.com\n\n  # Generate candidate emails for a domain and enumerate the 5000 most likely\n  brutus enum active teams users --domain target.com --format first.last --limit 5000\n\n  # Generate first_last candidates (presence is fetched by default for hits)\n  brutus enum active teams users --domain target.com --format first_last\n\n  # Enumerate emails from a file, skipping presence lookups\n  brutus enum active teams users -E emails.txt --no-presence\n\n  # Reuse a token captured earlier with \"enum active teams auth -o\"\n  brutus enum active teams auth -o token.jsonl\n  brutus enum active teams users -E emails.txt --token-file token.jsonl\n\n  # Provide an access token directly\n  brutus enum active teams users -e alice@contoso.com --access-token \"$TOKEN\"\n\n  # Route through a SOCKS5 proxy and raise concurrency\n  brutus enum active teams users -E emails.txt --proxy socks5://127.0.0.1:1080 --threads 20",
+      "flags": [
+        {
+          "name": "access-token",
+          "type": "string",
+          "usage": "Access token to use (instead of device-code or --token-file)"
+        },
+        {
+          "name": "client-id",
+          "type": "string",
+          "default": "1fec8e78-bce4-4aaf-ab1b-5451cc387264",
+          "usage": "Azure app (client) ID (device-code path)"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Generate candidate emails for this domain (statistically-likely first/last combos)"
+        },
+        {
+          "name": "email-file",
+          "shorthand": "E",
+          "type": "string",
+          "usage": "File of email addresses, one per line (\"-\" for stdin)"
+        },
+        {
+          "name": "emails",
+          "shorthand": "e",
+          "type": "string",
+          "usage": "Comma-separated email addresses to check"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format for --domain generation (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "include-consumer",
+          "type": "bool",
+          "default": "false",
+          "usage": "Count consumer/personal (8:live:) Teams accounts as hits (default: only corporate 8:orgid: accounts)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "When generating with --domain, cap to the first N (most-likely) candidates (0 = all)"
+        },
+        {
+          "name": "no-browser",
+          "type": "bool",
+          "default": "false",
+          "usage": "Don't automatically open the verification URL in a browser"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-presence",
+          "type": "bool",
+          "default": "false",
+          "usage": "Skip Teams presence / out-of-office lookups (fewer requests; presence is gathered by default)"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "refresh-token",
+          "type": "string",
+          "usage": "Refresh token used to renew an expired access token"
+        },
+        {
+          "name": "scope",
+          "type": "string",
+          "default": "offline_access https://api.spaces.skype.com/.default",
+          "usage": "Space-separated OAuth2 scopes (device-code path)"
+        },
+        {
+          "name": "tenant",
+          "type": "string",
+          "default": "organizations",
+          "usage": "Tenant ID, domain, or \"organizations\"/\"common\" (device-code path)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "token-file",
+          "type": "string",
+          "usage": "JSONL token file from \"enum active teams auth -o\" to reuse"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum apollo",
+      "use": "apollo",
+      "short": "Discover people for a domain via Apollo.io (free; --enrich reveals emails)",
+      "hidden": true,
+      "deprecated": "use \"brutus enum passive apollo\" instead",
+      "runnable": true,
+      "example": "  # Discover people (DEFAULT — FREE, no credits; shows email/phone availability)\n  brutus enum passive apollo --domain example.com\n\n  # Filter by job titles\n  brutus enum passive apollo -d example.com --titles \"VP Engineering\" --titles \"CTO\"\n\n  # Enrich all discovered people (CONSUMES CREDITS, bounded by --limit)\n  brutus enum passive apollo -d example.com --enrich --limit 50\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive apollo -d example.com --api-key abc123",
+      "flags": [
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "Apollo.io API key (overrides APOLLO_API_KEY; WARNING: visible in process list and shell history — prefer APOLLO_API_KEY)"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Company domain to discover people for (required)"
+        },
+        {
+          "name": "enrich",
+          "type": "bool",
+          "default": "false",
+          "usage": "Reveal emails for all discovered people via people/match (CONSUMES CREDITS; bounded by --limit)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "Max people to discover AND (with --enrich) to reveal (bounds credit spend; 0 = no cap)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "titles",
+          "type": "stringSlice",
+          "default": "[]",
+          "usage": "Optional job-title filter (repeatable or comma-separated)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum dehashed",
+      "use": "dehashed",
+      "short": "Collect breach-exposed identity data for a domain via DeHashed",
+      "hidden": true,
+      "deprecated": "use \"brutus enum passive dehashed\" instead",
+      "runnable": true,
+      "example": "  # Collect refined breach contacts for a domain (key from DEHASHED_API_KEY)\n  brutus enum passive dehashed --domain example.com\n\n  # Same, but suppress the breach-exposed plaintext passwords from output\n  brutus enum passive dehashed --domain example.com --no-credentials\n\n  # Keep every email (not just @example.com), unmerged; drop combolist DBs for clean identity-only enumeration\n  brutus enum passive dehashed -d example.com --all-emails --no-dedup --exclude-combolists\n\n  # Restrict to specific source databases (exact names, comma-separated)\n  brutus enum passive dehashed -d example.com --sources \"Adobe,LinkedIn\"\n\n  # Emit one structured JSON document with full per-contact detail + run metadata\n  brutus enum passive dehashed -d example.com --detailed -o breaches.json\n\n  # Same detailed export, including breach-exposed plaintext passwords\n  brutus enum passive dehashed -d example.com --detailed --with-credentials -o breaches.json\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive dehashed -d example.com --api-key abc123\n\n  # Cap results (and credit spend) and write JSONL to a file\n  brutus enum passive dehashed -d example.com --limit 50 -o breaches.jsonl",
+      "flags": [
+        {
+          "name": "all-emails",
+          "type": "bool",
+          "default": "false",
+          "usage": "Keep all emails, not just those @<domain> (disables corporate-only filtering)"
+        },
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "DeHashed API key (overrides DEHASHED_API_KEY; WARNING: visible in process list and shell history — prefer DEHASHED_API_KEY)"
+        },
+        {
+          "name": "detailed",
+          "type": "bool",
+          "default": "false",
+          "usage": "Emit a single structured JSON document with full per-contact detail (ip addresses, addresses, dobs, obtained dates) and run metadata"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain to search (required)"
+        },
+        {
+          "name": "exclude-combolists",
+          "type": "bool",
+          "default": "false",
+          "usage": "Drop records from known aggregator/combolist source databases (combolists are included by default)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "100",
+          "usage": "Maximum number of records to collect (bounds credit spend)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-credentials",
+          "type": "bool",
+          "default": "false",
+          "usage": "Suppress breach-exposed plaintext passwords from the output"
+        },
+        {
+          "name": "no-dedup",
+          "type": "bool",
+          "default": "false",
+          "usage": "Do not merge records that share an email"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "sources",
+          "type": "stringSlice",
+          "default": "[]",
+          "usage": "Restrict results to these DeHashed source databases (comma-separated, exact names)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "with-credentials",
+          "type": "bool",
+          "default": "false",
+          "usage": "Include breach-exposed plaintext passwords in --detailed output (off by default; hashes are never included)"
+        }
+      ]
+    },
+    {
+      "path": "brutus enum generate",
+      "use": "generate",
+      "short": "Generate email addresses or usernames from embedded name lists",
+      "runnable": true,
+      "example": "  # Generate emails: jsmith@example.com\n  brutus enum generate --domain example.com --format flast\n\n  # Generate usernames only: jsmith\n  brutus enum generate --format flast\n\n  # Generate john.smith@example.com (default format)\n  brutus enum generate --domain example.com\n\n  # Emit only the 1000 most-likely emails\n  brutus enum generate --domain example.com --limit 1000\n\n  # Pipe the 500 most-likely usernames to Kerberos enum\n  brutus enum generate --format flast --limit 500 | brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -U -",
+      "flags": [
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain to append to generated usernames (omit to generate usernames only)"
+        },
+        {
+          "name": "format",
+          "type": "string",
+          "default": "first.last",
+          "usage": "Username format (first.last, first_last, flast, firstl, f.last, lastf, last.first, lastfirst, first)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "Emit only the first N (most-likely) results (0 = no limit, emit all)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum hunter",
+      "use": "hunter",
+      "short": "Discover people and emails for a domain via Hunter.io Domain Search",
+      "hidden": true,
+      "deprecated": "use \"brutus enum passive hunter\" instead",
+      "runnable": true,
+      "example": "  # Discover people for a domain (key from HUNTER_API_KEY)\n  brutus enum passive hunter --domain example.com\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive hunter -d example.com --api-key abc123\n\n  # JSONL output to a file\n  brutus enum passive hunter -d example.com -o people.jsonl",
+      "flags": [
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "Hunter.io API key (overrides HUNTER_API_KEY; WARNING: visible in process list and shell history — prefer HUNTER_API_KEY)"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain to search (required)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "Maximum number of people to return (0 = no cap, return all)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum lusha",
+      "use": "lusha",
+      "short": "Enrich a single person identity to emails and phones via Lusha v3",
+      "hidden": true,
+      "deprecated": "use \"brutus enum passive lusha\" instead",
+      "runnable": true,
+      "example": "  # Enrich by name + company (key from LUSHA_API_KEY)\n  brutus enum passive lusha --first-name Ada --last-name Lovelace --company Analytical\n\n  # Enrich by name + company domain\n  brutus enum passive lusha --first-name Ada --last-name Lovelace --domain example.com\n\n  # Enrich by email\n  brutus enum passive lusha --email ada@example.com\n\n  # Enrich by LinkedIn URL, also request phone numbers\n  brutus enum passive lusha --linkedin https://linkedin.com/in/ada --phone\n\n  # Roster: enumerate an entire company by domain (collect all — consumes credits)\n  brutus enum passive lusha --domain example.com\n\n  # Roster: cap the roster (and credit spend) at 25 contacts\n  brutus enum passive lusha --domain example.com --limit 25\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive lusha --email ada@example.com --api-key abc123",
+      "flags": [
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "Lusha API key (overrides LUSHA_API_KEY; WARNING: visible in process list and shell history — prefer LUSHA_API_KEY)"
+        },
+        {
+          "name": "company",
+          "type": "string",
+          "usage": "Company name (with the name pair)"
+        },
+        {
+          "name": "domain",
+          "type": "string",
+          "usage": "Company domain (alternative to --company)"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "usage": "Enrich by email address (mutually exclusive identity)"
+        },
+        {
+          "name": "email-only",
+          "type": "bool",
+          "default": "false",
+          "usage": "Request only email datapoints (mutually exclusive with --phone)"
+        },
+        {
+          "name": "first-name",
+          "type": "string",
+          "usage": "First name (with --last-name and --company or --domain)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "last-name",
+          "type": "string",
+          "usage": "Last name (with --first-name)"
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "Roster mode (--domain only): max contacts to search + enrich; 0 = collect all (consumes ~1 credit/contact)"
+        },
+        {
+          "name": "linkedin",
+          "type": "string",
+          "usage": "Enrich by LinkedIn profile URL (mutually exclusive identity)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "phone",
+          "type": "bool",
+          "default": "false",
+          "usage": "Request phone datapoints in addition to email"
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum passive",
+      "use": "passive",
+      "short": "API-key OSINT/HUMINT sources — employee email/contact discovery & enrichment",
+      "runnable": false,
+      "example": "  # Discover people via Hunter.io\n  brutus enum passive hunter --domain example.com\n\n  # Discover and enrich people via Apollo.io\n  brutus enum passive apollo --domain example.com\n\n  # Enrich a contact via Lusha\n  brutus enum passive lusha --first-name Jane --last-name Doe --company \"Example Inc\"\n\n  # Collect breach-exposed identity data via DeHashed\n  brutus enum passive dehashed --domain example.com\n\n  # Scrape LinkedIn Sales Navigator profiles via PhantomBuster\n  brutus enum passive linkedin --agent-id 1234567890",
+      "flags": [
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum passive apollo",
+      "use": "apollo",
+      "short": "Discover people for a domain via Apollo.io (free; --enrich reveals emails)",
+      "runnable": true,
+      "example": "  # Discover people (DEFAULT — FREE, no credits; shows email/phone availability)\n  brutus enum passive apollo --domain example.com\n\n  # Filter by job titles\n  brutus enum passive apollo -d example.com --titles \"VP Engineering\" --titles \"CTO\"\n\n  # Enrich all discovered people (CONSUMES CREDITS, bounded by --limit)\n  brutus enum passive apollo -d example.com --enrich --limit 50\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive apollo -d example.com --api-key abc123",
+      "flags": [
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "Apollo.io API key (overrides APOLLO_API_KEY; WARNING: visible in process list and shell history — prefer APOLLO_API_KEY)"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Company domain to discover people for (required)"
+        },
+        {
+          "name": "enrich",
+          "type": "bool",
+          "default": "false",
+          "usage": "Reveal emails for all discovered people via people/match (CONSUMES CREDITS; bounded by --limit)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "Max people to discover AND (with --enrich) to reveal (bounds credit spend; 0 = no cap)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "titles",
+          "type": "stringSlice",
+          "default": "[]",
+          "usage": "Optional job-title filter (repeatable or comma-separated)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum passive dehashed",
+      "use": "dehashed",
+      "short": "Collect breach-exposed identity data for a domain via DeHashed",
+      "runnable": true,
+      "example": "  # Collect refined breach contacts for a domain (key from DEHASHED_API_KEY)\n  brutus enum passive dehashed --domain example.com\n\n  # Same, but suppress the breach-exposed plaintext passwords from output\n  brutus enum passive dehashed --domain example.com --no-credentials\n\n  # Keep every email (not just @example.com), unmerged; drop combolist DBs for clean identity-only enumeration\n  brutus enum passive dehashed -d example.com --all-emails --no-dedup --exclude-combolists\n\n  # Restrict to specific source databases (exact names, comma-separated)\n  brutus enum passive dehashed -d example.com --sources \"Adobe,LinkedIn\"\n\n  # Emit one structured JSON document with full per-contact detail + run metadata\n  brutus enum passive dehashed -d example.com --detailed -o breaches.json\n\n  # Same detailed export, including breach-exposed plaintext passwords\n  brutus enum passive dehashed -d example.com --detailed --with-credentials -o breaches.json\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive dehashed -d example.com --api-key abc123\n\n  # Cap results (and credit spend) and write JSONL to a file\n  brutus enum passive dehashed -d example.com --limit 50 -o breaches.jsonl",
+      "flags": [
+        {
+          "name": "all-emails",
+          "type": "bool",
+          "default": "false",
+          "usage": "Keep all emails, not just those @<domain> (disables corporate-only filtering)"
+        },
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "DeHashed API key (overrides DEHASHED_API_KEY; WARNING: visible in process list and shell history — prefer DEHASHED_API_KEY)"
+        },
+        {
+          "name": "detailed",
+          "type": "bool",
+          "default": "false",
+          "usage": "Emit a single structured JSON document with full per-contact detail (ip addresses, addresses, dobs, obtained dates) and run metadata"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain to search (required)"
+        },
+        {
+          "name": "exclude-combolists",
+          "type": "bool",
+          "default": "false",
+          "usage": "Drop records from known aggregator/combolist source databases (combolists are included by default)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "100",
+          "usage": "Maximum number of records to collect (bounds credit spend)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-credentials",
+          "type": "bool",
+          "default": "false",
+          "usage": "Suppress breach-exposed plaintext passwords from the output"
+        },
+        {
+          "name": "no-dedup",
+          "type": "bool",
+          "default": "false",
+          "usage": "Do not merge records that share an email"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "sources",
+          "type": "stringSlice",
+          "default": "[]",
+          "usage": "Restrict results to these DeHashed source databases (comma-separated, exact names)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "with-credentials",
+          "type": "bool",
+          "default": "false",
+          "usage": "Include breach-exposed plaintext passwords in --detailed output (off by default; hashes are never included)"
+        }
+      ]
+    },
+    {
+      "path": "brutus enum passive hunter",
+      "use": "hunter",
+      "short": "Discover people and emails for a domain via Hunter.io Domain Search",
+      "runnable": true,
+      "example": "  # Discover people for a domain (key from HUNTER_API_KEY)\n  brutus enum passive hunter --domain example.com\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive hunter -d example.com --api-key abc123\n\n  # JSONL output to a file\n  brutus enum passive hunter -d example.com -o people.jsonl",
+      "flags": [
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "Hunter.io API key (overrides HUNTER_API_KEY; WARNING: visible in process list and shell history — prefer HUNTER_API_KEY)"
+        },
+        {
+          "name": "domain",
+          "shorthand": "d",
+          "type": "string",
+          "usage": "Domain to search (required)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "Maximum number of people to return (0 = no cap, return all)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum passive linkedin",
+      "use": "linkedin",
+      "short": "Scrape LinkedIn Sales Navigator profiles via PhantomBuster",
+      "runnable": true,
+      "example": "  # Launch a Sales Nav scraper and fetch results\n  brutus enum passive linkedin --agent-id 1234567890\n\n  # Fetch results from a previous run (skip launching a new one)\n  brutus enum passive linkedin --agent-id 1234567890 --skip-launch\n\n  # Specify a custom result filename\n  brutus enum passive linkedin --agent-id 1234567890 --result-file result.json\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive linkedin --agent-id 1234567890 --api-key abc123",
+      "flags": [
+        {
+          "name": "agent-id",
+          "type": "string",
+          "usage": "PhantomBuster agent ID for the Sales Navigator scraper (required)"
+        },
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "PhantomBuster API key (overrides PHANTOMBUSTER_KEY; WARNING: visible in process list and shell history — prefer PHANTOMBUSTER_KEY)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "result-file",
+          "type": "string",
+          "default": "result.csv",
+          "usage": "Result filename to download from S3 (default: result.csv)"
+        },
+        {
+          "name": "skip-launch",
+          "type": "bool",
+          "default": "false",
+          "usage": "Skip launching the agent — fetch results from the most recent run instead"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus enum passive lusha",
+      "use": "lusha",
+      "short": "Enrich a single person identity to emails and phones via Lusha v3",
+      "runnable": true,
+      "example": "  # Enrich by name + company (key from LUSHA_API_KEY)\n  brutus enum passive lusha --first-name Ada --last-name Lovelace --company Analytical\n\n  # Enrich by name + company domain\n  brutus enum passive lusha --first-name Ada --last-name Lovelace --domain example.com\n\n  # Enrich by email\n  brutus enum passive lusha --email ada@example.com\n\n  # Enrich by LinkedIn URL, also request phone numbers\n  brutus enum passive lusha --linkedin https://linkedin.com/in/ada --phone\n\n  # Roster: enumerate an entire company by domain (collect all — consumes credits)\n  brutus enum passive lusha --domain example.com\n\n  # Roster: cap the roster (and credit spend) at 25 contacts\n  brutus enum passive lusha --domain example.com --limit 25\n\n  # Provide the key explicitly (note: visible in process list / shell history)\n  brutus enum passive lusha --email ada@example.com --api-key abc123",
+      "flags": [
+        {
+          "name": "api-key",
+          "type": "string",
+          "usage": "Lusha API key (overrides LUSHA_API_KEY; WARNING: visible in process list and shell history — prefer LUSHA_API_KEY)"
+        },
+        {
+          "name": "company",
+          "type": "string",
+          "usage": "Company name (with the name pair)"
+        },
+        {
+          "name": "domain",
+          "type": "string",
+          "usage": "Company domain (alternative to --company)"
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "usage": "Enrich by email address (mutually exclusive identity)"
+        },
+        {
+          "name": "email-only",
+          "type": "bool",
+          "default": "false",
+          "usage": "Request only email datapoints (mutually exclusive with --phone)"
+        },
+        {
+          "name": "first-name",
+          "type": "string",
+          "usage": "First name (with --last-name and --company or --domain)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "last-name",
+          "type": "string",
+          "usage": "Last name (with --first-name)"
+        },
+        {
+          "name": "limit",
+          "type": "int",
+          "default": "0",
+          "usage": "Roster mode (--domain only): max contacts to search + enrich; 0 = collect all (consumes ~1 credit/contact)"
+        },
+        {
+          "name": "linkedin",
+          "type": "string",
+          "usage": "Enrich by LinkedIn profile URL (mutually exclusive identity)"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "phone",
+          "type": "bool",
+          "default": "false",
+          "usage": "Request phone datapoints in addition to email"
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus logon",
+      "use": "logon",
+      "short": "Detect Windows logon-screen backdoors (runs both sticky keys and utilman)",
+      "runnable": true,
+      "example": "  # Detect sticky keys and utilman backdoors (heuristic)\n  brutus logon --target 10.0.0.50:3389\n\n  # Vision API confirmation (more accurate)\n  brutus logon --target 10.0.0.50:3389 --experimental-ai\n\n  # Execute a command via detected backdoor\n  brutus logon --target 10.0.0.50:3389 --exec \"whoami\"\n\n  # Interactive web terminal via backdoor\n  brutus logon --target 10.0.0.50:3389 --web --open\n\n  # Pipeline mode with Nerva JSON (only RDP targets are tested)\n  naabu -host 10.0.0.0/24 -p 3389 -silent | nerva --json | brutus logon\n\n  # Pipe plain targets (auto-fingerprinted, only RDP services scanned)\n  echo \"10.0.0.50:3389\" | brutus logon\n\n  # Pipe URI targets\n  echo \"rdp://10.0.0.50:3389\" | brutus logon\n\n  # Import targets from nmap XML scan (only RDP services tested)\n  brutus logon --nmap-file scan.xml",
+      "flags": [
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "exec",
+          "type": "string",
+          "usage": "Execute command via detected backdoor"
+        },
+        {
+          "name": "experimental-ai",
+          "type": "bool",
+          "default": "false",
+          "usage": "Enable Vision API for backdoor confirmation"
+        },
+        {
+          "name": "fast",
+          "type": "bool",
+          "default": "false",
+          "usage": "fast triage: shorter settle budget for internet-scale sweeps; reports HIGH/CRITICAL or indeterminate, never clean (rerun indeterminates without --fast for a careful verdict)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-nla-probe",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable the pre-WASM RDP negotiation probe (always run the full WASM session)"
+        },
+        {
+          "name": "open",
+          "type": "bool",
+          "default": "false",
+          "usage": "Auto-open browser when web terminal starts"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "scan-timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-host settle/scan deadline (post-connect): how long to watch the logon screen after the trigger before deciding. Distinct from --connect-timeout (the TCP dial timeout)."
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true,
+          "rejected": true,
+          "rejectedReason": "--timeout is not valid here; use --scan-timeout (settle deadline) and/or --connect-timeout (TCP connect)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "web",
+          "type": "bool",
+          "default": "false",
+          "usage": "Start interactive web terminal via detected backdoor"
+        }
+      ]
+    },
+    {
+      "path": "brutus snmp",
+      "use": "snmp",
+      "short": "Test SNMP community strings against targets",
+      "aliases": [
+        "community"
+      ],
+      "runnable": true,
+      "example": "  # Test with default community strings\n  brutus snmp --target 192.168.1.1:161\n\n  # Aggressive mode for comprehensive testing (~200+ strings)\n  brutus snmp --target 10.0.0.1:161 --mode aggressive\n\n  # Custom community strings\n  brutus snmp --target 192.168.1.1:161 -c \"mycommunity,secretstring\"\n\n  # Pipeline mode\n  naabu -host 10.0.0.0/24 -p 161 -silent | nerva --json | brutus snmp\n\n  # Targets file\n  brutus snmp --targets-file snmp-hosts.txt --mode aggressive\n\n  # Import targets from nmap XML scan (only SNMP services tested)\n  brutus snmp --nmap-file scan.xml --mode aggressive",
+      "flags": [
+        {
+          "name": "community",
+          "shorthand": "c",
+          "type": "string",
+          "usage": "Custom community strings (comma-separated)"
+        },
+        {
+          "name": "community-file",
+          "shorthand": "C",
+          "type": "string",
+          "usage": "Community string file (one per line)"
+        },
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus stickykeys",
+      "use": "stickykeys",
+      "short": "Detect the Windows sticky-keys (sethc.exe) logon backdoor only",
+      "runnable": true,
+      "example": "  # Detect the sticky-keys backdoor only\n  brutus stickykeys --target 10.0.0.50:3389\n\n  # Vision API confirmation (more accurate)\n  brutus stickykeys --target 10.0.0.50:3389 --experimental-ai",
+      "flags": [
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "exec",
+          "type": "string",
+          "usage": "Execute command via detected backdoor"
+        },
+        {
+          "name": "experimental-ai",
+          "type": "bool",
+          "default": "false",
+          "usage": "Enable Vision API for backdoor confirmation"
+        },
+        {
+          "name": "fast",
+          "type": "bool",
+          "default": "false",
+          "usage": "fast triage: shorter settle budget for internet-scale sweeps; reports HIGH/CRITICAL or indeterminate, never clean (rerun indeterminates without --fast for a careful verdict)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-nla-probe",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable the pre-WASM RDP negotiation probe (always run the full WASM session)"
+        },
+        {
+          "name": "open",
+          "type": "bool",
+          "default": "false",
+          "usage": "Auto-open browser when web terminal starts"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "scan-timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-host settle/scan deadline (post-connect): how long to watch the logon screen after the trigger before deciding. Distinct from --connect-timeout (the TCP dial timeout)."
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true,
+          "rejected": true,
+          "rejectedReason": "--timeout is not valid here; use --scan-timeout (settle deadline) and/or --connect-timeout (TCP connect)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "web",
+          "type": "bool",
+          "default": "false",
+          "usage": "Start interactive web terminal via detected backdoor"
+        }
+      ]
+    },
+    {
+      "path": "brutus utilman",
+      "use": "utilman",
+      "short": "Detect the Windows utilman (Ease of Access) logon backdoor only",
+      "runnable": true,
+      "example": "  # Detect the utilman backdoor only\n  brutus utilman --target 10.0.0.50:3389\n\n  # Vision API confirmation (more accurate)\n  brutus utilman --target 10.0.0.50:3389 --experimental-ai",
+      "flags": [
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "exec",
+          "type": "string",
+          "usage": "Execute command via detected backdoor"
+        },
+        {
+          "name": "experimental-ai",
+          "type": "bool",
+          "default": "false",
+          "usage": "Enable Vision API for backdoor confirmation"
+        },
+        {
+          "name": "fast",
+          "type": "bool",
+          "default": "false",
+          "usage": "fast triage: shorter settle budget for internet-scale sweeps; reports HIGH/CRITICAL or indeterminate, never clean (rerun indeterminates without --fast for a careful verdict)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "no-nla-probe",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable the pre-WASM RDP negotiation probe (always run the full WASM session)"
+        },
+        {
+          "name": "open",
+          "type": "bool",
+          "default": "false",
+          "usage": "Auto-open browser when web terminal starts"
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "scan-timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-host settle/scan deadline (post-connect): how long to watch the logon screen after the trigger before deciding. Distinct from --connect-timeout (the TCP dial timeout)."
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true,
+          "rejected": true,
+          "rejectedReason": "--timeout is not valid here; use --scan-timeout (settle deadline) and/or --connect-timeout (TCP connect)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "web",
+          "type": "bool",
+          "default": "false",
+          "usage": "Start interactive web terminal via detected backdoor"
+        }
+      ]
+    },
+    {
+      "path": "brutus web",
+      "use": "web",
+      "short": "Audit HTTP/web panel credentials (AI-powered or credential list)",
+      "aliases": [
+        "http",
+        "panels"
+      ],
+      "runnable": true,
+      "example": "  # AI-powered credential detection (recommended)\n  brutus web --target 192.168.1.1:80 --experimental-ai\n\n  # Pipeline mode with Nerva JSON\n  naabu -host 192.168.1.0/24 -p 80,443,8080 -silent | nerva --json | brutus web --experimental-ai\n\n  # Manual credential list\n  brutus web --target 192.168.1.1:80 -c \"admin:admin,root:toor\"\n  brutus web --target 192.168.1.1:80 -C creds.txt\n\n  # HTTPS target\n  brutus web --target 192.168.1.1:443 --https --experimental-ai\n\n  # Browser with visible window (demo mode)\n  brutus web --target 192.168.1.1:8080 --experimental-ai --browser-visible\n\n  # Import targets from nmap XML scan\n  brutus web --nmap-file scan.xml --experimental-ai",
+      "flags": [
+        {
+          "name": "browser-tabs",
+          "type": "int",
+          "default": "3",
+          "usage": "Number of concurrent browser tabs"
+        },
+        {
+          "name": "browser-timeout",
+          "type": "duration",
+          "default": "1m0s",
+          "usage": "Total timeout for browser operations"
+        },
+        {
+          "name": "browser-visible",
+          "type": "bool",
+          "default": "false",
+          "usage": "Show browser window (demo mode)"
+        },
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "credentials",
+          "shorthand": "c",
+          "type": "string",
+          "usage": "Comma-separated user:pass pairs (e.g., admin:admin,root:toor)"
+        },
+        {
+          "name": "credentials-file",
+          "shorthand": "C",
+          "type": "string",
+          "usage": "Credentials file (user:pass per line)"
+        },
+        {
+          "name": "experimental-ai",
+          "type": "bool",
+          "default": "false",
+          "usage": "Enable AI-powered credential detection and Vision verification"
+        },
+        {
+          "name": "https",
+          "type": "bool",
+          "default": "false",
+          "usage": "Use HTTPS for browser connections"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "protocol",
+          "type": "string",
+          "usage": "Protocol override (http or https)"
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "verify",
+          "type": "bool",
+          "default": "false",
+          "usage": "Require strict TLS certificate verification"
+        }
+      ]
+    }
+  ]
+}

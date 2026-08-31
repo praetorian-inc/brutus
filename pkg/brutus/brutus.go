@@ -135,7 +135,7 @@ type Result struct {
 	LLMSuggested      bool     // was this credential suggested by LLM?
 	LLMSuggestedCreds []string // all LLM suggestions for this service
 
-	// Scan metadata (optional, used in --scan mode for backdoor detection)
+	// Scan metadata (optional, used by the logon-family scans for backdoor detection)
 	ScanType string // scan type identifier (e.g., "sticky_keys", "utilman")
 }
 

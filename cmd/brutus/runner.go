@@ -36,7 +36,7 @@ import (
 // runs the configured brute force against each one. Order matches the file;
 // a per-target failure does not abort the whole run.
 //
-// Output behavior mirrors --nerva (multi-target) mode: in human output we
+// Output behavior mirrors Nerva-fingerprinted multi-target mode: in human output we
 // stream "valid only" findings per target as soon as they're produced, and
 // in JSON mode the caller flushes the full JSONL after the loop returns.
 //
@@ -421,8 +421,9 @@ func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 	return baseTLSMode
 }
 
-// runStickyKeysInteractive handles the --sticky-keys-exec and --sticky-keys-web modes.
-// These bypass normal brute force and instead exploit the sticky keys backdoor interactively.
+// runStickyKeysInteractive handles the --exec and --web interactive modes of the
+// logon family. These bypass normal brute force and instead exploit the sticky
+// keys backdoor interactively.
 func runStickyKeysInteractive(target string, base *runConfig) ([]brutus.Result, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

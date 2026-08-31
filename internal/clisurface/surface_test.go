@@ -294,12 +294,6 @@ func TestWalkIsDeterministic(t *testing.T) {
 
 	assert.Equal(t, first, second, "two walks of identical trees must produce identical surfaces")
 	assert.Equal(t, first.Hash(), second.Hash(), "and identical hashes")
-
-	firstJSON, err := RenderJSON(first)
-	require.NoError(t, err)
-	secondJSON, err := RenderJSON(second)
-	require.NoError(t, err)
-	assert.Equal(t, string(firstJSON), string(secondJSON), "rendering must be byte-identical")
 }
 
 func TestHashTracksStructureNotProse(t *testing.T) {

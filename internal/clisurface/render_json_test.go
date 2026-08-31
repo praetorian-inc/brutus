@@ -87,3 +87,15 @@ func TestParseJSONRejectsGarbage(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parsing cli surface json")
 }
+
+// TestRenderJSONIsByteIdenticalAcrossWalks pairs with TestWalkIsDeterministic: the walk
+// producing equal surfaces is only useful if rendering them is byte-stable, since the
+// committed artifact is compared as bytes.
+func TestRenderJSONIsByteIdenticalAcrossWalks(t *testing.T) {
+	first, err := RenderJSON(Walk(newTestTree()))
+	require.NoError(t, err)
+	second, err := RenderJSON(Walk(newTestTree()))
+	require.NoError(t, err)
+
+	assert.Equal(t, string(first), string(second))
+}

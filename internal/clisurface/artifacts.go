@@ -16,6 +16,7 @@ package clisurface
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -140,6 +141,12 @@ func (s Staleness) String() string {
 
 // CheckArtifacts compares the committed artifacts against what the surface
 // renders, without writing anything.
+//
+// Line endings are normalized before comparing. The repository carries no
+// .gitattributes, so a contributor with core.autocrlf=true has CRLF on disk
+// while the renderers emit LF — comparing raw bytes would report every
+// generated file as stale on Windows, which is exactly the unexplained friction
+// that gets a gate disabled.
 func CheckArtifacts(repoRoot string, s Surface) ([]Staleness, error) {
 	artifacts, err := Artifacts(repoRoot, s)
 	if err != nil {
@@ -154,7 +161,7 @@ func CheckArtifacts(repoRoot string, s Surface) ([]Staleness, error) {
 			stale = append(stale, Staleness{Path: artifacts[i].Path, Detail: "cannot be read (" + readErr.Error() + ")"})
 			continue
 		}
-		if bytes.Equal(onDisk, artifacts[i].Content) {
+		if bytes.Equal(normalizeNewlines(onDisk), normalizeNewlines(artifacts[i].Content)) {
 			continue
 		}
 		stale = append(stale, Staleness{
@@ -165,11 +172,18 @@ func CheckArtifacts(repoRoot string, s Surface) ([]Staleness, error) {
 	return stale, nil
 }
 
+// normalizeNewlines rewrites CRLF to LF so that a checkout's line-ending
+// convention cannot look like documentation drift.
+func normalizeNewlines(b []byte) []byte {
+	return bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
+}
+
 // firstDifference describes the first line where committed and generated
-// content diverge.
+// content diverge. Both sides are normalized first, so the line it names is a
+// real difference rather than an invisible carriage return.
 func firstDifference(committed, generated []byte) string {
-	got := strings.Split(string(committed), "\n")
-	want := strings.Split(string(generated), "\n")
+	got := strings.Split(string(normalizeNewlines(committed)), "\n")
+	want := strings.Split(string(normalizeNewlines(generated)), "\n")
 	for i := 0; i < len(got) && i < len(want); i++ {
 		if got[i] == want[i] {
 			continue
@@ -239,20 +253,30 @@ func LintRepo(repoRoot string, s Surface, allow Allowlist) ([]Issue, error) {
 }
 
 // lintedMarkdownFiles lists the markdown documents to check, sorted.
+//
+// The docs/ tree is walked recursively: a document that names a removed flag
+// escapes the gate just as thoroughly from docs/guides/ as from docs/, and a
+// check with a silent blind spot is worse than one whose reach is obvious.
 func lintedMarkdownFiles(repoRoot string) ([]string, error) {
 	files := append([]string(nil), LintedMarkdown...)
 
-	entries, err := os.ReadDir(filepath.Join(repoRoot, "docs"))
-	switch {
-	case os.IsNotExist(err):
-	case err != nil:
-		return nil, fmt.Errorf("reading docs/: %w", err)
-	default:
-		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), ".md") {
-				files = append(files, "docs/"+e.Name())
-			}
+	docsRoot := filepath.Join(repoRoot, "docs")
+	err := filepath.WalkDir(docsRoot, func(path string, d fs.DirEntry, walkErr error) error {
+		switch {
+		case walkErr != nil:
+			return walkErr
+		case d.IsDir(), !strings.HasSuffix(d.Name(), ".md"):
+			return nil
 		}
+		rel, relErr := filepath.Rel(repoRoot, path)
+		if relErr != nil {
+			return relErr
+		}
+		files = append(files, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("walking docs/: %w", err)
 	}
 
 	sort.Strings(files)

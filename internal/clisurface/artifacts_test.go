@@ -269,3 +269,73 @@ func readAll(t *testing.T, root string) map[string]string {
 	}
 	return out
 }
+
+// TestLintRepoWalksNestedDocsDirectories pins the recursive docs/ walk. A
+// document in docs/guides/ names removed flags exactly as effectively as one in
+// docs/, and a check with a silent blind spot is worse than one whose reach is
+// obvious.
+func TestLintRepoWalksNestedDocsDirectories(t *testing.T) {
+	root := newFakeRepo(t)
+	s := Walk(newTestTree())
+	require.NoError(t, Write(root, s))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "CONTRIBUTING.md"), []byte("hi\n"), 0o644))
+
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "docs", "guides", "deep"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "docs", "guides", "nested.md"),
+		[]byte("```bash\ntool scan --nested-gone\n```\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "docs", "guides", "deep", "deeper.md"),
+		[]byte("```bash\ntool scan --deeper-gone\n```\n"), 0o644))
+
+	issues, err := LintRepo(root, s, emptyAllowlist(t))
+	require.NoError(t, err)
+
+	require.Len(t, issues, 2, "both nested documents must be reached")
+	assert.Equal(t, "docs/guides/deep/deeper.md", issues[0].File)
+	assert.Equal(t, "--deeper-gone", issues[0].Token)
+	assert.Equal(t, "docs/guides/nested.md", issues[1].File)
+	assert.Equal(t, "--nested-gone", issues[1].Token)
+}
+
+// TestCheckArtifactsToleratesCRLF checks that a checkout's line-ending
+// convention cannot look like documentation drift. The repository carries no
+// .gitattributes, so a contributor with core.autocrlf=true has CRLF on disk
+// while the renderers emit LF.
+func TestCheckArtifactsToleratesCRLF(t *testing.T) {
+	root := newFakeRepo(t)
+	s := Walk(newTestTree())
+	require.NoError(t, Write(root, s))
+
+	for _, rel := range GeneratedPaths() {
+		path := filepath.Join(root, rel)
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		crlf := strings.ReplaceAll(strings.ReplaceAll(string(content), "\r\n", "\n"), "\n", "\r\n")
+		require.NoError(t, os.WriteFile(path, []byte(crlf), 0o644))
+	}
+
+	stale, err := CheckArtifacts(root, s)
+	require.NoError(t, err)
+	assert.Empty(t, stale, "CRLF line endings are not drift")
+}
+
+// TestCheckArtifactsStillCatchesRealDriftInACRLFCheckout guards the tolerance
+// above from swallowing a genuine difference.
+func TestCheckArtifactsStillCatchesRealDriftInACRLFCheckout(t *testing.T) {
+	root := newFakeRepo(t)
+	s := Walk(newTestTree())
+	require.NoError(t, Write(root, s))
+
+	path := filepath.Join(root, MarkdownPath)
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	edited := strings.ReplaceAll(string(content), "--timeout", "--timeuot")
+	require.NotEqual(t, string(content), edited, "the fixture must actually change")
+	require.NoError(t, os.WriteFile(path, []byte(strings.ReplaceAll(edited, "\n", "\r\n")), 0o644))
+
+	stale, err := CheckArtifacts(root, s)
+	require.NoError(t, err)
+
+	require.Len(t, stale, 1)
+	assert.Equal(t, MarkdownPath, stale[0].Path)
+	assert.NotContains(t, stale[0].Detail, `\r`, "the reported line must not be noisy with carriage returns")
+}

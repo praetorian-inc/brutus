@@ -25,18 +25,6 @@ import (
 	"strings"
 )
 
-// Repo-relative paths of the generated artifacts and of the documents the
-// linter reads. Keeping them here means the gate test, the Makefile target and
-// the CI workflow all talk about the same files.
-const (
-	JSONPath     = "docs/cli-surface.json"
-	MarkdownPath = "docs/CLI.md"
-	READMEPath   = "README.md"
-)
-
-// RegenerateCommand is the single documented way to refresh every artifact.
-const RegenerateCommand = "make cli-docs"
-
 // LintedMarkdown are the hand-written documents whose examples and prose are
 // checked against the surface, in addition to every file under docs/.
 var LintedMarkdown = []string{READMEPath, "CONTRIBUTING.md"}

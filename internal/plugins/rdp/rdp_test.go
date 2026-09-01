@@ -207,57 +207,6 @@ func TestClassifyError(t *testing.T) {
 	}
 }
 
-func TestPluginConfigStickyKeysUtilman(t *testing.T) {
-	// Default: both checks enabled
-	cfg := brutus.PluginConfig{}
-	assert.False(t, cfg.NoStickyKeys)
-
-	// Sticky keys disabled: utilman also implicitly disabled
-	cfg = brutus.PluginConfig{NoStickyKeys: true}
-	assert.True(t, cfg.NoStickyKeys)
-}
-
-func TestFormatUtilmanBanner_Confirmed(t *testing.T) {
-	result := &UtilmanResult{
-		Performed:      true,
-		OverallVerdict: "backdoor_confirmed",
-		Confidence:     0.85,
-	}
-	banner := formatUtilmanBanner("", result)
-	assert.Contains(t, banner, "[CRITICAL]")
-	assert.Contains(t, banner, "Utilman backdoor CONFIRMED")
-	assert.Contains(t, banner, "85%")
-	assert.Contains(t, banner, "utilman.exe")
-	assert.Contains(t, banner, "Win+U")
-}
-
-func TestFormatUtilmanBanner_Clean(t *testing.T) {
-	result := &UtilmanResult{
-		Performed:      true,
-		OverallVerdict: "clean",
-		Confidence:     0,
-	}
-	banner := formatUtilmanBanner("existing banner", result)
-	assert.Contains(t, banner, "existing banner")
-	assert.Contains(t, banner, "Utilman check: clean")
-}
-
-func TestFormatUtilmanBanner_Indeterminate(t *testing.T) {
-	result := &UtilmanResult{
-		Performed:  false,
-		SkipReason: "connection failed",
-	}
-	banner := formatUtilmanBanner("", result)
-	assert.Contains(t, banner, "INDETERMINATE")
-	assert.Contains(t, banner, "rerun")
-	assert.Contains(t, banner, "connection failed")
-}
-
-func TestFormatUtilmanBanner_Nil(t *testing.T) {
-	banner := formatUtilmanBanner("existing", nil)
-	assert.Equal(t, "existing", banner)
-}
-
 // --- Integration Tests ---
 // These require a real RDP server. Set environment variables to enable:
 //   RDP_TEST_HOST=host:3389

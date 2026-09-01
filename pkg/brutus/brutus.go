@@ -75,10 +75,9 @@ import (
 // KeyPlugin.TestKey, replacing the former pattern of smuggling values
 // through context.WithValue.
 type PluginConfig struct {
-	TLSMode      string // "disable", "verify", "skip-verify" (default: "disable")
-	NoVision     bool   // disable Vision API for screenshot analysis (RDP)
-	NoStickyKeys bool   // disable sticky keys backdoor detection (RDP)
-	ProxyURL     string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
+	TLSMode  string // "disable", "verify", "skip-verify" (default: "disable")
+	NoVision bool   // disable Vision API for screenshot analysis (RDP)
+	ProxyURL string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
 }
 
 // Credential represents a pre-paired username with password or key.
@@ -111,7 +110,6 @@ type Config struct {
 	MaxAttempts     int           // max password attempts per username (0 = unlimited)
 	MaxRetries      int           // max retries per credential on connection error (0 = no retry, default: 0)
 	Verbose         bool          // enable verbose logging to stderr (default: false)
-	StickyKeys      bool          // enable sticky keys backdoor detection (RDP)
 	AIMode          bool          // enable Vision API for screenshot analysis (RDP)
 	SkipUnauthCheck bool          // skip CheckUnauth probe (when Nerva already detected it)
 	Mode            Mode          // aggressiveness tier for wordlist depth (default: ModeDefault)

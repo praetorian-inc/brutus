@@ -255,21 +255,6 @@ func TestTerminationBannerReachesTheOperator(t *testing.T) {
 		assert.Contains(t, got.Banner, reason)
 	})
 
-	t.Run("shared rdp path carries the reason too", func(t *testing.T) {
-		sticky := formatStickyKeysBanner("", &StickyKeysResult{
-			Performed: true, OverallVerdict: verdictIndeterminate,
-			SessionTerminated: true, TerminationReason: reason,
-		})
-		assert.Contains(t, sticky, reason,
-			"the shared `brutus rdp` path must not fall back to the generic banner")
-
-		utilman := formatUtilmanBanner("", &UtilmanResult{
-			Performed: true, OverallVerdict: verdictIndeterminate,
-			SessionTerminated: true, TerminationReason: reason,
-		})
-		assert.Contains(t, utilman, reason)
-	})
-
 	t.Run("a non-terminated indeterminate keeps the original text", func(t *testing.T) {
 		got := mapStickyResult(&StickyKeysResult{
 			Performed: true, OverallVerdict: verdictIndeterminate,

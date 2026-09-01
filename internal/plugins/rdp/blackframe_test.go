@@ -277,3 +277,150 @@ func TestTerminationBannerReachesTheOperator(t *testing.T) {
 		assert.Contains(t, got.Banner, "render did not stabilize")
 	})
 }
+
+// TestFinalizeResultKeepsTerminationDiagnostics is the regression test for the
+// ordering trap that shipped broken: the analysis functions return a FRESH result, so
+// a `*result = analysis` assignment discards anything set beforehand. When that
+// happened, SessionTerminated silently went false, the short-profile retry never
+// fired, and the banner fell back to "render did not stabilize" -- invisibly, because
+// the scan itself still succeeded. This exercises the real production tail, not a
+// mirror of it: reorder the assignments in finalize*Result and this fails.
+func TestFinalizeResultKeepsTerminationDiagnostics(t *testing.T) {
+	const reason = "session terminated: logoff by user"
+	diag := sessionDiag{terminated: true, reason: reason}
+
+	t.Run("sticky keys", func(t *testing.T) {
+		result := &StickyKeysResult{Performed: true}
+		// A torn-down session analyzes the baseline as the response -> "clean".
+		finalizeStickyKeysResult(result, StickyKeysResult{Performed: true, OverallVerdict: "clean"}, diag, false, false)
+
+		assert.True(t, result.SessionTerminated,
+			"the retry in DetectStickyKeys reads this field; zeroed, the retry never fires")
+		assert.Equal(t, reason, result.TerminationReason,
+			"the banner names the server's own reason; zeroed, the operator is told to rerun an identical scan")
+		assert.Equal(t, verdictIndeterminate, result.OverallVerdict,
+			"a clean on an unstable render is still downgraded (cardinal guard must survive the refactor)")
+		assert.False(t, result.Stabilized)
+		assert.True(t, result.Performed)
+	})
+
+	t.Run("utilman", func(t *testing.T) {
+		result := &UtilmanResult{Performed: true}
+		finalizeUtilmanResult(result, UtilmanResult{Performed: true, OverallVerdict: "clean"}, diag, false, false)
+
+		assert.True(t, result.SessionTerminated)
+		assert.Equal(t, reason, result.TerminationReason)
+		assert.Equal(t, verdictIndeterminate, result.OverallVerdict)
+	})
+
+	t.Run("a positive survives a terminated session", func(t *testing.T) {
+		// The painted-then-dropped host: a real finding carried out alongside
+		// terminated=true. It must reach the caller intact, because that pairing is
+		// exactly what retryAfterTermination has to see to refuse the retry.
+		result := &StickyKeysResult{Performed: true}
+		finalizeStickyKeysResult(result, StickyKeysResult{
+			Performed: true, OverallVerdict: "backdoor_likely", Confidence: 0.85,
+		}, diag, false, false)
+
+		assert.Equal(t, "backdoor_likely", result.OverallVerdict,
+			"a positive is never downgraded by the stabilized guard")
+		assert.True(t, result.SessionTerminated)
+		assert.False(t, retryAfterTermination(result.OverallVerdict, result.Performed),
+			"the retry must refuse to overwrite this finding")
+	})
+
+	t.Run("analysis fields are not dropped", func(t *testing.T) {
+		result := &StickyKeysResult{}
+		finalizeStickyKeysResult(result, StickyKeysResult{
+			Performed: true, OverallVerdict: "backdoor_confirmed",
+			Confidence: 0.95, HeuristicResult: "dark delta", RegionNote: "console-shaped",
+		}, sessionDiag{}, true, false)
+
+		assert.Equal(t, "backdoor_confirmed", result.OverallVerdict)
+		assert.InDelta(t, 0.95, result.Confidence, 1e-9)
+		assert.Equal(t, "dark delta", result.HeuristicResult)
+		assert.Equal(t, "console-shaped", result.RegionNote)
+		assert.False(t, result.SessionTerminated)
+		assert.Empty(t, result.TerminationReason)
+	})
+}
+
+// TestRetryOnTerminationWiring covers the retry DECISION as it is actually wired,
+// not just the predicate behind it. The predicate was correct and the call site was
+// what broke before, so this asserts the observable behaviour: whether the rerun
+// happens at all, and which result reaches the caller.
+func TestRetryOnTerminationWiring(t *testing.T) {
+	const reason = "session terminated: logoff by user"
+	terminatedClean := func() *StickyKeysResult {
+		return &StickyKeysResult{Performed: true, OverallVerdict: verdictIndeterminate,
+			SessionTerminated: true, TerminationReason: reason}
+	}
+
+	t.Run("reruns an indeterminate teardown on the short profile", func(t *testing.T) {
+		calls := 0
+		second := &StickyKeysResult{Performed: true, OverallVerdict: "backdoor_likely"}
+		got := retryStickyKeysOnTermination(false, terminatedClean(), func() *StickyKeysResult {
+			calls++
+			return second
+		})
+		assert.Equal(t, 1, calls, "a scan that observed no render must be retried")
+		assert.Same(t, second, got)
+	})
+
+	t.Run("never overwrites a finding", func(t *testing.T) {
+		for _, verdict := range []string{"backdoor_confirmed", "backdoor_likely", "vulnerable"} {
+			first := &StickyKeysResult{Performed: true, OverallVerdict: verdict,
+				SessionTerminated: true, TerminationReason: reason}
+			calls := 0
+			got := retryStickyKeysOnTermination(false, first, func() *StickyKeysResult {
+				calls++
+				return &StickyKeysResult{Performed: true, OverallVerdict: verdictIndeterminate}
+			})
+			assert.Zero(t, calls, "%s: retrying can only lose the finding (cardinal rule)", verdict)
+			assert.Same(t, first, got)
+		}
+	})
+
+	t.Run("does not fire without a teardown", func(t *testing.T) {
+		first := &StickyKeysResult{Performed: true, OverallVerdict: verdictIndeterminate}
+		calls := 0
+		got := retryStickyKeysOnTermination(false, first, func() *StickyKeysResult {
+			calls++
+			return nil
+		})
+		assert.Zero(t, calls, "a plain unstable render has no shorter profile to gain from")
+		assert.Same(t, first, got)
+	})
+
+	t.Run("does not fire in fast mode", func(t *testing.T) {
+		calls := 0
+		got := retryStickyKeysOnTermination(true, terminatedClean(), func() *StickyKeysResult {
+			calls++
+			return nil
+		})
+		assert.Zero(t, calls, "--fast is already the short profile; there is nothing to fall back to")
+		assert.True(t, got.SessionTerminated)
+	})
+
+	t.Run("tolerates a nil result", func(t *testing.T) {
+		calls := 0
+		got := retryStickyKeysOnTermination(false, nil, func() *StickyKeysResult { calls++; return nil })
+		assert.Zero(t, calls)
+		assert.Nil(t, got)
+	})
+
+	t.Run("utilman is wired the same way", func(t *testing.T) {
+		calls := 0
+		first := &UtilmanResult{Performed: true, OverallVerdict: verdictIndeterminate, SessionTerminated: true}
+		second := &UtilmanResult{Performed: true, OverallVerdict: "clean"}
+		got := retryUtilmanOnTermination(false, first, func() *UtilmanResult { calls++; return second })
+		assert.Equal(t, 1, calls)
+		assert.Same(t, second, got)
+
+		calls = 0
+		positive := &UtilmanResult{Performed: true, OverallVerdict: "backdoor_likely", SessionTerminated: true}
+		got = retryUtilmanOnTermination(false, positive, func() *UtilmanResult { calls++; return second })
+		assert.Zero(t, calls)
+		assert.Same(t, positive, got)
+	})
+}

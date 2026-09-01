@@ -55,10 +55,9 @@ func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeou
 	// observed. The short profile completes inside that window, so retry once there
 	// rather than returning a scan that saw no render. Only from the careful budget:
 	// a --fast scan has no shorter profile to fall back to.
-	if !fast && stickyResult != nil && stickyResult.SessionTerminated &&
-		retryAfterTermination(stickyResult.OverallVerdict, stickyResult.Performed) {
-		stickyResult = plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
-	}
+	stickyResult = retryStickyKeysOnTermination(fast, stickyResult, func() *StickyKeysResult {
+		return plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
+	})
 	result := mapStickyResult(stickyResult, username)
 	result.Target = target
 	return result
@@ -144,10 +143,9 @@ func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout t
 	utilmanResult := plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
 	// See DetectStickyKeys: a host that drops the pre-auth session before the careful
 	// settle completes is still observable on the short profile.
-	if !fast && utilmanResult != nil && utilmanResult.SessionTerminated &&
-		retryAfterTermination(utilmanResult.OverallVerdict, utilmanResult.Performed) {
-		utilmanResult = plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
-	}
+	utilmanResult = retryUtilmanOnTermination(fast, utilmanResult, func() *UtilmanResult {
+		return plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
+	})
 	result := mapUtilmanResult(utilmanResult, username)
 	result.Target = target
 	return result
@@ -344,21 +342,7 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
-	result.Performed = true
-	result.Stabilized = stabilized
-	// Assigned AFTER the whole-struct assignment above, not before it: runStickyKeysAnalysis
-	// returns a FRESH result, so anything set on *result earlier is discarded. These two
-	// fields drive the short-profile retry and the termination banner, and a
-	// response-phase teardown is exactly the case that reaches this line with err == nil.
-	result.SessionTerminated = diag.terminated
-	result.TerminationReason = diag.reason
-
-	// Cardinal false-negative guard: only a "clean" verdict on a render that
-	// never stabilized is suspect (or any clean in fast mode — never-clean
-	// invariant). Positive verdicts (confirmed/likely/vulnerable) already saw the
-	// window and are never downgraded.
-	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized, fast)
+	finalizeStickyKeysResult(result, runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey), diag, stabilized, fast)
 
 	return result, nil
 }
@@ -418,21 +402,7 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
-	result.Performed = true
-	result.Stabilized = stabilized
-	// Assigned AFTER the whole-struct assignment above, not before it: runUtilmanAnalysis
-	// returns a FRESH result, so anything set on *result earlier is discarded. These two
-	// fields drive the short-profile retry and the termination banner, and a
-	// response-phase teardown is exactly the case that reaches this line with err == nil.
-	result.SessionTerminated = diag.terminated
-	result.TerminationReason = diag.reason
-
-	// Cardinal false-negative guard: only a "clean" verdict on a render that
-	// never stabilized is suspect (or any clean in fast mode — never-clean
-	// invariant). Positive verdicts (confirmed/likely/vulnerable) already saw the
-	// window and are never downgraded.
-	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized, fast)
+	finalizeUtilmanResult(result, runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey), diag, stabilized, fast)
 
 	return result, nil
 }
@@ -618,6 +588,84 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 	}
 
 	return banner
+}
+
+// finalizeStickyKeysResult folds an analysis outcome into result while KEEPING the session
+// diagnostics the analysis knows nothing about.
+//
+// It exists because `*result = analysis` is a whole-struct assignment: runStickyKeysAnalysis returns a
+// FRESH StickyKeysResult, so every field set on result beforehand is discarded. That ordering trap
+// silently zeroed SessionTerminated/TerminationReason once already, disabling the
+// short-profile retry and the termination banner for the response-phase teardown this
+// path was written to handle -- and it did so invisibly, because the scan still
+// succeeded. Keeping the order in one small function is what makes the invariant
+// test-enforceable instead of a comment someone has to notice.
+//
+// The stabilizedVerdict call is the cardinal false-negative guard: only a "clean"
+// verdict on a render that never stabilized is suspect (or any clean in fast mode --
+// never-clean invariant). Positive verdicts already saw the window and are never
+// downgraded.
+func finalizeStickyKeysResult(result *StickyKeysResult, analysis StickyKeysResult, diag sessionDiag, stabilized, fast bool) {
+	*result = analysis
+	result.Performed = true
+	result.Stabilized = stabilized
+	result.SessionTerminated = diag.terminated
+	result.TerminationReason = diag.reason
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized, fast)
+}
+
+// finalizeUtilmanResult folds an analysis outcome into result while KEEPING the session
+// diagnostics the analysis knows nothing about.
+//
+// It exists because `*result = analysis` is a whole-struct assignment: runUtilmanAnalysis returns a
+// FRESH UtilmanResult, so every field set on result beforehand is discarded. That ordering trap
+// silently zeroed SessionTerminated/TerminationReason once already, disabling the
+// short-profile retry and the termination banner for the response-phase teardown this
+// path was written to handle -- and it did so invisibly, because the scan still
+// succeeded. Keeping the order in one small function is what makes the invariant
+// test-enforceable instead of a comment someone has to notice.
+//
+// The stabilizedVerdict call is the cardinal false-negative guard: only a "clean"
+// verdict on a render that never stabilized is suspect (or any clean in fast mode --
+// never-clean invariant). Positive verdicts already saw the window and are never
+// downgraded.
+func finalizeUtilmanResult(result *UtilmanResult, analysis UtilmanResult, diag sessionDiag, stabilized, fast bool) {
+	*result = analysis
+	result.Performed = true
+	result.Stabilized = stabilized
+	result.SessionTerminated = diag.terminated
+	result.TerminationReason = diag.reason
+	result.OverallVerdict = stabilizedVerdict(result.OverallVerdict, stabilized, fast)
+}
+
+// retryStickyKeysOnTermination decides whether a terminated scan is re-run on the short
+// settle profile, and runs it. The decision is split from the RunStickyKeysCheck call
+// so it is reachable from a test: the wiring is the part that silently broke once
+// (see finalizeStickyKeysResult), and a predicate nobody calls correctly is no guard
+// at all. rerun is invoked at most once.
+func retryStickyKeysOnTermination(fast bool, first *StickyKeysResult, rerun func() *StickyKeysResult) *StickyKeysResult {
+	if fast || first == nil || !first.SessionTerminated {
+		return first
+	}
+	if !retryAfterTermination(first.OverallVerdict, first.Performed) {
+		return first
+	}
+	return rerun()
+}
+
+// retryUtilmanOnTermination decides whether a terminated scan is re-run on the short
+// settle profile, and runs it. The decision is split from the RunStickyKeysCheck call
+// so it is reachable from a test: the wiring is the part that silently broke once
+// (see finalizeStickyKeysResult), and a predicate nobody calls correctly is no guard
+// at all. rerun is invoked at most once.
+func retryUtilmanOnTermination(fast bool, first *UtilmanResult, rerun func() *UtilmanResult) *UtilmanResult {
+	if fast || first == nil || !first.SessionTerminated {
+		return first
+	}
+	if !retryAfterTermination(first.OverallVerdict, first.Performed) {
+		return first
+	}
+	return rerun()
 }
 
 // retryAfterTermination reports whether a session-terminated result is worth re-running

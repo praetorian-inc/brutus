@@ -292,7 +292,7 @@ func TestFinalizeResultKeepsTerminationDiagnostics(t *testing.T) {
 	t.Run("sticky keys", func(t *testing.T) {
 		result := &StickyKeysResult{Performed: true}
 		// A torn-down session analyzes the baseline as the response -> "clean".
-		finalizeStickyKeysResult(result, StickyKeysResult{Performed: true, OverallVerdict: "clean"}, diag, false, false)
+		finalizeStickyKeysResult(result, &StickyKeysResult{Performed: true, OverallVerdict: "clean"}, diag, false, false)
 
 		assert.True(t, result.SessionTerminated,
 			"the retry in DetectStickyKeys reads this field; zeroed, the retry never fires")
@@ -306,7 +306,7 @@ func TestFinalizeResultKeepsTerminationDiagnostics(t *testing.T) {
 
 	t.Run("utilman", func(t *testing.T) {
 		result := &UtilmanResult{Performed: true}
-		finalizeUtilmanResult(result, UtilmanResult{Performed: true, OverallVerdict: "clean"}, diag, false, false)
+		finalizeUtilmanResult(result, &UtilmanResult{Performed: true, OverallVerdict: "clean"}, diag, false, false)
 
 		assert.True(t, result.SessionTerminated)
 		assert.Equal(t, reason, result.TerminationReason)
@@ -318,7 +318,7 @@ func TestFinalizeResultKeepsTerminationDiagnostics(t *testing.T) {
 		// terminated=true. It must reach the caller intact, because that pairing is
 		// exactly what retryAfterTermination has to see to refuse the retry.
 		result := &StickyKeysResult{Performed: true}
-		finalizeStickyKeysResult(result, StickyKeysResult{
+		finalizeStickyKeysResult(result, &StickyKeysResult{
 			Performed: true, OverallVerdict: "backdoor_likely", Confidence: 0.85,
 		}, diag, false, false)
 
@@ -331,7 +331,7 @@ func TestFinalizeResultKeepsTerminationDiagnostics(t *testing.T) {
 
 	t.Run("analysis fields are not dropped", func(t *testing.T) {
 		result := &StickyKeysResult{}
-		finalizeStickyKeysResult(result, StickyKeysResult{
+		finalizeStickyKeysResult(result, &StickyKeysResult{
 			Performed: true, OverallVerdict: "backdoor_confirmed",
 			Confidence: 0.95, HeuristicResult: "dark delta", RegionNote: "console-shaped",
 		}, sessionDiag{}, true, false)
@@ -347,7 +347,7 @@ func TestFinalizeResultKeepsTerminationDiagnostics(t *testing.T) {
 
 // TestRetryOnTerminationWiring covers the retry DECISION as it is actually wired,
 // not just the predicate behind it. The predicate was correct and the call site was
-// what broke before, so this asserts the observable behaviour: whether the rerun
+// what broke before, so this asserts the observable behavior: whether the rerun
 // happens at all, and which result reaches the caller.
 func TestRetryOnTerminationWiring(t *testing.T) {
 	const reason = "session terminated: logoff by user"

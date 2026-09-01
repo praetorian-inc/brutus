@@ -342,7 +342,8 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	finalizeStickyKeysResult(result, runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey), diag, stabilized, fast)
+	analysis := runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
+	finalizeStickyKeysResult(result, &analysis, diag, stabilized, fast)
 
 	return result, nil
 }
@@ -402,7 +403,8 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
-	finalizeUtilmanResult(result, runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey), diag, stabilized, fast)
+	analysis := runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
+	finalizeUtilmanResult(result, &analysis, diag, stabilized, fast)
 
 	return result, nil
 }
@@ -605,8 +607,8 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 // verdict on a render that never stabilized is suspect (or any clean in fast mode --
 // never-clean invariant). Positive verdicts already saw the window and are never
 // downgraded.
-func finalizeStickyKeysResult(result *StickyKeysResult, analysis StickyKeysResult, diag sessionDiag, stabilized, fast bool) {
-	*result = analysis
+func finalizeStickyKeysResult(result, analysis *StickyKeysResult, diag sessionDiag, stabilized, fast bool) {
+	*result = *analysis
 	result.Performed = true
 	result.Stabilized = stabilized
 	result.SessionTerminated = diag.terminated
@@ -629,8 +631,8 @@ func finalizeStickyKeysResult(result *StickyKeysResult, analysis StickyKeysResul
 // verdict on a render that never stabilized is suspect (or any clean in fast mode --
 // never-clean invariant). Positive verdicts already saw the window and are never
 // downgraded.
-func finalizeUtilmanResult(result *UtilmanResult, analysis UtilmanResult, diag sessionDiag, stabilized, fast bool) {
-	*result = analysis
+func finalizeUtilmanResult(result, analysis *UtilmanResult, diag sessionDiag, stabilized, fast bool) {
+	*result = *analysis
 	result.Performed = true
 	result.Stabilized = stabilized
 	result.SessionTerminated = diag.terminated

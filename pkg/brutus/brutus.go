@@ -76,7 +76,6 @@ import (
 // through context.WithValue.
 type PluginConfig struct {
 	TLSMode  string // "disable", "verify", "skip-verify" (default: "disable")
-	NoVision bool   // disable Vision API for screenshot analysis (RDP)
 	ProxyURL string // SOCKS5 proxy URL (e.g., "socks5://127.0.0.1:1080")
 }
 
@@ -110,7 +109,6 @@ type Config struct {
 	MaxAttempts     int           // max password attempts per username (0 = unlimited)
 	MaxRetries      int           // max retries per credential on connection error (0 = no retry, default: 0)
 	Verbose         bool          // enable verbose logging to stderr (default: false)
-	AIMode          bool          // enable Vision API for screenshot analysis (RDP)
 	SkipUnauthCheck bool          // skip CheckUnauth probe (when Nerva already detected it)
 	Mode            Mode          // aggressiveness tier for wordlist depth (default: ModeDefault)
 	ProxyURL        string        // SOCKS5 proxy URL for all connections (e.g., "socks5://127.0.0.1:1080")

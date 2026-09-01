@@ -4,10 +4,15 @@
 //! IronRDP's ActiveStage to drive the graphical session: processing server
 //! frames, decoding screen updates, and sending keyboard input.
 
-use ironrdp_connector::ConnectionResult;
+use ironrdp_connector::connection_activation::{
+    ConnectionActivationSequence, ConnectionActivationState,
+};
+use ironrdp_connector::{ConnectionResult, Sequence};
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_input::{Database as InputDatabase, MouseButton, MousePosition, Operation, Scancode};
+use ironrdp_pdu::ironrdp_core::WriteBuf;
 use ironrdp_pdu::Action;
+use ironrdp_session::fast_path;
 use ironrdp_session::image::DecodedImage;
 use ironrdp_session::{ActiveStage, ActiveStageOutput};
 
@@ -34,6 +39,13 @@ pub struct SessionHandle {
     width: u16,
     height: u16,
     frame_updated: bool,
+    /// In-flight Deactivation-Reactivation Sequence, when the server has asked for
+    /// one. While this is Some, incoming server data is routed to the sequence
+    /// instead of the ActiveStage (see step_reactivation).
+    reactivation: Option<Box<ConnectionActivationSequence>>,
+    /// Host round-trips spent in the current reactivation, bounded so a server that
+    /// never finalizes cannot keep the scan in reactivation indefinitely.
+    reactivation_steps: u32,
 }
 
 impl SessionHandle {
@@ -54,6 +66,8 @@ impl SessionHandle {
             width,
             height,
             frame_updated: false,
+            reactivation: None,
+            reactivation_steps: 0,
         })
     }
 
@@ -64,6 +78,13 @@ impl SessionHandle {
     pub fn process_server_data(&mut self, input: &[u8]) -> (u32, Vec<u8>) {
         if input.is_empty() {
             return (STATE_SESSION_NEED_RECV, Vec::new());
+        }
+
+        // A Deactivation-Reactivation Sequence is in flight: the server is
+        // re-running Capability Exchange and Connection Finalization, so this data
+        // belongs to that sequence and NOT to the ActiveStage.
+        if self.reactivation.is_some() {
+            return self.step_reactivation(input);
         }
 
         // Determine action from first byte
@@ -94,16 +115,32 @@ impl SessionHandle {
                                 format!("session terminated: {}", reason).into_bytes(),
                             );
                         }
-                        ActiveStageOutput::DeactivateAll(_) => {
-                            // Server-initiated deactivation-reactivation sequence.
-                            // Not supported in this minimal session implementation.
-                            return (
-                                STATE_SESSION_ERROR,
-                                b"server deactivation-reactivation not supported".to_vec(),
-                            );
+                        ActiveStageOutput::DeactivateAll(activation) => {
+                            // Server-initiated Deactivation-Reactivation Sequence
+                            // (MS-RDPBCGR 1.3.1.3). This is a NORMAL event, not a
+                            // failure: a server sends it when it switches desktops,
+                            // which on a pre-auth logon session is exactly what
+                            // happens when sethc.exe/utilman.exe launches a console
+                            // on the secure desktop -- the case this scanner exists
+                            // to detect. Treating it as fatal killed the session
+                            // mid-scan and left the host reading a torn-down
+                            // ActiveStage. Take the sequence and drive it instead;
+                            // the server sends Demand Active next.
+                            self.reactivation = Some(activation);
+                            self.reactivation_steps = 0;
+                            break;
                         }
                         _ => {} // PointerDefault, PointerHidden, PointerPosition, PointerBitmap
                     }
+                }
+
+                // Flush anything already queued before switching to the
+                // reactivation sequence, so no response frame is dropped.
+                if self.reactivation.is_some() {
+                    if !response_bytes.is_empty() {
+                        return (STATE_SESSION_NEED_SEND, response_bytes);
+                    }
+                    return (STATE_SESSION_NEED_RECV, Vec::new());
                 }
 
                 if !response_bytes.is_empty() {
@@ -121,6 +158,91 @@ impl SessionHandle {
                 format!("session error: {}", e).into_bytes(),
             ),
         }
+    }
+
+    /// Maximum host round-trips allowed for one Deactivation-Reactivation Sequence.
+    /// The host deadline already bounds wall-clock time; this bounds the work.
+    const MAX_REACTIVATION_STEPS: u32 = 64;
+
+    /// Drive one step of the Deactivation-Reactivation Sequence (MS-RDPBCGR 1.3.1.3).
+    ///
+    /// This deliberately reuses the existing NEED_SEND/NEED_RECV states rather than
+    /// adding new ones: the host pump already loops on those, writing what we return
+    /// and feeding back the next server PDU, so reactivation needs no host-side
+    /// protocol change.
+    ///
+    /// On finalization the server may hand back a DIFFERENT desktop size, so the
+    /// DecodedImage and the fast-path processor are rebuilt for the new geometry.
+    fn step_reactivation(&mut self, input: &[u8]) -> (u32, Vec<u8>) {
+        self.reactivation_steps += 1;
+        if self.reactivation_steps > Self::MAX_REACTIVATION_STEPS {
+            self.reactivation = None;
+            return (
+                STATE_SESSION_ERROR,
+                b"reactivation did not finalize within step budget".to_vec(),
+            );
+        }
+
+        let activation = match self.reactivation.as_mut() {
+            Some(a) => a,
+            None => {
+                return (
+                    STATE_SESSION_ERROR,
+                    b"reactivation stepped with no sequence in flight".to_vec(),
+                );
+            }
+        };
+
+        let mut output = WriteBuf::new();
+        if let Err(e) = activation.step(input, &mut output) {
+            self.reactivation = None;
+            return (
+                STATE_SESSION_ERROR,
+                format!("reactivation failed: {}", e).into_bytes(),
+            );
+        }
+
+        if let ConnectionActivationState::Finalized {
+            io_channel_id,
+            user_channel_id,
+            desktop_size,
+            enable_server_pointer,
+            pointer_software_rendering,
+        } = activation.connection_activation_state()
+        {
+            // Geometry can change across a reactivation; the old image is the wrong
+            // size, so replace it rather than decoding into a stale buffer.
+            self.width = desktop_size.width;
+            self.height = desktop_size.height;
+            self.image = DecodedImage::new(PixelFormat::RgbA32, self.width, self.height);
+
+            self.active_stage.set_fastpath_processor(
+                fast_path::ProcessorBuilder {
+                    io_channel_id,
+                    user_channel_id,
+                    enable_server_pointer,
+                    pointer_software_rendering,
+                }
+                .build(),
+            );
+            self.active_stage
+                .set_enable_server_pointer(enable_server_pointer);
+
+            self.reactivation = None;
+            self.reactivation_steps = 0;
+            // Deliberately NOT reporting a frame here. The replacement DecodedImage
+            // is freshly allocated and therefore ZEROED: announcing it would hand
+            // the host a perfectly black framebuffer that reads as a successful
+            // capture -- the fabricated-backdoor shape guarded against on the host
+            // side. The server's next GraphicsUpdate sets this honestly.
+            self.frame_updated = false;
+        }
+
+        let out_bytes = output.filled().to_vec();
+        if !out_bytes.is_empty() {
+            return (STATE_SESSION_NEED_SEND, out_bytes);
+        }
+        (STATE_SESSION_NEED_RECV, Vec::new())
     }
 
     /// Send a keyboard key press or release. Returns (state_code, output_bytes_to_send).

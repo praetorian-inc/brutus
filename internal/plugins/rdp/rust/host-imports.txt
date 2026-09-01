@@ -1,0 +1,17 @@
+# Symbols wasm-ld may leave undefined, because Go supplies them at instantiation
+# time through wazero's host module rather than at link time. Mirrors the
+# `extern "C"` block in src/host_io.rs.
+#
+# This list is deliberately EXHAUSTIVE rather than a blanket --allow-undefined:
+# with the blanket flag a misspelled or newly-missing host function links fine
+# and becomes a wasm import that only fails when the module is instantiated. With
+# this file, an unexpected undefined symbol is a build error, which is where it
+# belongs. Adding a host function means adding it to host_io.rs, to the Go host
+# module in wasm.go, and here.
+host_tcp_read
+host_tcp_write
+host_tls_upgrade
+host_clock_now_ms
+host_random_fill
+host_log
+host_get_tls_server_pubkey

@@ -128,7 +128,11 @@ impl SessionHandle {
                             // the server sends Demand Active next.
                             self.reactivation = Some(activation);
                             self.reactivation_steps = 0;
-                            break;
+                            // Deliberately NOT breaking: IronRDP can emit further
+                            // items in this same batch and a trailing ResponseFrame
+                            // still has to reach the wire. The post-loop check
+                            // below takes precedence over the frame decision.
+                            continue;
                         }
                         _ => {} // PointerDefault, PointerHidden, PointerPosition, PointerBitmap
                     }
@@ -210,10 +214,32 @@ impl SessionHandle {
             pointer_software_rendering,
         } = activation.connection_activation_state()
         {
-            // Geometry can change across a reactivation; the old image is the wrong
-            // size, so replace it rather than decoding into a stale buffer.
-            self.width = desktop_size.width;
-            self.height = desktop_size.height;
+            // A reactivation may come back at a DIFFERENT desktop size. The host
+            // cannot follow that: it keeps the width/height it passed to
+            // session_new and discards the dimensions session_get_frame reports
+            // (captureFrame reads the packed value only to test non-zero). A
+            // resized framebuffer would therefore be diffed against the baseline
+            // using stale geometry -- misaligned pixels, and a verdict built on
+            // them. Refuse instead: this surfaces as INDETERMINATE, which is
+            // honest, where a misaligned diff is a coin-flip in both directions.
+            // The secure-desktop switch this scanner targets is same-resolution,
+            // so this is the rare path. Threading live geometry through
+            // captureFrame and the analysis calls is the real fix and is larger
+            // than this change.
+            if desktop_size.width != self.width || desktop_size.height != self.height {
+                self.reactivation = None;
+                return (
+                    STATE_SESSION_ERROR,
+                    format!(
+                        "reactivation changed desktop size {}x{} -> {}x{}; host geometry is fixed",
+                        self.width, self.height, desktop_size.width, desktop_size.height
+                    )
+                    .into_bytes(),
+                );
+            }
+
+            // Same geometry, but the deactivation invalidated the old contents, so
+            // start from a clean buffer rather than decoding onto stale pixels.
             self.image = DecodedImage::new(PixelFormat::RgbA32, self.width, self.height);
 
             self.active_stage.set_fastpath_processor(
@@ -247,6 +273,18 @@ impl SessionHandle {
 
     /// Send a keyboard key press or release. Returns (state_code, output_bytes_to_send).
     pub fn send_key(&mut self, scancode: u16, pressed: bool) -> (u32, Vec<u8>) {
+        // The ActiveStage is mid-renegotiation: its channels and capabilities are
+        // being rebuilt, so encoding input against it now is not a keystroke the
+        // server will act on. Refuse rather than inject into an unready stage --
+        // the host maps this to a visible INDETERMINATE instead of a scan that
+        // silently pressed nothing and then read a screen as if it had.
+        if self.reactivation.is_some() {
+            return (
+                STATE_SESSION_ERROR,
+                b"input attempted while reactivation is in flight".to_vec(),
+            );
+        }
+
         let sc = Scancode::from_u16(scancode);
         let operation = if pressed {
             Operation::KeyPressed(sc)
@@ -287,6 +325,18 @@ impl SessionHandle {
         button: u32,
         event_type: u32,
     ) -> (u32, Vec<u8>) {
+        // The ActiveStage is mid-renegotiation: its channels and capabilities are
+        // being rebuilt, so encoding input against it now is not a keystroke the
+        // server will act on. Refuse rather than inject into an unready stage --
+        // the host maps this to a visible INDETERMINATE instead of a scan that
+        // silently pressed nothing and then read a screen as if it had.
+        if self.reactivation.is_some() {
+            return (
+                STATE_SESSION_ERROR,
+                b"input attempted while reactivation is in flight".to_vec(),
+            );
+        }
+
         let mut operations = vec![Operation::MouseMove(MousePosition { x, y })];
 
         let mouse_btn = match button {

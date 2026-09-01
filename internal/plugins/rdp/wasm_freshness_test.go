@@ -45,10 +45,16 @@ func TestEmbeddedWasmIsNotStale(t *testing.T) {
 	assert.False(t, bytes.Contains(ironrdpWasm, []byte("server deactivation-reactivation not supported")),
 		"embedded ironrdp.wasm is STALE: it still carries the pre-fix DeactivateAll error. Rebuild with `make build-wasm`.")
 
-	// Added by the same fix. Their absence means the artifact was built before it.
+	// Added by the same fix and its review follow-ups. Their absence means the
+	// artifact was built before them.
 	for _, marker := range []string{
 		"reactivation failed: ",
 		"reactivation did not finalize within step budget",
+		// Refuses a reactivation that comes back at a different desktop size,
+		// because the host's geometry is fixed at session_new.
+		"reactivation changed desktop size ",
+		// Refuses keyboard/mouse input while the ActiveStage is renegotiating.
+		"input attempted while reactivation is in flight",
 	} {
 		assert.True(t, bytes.Contains(ironrdpWasm, []byte(marker)),
 			"embedded ironrdp.wasm is STALE: missing %q. Rebuild with `make build-wasm`.", marker)

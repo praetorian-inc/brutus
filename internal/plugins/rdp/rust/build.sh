@@ -10,7 +10,12 @@ echo "Building IronRDP WASM module..."
 # told to emit them as imports instead of failing on undefined symbols. Without
 # this the build dies with `undefined symbol: host_get_tls_server_pubkey`, which is
 # why a clean checkout could not reproduce the committed ironrdp.wasm.
-export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=--allow-undefined"
+#
+# host-imports.txt names them EXHAUSTIVELY on purpose. A blanket --allow-undefined
+# would also swallow a misspelled or newly-missing host function, turning a link
+# error into a runtime instantiation failure; with the file, anything unexpected
+# still fails the build.
+export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=--allow-undefined-file=$(pwd)/host-imports.txt"
 
 cargo build --target wasm32-wasip1 --release
 

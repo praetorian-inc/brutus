@@ -234,6 +234,15 @@ func (p *Plugin) runSession(ctx context.Context, inst *wasmInstance, connHandle 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	// The exec.go path uses 1s sleep + 2s WaitForFrame; we mirror that here.
 	time.Sleep(budget.postKeystrokeWait)
+	// Scope the retained frame to the RESPONSE phase. diag is shared with the baseline
+	// pump above, and a baseline-phase frame is NOT a post-trigger observation: left in
+	// place, a response pump that errored before observing anything would hand
+	// responseFrame a pre-trigger frame to difference against the baseline. That reads
+	// as a change the trigger never caused. Cleared, the same case falls through to the
+	// baseline -- "no change" -> indeterminate, never a positive.
+	if diag != nil {
+		diag.lastFrame = nil
+	}
 	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget, diag)
 
 	// Choose the frame to analyze. A clean pump means the live framebuffer is
@@ -326,6 +335,15 @@ func (p *Plugin) runUtilmanSession(ctx context.Context, inst *wasmInstance, conn
 
 	// Wait for response and pump — give cmd.exe time to render before capturing.
 	time.Sleep(budget.postKeystrokeWait)
+	// Scope the retained frame to the RESPONSE phase. diag is shared with the baseline
+	// pump above, and a baseline-phase frame is NOT a post-trigger observation: left in
+	// place, a response pump that errored before observing anything would hand
+	// responseFrame a pre-trigger frame to difference against the baseline. That reads
+	// as a change the trigger never caused. Cleared, the same case falls through to the
+	// baseline -- "no change" -> indeterminate, never a positive.
+	if diag != nil {
+		diag.lastFrame = nil
+	}
 	responseStable, pumpErr := p.pumpSession(ctx, inst, sessHandle, width, height, timeout, budget, diag)
 
 	// Choose the frame to analyze. A clean pump means the live framebuffer is

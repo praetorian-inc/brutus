@@ -55,7 +55,8 @@ func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeou
 	// observed. The short profile completes inside that window, so retry once there
 	// rather than returning a scan that saw no render. Only from the careful budget:
 	// a --fast scan has no shorter profile to fall back to.
-	if !fast && stickyResult != nil && stickyResult.SessionTerminated {
+	if !fast && stickyResult != nil && stickyResult.SessionTerminated &&
+		retryAfterTermination(stickyResult.OverallVerdict, stickyResult.Performed) {
 		stickyResult = plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
 	}
 	result := mapStickyResult(stickyResult, username)
@@ -85,8 +86,14 @@ func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Re
 
 	if !stickyResult.Performed {
 		// A failed connect/instance is NOT a benign skip — it produced no
-		// verdict, so surface it loudly as indeterminate (rerun), not clean.
-		result.Banner = fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", stickyResult.SkipReason)
+		// verdict, so surface it loudly as indeterminate (rerun), not clean. A server
+		// that ended the session mid-scan gets the termination banner instead:
+		// "could not connect" misdirects an operator whose connect worked fine.
+		if stickyResult.SessionTerminated {
+			result.Banner = indeterminateBanner("Sticky keys", true, stickyResult.TerminationReason)
+		} else {
+			result.Banner = fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", stickyResult.SkipReason)
+		}
 		result.Indeterminate = true
 		return result
 	}
@@ -137,7 +144,8 @@ func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout t
 	utilmanResult := plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
 	// See DetectStickyKeys: a host that drops the pre-auth session before the careful
 	// settle completes is still observable on the short profile.
-	if !fast && utilmanResult != nil && utilmanResult.SessionTerminated {
+	if !fast && utilmanResult != nil && utilmanResult.SessionTerminated &&
+		retryAfterTermination(utilmanResult.OverallVerdict, utilmanResult.Performed) {
 		utilmanResult = plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
 	}
 	result := mapUtilmanResult(utilmanResult, username)
@@ -167,8 +175,14 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 
 	if !utilmanResult.Performed {
 		// A failed connect/instance is NOT a benign skip — it produced no
-		// verdict, so surface it loudly as indeterminate (rerun), not clean.
-		result.Banner = fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", utilmanResult.SkipReason)
+		// verdict, so surface it loudly as indeterminate (rerun), not clean. A server
+		// that ended the session mid-scan gets the termination banner instead:
+		// "could not connect" misdirects an operator whose connect worked fine.
+		if utilmanResult.SessionTerminated {
+			result.Banner = indeterminateBanner("Utilman", true, utilmanResult.TerminationReason)
+		} else {
+			result.Banner = fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", utilmanResult.SkipReason)
+		}
 		result.Indeterminate = true
 		return result
 	}
@@ -312,11 +326,10 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	if err != nil {
 		result.Performed = false
 		result.SessionTerminated = diag.terminated
+		result.TerminationReason = diag.reason
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
 		return result, nil
 	}
-	result.SessionTerminated = diag.terminated
-	result.TerminationReason = diag.reason
 
 	// DEBUG: dump captured frames to PNG when BRUTUS_DEBUG_SCREENSHOT_DIR is set.
 	if dir := os.Getenv("BRUTUS_DEBUG_SCREENSHOT_DIR"); dir != "" {
@@ -334,6 +347,12 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	*result = runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	result.Performed = true
 	result.Stabilized = stabilized
+	// Assigned AFTER the whole-struct assignment above, not before it: runStickyKeysAnalysis
+	// returns a FRESH result, so anything set on *result earlier is discarded. These two
+	// fields drive the short-profile retry and the termination banner, and a
+	// response-phase teardown is exactly the case that reaches this line with err == nil.
+	result.SessionTerminated = diag.terminated
+	result.TerminationReason = diag.reason
 
 	// Cardinal false-negative guard: only a "clean" verdict on a render that
 	// never stabilized is suspect (or any clean in fast mode — never-clean
@@ -381,11 +400,10 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	if err != nil {
 		result.Performed = false
 		result.SessionTerminated = diag.terminated
+		result.TerminationReason = diag.reason
 		result.SkipReason = fmt.Sprintf("session failed: %v", err)
 		return result, nil
 	}
-	result.SessionTerminated = diag.terminated
-	result.TerminationReason = diag.reason
 
 	// DEBUG: dump captured frames to PNG when BRUTUS_DEBUG_SCREENSHOT_DIR is set.
 	if dir := os.Getenv("BRUTUS_DEBUG_SCREENSHOT_DIR"); dir != "" {
@@ -403,6 +421,12 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	*result = runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	result.Performed = true
 	result.Stabilized = stabilized
+	// Assigned AFTER the whole-struct assignment above, not before it: runUtilmanAnalysis
+	// returns a FRESH result, so anything set on *result earlier is discarded. These two
+	// fields drive the short-profile retry and the termination banner, and a
+	// response-phase teardown is exactly the case that reaches this line with err == nil.
+	result.SessionTerminated = diag.terminated
+	result.TerminationReason = diag.reason
 
 	// Cardinal false-negative guard: only a "clean" verdict on a render that
 	// never stabilized is suspect (or any clean in fast mode — never-clean
@@ -496,7 +520,11 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 		}
 		// A failed connect/instance is NOT a benign skip — it produced no
 		// verdict, so surface it loudly as indeterminate (rerun), not clean.
-		banner += fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
+		if result.SessionTerminated {
+			banner += indeterminateBanner("Sticky keys", true, result.TerminationReason)
+		} else {
+			banner += fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
+		}
 		return banner
 	}
 
@@ -523,7 +551,7 @@ func formatStickyKeysBanner(existingBanner string, result *StickyKeysResult) str
 		banner += "[INFO] Non-NLA RDP target. Sticky Keys triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if sethc.exe is later replaced."
 	case verdictIndeterminate:
-		banner += "[WARN] Sticky keys check INDETERMINATE (render did not stabilize — rerun)"
+		banner += indeterminateBanner("Sticky keys", result.SessionTerminated, result.TerminationReason)
 	case "clean":
 		banner += "[INFO] Sticky keys check: clean (no response to 5x Shift)."
 	}
@@ -548,7 +576,11 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 		}
 		// A failed connect/instance is NOT a benign skip — it produced no
 		// verdict, so surface it loudly as indeterminate (rerun), not clean.
-		banner += fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
+		if result.SessionTerminated {
+			banner += indeterminateBanner("Utilman", true, result.TerminationReason)
+		} else {
+			banner += fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", result.SkipReason)
+		}
 		return banner
 	}
 
@@ -575,7 +607,7 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 		banner += "[INFO] Non-NLA RDP target. Utilman triggers normally (no backdoor detected).\n"
 		banner += "Target is vulnerable if utilman.exe is later replaced."
 	case verdictIndeterminate:
-		banner += "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"
+		banner += indeterminateBanner("Utilman", result.SessionTerminated, result.TerminationReason)
 	case "clean":
 		banner += "[INFO] Utilman check: clean (no response to Win+U)."
 	}
@@ -586,6 +618,27 @@ func formatUtilmanBanner(existingBanner string, result *UtilmanResult) string {
 	}
 
 	return banner
+}
+
+// retryAfterTermination reports whether a session-terminated result is worth re-running
+// on the short settle profile. A result that already REPORTS an observation --
+// confirmed, likely, or the non-NLA "vulnerable" reading -- is NEVER retried: the retry
+// can come back indeterminate and would replace a real observation with nothing, the
+// false negative the cardinal rule forbids. This is reachable because responseFrame
+// analyzes the last frame seen while the session was alive, so a payload that painted
+// and only then dropped the session scores a genuine positive alongside terminated=true.
+// Everything else -- indeterminate, clean, or a scan that never performed -- saw no
+// trustworthy post-trigger render, so a retry can only improve it.
+func retryAfterTermination(verdict string, performed bool) bool {
+	if !performed {
+		return true
+	}
+	switch verdict {
+	case "backdoor_confirmed", "backdoor_likely", "vulnerable":
+		return false
+	default:
+		return true
+	}
 }
 
 // indeterminateBanner renders the INDETERMINATE banner for a check that produced no

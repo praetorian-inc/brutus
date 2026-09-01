@@ -193,3 +193,87 @@ func TestIndeterminateBanner(t *testing.T) {
 	assert.Contains(t, noReason, "server ended the session mid-scan")
 	assert.Contains(t, noReason, "--fast")
 }
+
+// TestRetryAfterTermination pins the retry gate. A terminated session whose scan
+// still REPORTED something (responseFrame analyzes the last live frame, so a payload
+// that painted and only then dropped the session scores a genuine positive) must not
+// be re-run: the second scan can come back indeterminate and would replace a real
+// backdoor with nothing -- the false negative the cardinal rule forbids.
+func TestRetryAfterTermination(t *testing.T) {
+	for _, tc := range []struct {
+		verdict   string
+		performed bool
+		want      bool
+		why       string
+	}{
+		{"backdoor_confirmed", true, false, "a confirmed backdoor is never re-rolled"},
+		{"backdoor_likely", true, false, "a HIGH finding is never re-rolled"},
+		{"vulnerable", true, false, "the non-NLA reading is a real observation too"},
+		{verdictIndeterminate, true, true, "nothing was observed, so a retry can only improve it"},
+		{"clean", true, true, "a clean from a torn-down session saw no post-trigger render"},
+		{"", false, true, "a scan that never performed has nothing to lose"},
+		{"backdoor_likely", false, true, "a verdict without Performed is not an observation"},
+	} {
+		assert.Equal(t, tc.want, retryAfterTermination(tc.verdict, tc.performed),
+			"%s/performed=%v: %s", tc.verdict, tc.performed, tc.why)
+	}
+}
+
+// TestTerminationBannerReachesTheOperator covers every banner seam that consumes
+// SessionTerminated, including the !Performed path, where "could not connect"
+// misdirects an operator whose connect worked and whose session was torn down after.
+func TestTerminationBannerReachesTheOperator(t *testing.T) {
+	const reason = "session terminated: logoff by user"
+
+	t.Run("sticky indeterminate", func(t *testing.T) {
+		got := mapStickyResult(&StickyKeysResult{
+			Performed: true, OverallVerdict: verdictIndeterminate,
+			SessionTerminated: true, TerminationReason: reason,
+		}, "")
+		assert.True(t, got.Indeterminate)
+		assert.Contains(t, got.Banner, "server ended the session mid-scan")
+		assert.Contains(t, got.Banner, reason)
+	})
+
+	t.Run("sticky not performed", func(t *testing.T) {
+		got := mapStickyResult(&StickyKeysResult{
+			Performed: false, SkipReason: "session failed: pump baseline: session error",
+			SessionTerminated: true, TerminationReason: reason,
+		}, "")
+		assert.True(t, got.Indeterminate)
+		assert.Contains(t, got.Banner, "server ended the session mid-scan")
+		assert.NotContains(t, got.Banner, "could not connect",
+			"a mid-scan teardown is not a failed connect")
+	})
+
+	t.Run("utilman indeterminate", func(t *testing.T) {
+		got := mapUtilmanResult(&UtilmanResult{
+			Performed: true, OverallVerdict: verdictIndeterminate,
+			SessionTerminated: true, TerminationReason: reason,
+		}, "")
+		assert.Contains(t, got.Banner, "server ended the session mid-scan")
+		assert.Contains(t, got.Banner, reason)
+	})
+
+	t.Run("shared rdp path carries the reason too", func(t *testing.T) {
+		sticky := formatStickyKeysBanner("", &StickyKeysResult{
+			Performed: true, OverallVerdict: verdictIndeterminate,
+			SessionTerminated: true, TerminationReason: reason,
+		})
+		assert.Contains(t, sticky, reason,
+			"the shared `brutus rdp` path must not fall back to the generic banner")
+
+		utilman := formatUtilmanBanner("", &UtilmanResult{
+			Performed: true, OverallVerdict: verdictIndeterminate,
+			SessionTerminated: true, TerminationReason: reason,
+		})
+		assert.Contains(t, utilman, reason)
+	})
+
+	t.Run("a non-terminated indeterminate keeps the original text", func(t *testing.T) {
+		got := mapStickyResult(&StickyKeysResult{
+			Performed: true, OverallVerdict: verdictIndeterminate,
+		}, "")
+		assert.Contains(t, got.Banner, "render did not stabilize")
+	})
+}

@@ -376,10 +376,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		totalAttempts, config.Threads, config.Timeout)
 	logVerbose(base.verbose, "Starting brute force...")
 
-	// Set RDP-specific flags on config for the plugin
-	if base.logon != nil {
-		config.StickyKeys = true
-	}
 	config.AIMode = base.aiMode
 
 	// Create context that cancels on SIGINT/SIGTERM

@@ -3,6 +3,7 @@ module github.com/praetorian-inc/brutus
 go 1.26
 
 require (
+	github.com/UNC1739/gordp v0.0.0-00010101000000-000000000000
 	github.com/chromedp/chromedp v0.16.0
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
@@ -87,3 +88,5 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )
+
+replace github.com/UNC1739/gordp => /Users/adam/github/gordp

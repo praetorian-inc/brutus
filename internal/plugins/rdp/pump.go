@@ -59,6 +59,22 @@ func pumpBackend(ctx context.Context, sess rdpSession, timeout time.Duration,
 			return false, ctxErr
 		}
 
+		// Evaluate settling on every iteration, not only after a frame arrives.
+		//
+		// A screen that has finished painting stops sending graphics updates
+		// altogether, so a settle check reachable only from "a frame arrived"
+		// never runs on exactly the hosts that have gone quiet. Those pumps burn
+		// their whole timeout and report not-settled, which downstream turns a
+		// clean host into indeterminate and costs a rerun.
+		//
+		// prevFrame guards the other direction: a host that has sent nothing at
+		// all must never be declared settled, because its framebuffer is still
+		// black and differencing that against a later frame is how a backdoor
+		// gets fabricated.
+		if prevFrame != nil && settled(start, lastChange, time.Now(), budget) {
+			return true, nil
+		}
+
 		// A read timeout is reported as (false, nil), so wall-clock time
 		// advances without resetting the quiet window. That is what lets quiet
 		// time accumulate across the short pauses in RDP's bursty painting.
@@ -74,9 +90,10 @@ func pumpBackend(ctx context.Context, sess rdpSession, timeout time.Duration,
 			// as an error and responseFrame falls back to the last live frame.
 			if diag != nil {
 				diag.terminated = true
-				diag.reason = "server ended the session"
+				diag.reason = sess.TerminationReason()
 			}
-			return false, fmt.Errorf("session terminated during pump")
+			return false, fmt.Errorf("session terminated during pump: %s",
+				sess.TerminationReason())
 		}
 
 		if !updated {
@@ -105,6 +122,8 @@ func pumpBackend(ctx context.Context, sess rdpSession, timeout time.Duration,
 			diag.lastFrame = frame
 		}
 
+		// Also check here so a pump returns the moment the settling frame
+		// arrives, rather than waiting out one more read deadline first.
 		if settled(start, lastChange, time.Now(), budget) {
 			return true, nil
 		}

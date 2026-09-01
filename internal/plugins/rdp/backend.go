@@ -87,6 +87,15 @@ type rdpSession interface {
 	// Size returns the framebuffer dimensions in pixels.
 	Size() (width, height uint32)
 
+	// TerminationReason returns the server's own explanation for ending the
+	// session, or a generic description if it gave none.
+	//
+	// Windows distinguishes cases an operator needs to tell apart — an idle
+	// timeout, a logon timeout, a policy refusal — and collapsing them into one
+	// string throws away the only diagnosis available for a host that cannot be
+	// scanned.
+	TerminationReason() string
+
 	// Terminated reports whether the server has ended the session.
 	//
 	// This matters for correctness, not tidiness: a torn-down session's

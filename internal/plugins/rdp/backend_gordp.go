@@ -226,6 +226,14 @@ func (s *gordpSession) Size() (uint32, uint32) { return s.width, s.height }
 // Terminated implements rdpSession.
 func (s *gordpSession) Terminated() bool { return s.terminated }
 
+// TerminationReason implements rdpSession.
+func (s *gordpSession) TerminationReason() string {
+	if s.errorInfo == "" {
+		return "server ended the session without giving a reason"
+	}
+	return s.errorInfo
+}
+
 // Close implements rdpSession.
 func (s *gordpSession) Close(ctx context.Context) error {
 	// Shut the session down before dropping the socket. Skipping this occupies

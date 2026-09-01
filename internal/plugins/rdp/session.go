@@ -459,6 +459,26 @@ func (p *Plugin) pumpSession(ctx context.Context, inst *wasmInstance, sessHandle
 	lastChange := start
 
 	for time.Now().Before(deadline) {
+		// Evaluate settling on every iteration, not only after a frame arrives.
+		//
+		// A screen that has finished painting stops sending graphics updates
+		// altogether, so a settle check reachable only from stateFrameAvailable
+		// never runs on exactly the hosts that have gone quiet. Those pumps ran
+		// their whole timeout and returned not-settled, which downstream turns a
+		// clean host into indeterminate: a wasted scan that has to be rerun. On
+		// a real Windows Server 2022 logon screen this was the difference
+		// between "indeterminate after 66s" and "clean after 11s", and the long
+		// pump was itself provoking the server's unauthenticated-session
+		// timeout, so the session was being torn down as well.
+		//
+		// prevFrame guards the other direction: a host that has sent nothing at
+		// all must never be declared settled, because its framebuffer is still
+		// black and differencing that against a later frame is how a backdoor
+		// gets fabricated.
+		if prevFrame != nil && settled(start, lastChange, time.Now(), budget) {
+			return true, nil
+		}
+
 		// Set per-frame read deadline
 		_ = conn.SetReadDeadline(time.Now().Add(budget.readDeadline))
 

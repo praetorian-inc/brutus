@@ -336,8 +336,8 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	}
 
 	// Vision API confirmation is optional: it requires ANTHROPIC_API_KEY and is
-	// opted into with --experimental-ai, which is where noVision comes from
-	// (see workers.go: NoVision is !AIMode).
+	// opted into with --experimental-ai, which the logon entry points pass down
+	// as the noVision parameter.
 	var visionAPIKey string
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")
@@ -397,8 +397,8 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	}
 
 	// Vision API confirmation is optional: it requires ANTHROPIC_API_KEY and is
-	// opted into with --experimental-ai, which is where noVision comes from
-	// (see workers.go: NoVision is !AIMode).
+	// opted into with --experimental-ai, which the logon entry points pass down
+	// as the noVision parameter.
 	var visionAPIKey string
 	if !noVision {
 		visionAPIKey = os.Getenv("ANTHROPIC_API_KEY")

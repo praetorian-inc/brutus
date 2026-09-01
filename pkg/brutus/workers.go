@@ -99,7 +99,6 @@ func reorderForSpray(creds []credential) []credential {
 func pluginConfigFromConfig(cfg *Config) PluginConfig {
 	return PluginConfig{
 		TLSMode:  cfg.TLSMode,
-		NoVision: !cfg.AIMode,
 		ProxyURL: cfg.ProxyURL,
 	}
 }

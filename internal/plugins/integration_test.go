@@ -230,7 +230,7 @@ func TestAllProtocols(t *testing.T) {
 				t.Skip(tc.skipReason)
 			}
 
-			runProtocolTest(t, tc)
+			runProtocolTest(t, &tc)
 		})
 	}
 }
@@ -270,7 +270,7 @@ func TestSNMP(t *testing.T) {
 }
 
 // runProtocolTest executes the standard test pattern for a protocol
-func runProtocolTest(t *testing.T, tc testCase) {
+func runProtocolTest(t *testing.T, tc *testCase) {
 	host := os.Getenv(tc.hostEnv)
 	if host == "" {
 		t.Skipf("%s not set", tc.hostEnv)
@@ -327,4 +327,3 @@ func runProtocolTest(t *testing.T, tc testCase) {
 		assert.Nil(t, result.Error, "Auth failure should return nil error (not connection error)")
 	})
 }
-

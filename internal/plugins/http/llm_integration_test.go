@@ -360,7 +360,7 @@ func TestHTTPWithLLM_BruteAPI(t *testing.T) {
 }
 
 // getLLMAPIKey returns the Anthropic API key if valid, empty string if not available or invalid
-func getLLMAPIKey() (string, string) {
+func getLLMAPIKey() (apiKey, provider string) {
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		// Validate the key is actually working before returning it
 		if isValidAPIKey(key) {
@@ -401,7 +401,7 @@ func isValidAPIKey(apiKey string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Cache the result
 	validatedKey = apiKey

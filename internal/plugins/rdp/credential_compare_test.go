@@ -116,10 +116,9 @@ func TestWASMCredentialContractIsBrokenOnModernWindows(t *testing.T) {
 
 // runCredentialTest exercises Plugin.Test on the given backend.
 //
-// The pre-authentication checks are switched off: they open their own
-// connections, and Windows Server allows only two concurrent sessions, so
-// leaving them on would exhaust the host and make the credential result depend
-// on scan order.
+// Nothing needs switching off any more: the credential path no longer runs the
+// pre-authentication logon-backdoor checks, so it opens one connection per
+// attempt and cannot exhaust a Windows Server's two-session limit by itself.
 func runCredentialTest(t *testing.T, backend Backend, host, user, pass string) *brutus.Result {
 	t.Helper()
 
@@ -131,7 +130,7 @@ func runCredentialTest(t *testing.T, backend Backend, host, user, pass string) *
 
 	p := &Plugin{}
 	return p.Test(context.Background(), host, user, pass, 30*time.Second,
-		brutus.PluginConfig{NoStickyKeys: true, NoVision: true})
+		brutus.PluginConfig{})
 }
 
 func requireCredHost(t *testing.T) (host, user, pass string) {

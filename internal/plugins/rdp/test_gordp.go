@@ -83,19 +83,6 @@ func (p *Plugin) testGordp(ctx context.Context, target, username, password strin
 		_ = dial.session.Close(ctx)
 	}
 
-	// The sticky keys and utilman checks are pre-authentication and run on their
-	// own connections, so they happen regardless of the credential outcome.
-	if !pluginCfg.NoStickyKeys {
-		if sticky := p.RunStickyKeysCheck(ctx, target, pluginCfg.ProxyURL, timeout, timeout,
-			pluginCfg.NoVision, CarefulBudget, false); sticky != nil {
-			result.Banner = formatStickyKeysBanner(result.Banner, sticky)
-		}
-		if utilman := p.RunUtilmanCheck(ctx, target, pluginCfg.ProxyURL, timeout, timeout,
-			pluginCfg.NoVision, CarefulBudget, false); utilman != nil {
-			result.Banner = formatUtilmanBanner(result.Banner, utilman)
-		}
-	}
-
 	return result
 }
 

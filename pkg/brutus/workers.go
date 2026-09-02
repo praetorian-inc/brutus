@@ -98,10 +98,8 @@ func reorderForSpray(creds []credential) []credential {
 // This replaces the former pattern of copying config into context values.
 func pluginConfigFromConfig(cfg *Config) PluginConfig {
 	return PluginConfig{
-		TLSMode:      cfg.TLSMode,
-		NoVision:     !cfg.AIMode,
-		NoStickyKeys: !cfg.StickyKeys,
-		ProxyURL:     cfg.ProxyURL,
+		TLSMode:  cfg.TLSMode,
+		ProxyURL: cfg.ProxyURL,
 	}
 }
 

@@ -3,6 +3,20 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 echo "Building IronRDP WASM module..."
+
+# host_io.rs declares the Go-provided host functions (host_tcp_read, host_log,
+# host_get_tls_server_pubkey, ...) in an `extern "C"` block. Those resolve at
+# instantiation time via wazero's host module, not at link time, so wasm-ld must be
+# told to emit them as imports instead of failing on undefined symbols. Without
+# this the build dies with `undefined symbol: host_get_tls_server_pubkey`, which is
+# why a clean checkout could not reproduce the committed ironrdp.wasm.
+#
+# host-imports.txt names them EXHAUSTIVELY on purpose. A blanket --allow-undefined
+# would also swallow a misspelled or newly-missing host function, turning a link
+# error into a runtime instantiation failure; with the file, anything unexpected
+# still fails the build.
+export RUSTFLAGS="${RUSTFLAGS:-} -C link-arg=--allow-undefined-file=$(pwd)/host-imports.txt"
+
 cargo build --target wasm32-wasip1 --release
 
 WASM_FILE="target/wasm32-wasip1/release/ironrdp_wasm.wasm"

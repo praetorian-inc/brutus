@@ -55,6 +55,10 @@ type gordpDialResult struct {
 	session *gordpSession
 	// banner describes the server, for the same reporting the WASM path does.
 	banner string
+	// credsspProved reports that CredSSP completed, which is itself proof that
+	// the credentials were valid. Without it a completed connection proves
+	// nothing and the logon has to be observed separately.
+	credsspProved bool
 }
 
 // dialGordp performs the whole connection sequence and returns a live session.
@@ -97,6 +101,12 @@ func dialGordp(ctx context.Context, addr, proxyURL string, cfg rdpConfig,
 		Domain:   cfg.Domain,
 	}
 
+	// A credential scan has to reach servers that only speak the older exchange
+	// — xrdp, and Windows with NLA switched off — so the downgrade is permitted
+	// rather than refused. It is not silent: the result records that it happened,
+	// and the logon still has to be proven separately below.
+	gcfg.AllowNonNLAFallback = useCredSSP
+
 	var runner gconnector.CredSSPRunner
 	if useCredSSP {
 		runner = gcredssp.Runner{}
@@ -119,6 +129,7 @@ func dialGordp(ctx context.Context, addr, proxyURL string, cfg rdpConfig,
 
 	ok = true
 	return &gordpDialResult{
+		credsspProved: useCredSSP && !result.CredSSPDowngraded,
 		session: &gordpSession{
 			conn:   conn,
 			stage:  stage,
@@ -232,6 +243,14 @@ func (s *gordpSession) TerminationReason() string {
 		return "server ended the session without giving a reason"
 	}
 	return s.errorInfo
+}
+
+// WaitForLogon waits for the server to report a logon verdict.
+//
+// It is only meaningful when CredSSP was not used: with CredSSP the credentials
+// were already proven before the connection completed.
+func (s *gordpSession) WaitForLogon(ctx context.Context, timeout time.Duration) (gsession.LogonOutcome, string, error) {
+	return s.driver.WaitForLogon(ctx, timeout)
 }
 
 // Close implements rdpSession.

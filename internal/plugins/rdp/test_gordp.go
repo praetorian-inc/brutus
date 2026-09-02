@@ -16,8 +16,11 @@ package rdp
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
+
+	gsession "github.com/UNC1739/gordp/pkg/session"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -55,19 +58,28 @@ func (p *Plugin) testGordp(ctx context.Context, target, username, password strin
 		Domain:   domain,
 	}, detectWidth, detectHeight, timeout)
 
-	if err != nil {
+	switch {
+	case err != nil:
 		// classifyError matches the message against rdpAuthIndicators, which is
 		// what turns "authentication failed: ..." into a credential rejection
 		// and anything else into a transport error.
 		result.Error = classifyError(err)
-	} else {
-		// Reaching an active session means the server accepted the credentials.
+
+	case dial.credsspProved:
+		// CredSSP completed, which is itself proof: the server validated the
+		// credentials before the connection was allowed to proceed.
 		result.Success = true
 		result.Banner = dial.banner
+		_ = dial.session.Close(ctx)
 
-		// Close before running the pre-auth checks below. Windows Server allows
-		// only two concurrent sessions, and holding this one open while opening
-		// two more would exhaust the host and make its own checks fail.
+	default:
+		// CredSSP was not used, so the connection completing proves nothing: the
+		// server accepts it either way and reports the logon outcome afterwards.
+		// Waiting for that verdict is the difference between testing a credential
+		// and merely reaching a host.
+		var confirmErr error
+		result.Success, result.Banner, confirmErr = confirmNonNLALogon(ctx, dial)
+		result.Error = confirmErr
 		_ = dial.session.Close(ctx)
 	}
 
@@ -85,4 +97,47 @@ func (p *Plugin) testGordp(ctx context.Context, target, username, password strin
 	}
 
 	return result
+}
+
+// nonNLALogonWait bounds how long to wait for a server's logon verdict.
+//
+// Real Windows reports a successful logon within about two seconds, so this is
+// generous. It stays bounded because a scan cannot afford to wait on every host
+// that simply says nothing, which is what Windows does for a wrong password.
+const nonNLALogonWait = 8 * time.Second
+
+// confirmNonNLALogon waits for the server to report whether the logon happened.
+//
+// It returns the credential verdict, a banner describing what was seen, and an
+// error when the question could not be answered at all.
+//
+// That third outcome is the important one. Some servers — xrdp among them —
+// complete the connection without CredSSP and then never report a logon result,
+// because their own login dialog handles authentication. Against those, no
+// password can be confirmed or refuted. Reporting that as "rejected" would be a
+// quiet lie about a host that was never actually tested, so it is reported as an
+// error instead: the plugin contract already distinguishes "this password is
+// wrong" from "this host could not be tested", and this is the latter.
+//
+// A wrong password against Windows does not reach here: CredSSP fails first and
+// is classified as a rejection.
+func confirmNonNLALogon(ctx context.Context, dial *gordpDialResult) (success bool, banner string, err error) {
+	outcome, detail, waitErr := dial.session.WaitForLogon(ctx, nonNLALogonWait)
+	if waitErr != nil {
+		return false, dial.banner, fmt.Errorf("connection error: waiting for the logon result: %w", waitErr)
+	}
+
+	switch outcome {
+	case gsession.LogonSucceeded:
+		return true, fmt.Sprintf("%s; %s (CredSSP not used, so the server's identity was not proven)",
+			dial.banner, detail), nil
+
+	case gsession.LogonFailed:
+		return false, fmt.Sprintf("%s; logon refused: %s", dial.banner, detail), nil
+
+	default:
+		return false, fmt.Sprintf("%s; %s", dial.banner, detail),
+			fmt.Errorf("connection error: the server completed the connection without CredSSP " +
+				"and reported no logon result, so the credentials could not be validated")
+	}
 }

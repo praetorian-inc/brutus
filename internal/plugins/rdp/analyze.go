@@ -438,6 +438,84 @@ func darkBoxFraction(buf []byte, w int, box changedBox) float64 {
 	return float64(darkCount) / float64(count)
 }
 
+// darkConsoleGeometryConfirms reports whether the response frame contains a dark
+// console-shaped window, judged on geometry alone.
+//
+// It exists because the dark-pixel delta cannot see a dark window on a screen
+// that is already dark, and modern Windows logon screens are. Measured, as a
+// fraction of the logon screen falling below darkBrightnessMax:
+//
+//	Server 2016   0.0%
+//	Server 2019  94.7%
+//	Server 2022  94.3%
+//	Server 2025  99.1%
+//
+// From 2019 onward there is almost no headroom for a black console to add new
+// dark pixels, and on 2025 there is less than the darkDeltaConsoleMinFrac floor,
+// so darkDeltaVerdict returns clean by arithmetic. Verified against genuinely
+// backdoored hosts: a full-screen sethc.exe SYSTEM console was reported clean on
+// both Server 2019 and Server 2025.
+//
+// The geometry is unambiguous where the brightness delta is not. On the same
+// frames:
+//
+//	host          rect score  darkInBox  meanBox  region
+//	2016 backdoor       0.80       0.70       40  console
+//	2019 backdoor       1.00       0.93       24  console
+//	2025 backdoor       0.11       0.92       28  console
+//	2025 clean          0.52       0.46      135  unknown
+//
+// Note that the rectangle score does not separate them — it is 0.11 on the 2025
+// backdoor, below the 0.52 of the clean host, because only the title bar and
+// text differ from a black background. What does separate them is that the
+// changed region is a large, top-left-anchored box whose body is genuinely dark:
+// exactly what classifyRegion and gateMinDarkBoxFrac already measure, on
+// thresholds tuned against ground-truth fixtures rather than invented here.
+//
+// Pure, so the thresholds can be exercised without driving I/O.
+func darkConsoleGeometryConfirms(baseline, response []byte, width, height uint32) (bool, string) {
+	total := int(width) * int(height)
+	if total == 0 {
+		return false, ""
+	}
+
+	_, _, box := detectChangedRectangle(baseline, response, width, height)
+	if box.changedCount == 0 {
+		return false, ""
+	}
+
+	// Bound the change at both ends.
+	//
+	// Below minChangedPercent nothing meaningful repainted, and reading that as
+	// a console is the fabricated-positive path. Above maxChangedPercent the
+	// whole screen changed, which is not a window appearing — a Windows logon
+	// screen that transitions from its lock-screen photo to the sign-in view
+	// changes ~98% of pixels, and the result is a large, dark, top-left box
+	// that geometry alone cannot tell from a full-screen console. Omitting this
+	// bound produced exactly that false positive on a clean Server 2019 host.
+	changedPercent := float64(box.changedCount) / float64(total) * 100.0
+	if changedPercent < minChangedPercent || changedPercent > maxChangedPercent {
+		return false, ""
+	}
+
+	// classifyRegion already requires the box to be dark, console-sized and
+	// anchored top-left; darkBoxFraction then requires its body to be mostly
+	// dark pixels rather than a dispersed shift, which is what separates a real
+	// console (~0.9) from the wallpaper false positive (~0.35).
+	if classifyRegion(response, width, height, box) != regionConsoleLike {
+		return false, ""
+	}
+	darkFrac := darkBoxFraction(response, int(width), box)
+	if darkFrac < gateMinDarkBoxFrac {
+		return false, ""
+	}
+
+	return true, fmt.Sprintf(
+		"%.1f%% pixels changed forming a dark console-shaped window (%.0f%% of its box is dark); "+
+			"the dark-pixel delta could not see it because the baseline screen is already dark",
+		changedPercent, darkFrac*100)
+}
+
 // decideVerdict gates the dark-delta verdict against console evidence. When keepHigh is
 // false it downgrades a backdoor_likely (a no-console count artifact) to indeterminate;
 // every other verdict — backdoor_confirmed, vulnerable, clean, indeterminate — passes
@@ -538,9 +616,18 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 	result.HeuristicResult = description
 
 	if verdict == "clean" {
-		result.OverallVerdict = "clean"
-		result.Confidence = confidence
-		return result
+		// Before accepting that, check whether a dark console is simply
+		// invisible to a brightness delta on an already-dark screen. See
+		// darkConsoleGeometryConfirms: on Server 2019 and later this is the
+		// difference between finding a SYSTEM shell and reporting clean.
+		if confirmed, note := darkConsoleGeometryConfirms(baseline, response, width, height); confirmed {
+			verdict = "backdoor_likely"
+			result.HeuristicResult = note
+		} else {
+			result.OverallVerdict = "clean"
+			result.Confidence = confidence
+			return result
+		}
 	}
 
 	// Step 2: Try Vision API for confirmation if key available (Vision wins when present).
@@ -608,9 +695,16 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 	result.HeuristicResult = description
 
 	if verdict == "clean" {
-		result.OverallVerdict = "clean"
-		result.Confidence = confidence
-		return result
+		// Same reasoning as the sticky keys path: a dark console on an
+		// already-dark logon screen is invisible to a brightness delta.
+		if confirmed, note := darkConsoleGeometryConfirms(baseline, response, width, height); confirmed {
+			verdict = "backdoor_likely"
+			result.HeuristicResult = note
+		} else {
+			result.OverallVerdict = "clean"
+			result.Confidence = confidence
+			return result
+		}
 	}
 
 	// Step 2: Try Vision API for confirmation if key available (Vision wins when present).

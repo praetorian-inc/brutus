@@ -141,9 +141,14 @@ release:
   draft: false
   prerelease: auto
   name_template: "Brutus {{ .Tag }}"
-  # Attach the machine-readable CLI surface to every release so downstream
-  # consumers (e.g. the guard-skills drift gate) can pin the exact surface a
-  # given brutus version registered, rather than scraping prose.
+  # Attach the machine-readable CLI surface to every release so a consumer can pin the
+  # exact surface a given brutus version registered, rather than scraping prose.
+  #
+  # The guard-skills drift gate does NOT read this asset, and that is deliberate: it
+  # pins tip-of-main, reading docs/cli-surface.json at a resolved commit, so an
+  # upstream flag rename reddens its next scheduled run instead of waiting for a
+  # release. Do not "reconcile" the two by rewiring that gate or dropping this block --
+  # the attachment serves consumers that want the surface a released version exposes.
   extra_files:
     - glob: docs/cli-surface.json
   header: |

@@ -12,3 +12,4 @@
 
 --reveal            # Apollo's old reveal flag, renamed to --enrich by the discover/enrich split. The apollo command test deliberately names the removed flag to pin the new behavior: "Discovery note must mention --enrich (not --reveal)".
 --domain-generated  # Not a flag: a prose compound. The enum-source comments say "--domain-generated candidates", meaning the candidates generated from --domain.
+--allow-undefined   # Not a brutus flag: a wasm-ld linker flag. build.sh passes it via RUSTFLAGS so the Go host functions declared in host_io.rs are emitted as wasm imports rather than failing as undefined symbols; the rdp wasm-freshness test explains why the artifact cannot be built without it.

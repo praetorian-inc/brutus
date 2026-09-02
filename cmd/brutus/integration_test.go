@@ -93,7 +93,8 @@ func TestNervaIntegration(t *testing.T) {
 	// Run brutus with nerva output via stdin (auto-detected)
 	brutusCmd := exec.Command("./brutus_test", "web", "-c", "admin:admin", "--json")
 	brutusCmd.Stdin = bytes.NewReader(nrvOutput)
-	brutusOutput, _ := brutusCmd.CombinedOutput()
+	brutusOutput, err := brutusCmd.CombinedOutput()
+	require.NoError(t, err, "brutus should exit 0 on successful auth (output: %s)", string(brutusOutput))
 
 	t.Logf("brutus output: %s", string(brutusOutput))
 

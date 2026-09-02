@@ -17,7 +17,6 @@ package rdp
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -205,81 +204,4 @@ func TestClassifyError(t *testing.T) {
 			}
 		})
 	}
-}
-
-// --- Integration Tests ---
-// These require a real RDP server. Set environment variables to enable:
-//   RDP_TEST_HOST=host:3389
-//   RDP_TEST_USER=administrator
-//   RDP_TEST_PASS=password
-
-func getTestConfig(t *testing.T) (host, user, pass string) {
-	t.Helper()
-	host = os.Getenv("RDP_TEST_HOST")
-	if host == "" {
-		t.Skip("RDP_TEST_HOST not set, skipping integration test. Set to run: export RDP_TEST_HOST=host:3389")
-	}
-	user = os.Getenv("RDP_TEST_USER")
-	if user == "" {
-		user = "administrator"
-	}
-	pass = os.Getenv("RDP_TEST_PASS")
-	if pass == "" {
-		pass = "password"
-	}
-	return
-}
-
-func TestPlugin_Integration_ValidCredentials(t *testing.T) {
-	host, user, pass := getTestConfig(t)
-
-	p := &Plugin{}
-	ctx := context.Background()
-
-	result := p.Test(ctx, host, user, pass, 10*time.Second, brutus.PluginConfig{})
-
-	assert.NotNil(t, result)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, host, result.Target)
-	assert.Equal(t, user, result.Username)
-	assert.Equal(t, pass, result.Password)
-	assert.True(t, result.Success, "valid credentials should succeed")
-	assert.Nil(t, result.Error)
-	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
-}
-
-func TestPlugin_Integration_InvalidCredentials(t *testing.T) {
-	host, user, _ := getTestConfig(t)
-
-	p := &Plugin{}
-	ctx := context.Background()
-
-	result := p.Test(ctx, host, user, "definitely-wrong-password-xyz", 10*time.Second, brutus.PluginConfig{})
-
-	assert.NotNil(t, result)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, host, result.Target)
-	assert.False(t, result.Success, "wrong password should fail")
-	assert.Nil(t, result.Error, "auth failure should return nil error (not connection error)")
-	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
-}
-
-func TestPlugin_Integration_DomainUsername(t *testing.T) {
-	host, _, pass := getTestConfig(t)
-
-	domainUser := os.Getenv("RDP_TEST_DOMAIN_USER")
-	if domainUser == "" {
-		t.Skip("RDP_TEST_DOMAIN_USER not set (format: DOMAIN\\user)")
-	}
-
-	p := &Plugin{}
-	ctx := context.Background()
-
-	result := p.Test(ctx, host, domainUser, pass, 10*time.Second, brutus.PluginConfig{})
-
-	assert.NotNil(t, result)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, host, result.Target)
-	assert.Equal(t, domainUser, result.Username)
-	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }

@@ -74,7 +74,7 @@ func TestNervaIntegration(t *testing.T) {
 
 	// Verify nerva detected the HTTP service
 	var nrvResult brutusinput.NervaResult
-	if err := json.Unmarshal(bytes.TrimSpace(nrvOutput), &nrvResult); err != nil {
+	if err = json.Unmarshal(bytes.TrimSpace(nrvOutput), &nrvResult); err != nil {
 		t.Fatalf("Failed to parse nerva JSON: %v (output: %s)", err, string(nrvOutput))
 	}
 
@@ -84,15 +84,17 @@ func TestNervaIntegration(t *testing.T) {
 	buildCmd := exec.Command("go", "build", "-o", "brutus_test", ".")
 	buildCmd.Dir = "."
 	buildCmd.Env = append(os.Environ(), "GOWORK=off")
-	if output, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("Failed to build brutus: %v\n%s", err, string(output))
+	buildOutput, err := buildCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to build brutus: %v\n%s", err, string(buildOutput))
 	}
-	defer os.Remove("brutus_test")
+	defer func() { _ = os.Remove("brutus_test") }()
 
 	// Run brutus with nerva output via stdin (auto-detected)
 	brutusCmd := exec.Command("./brutus_test", "web", "-c", "admin:admin", "--json")
 	brutusCmd.Stdin = bytes.NewReader(nrvOutput)
 	brutusOutput, err := brutusCmd.CombinedOutput()
+	require.NoError(t, err, "brutus should exit 0 on successful auth (output: %s)", string(brutusOutput))
 
 	t.Logf("brutus output: %s", string(brutusOutput))
 
@@ -244,7 +246,7 @@ func TestStdinMode(t *testing.T) {
 	port := parts[1]
 
 	// Create nerva-style JSON input
-	nrvJSON := fmt.Sprintf(`{"ip":"%s","port":%s,"protocol":"http","tls":false,"transport":"tcp"}`, host, port)
+	nrvJSON := fmt.Sprintf(`{"ip":%q,"port":%s,"protocol":"http","tls":false,"transport":"tcp"}`, host, port)
 
 	// Build brutus
 	buildCmd := exec.Command("go", "build", "-o", "brutus_test", ".")
@@ -252,7 +254,7 @@ func TestStdinMode(t *testing.T) {
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build brutus: %v\n%s", err, string(output))
 	}
-	defer os.Remove("brutus_test")
+	defer func() { _ = os.Remove("brutus_test") }()
 
 	// Run brutus with stdin and valid credentials (auto-detected)
 	brutusCmd := exec.Command("./brutus_test", "web", "-c", "testuser:testpass", "--json")

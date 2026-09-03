@@ -224,6 +224,12 @@ func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Res
 // The noVision flag disables Vision API confirmation. budget selects the settle
 // profile; fast enforces the never-clean invariant.
 func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *StickyKeysResult {
+	// The native backend runs the same analysis and verdict logic; only the
+	// transport differs. See backend.go for how it is selected.
+	if selectedBackend() == BackendGordp {
+		return p.runStickyKeysCheckGordp(ctx, target, proxyURL, connectTimeout, timeout, noVision, budget, fast)
+	}
+
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
@@ -255,6 +261,10 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string
 // RunUtilmanCheck performs utilman backdoor detection on a separate connection.
 // budget selects the settle profile; fast enforces the never-clean invariant.
 func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, connectTimeout, timeout time.Duration, noVision bool, budget SettleBudget, fast bool) *UtilmanResult {
+	if selectedBackend() == BackendGordp {
+		return p.runUtilmanCheckGordp(ctx, target, proxyURL, connectTimeout, timeout, noVision, budget, fast)
+	}
+
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 

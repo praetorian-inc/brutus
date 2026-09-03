@@ -21,11 +21,19 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	gsession "github.com/UNC1739/gordp/pkg/session"
 )
 
 // InteractiveSession wraps a long-lived RDP session for interactive use.
 // It provides thread-safe access to send keyboard/mouse input and read frames.
 type InteractiveSession struct {
+	// native, when set, is a session driven by the Go library instead of the
+	// WASM module. The two are kept behind one type so that the web terminal
+	// and every other caller are unaffected by which is in use; each method
+	// below dispatches on it.
+	native *gsession.InteractiveSession
+
 	plugin     *Plugin
 	inst       *wasmInstance
 	sessHandle uint32
@@ -47,6 +55,10 @@ type InteractiveSession struct {
 // NewInteractiveSession establishes a non-NLA RDP connection and creates an
 // interactive session suitable for sticky keys exploitation/demo.
 func NewInteractiveSession(ctx context.Context, target string, timeout time.Duration, width, height uint32) (*InteractiveSession, error) {
+	if selectedBackend() == BackendGordp {
+		return newInteractiveSessionGordp(ctx, target, timeout, width, height)
+	}
+
 	host, port := parseTarget(target)
 	addr := net.JoinHostPort(host, port)
 
@@ -250,6 +262,9 @@ func (s *InteractiveSession) processFrame(frame []byte) error {
 
 // SendKey sends a keyboard key event. Thread-safe.
 func (s *InteractiveSession) SendKey(scancode uint16, pressed bool) error {
+	if s.native != nil {
+		return s.native.SendKey(scancode, pressed)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.plugin.sendKey(s.ctx, s.inst, s.sessHandle, scancode, pressed)
@@ -259,6 +274,10 @@ func (s *InteractiveSession) SendKey(scancode uint16, pressed bool) error {
 // button: 0=none(move), 1=left, 2=right, 3=middle
 // eventType: 0=move, 1=press, 2=release
 func (s *InteractiveSession) SendMouse(x, y uint16, button, eventType uint8) error {
+	if s.native != nil {
+		return s.native.SendMouse(x, y,
+			gsession.MouseButton(button), gsession.MouseEvent(eventType))
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.sendMouseLocked(x, y, uint32(button), uint32(eventType))
@@ -315,6 +334,9 @@ func (s *InteractiveSession) sendMouseLocked(x, y uint16, button, eventType uint
 
 // CaptureFrame captures the current RGBA framebuffer. Thread-safe.
 func (s *InteractiveSession) CaptureFrame() ([]byte, error) {
+	if s.native != nil {
+		return s.native.Frame(), nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.plugin.captureFrame(s.ctx, s.inst, s.sessHandle)
@@ -323,6 +345,9 @@ func (s *InteractiveSession) CaptureFrame() ([]byte, error) {
 // TypeString types a string by converting each character to scancode press/release events.
 // Adds a brief delay between characters for reliable delivery.
 func (s *InteractiveSession) TypeString(text string) error {
+	if s.native != nil {
+		return s.native.TypeString(text)
+	}
 	for _, ch := range []byte(text) {
 		mapping, ok := asciiToScancode[ch]
 		if !ok {
@@ -361,6 +386,9 @@ func (s *InteractiveSession) TypeString(text string) error {
 
 // PressEnter sends an Enter key press/release.
 func (s *InteractiveSession) PressEnter() error {
+	if s.native != nil {
+		return s.native.PressEnter()
+	}
 	if err := s.SendKey(enterScancode, true); err != nil {
 		return err
 	}
@@ -370,6 +398,9 @@ func (s *InteractiveSession) PressEnter() error {
 
 // WaitForFrame blocks until a new frame is available or timeout.
 func (s *InteractiveSession) WaitForFrame(timeout time.Duration) bool {
+	if s.native != nil {
+		return s.native.WaitForFrame(timeout)
+	}
 	select {
 	case <-s.frameNotify:
 		return true
@@ -381,13 +412,26 @@ func (s *InteractiveSession) WaitForFrame(timeout time.Duration) bool {
 }
 
 // Width returns the session screen width.
-func (s *InteractiveSession) Width() uint32 { return s.width }
+func (s *InteractiveSession) Width() uint32 {
+	if s.native != nil {
+		return s.native.Width()
+	}
+	return s.width
+}
 
 // Height returns the session screen height.
-func (s *InteractiveSession) Height() uint32 { return s.height }
+func (s *InteractiveSession) Height() uint32 {
+	if s.native != nil {
+		return s.native.Height()
+	}
+	return s.height
+}
 
 // PumpError returns the last fatal pump error, if any.
 func (s *InteractiveSession) PumpError() error {
+	if s.native != nil {
+		return s.native.PumpError()
+	}
 	s.pumpMu.Lock()
 	defer s.pumpMu.Unlock()
 	return s.pumpErr
@@ -395,6 +439,10 @@ func (s *InteractiveSession) PumpError() error {
 
 // Close shuts down the interactive session and frees all resources.
 func (s *InteractiveSession) Close() {
+	if s.native != nil {
+		_ = s.native.Close()
+		return
+	}
 	s.cancel()
 
 	callCtx := s.inst.callCtx(context.Background())

@@ -60,10 +60,26 @@ func (p *Plugin) testGordp(ctx context.Context, target, username, password strin
 
 	switch {
 	case err != nil:
-		// classifyError matches the message against rdpAuthIndicators, which is
-		// what turns "authentication failed: ..." into a credential rejection
-		// and anything else into a transport error.
-		result.Error = classifyError(err)
+		// The verdict is read as data, not recovered from the message text.
+		// Only verdictRejected may present as a failed attempt; anything the
+		// server never actually evaluated stays an error, so a host that could
+		// not be interrogated is never mistaken for a wrong password.
+		var dialErr *gordpDialError
+		switch {
+		case !errorsAs(err, &dialErr):
+			result.Error = err
+		case dialErr.verdict == verdictProvenValid:
+			// The exchange proved the password correct and then refused the
+			// logon for some other reason. That is a credential win, and the
+			// banner carries the reason it still could not be used.
+			result.Success = true
+			result.Banner = dialErr.detail
+		case dialErr.verdict == verdictRejected:
+			// Success stays false and Error stays nil: the server evaluated the
+			// credential and said no.
+		default:
+			result.Error = dialErr
+		}
 
 	case dial.credsspProved:
 		// CredSSP completed, which is itself proof: the server validated the

@@ -269,38 +269,114 @@ func (s *gordpSession) Close(ctx context.Context) error {
 // scanner must not wait on a host that has stopped answering.
 const gordpShutdownGrace = 2 * time.Second
 
-// classifyGordpError maps the library's typed errors onto the strings
-// ClassifyAuthError already recognises, so the plugin's existing
-// success/failure/error classification keeps working unchanged.
-func classifyGordpError(err error) error {
+// gordpVerdict is what a failed dial proved about the credential.
+//
+// It exists because the previous design flattened the library's typed errors
+// into a string and then recovered the verdict by substring-matching that
+// string against rdpAuthIndicators. That round trip is lossy by construction:
+// every message beginning "authentication failed" read as a rejected password,
+// including two that are nothing of the kind. Carrying the verdict as data
+// removes the whole class of mistake.
+type gordpVerdict int
+
+const (
+	// verdictUntestable means the host could not be asked, so the credential is
+	// unproven in either direction. It must surface as an error, never as a
+	// rejection: a scan that reports "wrong password" for a host it never
+	// managed to interrogate quietly concludes that a valid credential does not
+	// work.
+	verdictUntestable gordpVerdict = iota
+
+	// verdictRejected means the server evaluated the credential and refused it.
+	// This is the only outcome that may be reported as a failed attempt.
+	verdictRejected
+
+	// verdictProvenValid means the server proved the credential correct and
+	// then refused the logon for a reason that is not the password -- a
+	// locked-out account, or one that policy bars from this host. The password
+	// is right, which is what a credential test is asking.
+	verdictProvenValid
+)
+
+// gordpDialError is a dial failure that carries what it proved, so callers read
+// the verdict as data instead of parsing the message.
+type gordpDialError struct {
+	verdict gordpVerdict
+	detail  string
+	cause   error
+}
+
+func (e *gordpDialError) Error() string { return e.detail }
+
+// Unwrap keeps errors.As working through this type, which isUnreachable and the
+// transport-level checks rely on.
+func (e *gordpDialError) Unwrap() error { return e.cause }
+
+// classifyGordpError maps the library's typed errors onto a verdict.
+//
+// The mapping is the whole point, so each arm says why it lands where it does.
+func classifyGordpError(err error) *gordpDialError {
 	var authErr *gcredssp.AuthError
 	if errors.As(err, &authErr) {
-		// The distinction matters to a credential test: a locked-out or
-		// restricted account has proven the password is correct.
+		// A locked-out or restricted account has proven the password is
+		// correct. Reporting that as a rejection throws away the one thing the
+		// exchange established.
 		if authErr.CredentialsAreValid() {
-			return fmt.Errorf("authentication failed: %s (credentials are valid but this logon was refused)",
-				authErr.Status)
+			return &gordpDialError{
+				verdict: verdictProvenValid,
+				detail: fmt.Sprintf("credentials are valid but this logon was refused: %s",
+					authErr.Status),
+				cause: err,
+			}
 		}
-		return fmt.Errorf("authentication failed: %s", authErr.Status)
+		return &gordpDialError{
+			verdict: verdictRejected,
+			detail:  fmt.Sprintf("authentication failed: %s", authErr.Status),
+			cause:   err,
+		}
 	}
 
 	var negoErr *gconnector.NegotiationError
 	if errors.As(err, &negoErr) {
-		return fmt.Errorf("authentication failed: negotiation: %s", negoErr.Code)
+		// Negotiation settles the security protocol before any credential is
+		// sent, so a failure here proves nothing about the password. The server
+		// demanding NLA the client did not offer is the common case, and it is
+		// a host that could not be tested, not a credential that was refused.
+		return &gordpDialError{
+			verdict: verdictUntestable,
+			detail:  fmt.Sprintf("rdp security negotiation did not complete: %s", negoErr.Code),
+			cause:   err,
+		}
 	}
 
 	var serverErr *gconnector.ServerError
 	if errors.As(err, &serverErr) {
 		if serverErr.IsAccessDenied() {
-			return fmt.Errorf("authentication failed: access denied: %s", serverErr.ErrorInfo)
+			return &gordpDialError{
+				verdict: verdictRejected,
+				detail:  fmt.Sprintf("access denied: %s", serverErr.ErrorInfo),
+				cause:   err,
+			}
 		}
-		return fmt.Errorf("connection error: %s", serverErr.ErrorInfo)
+		return &gordpDialError{
+			verdict: verdictUntestable,
+			detail:  fmt.Sprintf("connection error: %s", serverErr.ErrorInfo),
+			cause:   err,
+		}
 	}
 
 	var logonErr *gconnector.LogonError
 	if errors.As(err, &logonErr) {
-		return fmt.Errorf("authentication failed: %s", logonErr.Errors.Data)
+		return &gordpDialError{
+			verdict: verdictRejected,
+			detail:  fmt.Sprintf("logon failed: %s", logonErr.Errors.Data),
+			cause:   err,
+		}
 	}
 
-	return fmt.Errorf("connection error: %w", err)
+	return &gordpDialError{
+		verdict: verdictUntestable,
+		detail:  fmt.Sprintf("connection error: %v", err),
+		cause:   err,
+	}
 }

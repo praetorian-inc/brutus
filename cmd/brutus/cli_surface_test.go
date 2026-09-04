@@ -33,16 +33,34 @@ var updateGoldens = flag.Bool("update", false,
 	"rewrite docs/cli-surface.json, docs/CLI.md and the generated README.md regions from the live cobra tree")
 
 // cliDocs builds the Docs every test in this file reads its paths, its regions
-// and its regenerate command from. RegenerateCommand is the only field set: the
-// SDK's defaults for the four paths and the two README regions are already the
-// layout brutus commits, and leaving them unset is what keeps that layout a
-// single documented default rather than a copy of one. It is a constructor
-// rather than a package-level value so a configuration that stopped validating
-// fails the test that uses it, with New's error, instead of panicking during
-// package initialization where no test owns the failure.
+// and its regenerate command from. The SDK's defaults for the four paths and
+// the two README regions are already the layout brutus commits, and leaving
+// them unset is what keeps that layout a single documented default rather than
+// a copy of one.
+//
+// The two lint scopes are the exception, and are stated here rather than
+// defaulted. The SDK's LintedMarkdown default is READMEPath alone, while this
+// gate has policed CONTRIBUTING.md since it was written -- a document that
+// names brutus throughout, and so one that drifts. LintedGoDirs is spelled out
+// beside it although it currently equals the SDK default, because the point is
+// not the value: brutus's lint scope is a decision brutus owns, and pinning it
+// locally is what keeps a future change to an SDK default from narrowing this
+// gate's reach silently.
+//
+// It is a constructor rather than a package-level value so a configuration
+// that stopped validating fails the test that uses it, with New's error,
+// instead of panicking during package initialization where no test owns the
+// failure.
 func cliDocs(t *testing.T) *clisurface.Docs {
 	t.Helper()
-	docs, err := clisurface.New(clisurface.Config{RegenerateCommand: "make cli-docs"})
+	docs, err := clisurface.New(clisurface.Config{
+		RegenerateCommand: "make cli-docs",
+		// "README.md" is spelled out rather than shared with READMEPath just
+		// above its default: the SDK keeps that default unexported, and a
+		// composite literal cannot read the field it is initializing.
+		LintedMarkdown: []string{"README.md", "CONTRIBUTING.md"},
+		LintedGoDirs:   []string{"cmd", "internal", "pkg"},
+	})
 	require.NoError(t, err)
 	return docs
 }

@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/praetorian-inc/brutus/internal/clisurface"
+	"github.com/praetorian-inc/capability-sdk/pkg/clisurface"
 )
 
 // updateGoldens rewrites the generated CLI-surface artifacts instead of
@@ -32,22 +32,57 @@ import (
 var updateGoldens = flag.Bool("update", false,
 	"rewrite docs/cli-surface.json, docs/CLI.md and the generated README.md regions from the live cobra tree")
 
+// cliDocs builds the Docs every test in this file reads its paths, its regions
+// and its regenerate command from. The SDK's defaults for the four paths and
+// the two README regions are already the layout brutus commits, and leaving
+// them unset is what keeps that layout a single documented default rather than
+// a copy of one.
+//
+// The two lint scopes are the exception, and are stated here rather than
+// defaulted. The SDK's LintedMarkdown default is READMEPath alone, while this
+// gate has policed CONTRIBUTING.md since it was written -- a document that
+// names brutus throughout, and so one that drifts. LintedGoDirs is spelled out
+// beside it although it currently equals the SDK default, because the point is
+// not the value: brutus's lint scope is a decision brutus owns, and pinning it
+// locally is what keeps a future change to an SDK default from narrowing this
+// gate's reach silently.
+//
+// It is a constructor rather than a package-level value so a configuration
+// that stopped validating fails the test that uses it, with New's error,
+// instead of panicking during package initialization where no test owns the
+// failure.
+func cliDocs(t *testing.T) *clisurface.Docs {
+	t.Helper()
+	docs, err := clisurface.New(clisurface.Config{
+		RegenerateCommand: "make cli-docs",
+		// "README.md" is spelled out rather than shared with READMEPath just
+		// above its default: the SDK keeps that default unexported, and a
+		// composite literal cannot read the field it is initializing.
+		LintedMarkdown: []string{"README.md", "CONTRIBUTING.md"},
+		LintedGoDirs:   []string{"cmd", "internal", "pkg"},
+	})
+	require.NoError(t, err)
+	return docs
+}
+
 // TestCLISurface is the drift gate. It walks the live cobra tree, compares it
 // against the committed surface, and compares the committed generated files
 // against what that surface renders. Without -update it never writes.
 func TestCLISurface(t *testing.T) {
+	docs := cliDocs(t)
+	cfg := docs.Config()
 	root := repoRoot(t)
 	live := clisurface.Walk(rootCmd)
 
 	if *updateGoldens {
-		require.NoError(t, clisurface.Write(root, live))
-		t.Logf("regenerated %s", strings.Join(clisurface.GeneratedPaths(), ", "))
+		require.NoError(t, docs.Write(root, live))
+		t.Logf("regenerated %s", strings.Join(docs.GeneratedPaths(), ", "))
 		return
 	}
 
-	golden, err := os.ReadFile(filepath.Join(root, clisurface.JSONPath))
-	require.NoErrorf(t, err, "%s is missing; create it with %q", clisurface.JSONPath, clisurface.RegenerateCommand)
-	documented, err := clisurface.ParseJSON(golden)
+	golden, err := os.ReadFile(filepath.Join(root, cfg.JSONPath))
+	require.NoErrorf(t, err, "%s is missing; create it with %q", cfg.JSONPath, cfg.RegenerateCommand)
+	documented, err := docs.ParseJSON(golden)
 	require.NoError(t, err)
 
 	// Fail with require.Fail rather than require.Empty: Empty dumps the raw
@@ -55,11 +90,10 @@ func TestCLISurface(t *testing.T) {
 	// message, so every finding prints twice, once unreadable and once
 	// formatted. Fail only prints the formatted report.
 	if findings := clisurface.Diff(documented, live); len(findings) > 0 {
-		require.Fail(t, "CLI surface drift",
-			clisurface.Report(findings, clisurface.GeneratedPaths(), clisurface.RegenerateCommand))
+		require.Fail(t, "CLI surface drift", docs.Report(findings))
 	}
 
-	stale, err := clisurface.CheckArtifacts(root, live)
+	stale, err := docs.CheckArtifacts(root, live)
 	require.NoError(t, err)
 	if len(stale) > 0 {
 		assert.Fail(t, "generated CLI documentation is stale", stalenessReport(stale))
@@ -69,14 +103,31 @@ func TestCLISurface(t *testing.T) {
 // TestCLISurfaceDocLint fails when a document or a Go comment names a flag or a
 // subcommand the CLI does not accept.
 func TestCLISurfaceDocLint(t *testing.T) {
+	docs := cliDocs(t)
 	root := repoRoot(t)
-	allow, err := clisurface.LoadAllowlist(root)
+	allow, err := docs.LoadAllowlist(root)
 	require.NoError(t, err)
 
-	issues, err := clisurface.LintRepo(root, clisurface.Walk(rootCmd), allow)
+	issues, scope, err := docs.LintRepo(root, clisurface.Walk(rootCmd), allow)
 	require.NoError(t, err)
+
+	// Log the scope on a pass as well as a failure. An empty issue list is
+	// only good news if the run actually read something, and a lint walk that
+	// silently reached nothing -- a renamed directory, an allowlist that grew
+	// to cover everything, entries skipped for not being regular files --
+	// reads exactly like a clean repository. LintReport prints this on a
+	// failure; the log is how a passing run says it too. Named fields rather
+	// than %+v: LintScope has no String method, so a verb would dump its
+	// internals. GoFiles is a count and not a list because brutus has hundreds
+	// of them, which is the same choice LintReport's own coverage line makes.
+	t.Logf("linted %d markdown file(s) [%s] and %d Go file(s) under %d Go dir(s) [%s], with %d token(s) allowlisted; skipped %d entr(y/ies) that are not regular files [%s]",
+		len(scope.MarkdownFiles), scopeList(scope.MarkdownFiles),
+		len(scope.GoFiles), len(scope.GoDirs), scopeList(scope.GoDirs),
+		len(scope.Allowlist.Entries()),
+		len(scope.SkippedIrregular), scopeList(scope.SkippedIrregular))
+
 	if len(issues) > 0 {
-		assert.Fail(t, "documentation names flags the CLI does not accept", clisurface.LintReport(issues))
+		assert.Fail(t, "documentation names flags the CLI does not accept", clisurface.LintReport(issues, scope))
 	}
 }
 
@@ -86,6 +137,7 @@ func TestCLISurfaceDocLint(t *testing.T) {
 // linter a document naming a removed flag and asserts it is reported with
 // file:line.
 func TestCLISurfaceGateDetectsRename(t *testing.T) {
+	docs := cliDocs(t)
 	documented := clisurface.Walk(rootCmd)
 
 	t.Run("renaming a registered flag is reported", func(t *testing.T) {
@@ -102,7 +154,7 @@ func TestCLISurfaceGateDetectsRename(t *testing.T) {
 		findings := clisurface.Diff(documented, clisurface.Walk(rootCmd))
 
 		require.Len(t, findings, 2, "a rename is exactly one removal and one addition, and nothing else:\n%s",
-			clisurface.Report(findings, clisurface.GeneratedPaths(), clisurface.RegenerateCommand))
+			docs.Report(findings))
 		// Findings are sorted by command then flag name, so the old name
 		// ("experimental-ai") is reported before the new one.
 		assert.Equal(t, clisurface.FlagRemoved, findings[0].Kind)
@@ -123,35 +175,35 @@ func TestCLISurfaceGateDetectsRename(t *testing.T) {
 	})
 
 	t.Run("a document naming a removed flag is reported", func(t *testing.T) {
-		empty, err := clisurface.ParseAllowlist("")
+		empty, err := docs.ParseAllowlist("")
 		require.NoError(t, err)
 
 		doc := "Historic note.\n\n```bash\nbrutus logon --target host:3389 --sticky-keys-exec \"whoami\"\n```\n"
-		issues := clisurface.LintMarkdown(documented, "docs/example.md", doc, empty)
+		issues := docs.LintMarkdown(documented, "docs/example.md", doc, empty)
 
 		require.Len(t, issues, 1)
 		assert.Equal(t, "--sticky-keys-exec", issues[0].Token)
 		assert.Equal(t, "brutus logon", issues[0].Command)
 		assert.Contains(t, issues[0].String(),
 			`docs/example.md:4: --sticky-keys-exec is not a flag of "brutus logon"`)
-		assert.Contains(t, issues[0].String(), clisurface.AllowlistPath,
+		assert.Contains(t, issues[0].String(), docs.Config().AllowlistPath,
 			"the message says how to allow a deliberate mention")
 	})
 
 	t.Run("the allowlist suppresses a deliberate mention", func(t *testing.T) {
-		allow, err := clisurface.ParseAllowlist("--sticky-keys-exec # renamed to --exec; the rename note names the old flag\n")
+		allow, err := docs.ParseAllowlist("--sticky-keys-exec # renamed to --exec; the rename note names the old flag\n")
 		require.NoError(t, err)
 
 		doc := "```bash\nbrutus logon --sticky-keys-exec \"whoami\"\n```\n"
-		assert.Empty(t, clisurface.LintMarkdown(documented, "docs/example.md", doc, allow))
+		assert.Empty(t, docs.LintMarkdown(documented, "docs/example.md", doc, allow))
 	})
 
 	t.Run("the logon family rejects the inherited --timeout", func(t *testing.T) {
-		empty, err := clisurface.ParseAllowlist("")
+		empty, err := docs.ParseAllowlist("")
 		require.NoError(t, err)
 
 		doc := "```bash\nbrutus logon --target host:3389 --timeout 30s\n```\n"
-		issues := clisurface.LintMarkdown(documented, "docs/example.md", doc, empty)
+		issues := docs.LintMarkdown(documented, "docs/example.md", doc, empty)
 
 		require.Len(t, issues, 1,
 			"--timeout is inherited from the root but guardLogonTimeoutFlag refuses it, so documenting it is drift")
@@ -178,4 +230,14 @@ func stalenessReport(stale []clisurface.Staleness) string {
 		lines = append(lines, stale[i].String())
 	}
 	return strings.Join(lines, "\n")
+}
+
+// scopeList renders one LintScope path list for the coverage log, naming the
+// empty list rather than logging an empty bracket a reader has to interpret.
+// The SDK renders its own report the same way, but with an unexported helper.
+func scopeList(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, ", ")
 }

@@ -119,6 +119,8 @@ lint:
 # whatever cobra actually registers. CI runs the same walk in check mode and fails when
 # the committed copies disagree.
 cli-docs:
+	@GOWORK=off go test ./cmd/brutus -list 'TestCLISurface' | grep -qE '^TestCLISurface$$' \
+	  || { echo "cli-docs: no TestCLISurface in ./cmd/brutus -- the -update writer was renamed. 'go test -run' exits 0 when its pattern matches nothing, so this target would report success having regenerated nothing at all; fix the name in cmd/brutus/cli_surface_test.go."; exit 1; }
 	GOWORK=off go test ./cmd/brutus -run 'TestCLISurface' -count=1 -update
 
 # Install to GOPATH/bin

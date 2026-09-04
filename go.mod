@@ -16,7 +16,7 @@ require (
 	github.com/masterzen/winrm v0.0.0-20250927112105-5f8e6c707321
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
-	github.com/praetorian-inc/capability-sdk v0.0.0-20260904122432-f670a214fb3b
+	github.com/praetorian-inc/capability-sdk v0.0.0-20260904153910-59194183c551
 	github.com/praetorian-inc/nerva v1.64.3
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/sijms/go-ora/v2 v2.9.0

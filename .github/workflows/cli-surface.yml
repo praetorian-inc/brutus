@@ -66,5 +66,5 @@ jobs:
             exit 1
           fi
 
-      - name: Verify library unit tests
-        run: go test ./internal/clisurface/... -race -count=1
+      # Deliberately no step for the library's own unit tests: `clisurface` now
+      # lives in capability-sdk, whose CI already runs `go test -race ./...`.

@@ -112,7 +112,9 @@ func runWorkers(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error)
 			if r := checker.CheckUnauth(ctx, cfg.Target, cfg.Timeout, pluginConfigFromConfig(cfg)); r != nil && r.Success {
 				// Service doesn't enforce authentication — credential testing
 				// would produce misleading results (every password "works").
-				// Return only the unauthenticated access finding.
+				// Return only the unauthenticated access finding, stamped so no
+				// consumer can mistake it for a credential authentication.
+				markUnauthenticated(r)
 				return []Result{*r}, nil
 			}
 		}
@@ -333,7 +335,20 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 	}
 
 	// Wait for all workers to complete
-	if err := g.Wait(); err != nil && err != context.Canceled {
+	err := g.Wait()
+
+	// Classify every Result leaving the credential worker pool. This is the
+	// single exit shared by runWorkersDefault and runWorkersWithLLM, and it also
+	// covers the panic-recovery results appended above. Only an unclassified
+	// Result is stamped, so an explicit kind (e.g. KindUnauthenticated from an
+	// unauth path, or a kind set by a plugin) is never overwritten.
+	for i := range results {
+		if results[i].Kind == KindUnspecified {
+			results[i].Kind = classifyCredentialResult(results[i])
+		}
+	}
+
+	if err != nil && err != context.Canceled {
 		return results, err
 	}
 

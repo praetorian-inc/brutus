@@ -295,13 +295,6 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 	return interactionExitError(&interaction)
 }
 
-// scanExitError maps aggregated scan outcomes to the process exit error for the
-// logon family of scans. A completed scan is a success whether or not a backdoor
-// was found, so a clean/nothing-found result is NOT an error (exit 0). Any
-// rerun-eligible verdict takes precedence and yields errIndeterminate (exit 2)
-// so the operator knows to rerun the affected hosts. The terminal
-// not-scannable verdicts (nla_required, unreachable) are not rerun candidates
-// and so do not affect the exit code.
 func scanExitError(findings []logon.Finding) error {
 	if logon.AnyNeedsRerun(findings) {
 		return errIndeterminate
@@ -309,9 +302,6 @@ func scanExitError(findings []logon.Finding) error {
 	return nil
 }
 
-// interactionExitError maps an operator-driven interaction to a process exit
-// error. Unlike a scan, an interaction that did not reach the backdoor is a
-// failure: the operator asked for access, not for a verdict.
 func interactionExitError(r *logon.InteractionResult) error {
 	if r.Err != nil {
 		return r.Err

@@ -52,10 +52,6 @@ func foundResults(target string) []Finding {
 	}
 }
 
-// noBackdoorResults returns a pair where the sticky trigger produced the NORMAL
-// Windows dialog on a non-NLA host. This is the state the old []brutus.Result
-// API reported as Success=true; it must never be treated as a positive, and
-// (being a real observation) must never be retried.
 func noBackdoorResults(target string) []Finding {
 	return []Finding{
 		{Target: target, Check: BackdoorStickyKeys, Verdict: VerdictNoBackdoor, Confidence: 0.8},
@@ -63,13 +59,6 @@ func noBackdoorResults(target string) []Finding {
 	}
 }
 
-// TestDetectBackdoors_RetriesIndeterminate verifies that DetectBackdoors retries
-// when the first attempt returns indeterminate results and stops when a
-// non-indeterminate result is returned.
-//
-// Scenario: attempt 0 → indeterminate; attempt 1 → clean (non-indeterminate).
-// With maxRetries=2 the loop allows up to 3 total attempts. It must stop at 2
-// because the second attempt is no longer indeterminate.
 func TestDetectBackdoors_RetriesIndeterminate(t *testing.T) {
 	const target = "host:3389"
 
@@ -100,9 +89,6 @@ func TestDetectBackdoors_RetriesIndeterminate(t *testing.T) {
 	assert.False(t, findings[1].Verdict.NeedsRerun(), "final utilman result must not be indeterminate")
 }
 
-// TestDetectBackdoors_NoRetryOnFoundBackdoor verifies that a positive (backdoor
-// found) result on the first attempt is returned immediately without retrying.
-// A found backdoor is a final verdict — retrying would be incorrect.
 func TestDetectBackdoors_NoRetryOnFoundBackdoor(t *testing.T) {
 	const target = "host:3389"
 
@@ -129,9 +115,6 @@ func TestDetectBackdoors_NoRetryOnFoundBackdoor(t *testing.T) {
 	assert.True(t, findings[0].Verdict.Positive(), "sticky finding must be a positive")
 }
 
-// TestDetectBackdoors_NoRetryOnStabilizedClean verifies that a stabilized clean
-// result (non-indeterminate, no backdoor) on the first attempt is returned
-// immediately without retrying. A stabilized clean is a final verdict.
 func TestDetectBackdoors_NoRetryOnStabilizedClean(t *testing.T) {
 	const target = "host:3389"
 
@@ -159,14 +142,6 @@ func TestDetectBackdoors_NoRetryOnStabilizedClean(t *testing.T) {
 	assert.False(t, findings[1].Verdict.NeedsRerun())
 }
 
-// TestDetectBackdoors_NoRetryOnNoBackdoor pins that the non-NLA reading is
-// treated as the final observation it is.
-//
-// no_backdoor means the trigger fired and produced the normal Windows dialog:
-// the check worked. A retry could come back indeterminate and would replace a
-// real observation with nothing -- the false negative the cardinal rule
-// forbids. It must also not be mistaken for a positive, which is exactly what
-// the old Success bool did with this state.
 func TestDetectBackdoors_NoRetryOnNoBackdoor(t *testing.T) {
 	const target = "host:3389"
 
@@ -199,12 +174,6 @@ func TestDetectBackdoors_NoRetryOnNoBackdoor(t *testing.T) {
 	}
 }
 
-// TestDetectBackdoors_AttemptCap verifies that when every attempt returns
-// indeterminate, DetectBackdoors stops after exactly maxRetries+1 total attempts
-// and returns the final (still-indeterminate) result.
-//
-// With maxRetries=2: allowed attempts = 3. The last result is returned even
-// though it is still indeterminate.
 func TestDetectBackdoors_AttemptCap(t *testing.T) {
 	const target = "host:3389"
 	const maxRetries = 2
@@ -230,7 +199,6 @@ func TestDetectBackdoors_AttemptCap(t *testing.T) {
 	assert.Equal(t, int32(maxRetries+1), attempts.Load(),
 		"always-indeterminate: attempts must equal maxRetries+1 (%d)", maxRetries+1)
 	assert.False(t, AnyPositive(findings), "no backdoor found even after all retries")
-	// The final result is still indeterminate — caller must surface this to the user.
 	assert.True(t, findings[0].Verdict.NeedsRerun(), "final result still indeterminate after cap")
 	assert.True(t, findings[1].Verdict.NeedsRerun(), "final result still indeterminate after cap")
 }

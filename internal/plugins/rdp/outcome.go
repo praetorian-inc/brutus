@@ -19,41 +19,22 @@ import (
 	"time"
 )
 
-// CheckOutcome is the typed outcome of one logon-screen check, normalized
-// across the two structurally identical per-check result types so callers
-// outside this package convert one shape instead of two.
-//
-// It carries no banner and no Success bool: the verdict stays a value all the
-// way out to pkg/brutus/logon, which is what lets consumers stop parsing prose.
+// CheckOutcome is the typed outcome of one logon-screen check.
 type CheckOutcome struct {
-	// Check is which accessibility binary was triggered.
-	Check BackdoorType
-	// Performed reports whether the check actually ran to an analysis.
-	Performed bool
-	// Stabilized reports whether both frame pumps settled.
-	Stabilized bool
-	// Unreachable is set only when the TCP dial itself failed. It separates a
-	// terminally unreachable host from the other !Performed failures, which are
-	// rerun candidates.
-	Unreachable bool
-	// SkipReason explains a check that did not run.
-	SkipReason string
-	// Verdict is the raw verdict string from the analysis layer.
-	Verdict string
-	// Confidence is the analysis confidence, 0.0-1.0.
-	Confidence float64
-	// Heuristic, Vision and RegionNote are the operator-facing diagnostics
-	// behind Verdict. RegionNote never changes the verdict.
-	Heuristic  string
-	Vision     string
-	RegionNote string
-	// SessionTerminated records a server-side teardown mid-scan, with the
-	// reason it reported.
+	Check             BackdoorType
+	Performed         bool
+	Stabilized        bool
+	Unreachable       bool
+	SkipReason        string
+	Verdict           string
+	Confidence        float64
+	Heuristic         string
+	Vision            string
+	RegionNote        string
 	SessionTerminated bool
 	TerminationReason string
 }
 
-// stickyOutcome normalizes a sticky-keys result.
 func stickyOutcome(r *StickyKeysResult) *CheckOutcome {
 	return &CheckOutcome{
 		Check:             BackdoorStickyKeys,
@@ -71,7 +52,6 @@ func stickyOutcome(r *StickyKeysResult) *CheckOutcome {
 	}
 }
 
-// utilmanOutcome normalizes a utilman result.
 func utilmanOutcome(r *UtilmanResult) *CheckOutcome {
 	return &CheckOutcome{
 		Check:             BackdoorUtilman,
@@ -89,14 +69,6 @@ func utilmanOutcome(r *UtilmanResult) *CheckOutcome {
 	}
 }
 
-// DetectStickyKeysOutcome runs sticky-keys detection and returns the typed
-// outcome. fast selects the short FastBudget settle profile and enforces the
-// never-clean invariant.
-//
-// A host that drops the pre-auth logon session before the careful profile's
-// settle completes never shows a post-trigger screen, so a terminated scan is
-// retried once on the short profile — which completes inside that window.
-// Only from the careful budget: a --fast scan has no shorter profile left.
 func DetectStickyKeysOutcome(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision, fast bool) *CheckOutcome {
 	plugin := &Plugin{}
 	budget := CarefulBudget
@@ -110,8 +82,6 @@ func DetectStickyKeysOutcome(ctx context.Context, target string, connectTimeout,
 	return stickyOutcome(result)
 }
 
-// DetectUtilmanOutcome runs utilman detection and returns the typed outcome.
-// See DetectStickyKeysOutcome for the budget and termination-retry rules.
 func DetectUtilmanOutcome(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision, fast bool) *CheckOutcome {
 	plugin := &Plugin{}
 	budget := CarefulBudget

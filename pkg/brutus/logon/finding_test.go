@@ -23,19 +23,6 @@ import (
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 )
 
-// TestVerdictFromRDP_VulnerableIsNotAFinding is the regression pin for the
-// defect this typed API exists to make unrepresentable.
-//
-// The detection layer's verdict string "vulnerable" means "the trigger fired
-// and produced the NORMAL Windows accessibility dialog on a non-NLA host" --
-// i.e. no backdoor. The old []brutus.Result API set Success=true for it,
-// because Success meant "the trigger elicited a response", and DetectBackdoors
-// OR-ed Success across checks into its hasSuccess return. Any consumer reading
-// Success as "a backdoor is present" therefore reported a critical finding on a
-// host that has none.
-//
-// The verdict must translate to a name that cannot be misread, and must not be
-// Positive().
 func TestVerdictFromRDP_VulnerableIsNotAFinding(t *testing.T) {
 	v := verdictFromRDP("vulnerable")
 
@@ -49,9 +36,6 @@ func TestVerdictFromRDP_VulnerableIsNotAFinding(t *testing.T) {
 		"a real observation must never be discarded by a rerun")
 }
 
-// TestVerdictFromRDP covers the whole translation table. Unknown strings must
-// fail closed: never clean (a false negative) and never indeterminate (which
-// would make every host retry the moment upstream adds a verdict string).
 func TestVerdictFromRDP(t *testing.T) {
 	for raw, want := range map[string]Verdict{
 		"backdoor_confirmed": VerdictBackdoorConfirmed,
@@ -70,9 +54,6 @@ func TestVerdictFromRDP(t *testing.T) {
 	assert.False(t, VerdictUnknown.NeedsRerun(), "an unrecognized verdict must not trigger retries")
 }
 
-// TestVerdictPredicates pins the three predicates across every verdict, so the
-// classification of a new verdict is a deliberate choice rather than whatever
-// the default branch happens to do.
 func TestVerdictPredicates(t *testing.T) {
 	for _, tc := range []struct {
 		v          Verdict
@@ -96,10 +77,6 @@ func TestVerdictPredicates(t *testing.T) {
 	}
 }
 
-// TestFindingFrom_UnreachableBeatsNotPerformed pins the precedence that keeps
-// unreachable hosts out of the retry loop. A failed dial is terminal; every
-// other failure to run produced no reading and must be rerun. Neither is ever
-// clean -- the cardinal false-negative rule.
 func TestFindingFrom_UnreachableBeatsNotPerformed(t *testing.T) {
 	unreachable := findingFrom("h:3389", &rdp.CheckOutcome{
 		Check: rdp.BackdoorStickyKeys, Performed: false, Unreachable: true,
@@ -119,9 +96,6 @@ func TestFindingFrom_UnreachableBeatsNotPerformed(t *testing.T) {
 	assert.NotEqual(t, VerdictClean, wasmFailure.Verdict, "a failure to run is never clean")
 }
 
-// TestFindingFrom_CarriesVerdictAndDiagnostics pins that the conversion is
-// lossless for everything a consumer renders or triages on. Confidence in
-// particular used to survive only as a percentage inside banner prose.
 func TestFindingFrom_CarriesVerdictAndDiagnostics(t *testing.T) {
 	f := findingFrom("10.0.0.5:3389", &rdp.CheckOutcome{
 		Check:             rdp.BackdoorStickyKeys,
@@ -138,8 +112,7 @@ func TestFindingFrom_CarriesVerdictAndDiagnostics(t *testing.T) {
 	assert.Equal(t, "10.0.0.5:3389", f.Target)
 	assert.Equal(t, BackdoorStickyKeys, f.Check)
 	assert.Equal(t, VerdictBackdoorLikely, f.Verdict)
-	assert.InDelta(t, 0.55, f.Confidence, 1e-9,
-		"confidence must reach the consumer as a number, not as text in a banner")
+	assert.InDelta(t, 0.55, f.Confidence, 1e-9)
 	assert.True(t, f.Stabilized)
 	assert.Equal(t, "8% dark delta", f.Diagnostics.Heuristic)
 	assert.Equal(t, "console-shaped", f.Diagnostics.RegionNote)
@@ -147,8 +120,6 @@ func TestFindingFrom_CarriesVerdictAndDiagnostics(t *testing.T) {
 	assert.Equal(t, "logoff by user", f.Diagnostics.TerminationReason)
 }
 
-// TestTerminalFindings_RespectsSelector pins that a host which was never
-// scanned still reports exactly the checks the scan would have run.
 func TestTerminalFindings_RespectsSelector(t *testing.T) {
 	for _, tc := range []struct {
 		checks Check
@@ -169,8 +140,6 @@ func TestTerminalFindings_RespectsSelector(t *testing.T) {
 	}
 }
 
-// TestAnyPositive_IgnoresNonFindings guards the aggregate helper against the
-// same conflation the old hasSuccess bool had: only a real backdoor counts.
 func TestAnyPositive_IgnoresNonFindings(t *testing.T) {
 	assert.False(t, AnyPositive(nil))
 	assert.False(t, AnyPositive([]Finding{
@@ -188,8 +157,6 @@ func TestAnyPositive_IgnoresNonFindings(t *testing.T) {
 	}))
 }
 
-// TestAnyNeedsRerun covers the retry trigger, including that the terminal
-// not-scannable states are excluded from it.
 func TestAnyNeedsRerun(t *testing.T) {
 	assert.False(t, AnyNeedsRerun(nil))
 	assert.False(t, AnyNeedsRerun([]Finding{

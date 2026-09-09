@@ -26,10 +26,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
-// TestSeverityTag_NoBackdoorIsInformational is the presentation half of the
-// mislabeling this API removed. A non-NLA host whose trigger produced the
-// normal accessibility dialog has no backdoor, so it must render as [INFO] --
-// never as an elevated finding.
 func TestSeverityTag_NoBackdoorIsInformational(t *testing.T) {
 	assert.Equal(t, "[INFO]", severityTag(logon.VerdictNoBackdoor))
 	assert.Equal(t, "[CRITICAL]", severityTag(logon.VerdictBackdoorConfirmed))
@@ -37,8 +33,6 @@ func TestSeverityTag_NoBackdoorIsInformational(t *testing.T) {
 		"a heuristic-only positive is HIGH, not CRITICAL")
 }
 
-// TestSeverityTag covers the full table so a new verdict cannot silently
-// inherit [INFO] without someone choosing that.
 func TestSeverityTag(t *testing.T) {
 	for v, want := range map[logon.Verdict]string{
 		logon.VerdictBackdoorConfirmed: "[CRITICAL]",
@@ -55,10 +49,6 @@ func TestSeverityTag(t *testing.T) {
 	}
 }
 
-// TestIndeterminateMessage checks the operator-facing text. "render did not
-// stabilize -- rerun" sends the operator to repeat an identical scan that fails
-// identically; a torn-down session needs the short profile instead. Moved here
-// from internal/plugins/rdp along with the prose itself.
 func TestIndeterminateMessage(t *testing.T) {
 	plain := indeterminateMessage("Sticky keys", &logon.Diagnostics{})
 	assert.Contains(t, plain, "render did not stabilize")
@@ -77,10 +67,6 @@ func TestIndeterminateMessage(t *testing.T) {
 	assert.Contains(t, noReason, "--fast")
 }
 
-// TestFindingMessage_TerminationBeatsSkipReason covers the seam where a check
-// never completed AND the server tore the session down. "could not connect"
-// misdirects an operator whose connect worked and whose session was killed
-// after, so the teardown must win. Moved here from internal/plugins/rdp.
 func TestFindingMessage_TerminationBeatsSkipReason(t *testing.T) {
 	const reason = "session terminated: logoff by user"
 
@@ -99,8 +85,6 @@ func TestFindingMessage_TerminationBeatsSkipReason(t *testing.T) {
 		"a mid-scan teardown is not a failed connect")
 }
 
-// TestFindingMessage_PerVerdict pins that each verdict renders text an operator
-// can act on, and that the two positives report their confidence.
 func TestFindingMessage_PerVerdict(t *testing.T) {
 	for _, tc := range []struct {
 		verdict  logon.Verdict
@@ -122,8 +106,6 @@ func TestFindingMessage_PerVerdict(t *testing.T) {
 	}
 }
 
-// TestFindingMessage_NamesTheTriggerPerCheck pins that a clean reading says
-// what it was clean OF -- the two checks send different keystrokes.
 func TestFindingMessage_NamesTheTriggerPerCheck(t *testing.T) {
 	sticky := findingMessage(&logon.Finding{Check: logon.BackdoorStickyKeys, Verdict: logon.VerdictClean})
 	assert.Contains(t, sticky, "5x Shift")
@@ -134,8 +116,6 @@ func TestFindingMessage_NamesTheTriggerPerCheck(t *testing.T) {
 	assert.Contains(t, utilman, "Utilman")
 }
 
-// TestFindingMessage_AppendsRegionNote pins that the geometry diagnostic still
-// reaches the operator. It never changes the verdict, only explains it.
 func TestFindingMessage_AppendsRegionNote(t *testing.T) {
 	msg := findingMessage(&logon.Finding{
 		Check: logon.BackdoorStickyKeys, Verdict: logon.VerdictBackdoorConfirmed,
@@ -145,8 +125,6 @@ func TestFindingMessage_AppendsRegionNote(t *testing.T) {
 	assert.Contains(t, msg, "console-shaped + dark-region confirmed")
 }
 
-// TestFindingMessage_TerminalStatesCarryTheirReason pins that a host which was
-// never scanned says why, rather than rendering as an unexplained INFO line.
 func TestFindingMessage_TerminalStatesCarryTheirReason(t *testing.T) {
 	nla := findingMessage(&logon.Finding{
 		Check: logon.BackdoorStickyKeys, Verdict: logon.VerdictNLARequired,
@@ -163,10 +141,6 @@ func TestFindingMessage_TerminalStatesCarryTheirReason(t *testing.T) {
 	assert.Contains(t, unreachable, "no RDP/TCP connection")
 }
 
-// TestOutputScanJSONL_ShapeAndVerdict pins the pipeline contract: the record
-// keys on a self-describing verdict, exposes confidence as a number, and has NO
-// "success" field -- the field that used to report a host with no backdoor as a
-// positive.
 func TestOutputScanJSONL_ShapeAndVerdict(t *testing.T) {
 	var buf bytes.Buffer
 	outputScanJSONL(&buf, []logon.Finding{
@@ -207,8 +181,6 @@ func TestOutputScanJSONL_ShapeAndVerdict(t *testing.T) {
 		"a host with no backdoor must never serialize as a positive")
 }
 
-// TestOutputScanJSONL_OmitsEmptyDiagnostics keeps the pipeline record readable:
-// diagnostics that were never produced must not appear as empty strings.
 func TestOutputScanJSONL_OmitsEmptyDiagnostics(t *testing.T) {
 	var buf bytes.Buffer
 	outputScanJSONL(&buf, []logon.Finding{
@@ -222,8 +194,6 @@ func TestOutputScanJSONL_OmitsEmptyDiagnostics(t *testing.T) {
 	}
 }
 
-// TestOutputInteractionJSON pins that an operator-driven interaction serializes
-// as its own shape, not as a scan finding.
 func TestOutputInteractionJSON(t *testing.T) {
 	var buf bytes.Buffer
 	outputInteractionJSON(&buf, &logon.InteractionResult{

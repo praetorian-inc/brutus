@@ -26,15 +26,6 @@ import (
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 )
 
-// ---------------------------------------------------------------------------
-// Task 1.4 — NLARequiredResults constructor tests
-// ---------------------------------------------------------------------------
-
-// TestNLARequiredResults_Both verifies that CheckBoth produces 2 results, one
-// for sticky_keys and one for utilman, both with Success=false,
-// Indeterminate=false, and a banner containing "nla_required".
-//
-// This test is RED until the developer implements NLARequiredResults().
 func TestNLARequiredResults_Both(t *testing.T) {
 	rs := NLARequiredResults("10.0.0.5:3389", CheckBoth)
 	require.Len(t, rs, 2)
@@ -48,8 +39,6 @@ func TestNLARequiredResults_Both(t *testing.T) {
 	assert.Equal(t, BackdoorUtilman, rs[1].Check)
 }
 
-// TestNLARequiredResults_StickyOnly verifies that CheckStickyKeys produces a
-// single sticky_keys result.
 func TestNLARequiredResults_StickyOnly(t *testing.T) {
 	rs := NLARequiredResults("h:3389", CheckStickyKeys)
 	require.Len(t, rs, 1)
@@ -59,8 +48,6 @@ func TestNLARequiredResults_StickyOnly(t *testing.T) {
 	assert.Equal(t, VerdictNLARequired, rs[0].Verdict)
 }
 
-// TestNLARequiredResults_UtilmanOnly verifies that CheckUtilman produces a
-// single utilman result.
 func TestNLARequiredResults_UtilmanOnly(t *testing.T) {
 	rs := NLARequiredResults("h:3389", CheckUtilman)
 	require.Len(t, rs, 1)
@@ -70,20 +57,6 @@ func TestNLARequiredResults_UtilmanOnly(t *testing.T) {
 	assert.Equal(t, VerdictNLARequired, rs[0].Verdict)
 }
 
-// ---------------------------------------------------------------------------
-// Task 1.5 — DetectBackdoors seam tests (nlaProbe + runDetection)
-// ---------------------------------------------------------------------------
-
-// TestDetectBackdoors_NLARequired_SkipsWASM verifies that when the nlaProbe
-// seam returns NegoNLARequired, DetectBackdoors returns a terminal nla_required
-// verdict WITHOUT ever invoking runDetection (i.e., without acquiring a decode
-// slot or touching WASM).
-//
-// This test is RED until the developer adds the nlaProbe seam and the
-// pre-WASM short-circuit to DetectBackdoors (Task 1.5), which also requires
-// the new DetectBackdoors signature:
-//
-//	DetectBackdoors(ctx, target, timeout, aiMode, maxRetries, checks, proxyURL, noNLAProbe)
 func TestDetectBackdoors_NLARequired_SkipsWASM(t *testing.T) {
 	withDecodeSlots(t, 4)
 
@@ -113,9 +86,6 @@ func TestDetectBackdoors_NLARequired_SkipsWASM(t *testing.T) {
 		"nla_required is a terminal non-retryable verdict, not indeterminate")
 }
 
-// TestDetectBackdoors_ProbeError_ProceedsToWASM verifies that when the nlaProbe
-// seam returns NegoProbeError (dial/probe failure), DetectBackdoors falls
-// through to the WASM path — a failed probe must never skip detection.
 func TestDetectBackdoors_ProbeError_ProceedsToWASM(t *testing.T) {
 	withDecodeSlots(t, 4)
 
@@ -143,8 +113,6 @@ func TestDetectBackdoors_ProbeError_ProceedsToWASM(t *testing.T) {
 		"probe error must fall through to WASM detection (fail-open)")
 }
 
-// TestDetectBackdoors_NoNLAProbe_SkipsProbe verifies that when noNLAProbe=true,
-// the nlaProbe seam is never called even if it would return NLARequired.
 func TestDetectBackdoors_NoNLAProbe_SkipsProbe(t *testing.T) {
 	withDecodeSlots(t, 4)
 
@@ -169,27 +137,12 @@ func TestDetectBackdoors_NoNLAProbe_SkipsProbe(t *testing.T) {
 		"--no-nla-probe must bypass the probe entirely (noNLAProbe=true)")
 }
 
-// ---------------------------------------------------------------------------
-// Task 2 — nlaProbe dial-failure → NegoUnreachable
-// ---------------------------------------------------------------------------
-
-// TestNLAProbe_DialFailure_ReturnsUnreachable verifies that when the TCP dial
-// fails, nlaProbe classifies the host as NegoUnreachable (not NegoProbeError).
-// 192.0.2.0/24 is TEST-NET-1 (RFC 5737); :1 refuses/black-holes fast.
 func TestNLAProbe_DialFailure_ReturnsUnreachable(t *testing.T) {
-	// 192.0.2.0/24 is TEST-NET-1 (RFC 5737); :1 refuses/black-holes fast.
-	got := nlaProbe(context.Background(), "192.0.2.1:1", 200*time.Millisecond /*connectTimeout*/, 100*time.Millisecond /*readDeadline*/, "")
+	got := nlaProbe(context.Background(), "192.0.2.1:1", 200*time.Millisecond, 100*time.Millisecond, "")
 	assert.Equal(t, rdp.NegoUnreachable, got,
 		"a failed TCP dial must classify as NegoUnreachable, not NegoProbeError")
 }
 
-// ---------------------------------------------------------------------------
-// Task 3 — UnreachableResults constructor tests
-// ---------------------------------------------------------------------------
-
-// TestUnreachableResults_Both verifies that CheckBoth produces 2 results, one
-// for sticky_keys and one for utilman, both terminal (Success=false,
-// Indeterminate=false) with a banner containing the "unreachable" token.
 func TestUnreachableResults_Both(t *testing.T) {
 	rs := UnreachableResults("10.0.0.5:3389", CheckBoth)
 	require.Len(t, rs, 2)
@@ -203,8 +156,6 @@ func TestUnreachableResults_Both(t *testing.T) {
 	assert.Equal(t, BackdoorUtilman, rs[1].Check)
 }
 
-// TestUnreachableResults_StickyOnly verifies that CheckStickyKeys produces a
-// single sticky_keys result with the correct terminal state.
 func TestUnreachableResults_StickyOnly(t *testing.T) {
 	rs := UnreachableResults("h:3389", CheckStickyKeys)
 	require.Len(t, rs, 1)
@@ -214,8 +165,6 @@ func TestUnreachableResults_StickyOnly(t *testing.T) {
 	assert.Equal(t, VerdictUnreachable, rs[0].Verdict)
 }
 
-// TestUnreachableResults_UtilmanOnly verifies that CheckUtilman produces a
-// single utilman result with the correct terminal state.
 func TestUnreachableResults_UtilmanOnly(t *testing.T) {
 	rs := UnreachableResults("h:3389", CheckUtilman)
 	require.Len(t, rs, 1)
@@ -225,14 +174,6 @@ func TestUnreachableResults_UtilmanOnly(t *testing.T) {
 	assert.Equal(t, VerdictUnreachable, rs[0].Verdict)
 }
 
-// ---------------------------------------------------------------------------
-// Task 4 — DetectBackdoors: NegoUnreachable short-circuits before decode slot
-// ---------------------------------------------------------------------------
-
-// TestDetectBackdoors_Unreachable_SkipsWASM verifies that when nlaProbe returns
-// NegoUnreachable, DetectBackdoors returns a terminal unreachable verdict
-// WITHOUT invoking runDetection (no decode slot acquired) and the results are
-// NON-retryable (Indeterminate=false).
 func TestDetectBackdoors_Unreachable_SkipsWASM(t *testing.T) {
 	withDecodeSlots(t, 4)
 	origProbe := nlaProbe

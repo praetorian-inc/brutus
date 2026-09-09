@@ -96,13 +96,6 @@ const contaminatedUtilmanReason = "sticky-keys check returned a positive, so the
 var runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 	noVision := !aiMode
 
-	// Sticky keys and utilman detection run sequentially under the single held
-	// decode slot: sticky first, then utilman. The shared-connection design was
-	// infeasible (the Rust FFI moves the ConnectionResult out on the first
-	// session_new), so each check still opens its own RDP connection and WASM
-	// instance. Running them one at a time keeps the decode-slot bound accurate
-	// (one decoder per slot, not two concurrent). In CheckBoth mode a positive
-	// sticky result never suppresses the utilman check.
 	var findings []Finding
 
 	if checks != CheckUtilman {
@@ -116,16 +109,6 @@ var runDetection = func(ctx context.Context, target string, connectTimeout, time
 	return findings
 }
 
-// downgradeContaminatedUtilman refuses to report a CLEAN utilman reading that
-// followed a positive sticky-keys check. Contamination can only occur after a
-// sticky pop leaves a window on screen, which is exactly what makes the
-// following "no response to Win+U" reading untrustworthy.
-//
-// Only a clean reading is downgraded. A utilman check that observed something
-// — positive, or the normal Ease of Access dialog (VerdictNoBackdoor) — made a
-// real observation, and replacing an observation with "indeterminate" is the
-// false negative the cardinal rule forbids. Terminal states (unreachable,
-// nla_required) are left alone too: they are not contaminated readings.
 func downgradeContaminatedUtilman(checks Check, findings []Finding) {
 	if checks != CheckBoth || len(findings) < 2 {
 		return

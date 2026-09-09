@@ -23,19 +23,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
-// Presentation for the logon-screen detection path.
-//
-// All operator-facing prose for a logon scan is rendered HERE, from the typed
-// logon.Finding. It used to be rendered inside the detection library and
-// shipped out as a banner string, which meant every consumer — this CLI
-// included — parsed English back into a severity. The library now returns a
-// verdict, and rendering it is this layer's job alone.
-
-// severityTag maps a verdict to the operator-facing severity label.
-//
-// Only the two positive verdicts are elevated. VerdictNoBackdoor is INFO: the
-// check ran and found no backdoor, which is not a finding no matter that the
-// trigger produced a visible response.
 func severityTag(v logon.Verdict) string {
 	switch v {
 	case logon.VerdictBackdoorConfirmed:
@@ -49,7 +36,6 @@ func severityTag(v logon.Verdict) string {
 	}
 }
 
-// checkLabel names the check in human output.
 func checkLabel(c logon.BackdoorType) string {
 	if c == logon.BackdoorUtilman {
 		return "Utilman Scan"
@@ -57,8 +43,6 @@ func checkLabel(c logon.BackdoorType) string {
 	return "Sticky Keys Scan"
 }
 
-// triggerLabel names the keystroke a check sends, so a clean reading says what
-// it was clean of.
 func triggerLabel(c logon.BackdoorType) string {
 	if c == logon.BackdoorUtilman {
 		return "Win+U"
@@ -66,7 +50,6 @@ func triggerLabel(c logon.BackdoorType) string {
 	return "5x Shift"
 }
 
-// checkNoun names the check inside a sentence.
 func checkNoun(c logon.BackdoorType) string {
 	if c == logon.BackdoorUtilman {
 		return "Utilman"
@@ -74,7 +57,6 @@ func checkNoun(c logon.BackdoorType) string {
 	return "Sticky keys"
 }
 
-// findingMessage renders the operator-facing explanation of a verdict.
 func findingMessage(f *logon.Finding) string {
 	noun := checkNoun(f.Check)
 	d := &f.Diagnostics
@@ -101,20 +83,12 @@ func findingMessage(f *logon.Finding) string {
 		msg = fmt.Sprintf("%s check returned an unrecognized verdict", noun)
 	}
 
-	// Geometry diagnostic: never affects the verdict, only explains it.
 	if d.RegionNote != "" {
 		msg += fmt.Sprintf(" (%s)", d.RegionNote)
 	}
 	return msg
 }
 
-// indeterminateMessage explains a check that produced no trustworthy render.
-//
-// A server that ended the session mid-scan is called out by name, with the
-// reason it gave, because "render did not stabilize" sends the operator to
-// rerun an identical scan that will fail identically — the actionable step is
-// the short settle profile, which completes inside the window such a host
-// allows before it drops the pre-auth session.
 func indeterminateMessage(noun string, d *logon.Diagnostics) string {
 	switch {
 	case d.SessionTerminated && d.TerminationReason != "":
@@ -128,7 +102,6 @@ func indeterminateMessage(noun string, d *logon.Diagnostics) string {
 	}
 }
 
-// outputScanHuman writes logon scan findings in human-readable format.
 func outputScanHuman(findings []logon.Finding, useColor bool) {
 	for i := range findings {
 		f := &findings[i]
@@ -151,12 +124,6 @@ func outputScanHuman(findings []logon.Finding, useColor bool) {
 	}
 }
 
-// scanRecord is the JSONL shape for one logon scan finding.
-//
-// verdict is the field to key on: it is total and self-describing. There is
-// deliberately no "success" field — the old one conflated "a backdoor is
-// present" with "the trigger produced a response", and reported a host with no
-// backdoor as a positive.
 type scanRecord struct {
 	Protocol   string  `json:"protocol"`
 	Target     string  `json:"target"`
@@ -177,7 +144,6 @@ type scanRecord struct {
 	TerminationReason string `json:"termination_reason,omitempty"`
 }
 
-// outputScanJSONL writes logon scan findings as JSONL for pipeline consumption.
 func outputScanJSONL(w io.Writer, findings []logon.Finding) {
 	enc := json.NewEncoder(w)
 	for i := range findings {
@@ -206,7 +172,6 @@ func outputScanJSONL(w io.Writer, findings []logon.Finding) {
 	}
 }
 
-// interactionRecord is the JSONL shape for an operator-driven interaction.
 type interactionRecord struct {
 	Protocol       string `json:"protocol"`
 	Target         string `json:"target"`
@@ -217,7 +182,6 @@ type interactionRecord struct {
 	Error          string `json:"error,omitempty"`
 }
 
-// outputInteractionHuman writes an exec/web-terminal outcome in human format.
 func outputInteractionHuman(r *logon.InteractionResult, useColor bool) {
 	var msg string
 	switch {
@@ -242,7 +206,6 @@ func outputInteractionHuman(r *logon.InteractionResult, useColor bool) {
 	fmt.Printf("%s: %s  %s\n", r.Mode, r.Target, msg)
 }
 
-// outputInteractionJSON writes an exec/web-terminal outcome as one JSON line.
 func outputInteractionJSON(w io.Writer, r *logon.InteractionResult) {
 	rec := interactionRecord{
 		Protocol:       "rdp",

@@ -36,48 +36,20 @@ const (
 
 // DetectBackdoors runs sticky keys and utilman detection against a single RDP
 // target and returns one Finding per check performed.
-//
-// Every return path yields a Finding whose Verdict is set, including the states
-// that mean the host was never scanned (nla_required, unreachable, canceled),
-// so a caller never has to infer "not scanned" from an empty or clean-looking
-// result. Use AnyPositive to ask whether a backdoor was found.
-//
-// A process-wide decode slot (admission.go) is acquired before any dial so that
-// queued hosts spend zero pump budget; the slot bounds concurrent WASM-decode
-// sessions independently of the host errgroup's --threads limit. The slot is
-// held across retries: a retrying host is exactly the one that needs CPU, and
-// re-queueing it risks unbounded latency.
-//
-// Retries are keyed on the rerun-eligible outcomes only. A positive verdict and
-// a stabilized clean render are both final and are returned immediately;
-// retrying a positive would risk masking a real backdoor.
 func DetectBackdoors(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool,
 	maxRetries int, checks Check, proxyURL string, noNLAProbe bool, fast bool) []Finding {
 
-	// STAGE 1 — pre-WASM NLA probe (no decode slot, runs at full --threads).
-	// Only an explicit HYBRID selection / HYBRID_REQUIRED_BY_SERVER skips WASM;
-	// every other outcome (including probe errors) falls through to detection.
-	// The dial and the single-RTT nego read both use connectTimeout: a reachable
-	// host answers in ~1 RTT, so connectTimeout is the right read budget and
-	// never harms reachable hosts.
 	if !noNLAProbe {
 		switch nlaProbe(ctx, target, connectTimeout, connectTimeout, proxyURL) {
 		case rdp.NegoNLARequired:
-			// Terminal, non-retryable: return BEFORE acquiring a decode slot.
 			return NLARequiredResults(target, checks)
 		case rdp.NegoUnreachable:
-			// Terminal, non-retryable: return BEFORE acquiring a decode slot.
 			return UnreachableResults(target, checks)
 		case rdp.NegoProbeError, rdp.NegoScannable:
-			// Fall through to the existing WASM path. The probe never skips on
-			// uncertainty (cardinal rule).
 		}
 	}
 
-	// STAGE 2 — existing decode-slot-gated WASM pipeline.
 	if err := decodeSlots.Acquire(ctx, 1); err != nil {
-		// Context canceled while queued: the host never ran, so it must read
-		// as canceled, never silently clean.
 		return CancelledResults(target, checks)
 	}
 	defer decodeSlots.Release(1)
@@ -92,13 +64,9 @@ func DetectBackdoors(ctx context.Context, target string, connectTimeout, timeout
 			return findings
 		}
 	}
-	// attempts is always >= 1, so the loop's final iteration always returns;
-	// this is unreachable and exists only to satisfy the compiler.
 	panic("unreachable: DetectBackdoors loop must return")
 }
 
-// retryBackoff sleeps a capped exponential delay before a retry attempt,
-// returning early if the context is canceled. attempt is 1-based.
 func retryBackoff(ctx context.Context, attempt int) {
 	const base = 100 * time.Millisecond
 	const maxDelay = 2 * time.Second
@@ -112,41 +80,22 @@ func retryBackoff(ctx context.Context, attempt int) {
 	}
 }
 
-// InteractionMode identifies which operator-driven mode produced an
-// InteractionResult.
 type InteractionMode string
 
 const (
-	// InteractionExec ran a command through a detected backdoor.
-	InteractionExec InteractionMode = "exec"
-	// InteractionWebTerminal served an interactive session through a backdoor.
+	InteractionExec        InteractionMode = "exec"
 	InteractionWebTerminal InteractionMode = "web_terminal"
 )
 
 // InteractionResult is the outcome of an operator-driven interaction with a
 // logon-screen backdoor.
-//
-// These modes use access rather than detect it, so they report their own shape
-// and never a Finding: a Finding answers "does this host have a backdoor",
-// while an interaction presumes the answer is already yes. Neither reports a
-// brutus.Result — no credential is tested on either path, and the old shared
-// type forced them to invent one ("(sticky-keys)" as a username).
 type InteractionResult struct {
-	// Target is the host:port interacted with.
-	Target string
-	// Mode is which interaction ran.
-	Mode InteractionMode
-	// Succeeded reports whether the interaction did what it set out to do:
-	// for exec, that the backdoor was reached and the command ran; for the web
-	// terminal, that the session was served to completion.
-	Succeeded bool
-	// Output is the command output, exec mode only.
-	Output string
-	// ScreenshotPath is where the post-exec frame was written when no text
-	// output was recovered, exec mode only.
+	Target         string
+	Mode           InteractionMode
+	Succeeded      bool
+	Output         string
 	ScreenshotPath string
-	// Err is the failure that ended the interaction, if any.
-	Err error
+	Err            error
 }
 
 // ExecConfig holds parameters for sticky-keys command execution.

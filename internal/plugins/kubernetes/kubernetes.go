@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -68,7 +69,7 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 
 	// For API server: /version is publicly accessible by default RBAC,
 	// so we must probe a protected resource to confirm anonymous access.
-	protectedURL := fmt.Sprintf("%s://%s:%s/api/v1/namespaces", scheme, host, port)
+	protectedURL := fmt.Sprintf("%s://%s/api/v1/namespaces", scheme, net.JoinHostPort(host, port))
 	req, err := http.NewRequestWithContext(ctx, "GET", protectedURL, http.NoBody)
 	if err != nil {
 		return result
@@ -86,7 +87,7 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 
 	// Anonymous access to protected resources confirmed — get version info
 	bannerText := "[CRITICAL] Kubernetes anonymous access enabled"
-	versionURL := fmt.Sprintf("%s://%s:%s/version", scheme, host, port)
+	versionURL := fmt.Sprintf("%s://%s/version", scheme, net.JoinHostPort(host, port))
 	vReq, err := http.NewRequestWithContext(ctx, "GET", versionURL, http.NoBody)
 	if err == nil {
 		vResp, err := client.Do(vReq)
@@ -106,7 +107,7 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 
 // checkKubelet probes the kubelet /pods endpoint for unauthenticated access.
 func (c *Checker) checkKubelet(ctx context.Context, client *http.Client, scheme, host, port string, result *brutus.Result) *brutus.Result {
-	podsURL := fmt.Sprintf("%s://%s:%s/pods", scheme, host, port)
+	podsURL := fmt.Sprintf("%s://%s/pods", scheme, net.JoinHostPort(host, port))
 	req, err := http.NewRequestWithContext(ctx, "GET", podsURL, http.NoBody)
 	if err != nil {
 		return result

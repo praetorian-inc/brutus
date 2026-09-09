@@ -11,6 +11,7 @@ on:
       - 'go.sum'
       - '.golangci*'
       - 'Makefile'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 concurrency:
@@ -26,6 +27,7 @@ jobs:
     permissions:
       contents: read
     with:
+      golangci-lint-version: "v2.13.1"
       build-cmd-path: ./cmd/brutus
       build-binary-name: brutus
     secrets: inherit

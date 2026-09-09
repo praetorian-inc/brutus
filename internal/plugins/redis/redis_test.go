@@ -269,6 +269,28 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
+func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
+	p := &Plugin{}
+	result := p.Test(context.Background(), "::1", "", "pass", 200*time.Millisecond, brutus.PluginConfig{})
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.NotContains(t, result.Error.Error(), "too many colons")
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	p := &Plugin{}
+	result := p.Test(context.Background(), "127.0.0.1:6379", "", "pass", time.Second, brutus.PluginConfig{
+		ProxyURL: "http://127.0.0.1:1",
+	})
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
 func TestInit(t *testing.T) {
 	// Just verify the plugin can be instantiated
 	p := &Plugin{}

@@ -27,47 +27,20 @@ import (
 	"github.com/praetorian-inc/capability-sdk/pkg/clisurface"
 )
 
-// updateGoldens rewrites the generated CLI-surface artifacts instead of
-// checking them. "make cli-docs" is the documented way to set it.
 var updateGoldens = flag.Bool("update", false,
 	"rewrite docs/cli-surface.json, docs/CLI.md and the generated README.md regions from the live cobra tree")
 
-// cliDocs builds the Docs every test in this file reads its paths, its regions
-// and its regenerate command from. The SDK's defaults for the four paths and
-// the two README regions are already the layout brutus commits, and leaving
-// them unset is what keeps that layout a single documented default rather than
-// a copy of one.
-//
-// The two lint scopes are the exception, and are stated here rather than
-// defaulted. The SDK's LintedMarkdown default is READMEPath alone, while this
-// gate has policed CONTRIBUTING.md since it was written -- a document that
-// names brutus throughout, and so one that drifts. LintedGoDirs is spelled out
-// beside it although it currently equals the SDK default, because the point is
-// not the value: brutus's lint scope is a decision brutus owns, and pinning it
-// locally is what keeps a future change to an SDK default from narrowing this
-// gate's reach silently.
-//
-// It is a constructor rather than a package-level value so a configuration
-// that stopped validating fails the test that uses it, with New's error,
-// instead of panicking during package initialization where no test owns the
-// failure.
 func cliDocs(t *testing.T) *clisurface.Docs {
 	t.Helper()
 	docs, err := clisurface.New(clisurface.Config{
 		RegenerateCommand: "make cli-docs",
-		// "README.md" is spelled out rather than shared with READMEPath just
-		// above its default: the SDK keeps that default unexported, and a
-		// composite literal cannot read the field it is initializing.
-		LintedMarkdown: []string{"README.md", "CONTRIBUTING.md"},
-		LintedGoDirs:   []string{"cmd", "internal", "pkg"},
+		LintedMarkdown:    []string{"README.md", "CONTRIBUTING.md"},
+		LintedGoDirs:      []string{"cmd", "internal", "pkg"},
 	})
 	require.NoError(t, err)
 	return docs
 }
 
-// TestCLISurface is the drift gate. It walks the live cobra tree, compares it
-// against the committed surface, and compares the committed generated files
-// against what that surface renders. Without -update it never writes.
 func TestCLISurface(t *testing.T) {
 	docs := cliDocs(t)
 	cfg := docs.Config()
@@ -85,10 +58,6 @@ func TestCLISurface(t *testing.T) {
 	documented, err := docs.ParseJSON(golden)
 	require.NoError(t, err)
 
-	// Fail with require.Fail rather than require.Empty: Empty dumps the raw
-	// findings slice on one unwrapped line before printing the formatted
-	// message, so every finding prints twice, once unreadable and once
-	// formatted. Fail only prints the formatted report.
 	if findings := clisurface.Diff(documented, live); len(findings) > 0 {
 		require.Fail(t, "CLI surface drift", docs.Report(findings))
 	}
@@ -100,8 +69,6 @@ func TestCLISurface(t *testing.T) {
 	}
 }
 
-// TestCLISurfaceDocLint fails when a document or a Go comment names a flag or a
-// subcommand the CLI does not accept.
 func TestCLISurfaceDocLint(t *testing.T) {
 	docs := cliDocs(t)
 	root := repoRoot(t)
@@ -111,15 +78,6 @@ func TestCLISurfaceDocLint(t *testing.T) {
 	issues, scope, err := docs.LintRepo(root, clisurface.Walk(rootCmd), allow)
 	require.NoError(t, err)
 
-	// Log the scope on a pass as well as a failure. An empty issue list is
-	// only good news if the run actually read something, and a lint walk that
-	// silently reached nothing -- a renamed directory, an allowlist that grew
-	// to cover everything, entries skipped for not being regular files --
-	// reads exactly like a clean repository. LintReport prints this on a
-	// failure; the log is how a passing run says it too. Named fields rather
-	// than %+v: LintScope has no String method, so a verb would dump its
-	// internals. GoFiles is a count and not a list because brutus has hundreds
-	// of them, which is the same choice LintReport's own coverage line makes.
 	t.Logf("linted %d markdown file(s) [%s] and %d Go file(s) under %d Go dir(s) [%s], with %d token(s) allowlisted; skipped %d entr(y/ies) that are not regular files [%s]",
 		len(scope.MarkdownFiles), scopeList(scope.MarkdownFiles),
 		len(scope.GoFiles), len(scope.GoDirs), scopeList(scope.GoDirs),
@@ -131,21 +89,11 @@ func TestCLISurfaceDocLint(t *testing.T) {
 	}
 }
 
-// TestCLISurfaceGateDetectsRename proves the gate reddens. A gate only ever
-// observed passing is not known to work, so this renames a real flag on the
-// real tree and asserts the diff reports exactly that rename, then feeds the
-// linter a document naming a removed flag and asserts it is reported with
-// file:line.
 func TestCLISurfaceGateDetectsRename(t *testing.T) {
 	docs := cliDocs(t)
 	documented := clisurface.Walk(rootCmd)
 
 	t.Run("renaming a registered flag is reported", func(t *testing.T) {
-		// This mutates a flag on the shared package-level logonCmd and restores it in
-		// Cleanup. It is safe only because nothing in this package calls t.Parallel:
-		// do not add it here or to any test that reads the command tree, or the two
-		// will race on the rename. pflag also keys its lookup map by the original
-		// name, so only VisitAll -- which is what Walk uses -- observes the change.
 		flagObj := logonCmd.Flags().Lookup("experimental-ai")
 		require.NotNil(t, flagObj, "the fixture flag must exist for this test to mean anything")
 		t.Cleanup(func() { flagObj.Name = "experimental-ai" })
@@ -155,8 +103,6 @@ func TestCLISurfaceGateDetectsRename(t *testing.T) {
 
 		require.Len(t, findings, 2, "a rename is exactly one removal and one addition, and nothing else:\n%s",
 			docs.Report(findings))
-		// Findings are sorted by command then flag name, so the old name
-		// ("experimental-ai") is reported before the new one.
 		assert.Equal(t, clisurface.FlagRemoved, findings[0].Kind)
 		assert.Equal(t, "experimental-ai", findings[0].Flag)
 		assert.Equal(t, "brutus logon", findings[0].Command)
@@ -212,8 +158,6 @@ func TestCLISurfaceGateDetectsRename(t *testing.T) {
 	})
 }
 
-// repoRoot locates the repository root; a test's working directory is its own
-// package directory, and the generated artifacts are repo-relative.
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	wd, err := os.Getwd()
@@ -223,7 +167,6 @@ func repoRoot(t *testing.T) string {
 	return root
 }
 
-// stalenessReport renders stale artifacts one per line.
 func stalenessReport(stale []clisurface.Staleness) string {
 	lines := make([]string, 0, len(stale))
 	for i := range stale {
@@ -232,9 +175,6 @@ func stalenessReport(stale []clisurface.Staleness) string {
 	return strings.Join(lines, "\n")
 }
 
-// scopeList renders one LintScope path list for the coverage log, naming the
-// empty list rather than logging an empty bracket a reader has to interpret.
-// The SDK renders its own report the same way, but with an unexported helper.
 func scopeList(names []string) string {
 	if len(names) == 0 {
 		return "none"

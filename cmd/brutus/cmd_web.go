@@ -82,7 +82,6 @@ func runWeb(cmd *cobra.Command, args []string) error {
 		}
 		base.llmConfig = llmCfg
 	}
-	// Build web-specific config
 	wc := &webConfig{
 		browserTimeout: flagBrowserTimeout,
 		browserTabs:    flagBrowserTabs,

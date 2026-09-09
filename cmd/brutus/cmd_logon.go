@@ -194,7 +194,6 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 		return protocol == "rdp"
 	}
 
-	// Build logon-specific config
 	lc := &logonConfig{
 		execCmd:     flagExec,
 		webTerminal: flagWeb,
@@ -215,7 +214,6 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 		flagJSON = true
 	}
 
-	// Show banner
 	if shouldShowBanner(flagJSON, useStdin, flagQuiet, base.useColor) {
 		printBanner(base.useColor)
 	}
@@ -224,7 +222,6 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 	isDetectMode := lc.execCmd == "" && !lc.webTerminal
 
 	if isDetectMode {
-		// Scan/detection mode
 		var findings []logon.Finding
 
 		// A pump phase can only settle after rdp.MinViableTimeout of evidence; a

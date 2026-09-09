@@ -344,7 +344,6 @@ func TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -427,7 +426,6 @@ func Test_idpHost(t *testing.T) {
 		{"https://accounts.google.com/ServiceLogin", "accounts.google.com"},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.location, func(t *testing.T) {
 			t.Parallel()
 			got := idpHost(tc.location)

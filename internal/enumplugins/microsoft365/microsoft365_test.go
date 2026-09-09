@@ -112,7 +112,6 @@ func TestCheck_MapsIfExistsResultToConfidence(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := contextWithCredTypeResponse(t, tc.ifExistsResult, 0)
 

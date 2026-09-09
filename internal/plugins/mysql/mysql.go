@@ -69,7 +69,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Create DSN (Data Source Name)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/?%s", username, password, target, tlsParam)
 
-	// Open database connection
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -77,23 +76,19 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = db.Close() }()
 
-	// Set connection timeout
 	db.SetConnMaxLifetime(timeout)
 	db.SetMaxIdleConns(1)
 	db.SetMaxOpenConns(1)
 
-	// Create context with timeout
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Test connection with ping
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

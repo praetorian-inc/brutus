@@ -58,15 +58,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("imap", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "143")
 	addr := fmt.Sprintf("%s:%s", host, port)
 
-	// Create context with timeout
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Create options
 	options := &imapclient.Options{}
 
 	// Dial IMAP server. brutus.DialWithProxy honors the connect timeout and,
@@ -81,21 +78,17 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	client := imapclient.New(conn, options)
 	defer func() { _ = client.Close() }()
 
-	// Check if context was canceled during dial
 	if dialCtx.Err() != nil {
 		result.Error = classifyError(dialCtx.Err())
 		return result
 	}
 
-	// Create context with timeout for login
 	loginCtx, loginCancel := context.WithTimeout(ctx, timeout)
 	defer loginCancel()
 
-	// Attempt LOGIN authentication
 	loginCmd := client.Login(username, password)
 	err := loginCmd.Wait()
 
-	// Check if context was canceled during login
 	if loginCtx.Err() != nil {
 		result.Error = classifyError(loginCtx.Err())
 		return result
@@ -106,7 +99,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

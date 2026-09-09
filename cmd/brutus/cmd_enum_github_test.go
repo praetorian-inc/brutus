@@ -377,7 +377,6 @@ func TestOutputGithubEnumJSONL(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			outputGithubEnumJSONL(&buf, []githubenum.Result{tc.result})

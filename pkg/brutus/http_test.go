@@ -232,4 +232,55 @@ func TestHTTPBasicAuthProbe_Run(t *testing.T) {
 		assert.Equal(t, "myuser", gotUser)
 		assert.Equal(t, "mypass", gotPass)
 	})
+
+	t.Run("cancelled context", func(t *testing.T) {
+		started := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			close(started)
+			<-r.Context().Done()
+		}))
+		t.Cleanup(server.Close)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			<-started
+			cancel()
+		}()
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodGet,
+			Path:         "/",
+			SuccessCodes: []int{http.StatusOK},
+		}
+
+		result := probe.Run(ctx, target, "user", "pass", 5*time.Second, PluginConfig{})
+
+		assert.False(t, result.Success)
+		require.Error(t, result.Error)
+	})
+
+	t.Run("empty credentials still send authorization", func(t *testing.T) {
+		var gotOK bool
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, _, gotOK = r.BasicAuth()
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(server.Close)
+
+		target := strings.TrimPrefix(server.URL, "http://")
+		probe := HTTPBasicAuthProbe{
+			Service:      "testsvc",
+			Method:       http.MethodGet,
+			Path:         "/",
+			SuccessCodes: []int{http.StatusOK},
+		}
+
+		result := probe.Run(context.Background(), target, "", "", 5*time.Second, PluginConfig{})
+
+		assert.True(t, gotOK)
+		assert.False(t, result.Success)
+		assert.NoError(t, result.Error)
+	})
 }

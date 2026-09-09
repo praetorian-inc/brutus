@@ -16,6 +16,7 @@ package mysql
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -34,6 +35,30 @@ var (
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}
 	assert.Equal(t, "mysql", p.Name())
+}
+
+func TestPlugin_Test_ErrorClassification(t *testing.T) {
+	tests := []struct {
+		name     string
+		errStr   string
+		wantAuth bool
+	}{
+		{name: "access denied", errStr: "Access denied for user 'root'", wantAuth: true},
+		{name: "authentication failed", errStr: "authentication failed", wantAuth: true},
+		{name: "timeout", errStr: "i/o timeout", wantAuth: false},
+		{name: "connection refused", errStr: "connection refused", wantAuth: false},
+		{name: "deadline exceeded", errStr: "context deadline exceeded", wantAuth: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := classifyError(errors.New(tt.errStr))
+			if tt.wantAuth {
+				assert.Nil(t, result)
+			} else {
+				assert.ErrorContains(t, result, "connection error")
+			}
+		})
+	}
 }
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {

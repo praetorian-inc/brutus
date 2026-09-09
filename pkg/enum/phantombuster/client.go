@@ -70,15 +70,20 @@ type Client struct {
 }
 
 // NewClient builds a PhantomBuster client. timeout is the per-request HTTP budget.
-func NewClient(apiKey string, timeout time.Duration) *Client {
+// proxyURL is honored the same way as hunter/apollo/lusha (--proxy).
+func NewClient(apiKey string, timeout time.Duration, proxyURL string) (*Client, error) {
+	httpClient, err := enum.NewEnumHTTPClientWithProxy(timeout, proxyURL)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{
 		apiKey:     apiKey,
-		httpClient: enum.NewEnumHTTPClient(timeout),
+		httpClient: httpClient,
 		baseURL:    defaultBaseURL,
 		pollInit:   defaultPollInit,
 		pollMax:    defaultPollMax,
 		pollMult:   defaultPollMult,
-	}
+	}, nil
 }
 
 // LaunchResult is returned by Launch.

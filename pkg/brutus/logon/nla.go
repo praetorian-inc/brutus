@@ -23,10 +23,11 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// nlaRequiredBanner is the terminal verdict banner for a host that enforces NLA.
-// It carries the literal token "nla_required" so JSONL finding/grep and human
-// output both surface it, and a leading [INFO] tag so extractFinding renders it.
-const nlaRequiredBanner = "[INFO] nla_required (NLA/CredSSP enforced; logon-screen backdoor check not possible without credentials — not scannable)"
+// nlaRequiredReason explains why an NLA-enforcing host cannot be scanned.
+const nlaRequiredReason = "NLA/CredSSP enforced; the logon screen is not reachable without credentials (not scannable)"
+
+// unreachableReason explains a host we could not reach over TCP.
+const unreachableReason = "no RDP/TCP connection to host:port (not scannable)"
 
 // nlaProbe dials with connectTimeout (short, dead-host-fast) and probes one RTT
 // with readDeadline. A FAILED DIAL is classified NegoUnreachable (terminal,
@@ -44,65 +45,18 @@ var nlaProbe = func(ctx context.Context, target string, connectTimeout, readDead
 	return rdp.ProbeNLA(ctx, conn, readDeadline)
 }
 
-// NLARequiredResults returns the terminal, non-retryable result pair for a host
-// that requires NLA (its logon screen is unreachable pre-auth). It mirrors the
-// shape of CancelledResults but with Indeterminate:false — nla_required is a
-// distinct terminal state, NOT "clean" and NOT "indeterminate". Success=false.
-// The checks selection controls which entries are returned: CheckBoth -> sticky
-// then utilman, CheckStickyKeys -> sticky only, CheckUtilman -> utilman only.
-func NLARequiredResults(target string, checks Check) []brutus.Result {
-	var results []brutus.Result
-	if checks != CheckUtilman {
-		results = append(results, brutus.Result{
-			Protocol: "rdp",
-			Target:   target,
-			Username: "(sticky-keys)",
-			ScanType: "sticky_keys",
-			Banner:   nlaRequiredBanner,
-		})
-	}
-	if checks != CheckStickyKeys {
-		results = append(results, brutus.Result{
-			Protocol: "rdp",
-			Target:   target,
-			Username: "(utilman)",
-			ScanType: "utilman",
-			Banner:   nlaRequiredBanner,
-		})
-	}
-	return results
+// NLARequiredResults returns the terminal, non-retryable findings for a host
+// that requires NLA (its logon screen is unreachable pre-auth). nla_required is
+// a distinct terminal verdict: it is NOT clean and NOT a rerun candidate. The
+// checks selection controls which entries are returned.
+func NLARequiredResults(target string, checks Check) []Finding {
+	return terminalFindings(target, checks, VerdictNLARequired, nlaRequiredReason)
 }
 
-// unreachableBanner is the terminal verdict banner for a host we could not TCP-
-// connect to. It carries the literal token "unreachable" so JSONL/grep and human
-// output both surface it, with a leading [INFO] tag so extractFinding renders it.
-const unreachableBanner = "[INFO] unreachable (no RDP/TCP connection to host:port — not scannable)"
-
-// UnreachableResults returns the terminal, non-retryable result pair for a host
-// we could not reach over TCP. It mirrors NLARequiredResults: Success=false and
-// Indeterminate=false — unreachable is a distinct terminal state, NOT "clean"
-// and NOT "indeterminate" (so the retry loop never fires). The checks selector
-// controls which entries are returned (CheckBoth -> 2, CheckStickyKeys -> sticky
-// only, CheckUtilman -> utilman only).
-func UnreachableResults(target string, checks Check) []brutus.Result {
-	var results []brutus.Result
-	if checks != CheckUtilman {
-		results = append(results, brutus.Result{
-			Protocol: "rdp",
-			Target:   target,
-			Username: "(sticky-keys)",
-			ScanType: "sticky_keys",
-			Banner:   unreachableBanner,
-		})
-	}
-	if checks != CheckStickyKeys {
-		results = append(results, brutus.Result{
-			Protocol: "rdp",
-			Target:   target,
-			Username: "(utilman)",
-			ScanType: "utilman",
-			Banner:   unreachableBanner,
-		})
-	}
-	return results
+// UnreachableResults returns the terminal, non-retryable findings for a host we
+// could not reach over TCP. It mirrors NLARequiredResults: unreachable is a
+// distinct terminal verdict, NOT clean and NOT a rerun candidate, so the retry
+// loop never fires for it.
+func UnreachableResults(target string, checks Check) []Finding {
+	return terminalFindings(target, checks, VerdictUnreachable, unreachableReason)
 }

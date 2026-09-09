@@ -25,193 +25,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDetectStickyKeys_ConnectionError(t *testing.T) {
+func TestDetectStickyKeysOutcome_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(sticky-keys)", false, false)
+	out := DetectStickyKeysOutcome(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, false, false)
 
-	assert.NotNil(t, result)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, "127.0.0.1:1", result.Target)
-	assert.Equal(t, "(sticky-keys)", result.Username)
-	assert.False(t, result.Success)
+	require.NotNil(t, out)
+	assert.Equal(t, BackdoorStickyKeys, out.Check)
+	assert.False(t, out.Performed)
+	assert.True(t, out.Unreachable, "a refused dial is terminal-unreachable")
 }
 
-func TestDetectStickyKeys_ResultFields(t *testing.T) {
+func TestDetectStickyKeysOutcome_UnroutableHost(t *testing.T) {
 	ctx := context.Background()
-	result := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false, false)
+	out := DetectStickyKeysOutcome(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, false, false)
 
-	assert.NotNil(t, result)
-	assert.Equal(t, "(sticky-keys)", result.Username)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, "198.51.100.1:3389", result.Target)
+	require.NotNil(t, out)
+	assert.Equal(t, BackdoorStickyKeys, out.Check)
+	assert.False(t, out.Performed)
 }
 
-func TestDetectUtilman_ConnectionError(t *testing.T) {
+func TestDetectUtilmanOutcome_ConnectionError(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, "(utilman)", false, false)
+	out := DetectUtilmanOutcome(ctx, "127.0.0.1:1", 2*time.Second, 2*time.Second, false, false)
 
-	assert.NotNil(t, result)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, "127.0.0.1:1", result.Target)
-	assert.Equal(t, "(utilman)", result.Username)
-	assert.False(t, result.Success)
+	require.NotNil(t, out)
+	assert.Equal(t, BackdoorUtilman, out.Check)
+	assert.False(t, out.Performed)
+	assert.True(t, out.Unreachable)
 }
 
-func TestDetectUtilman_ResultFields(t *testing.T) {
+func TestDetectUtilmanOutcome_UnroutableHost(t *testing.T) {
 	ctx := context.Background()
-	result := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false, false)
+	out := DetectUtilmanOutcome(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, false, false)
 
-	assert.NotNil(t, result)
-	assert.Equal(t, "(utilman)", result.Username)
-	assert.Equal(t, "rdp", result.Protocol)
-	assert.Equal(t, "198.51.100.1:3389", result.Target)
-}
-
-// TestMapStickyResult tests the mapping from StickyKeysResult to brutus.Result,
-// covering the indeterminate, not-performed, clean, and confirmed cases.
-func TestMapStickyResult(t *testing.T) {
-	tests := []struct {
-		name              string
-		input             *StickyKeysResult
-		username          string
-		wantIndeterminate bool
-		wantSuccess       bool
-		wantBannerContain string
-		wantBannerExclude string
-	}{
-		{
-			name: "performed indeterminate verdict",
-			input: &StickyKeysResult{
-				Performed:      true,
-				OverallVerdict: "indeterminate",
-			},
-			username:          "testuser",
-			wantIndeterminate: true,
-			wantSuccess:       false,
-			wantBannerContain: "INDETERMINATE",
-		},
-		{
-			name: "not performed (dial fail with skip reason)",
-			input: &StickyKeysResult{
-				Performed:  false,
-				SkipReason: "connection refused",
-			},
-			username:          "testuser",
-			wantIndeterminate: true,
-			wantSuccess:       false,
-			wantBannerContain: "INDETERMINATE",
-			wantBannerExclude: "skipped",
-		},
-		{
-			name: "clean verdict",
-			input: &StickyKeysResult{
-				Performed:      true,
-				OverallVerdict: "clean",
-			},
-			username:          "testuser",
-			wantIndeterminate: false,
-			wantSuccess:       false,
-		},
-		{
-			name: "backdoor_confirmed verdict",
-			input: &StickyKeysResult{
-				Performed:      true,
-				OverallVerdict: "backdoor_confirmed",
-				Confidence:     0.99,
-			},
-			username:          "testuser",
-			wantIndeterminate: false,
-			wantSuccess:       true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := mapStickyResult(tc.input, tc.username)
-			assert.NotNil(t, result)
-			assert.Equal(t, tc.wantIndeterminate, result.Indeterminate, "Indeterminate mismatch")
-			assert.Equal(t, tc.wantSuccess, result.Success, "Success mismatch")
-			if tc.wantBannerContain != "" {
-				assert.Contains(t, result.Banner, tc.wantBannerContain)
-			}
-			if tc.wantBannerExclude != "" {
-				assert.NotContains(t, result.Banner, tc.wantBannerExclude)
-			}
-		})
-	}
-}
-
-// TestMapUtilmanResult mirrors TestMapStickyResult for the utilman mapper.
-func TestMapUtilmanResult(t *testing.T) {
-	tests := []struct {
-		name              string
-		input             *UtilmanResult
-		username          string
-		wantIndeterminate bool
-		wantSuccess       bool
-		wantBannerContain string
-		wantBannerExclude string
-	}{
-		{
-			name: "performed indeterminate verdict",
-			input: &UtilmanResult{
-				Performed:      true,
-				OverallVerdict: "indeterminate",
-			},
-			username:          "testuser",
-			wantIndeterminate: true,
-			wantSuccess:       false,
-			wantBannerContain: "INDETERMINATE",
-		},
-		{
-			name: "not performed (dial fail with skip reason)",
-			input: &UtilmanResult{
-				Performed:  false,
-				SkipReason: "connection refused",
-			},
-			username:          "testuser",
-			wantIndeterminate: true,
-			wantSuccess:       false,
-			wantBannerContain: "INDETERMINATE",
-			wantBannerExclude: "skipped",
-		},
-		{
-			name: "clean verdict",
-			input: &UtilmanResult{
-				Performed:      true,
-				OverallVerdict: "clean",
-			},
-			username:          "testuser",
-			wantIndeterminate: false,
-			wantSuccess:       false,
-		},
-		{
-			name: "backdoor_confirmed verdict",
-			input: &UtilmanResult{
-				Performed:      true,
-				OverallVerdict: "backdoor_confirmed",
-				Confidence:     0.99,
-			},
-			username:          "testuser",
-			wantIndeterminate: false,
-			wantSuccess:       true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := mapUtilmanResult(tc.input, tc.username)
-			assert.NotNil(t, result)
-			assert.Equal(t, tc.wantIndeterminate, result.Indeterminate, "Indeterminate mismatch")
-			assert.Equal(t, tc.wantSuccess, result.Success, "Success mismatch")
-			if tc.wantBannerContain != "" {
-				assert.Contains(t, result.Banner, tc.wantBannerContain)
-			}
-			if tc.wantBannerExclude != "" {
-				assert.NotContains(t, result.Banner, tc.wantBannerExclude)
-			}
-		})
-	}
+	require.NotNil(t, out)
+	assert.Equal(t, BackdoorUtilman, out.Check)
+	assert.False(t, out.Performed)
 }
 
 // TestStabilizedVerdict verifies the cardinal false-negative guard (I2): only a
@@ -516,55 +365,80 @@ func TestConsoleGate_ComposesWithStabilizedVerdict(t *testing.T) {
 	}
 }
 
-// TestScanTypeLabeling verifies that StickyKeys and Utilman scans
-// are labeled with distinct scan_type values for JSONL output.
-func TestScanTypeLabeling(t *testing.T) {
+// TestCheckLabeling verifies the two entry points stamp distinct check types,
+// which is what the JSONL "check" field and per-binary attribution key on.
+func TestCheckLabeling(t *testing.T) {
 	ctx := context.Background()
 
-	stickyResult := DetectStickyKeys(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(sticky-keys)", false, false)
-	assert.NotNil(t, stickyResult)
-	assert.Equal(t, "sticky_keys", stickyResult.ScanType, "DetectStickyKeys should set ScanType to 'sticky_keys'")
+	sticky := DetectStickyKeysOutcome(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, false, false)
+	require.NotNil(t, sticky)
+	assert.Equal(t, BackdoorStickyKeys, sticky.Check)
 
-	utilmanResult := DetectUtilman(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, "(utilman)", false, false)
-	assert.NotNil(t, utilmanResult)
-	assert.Equal(t, "utilman", utilmanResult.ScanType, "DetectUtilman should set ScanType to 'utilman'")
+	utilman := DetectUtilmanOutcome(ctx, "198.51.100.1:3389", 500*time.Millisecond, 500*time.Millisecond, false, false)
+	require.NotNil(t, utilman)
+	assert.Equal(t, BackdoorUtilman, utilman.Check)
 }
 
 // ---------------------------------------------------------------------------
-// Task 5 — mapper tests: Unreachable=true → terminal; Unreachable=false → indeterminate
+// Outcome normalization: the dial-failure vs. other-failure distinction must
+// survive the hop out of this package, because pkg/brutus/logon turns
+// Unreachable into a TERMINAL verdict and every other !Performed failure into
+// a rerun candidate. Flattening the two together here would silently make
+// unreachable hosts retryable, or worse, clean.
 // ---------------------------------------------------------------------------
 
-// TestMapStickyResult_Unreachable_Terminal verifies that a dial-failure result
-// (Unreachable=true) maps to a TERMINAL unreachable brutus.Result:
-// Success=false, Indeterminate=false, banner contains "unreachable".
-func TestMapStickyResult_Unreachable_Terminal(t *testing.T) {
-	r := mapStickyResult(&StickyKeysResult{Performed: false, Unreachable: true, SkipReason: "connection failed: i/o timeout"}, "(sticky-keys)")
-	assert.False(t, r.Success)
-	assert.False(t, r.Indeterminate, "dial failure is terminal unreachable, NOT indeterminate")
-	assert.Contains(t, r.Banner, "unreachable")
+func TestStickyOutcome_PreservesUnreachable(t *testing.T) {
+	out := stickyOutcome(&StickyKeysResult{Performed: false, Unreachable: true, SkipReason: "connection failed: i/o timeout"})
+	assert.True(t, out.Unreachable, "dial failure must stay distinguishable as unreachable")
+	assert.False(t, out.Performed)
+	assert.Equal(t, "connection failed: i/o timeout", out.SkipReason)
+	assert.Equal(t, BackdoorStickyKeys, out.Check)
 }
 
-// TestMapStickyResult_WasmFailure_StaysIndeterminate verifies that a
-// wasm/connector failure (Performed=false, Unreachable=false) STAYS indeterminate.
-func TestMapStickyResult_WasmFailure_StaysIndeterminate(t *testing.T) {
-	r := mapStickyResult(&StickyKeysResult{Performed: false, Unreachable: false, SkipReason: "wasm instance: boom"}, "(sticky-keys)")
-	assert.True(t, r.Indeterminate, "non-dial !Performed failures must remain indeterminate")
-	assert.False(t, r.Success)
+func TestStickyOutcome_WasmFailureIsNotUnreachable(t *testing.T) {
+	out := stickyOutcome(&StickyKeysResult{Performed: false, Unreachable: false, SkipReason: "wasm instance: boom"})
+	assert.False(t, out.Unreachable, "a non-dial failure must not read as unreachable")
+	assert.False(t, out.Performed)
+	assert.Equal(t, "wasm instance: boom", out.SkipReason)
 }
 
-// TestMapUtilmanResult_Unreachable_Terminal verifies the same terminal-unreachable
-// behavior for the utilman mapper.
-func TestMapUtilmanResult_Unreachable_Terminal(t *testing.T) {
-	r := mapUtilmanResult(&UtilmanResult{Performed: false, Unreachable: true, SkipReason: "connection failed: refused"}, "(utilman)")
-	assert.False(t, r.Indeterminate)
-	assert.Contains(t, r.Banner, "unreachable")
+func TestUtilmanOutcome_PreservesUnreachable(t *testing.T) {
+	out := utilmanOutcome(&UtilmanResult{Performed: false, Unreachable: true, SkipReason: "connection failed: refused"})
+	assert.True(t, out.Unreachable)
+	assert.False(t, out.Performed)
+	assert.Equal(t, BackdoorUtilman, out.Check)
 }
 
-// TestMapUtilmanResult_WasmFailure_StaysIndeterminate verifies that a wasm init
-// failure (Performed=false, Unreachable=false) stays indeterminate.
-func TestMapUtilmanResult_WasmFailure_StaysIndeterminate(t *testing.T) {
-	r := mapUtilmanResult(&UtilmanResult{Performed: false, Unreachable: false, SkipReason: "wasm init: boom"}, "(utilman)")
-	assert.True(t, r.Indeterminate)
+func TestUtilmanOutcome_WasmFailureIsNotUnreachable(t *testing.T) {
+	out := utilmanOutcome(&UtilmanResult{Performed: false, Unreachable: false, SkipReason: "wasm init: boom"})
+	assert.False(t, out.Unreachable)
+	assert.False(t, out.Performed)
+}
+
+// TestOutcome_CarriesEveryDiagnostic pins that normalization is lossless for
+// the fields consumers render. A dropped field here reappears downstream as a
+// verdict nobody can explain.
+func TestOutcome_CarriesEveryDiagnostic(t *testing.T) {
+	out := stickyOutcome(&StickyKeysResult{
+		Performed:         true,
+		Stabilized:        true,
+		OverallVerdict:    "backdoor_likely",
+		Confidence:        0.62,
+		HeuristicResult:   "12% dark delta",
+		VisionResult:      "dark console-like window",
+		RegionNote:        "console-shaped",
+		SessionTerminated: true,
+		TerminationReason: "server initiated disconnect",
+	})
+
+	assert.Equal(t, "backdoor_likely", out.Verdict)
+	assert.InDelta(t, 0.62, out.Confidence, 1e-9)
+	assert.True(t, out.Stabilized)
+	assert.Equal(t, "12% dark delta", out.Heuristic)
+	assert.Equal(t, "dark console-like window", out.Vision)
+	assert.Equal(t, "console-shaped", out.RegionNote)
+	assert.True(t, out.SessionTerminated)
+	assert.Equal(t, "server initiated disconnect", out.TerminationReason)
 }
 
 // TestSafeFilenameComponentCannotEscapeADirectory pins the traversal fix. A target

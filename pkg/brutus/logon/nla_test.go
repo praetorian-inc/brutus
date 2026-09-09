@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
-	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // ---------------------------------------------------------------------------
@@ -40,14 +39,13 @@ func TestNLARequiredResults_Both(t *testing.T) {
 	rs := NLARequiredResults("10.0.0.5:3389", CheckBoth)
 	require.Len(t, rs, 2)
 	for _, r := range rs {
-		assert.False(t, r.Success)
-		assert.False(t, r.Indeterminate, "nla_required is TERMINAL, not indeterminate")
-		assert.Contains(t, r.Banner, "nla_required")
-		assert.Equal(t, "rdp", r.Protocol)
+		assert.False(t, r.Verdict.Positive())
+		assert.False(t, r.Verdict.NeedsRerun(), "nla_required is TERMINAL, not a rerun candidate")
+		assert.Equal(t, VerdictNLARequired, r.Verdict)
 		assert.Equal(t, "10.0.0.5:3389", r.Target)
 	}
-	assert.Equal(t, "sticky_keys", rs[0].ScanType)
-	assert.Equal(t, "utilman", rs[1].ScanType)
+	assert.Equal(t, BackdoorStickyKeys, rs[0].Check)
+	assert.Equal(t, BackdoorUtilman, rs[1].Check)
 }
 
 // TestNLARequiredResults_StickyOnly verifies that CheckStickyKeys produces a
@@ -55,10 +53,10 @@ func TestNLARequiredResults_Both(t *testing.T) {
 func TestNLARequiredResults_StickyOnly(t *testing.T) {
 	rs := NLARequiredResults("h:3389", CheckStickyKeys)
 	require.Len(t, rs, 1)
-	assert.Equal(t, "sticky_keys", rs[0].ScanType)
-	assert.False(t, rs[0].Success)
-	assert.False(t, rs[0].Indeterminate)
-	assert.Contains(t, rs[0].Banner, "nla_required")
+	assert.Equal(t, BackdoorStickyKeys, rs[0].Check)
+	assert.False(t, rs[0].Verdict.Positive())
+	assert.False(t, rs[0].Verdict.NeedsRerun())
+	assert.Equal(t, VerdictNLARequired, rs[0].Verdict)
 }
 
 // TestNLARequiredResults_UtilmanOnly verifies that CheckUtilman produces a
@@ -66,10 +64,10 @@ func TestNLARequiredResults_StickyOnly(t *testing.T) {
 func TestNLARequiredResults_UtilmanOnly(t *testing.T) {
 	rs := NLARequiredResults("h:3389", CheckUtilman)
 	require.Len(t, rs, 1)
-	assert.Equal(t, "utilman", rs[0].ScanType)
-	assert.False(t, rs[0].Success)
-	assert.False(t, rs[0].Indeterminate)
-	assert.Contains(t, rs[0].Banner, "nla_required")
+	assert.Equal(t, BackdoorUtilman, rs[0].Check)
+	assert.False(t, rs[0].Verdict.Positive())
+	assert.False(t, rs[0].Verdict.NeedsRerun())
+	assert.Equal(t, VerdictNLARequired, rs[0].Verdict)
 }
 
 // ---------------------------------------------------------------------------
@@ -97,21 +95,21 @@ func TestDetectBackdoors_NLARequired_SkipsWASM(t *testing.T) {
 	})
 
 	var ranDetection atomic.Bool
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		ranDetection.Store(true) // must NOT be called for nla_required
-		return nil, false
+		return nil
 	}
 	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoNLARequired
 	}
 
-	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 2, CheckBoth, "", false, false)
-	assert.False(t, ok)
+	rs := DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 2, CheckBoth, "", false, false)
+	assert.False(t, AnyPositive(rs))
 	assert.False(t, ranDetection.Load(),
 		"WASM detection must be skipped for nla_required (no decode slot must be acquired)")
 	require.Len(t, rs, 2)
-	assert.Contains(t, rs[0].Banner, "nla_required")
-	assert.False(t, rs[0].Indeterminate,
+	assert.Equal(t, VerdictNLARequired, rs[0].Verdict)
+	assert.False(t, rs[0].Verdict.NeedsRerun(),
 		"nla_required is a terminal non-retryable verdict, not indeterminate")
 }
 
@@ -129,18 +127,18 @@ func TestDetectBackdoors_ProbeError_ProceedsToWASM(t *testing.T) {
 	})
 
 	var ran atomic.Bool
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		ran.Store(true)
-		return []brutus.Result{
-			{ScanType: "sticky_keys"},
-			{ScanType: "utilman"},
-		}, false
+		return []Finding{
+			{Check: BackdoorStickyKeys, Verdict: VerdictClean},
+			{Check: BackdoorUtilman, Verdict: VerdictClean},
+		}
 	}
 	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoProbeError
 	}
 
-	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckBoth, "", false, false)
+	_ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckBoth, "", false, false)
 	assert.True(t, ran.Load(),
 		"probe error must fall through to WASM detection (fail-open)")
 }
@@ -162,11 +160,11 @@ func TestDetectBackdoors_NoNLAProbe_SkipsProbe(t *testing.T) {
 		probed.Store(true)
 		return rdp.NegoNLARequired
 	}
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
-		return []brutus.Result{{ScanType: "sticky_keys"}}, false
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
+		return []Finding{{Check: BackdoorStickyKeys, Verdict: VerdictClean}}
 	}
 
-	_, _ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckStickyKeys, "", true /*noNLAProbe*/, false)
+	_ = DetectBackdoors(context.Background(), "h:3389", 3*time.Second, time.Second, false, 0, CheckStickyKeys, "", true /*noNLAProbe*/, false)
 	assert.False(t, probed.Load(),
 		"--no-nla-probe must bypass the probe entirely (noNLAProbe=true)")
 }
@@ -196,14 +194,13 @@ func TestUnreachableResults_Both(t *testing.T) {
 	rs := UnreachableResults("10.0.0.5:3389", CheckBoth)
 	require.Len(t, rs, 2)
 	for _, r := range rs {
-		assert.False(t, r.Success)
-		assert.False(t, r.Indeterminate, "unreachable is TERMINAL, not indeterminate")
-		assert.Contains(t, r.Banner, "unreachable")
-		assert.Equal(t, "rdp", r.Protocol)
+		assert.False(t, r.Verdict.Positive())
+		assert.False(t, r.Verdict.NeedsRerun(), "unreachable is TERMINAL, not a rerun candidate")
+		assert.Equal(t, VerdictUnreachable, r.Verdict)
 		assert.Equal(t, "10.0.0.5:3389", r.Target)
 	}
-	assert.Equal(t, "sticky_keys", rs[0].ScanType)
-	assert.Equal(t, "utilman", rs[1].ScanType)
+	assert.Equal(t, BackdoorStickyKeys, rs[0].Check)
+	assert.Equal(t, BackdoorUtilman, rs[1].Check)
 }
 
 // TestUnreachableResults_StickyOnly verifies that CheckStickyKeys produces a
@@ -211,10 +208,10 @@ func TestUnreachableResults_Both(t *testing.T) {
 func TestUnreachableResults_StickyOnly(t *testing.T) {
 	rs := UnreachableResults("h:3389", CheckStickyKeys)
 	require.Len(t, rs, 1)
-	assert.Equal(t, "sticky_keys", rs[0].ScanType)
-	assert.False(t, rs[0].Success)
-	assert.False(t, rs[0].Indeterminate)
-	assert.Contains(t, rs[0].Banner, "unreachable")
+	assert.Equal(t, BackdoorStickyKeys, rs[0].Check)
+	assert.False(t, rs[0].Verdict.Positive())
+	assert.False(t, rs[0].Verdict.NeedsRerun())
+	assert.Equal(t, VerdictUnreachable, rs[0].Verdict)
 }
 
 // TestUnreachableResults_UtilmanOnly verifies that CheckUtilman produces a
@@ -222,10 +219,10 @@ func TestUnreachableResults_StickyOnly(t *testing.T) {
 func TestUnreachableResults_UtilmanOnly(t *testing.T) {
 	rs := UnreachableResults("h:3389", CheckUtilman)
 	require.Len(t, rs, 1)
-	assert.Equal(t, "utilman", rs[0].ScanType)
-	assert.False(t, rs[0].Success)
-	assert.False(t, rs[0].Indeterminate)
-	assert.Contains(t, rs[0].Banner, "unreachable")
+	assert.Equal(t, BackdoorUtilman, rs[0].Check)
+	assert.False(t, rs[0].Verdict.Positive())
+	assert.False(t, rs[0].Verdict.NeedsRerun())
+	assert.Equal(t, VerdictUnreachable, rs[0].Verdict)
 }
 
 // ---------------------------------------------------------------------------
@@ -243,18 +240,18 @@ func TestDetectBackdoors_Unreachable_SkipsWASM(t *testing.T) {
 	t.Cleanup(func() { nlaProbe = origProbe; runDetection = origRun })
 
 	var ranDetection atomic.Bool
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		ranDetection.Store(true)
-		return nil, false
+		return nil
 	}
 	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
 		return rdp.NegoUnreachable
 	}
 
-	rs, ok := DetectBackdoors(context.Background(), "h:3389", 3*time.Second /*connectTimeout*/, time.Second /*timeout*/, false, 2, CheckBoth, "", false, false)
-	assert.False(t, ok)
+	rs := DetectBackdoors(context.Background(), "h:3389", 3*time.Second /*connectTimeout*/, time.Second /*timeout*/, false, 2, CheckBoth, "", false, false)
+	assert.False(t, AnyPositive(rs))
 	assert.False(t, ranDetection.Load(), "WASM detection must be skipped for unreachable (no decode slot)")
 	require.Len(t, rs, 2)
-	assert.Contains(t, rs[0].Banner, "unreachable")
-	assert.False(t, rs[0].Indeterminate, "unreachable is terminal, non-retryable")
+	assert.Equal(t, VerdictUnreachable, rs[0].Verdict)
+	assert.False(t, rs[0].Verdict.NeedsRerun(), "unreachable is terminal, non-retryable")
 }

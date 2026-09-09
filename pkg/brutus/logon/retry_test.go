@@ -24,37 +24,43 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
-	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// indeterminateResults returns a pair of results (sticky+utilman) both marked
-// Indeterminate, simulating a stabilization failure (e.g. CPU-starved render).
-func indeterminateResults(target string) ([]brutus.Result, bool) {
-	return []brutus.Result{
-		{Target: target, ScanType: "sticky_keys", Indeterminate: true,
-			Banner: "[WARN] Sticky keys check INDETERMINATE (render did not stabilize — rerun)"},
-		{Target: target, ScanType: "utilman", Indeterminate: true,
-			Banner: "[WARN] Utilman check INDETERMINATE (render did not stabilize — rerun)"},
-	}, false
+// indeterminateResults returns a sticky+utilman pair that both reached no
+// verdict, simulating a stabilization failure (e.g. CPU-starved render).
+func indeterminateResults(target string) []Finding {
+	return []Finding{
+		{Target: target, Check: BackdoorStickyKeys, Verdict: VerdictIndeterminate},
+		{Target: target, Check: BackdoorUtilman, Verdict: VerdictIndeterminate},
+	}
 }
 
-// cleanResults returns a pair of results (sticky+utilman) both clean (not
-// indeterminate, no backdoor found) — simulating a stabilized, negative render.
-func cleanResults(target string) ([]brutus.Result, bool) {
-	return []brutus.Result{
-		{Target: target, ScanType: "sticky_keys", Indeterminate: false},
-		{Target: target, ScanType: "utilman", Indeterminate: false},
-	}, false
+// cleanResults returns a sticky+utilman pair that both read clean — a
+// stabilized, negative render.
+func cleanResults(target string) []Finding {
+	return []Finding{
+		{Target: target, Check: BackdoorStickyKeys, Verdict: VerdictClean},
+		{Target: target, Check: BackdoorUtilman, Verdict: VerdictClean},
+	}
 }
 
-// foundResults returns a pair of results where the sticky check indicates a
-// backdoor was found (hasSuccess=true).
-func foundResults(target string) ([]brutus.Result, bool) {
-	return []brutus.Result{
-		{Target: target, ScanType: "sticky_keys", Indeterminate: false, Success: true,
-			Banner: "[CRITICAL] Sticky keys backdoor confirmed"},
-		{Target: target, ScanType: "utilman", Indeterminate: false},
-	}, true
+// foundResults returns a pair where the sticky check found a backdoor.
+func foundResults(target string) []Finding {
+	return []Finding{
+		{Target: target, Check: BackdoorStickyKeys, Verdict: VerdictBackdoorConfirmed, Confidence: 0.92},
+		{Target: target, Check: BackdoorUtilman, Verdict: VerdictClean},
+	}
+}
+
+// noBackdoorResults returns a pair where the sticky trigger produced the NORMAL
+// Windows dialog on a non-NLA host. This is the state the old []brutus.Result
+// API reported as Success=true; it must never be treated as a positive, and
+// (being a real observation) must never be retried.
+func noBackdoorResults(target string) []Finding {
+	return []Finding{
+		{Target: target, Check: BackdoorStickyKeys, Verdict: VerdictNoBackdoor, Confidence: 0.8},
+		{Target: target, Check: BackdoorUtilman, Verdict: VerdictNoBackdoor, Confidence: 0.8},
+	}
 }
 
 // TestDetectBackdoors_RetriesIndeterminate verifies that DetectBackdoors retries
@@ -73,7 +79,7 @@ func TestDetectBackdoors_RetriesIndeterminate(t *testing.T) {
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		n := int(attempts.Add(1))
 		if n == 1 {
 			return indeterminateResults(tgt)
@@ -85,13 +91,13 @@ func TestDetectBackdoors_RetriesIndeterminate(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false, false)
+	findings := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false, false)
 
-	require.Len(t, results, 2, "expected 2 results (sticky + utilman)")
+	require.Len(t, findings, 2, "expected 2 results (sticky + utilman)")
 	assert.Equal(t, int32(2), attempts.Load(), "expected exactly 2 attempts: indeterminate on 0, clean on 1")
-	assert.False(t, hasSuccess, "no backdoor found")
-	assert.False(t, results[0].Indeterminate, "final sticky result must not be indeterminate")
-	assert.False(t, results[1].Indeterminate, "final utilman result must not be indeterminate")
+	assert.False(t, AnyPositive(findings), "no backdoor found")
+	assert.False(t, findings[0].Verdict.NeedsRerun(), "final sticky result must not be indeterminate")
+	assert.False(t, findings[1].Verdict.NeedsRerun(), "final utilman result must not be indeterminate")
 }
 
 // TestDetectBackdoors_NoRetryOnFoundBackdoor verifies that a positive (backdoor
@@ -106,7 +112,7 @@ func TestDetectBackdoors_NoRetryOnFoundBackdoor(t *testing.T) {
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		attempts.Add(1)
 		return foundResults(tgt)
 	}
@@ -115,12 +121,12 @@ func TestDetectBackdoors_NoRetryOnFoundBackdoor(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false, false)
+	findings := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false, false)
 
-	require.Len(t, results, 2)
+	require.Len(t, findings, 2)
 	assert.Equal(t, int32(1), attempts.Load(), "backdoor found: must not retry (exactly 1 attempt)")
-	assert.True(t, hasSuccess, "backdoor found, hasSuccess must be true")
-	assert.True(t, results[0].Success, "sticky result must carry Success=true")
+	assert.True(t, AnyPositive(findings), "backdoor found")
+	assert.True(t, findings[0].Verdict.Positive(), "sticky finding must be a positive")
 }
 
 // TestDetectBackdoors_NoRetryOnStabilizedClean verifies that a stabilized clean
@@ -135,7 +141,7 @@ func TestDetectBackdoors_NoRetryOnStabilizedClean(t *testing.T) {
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		attempts.Add(1)
 		return cleanResults(tgt)
 	}
@@ -144,13 +150,13 @@ func TestDetectBackdoors_NoRetryOnStabilizedClean(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false, false)
+	findings := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false, false)
 
-	require.Len(t, results, 2)
+	require.Len(t, findings, 2)
 	assert.Equal(t, int32(1), attempts.Load(), "clean non-indeterminate: must not retry (exactly 1 attempt)")
-	assert.False(t, hasSuccess)
-	assert.False(t, results[0].Indeterminate)
-	assert.False(t, results[1].Indeterminate)
+	assert.False(t, AnyPositive(findings))
+	assert.False(t, findings[0].Verdict.NeedsRerun())
+	assert.False(t, findings[1].Verdict.NeedsRerun())
 }
 
 // TestDetectBackdoors_AttemptCap verifies that when every attempt returns
@@ -169,7 +175,7 @@ func TestDetectBackdoors_AttemptCap(t *testing.T) {
 	}
 	var attempts atomic.Int32
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		attempts.Add(1)
 		return indeterminateResults(tgt)
 	}
@@ -178,13 +184,13 @@ func TestDetectBackdoors_AttemptCap(t *testing.T) {
 		nlaProbe = origProbe
 	})
 
-	results, hasSuccess := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, maxRetries, CheckBoth, "", false, false)
+	findings := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, maxRetries, CheckBoth, "", false, false)
 
-	require.Len(t, results, 2)
+	require.Len(t, findings, 2)
 	assert.Equal(t, int32(maxRetries+1), attempts.Load(),
 		"always-indeterminate: attempts must equal maxRetries+1 (%d)", maxRetries+1)
-	assert.False(t, hasSuccess, "no backdoor found even after all retries")
+	assert.False(t, AnyPositive(findings), "no backdoor found even after all retries")
 	// The final result is still indeterminate — caller must surface this to the user.
-	assert.True(t, results[0].Indeterminate, "final result still indeterminate after cap")
-	assert.True(t, results[1].Indeterminate, "final result still indeterminate after cap")
+	assert.True(t, findings[0].Verdict.NeedsRerun(), "final result still indeterminate after cap")
+	assert.True(t, findings[1].Verdict.NeedsRerun(), "final result still indeterminate after cap")
 }

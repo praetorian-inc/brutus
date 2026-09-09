@@ -20,7 +20,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
-	"github.com/praetorian-inc/brutus/pkg/brutus"
 	brutusinput "github.com/praetorian-inc/brutus/pkg/brutus/input"
 	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
@@ -226,7 +225,7 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 
 	if isDetectMode {
 		// Scan/detection mode
-		var scanResults []brutus.Result
+		var findings []logon.Finding
 
 		// A pump phase can only settle after rdp.MinViableTimeout of evidence; a
 		// --scan-timeout below that floor forces every host to INDETERMINATE (and
@@ -244,11 +243,11 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 
 		switch {
 		case useStdin:
-			scanResults, _ = runScanFromStdin(rc)
+			findings = runScanFromStdin(rc)
 		case flagNmapFile != "":
-			scanResults, _ = runScanFromNmapFile(rc)
+			findings = runScanFromNmapFile(rc)
 		case flagMasscanFile != "":
-			scanResults, _ = runScanFromMasscanFile(rc)
+			findings = runScanFromMasscanFile(rc)
 		case flagTargetsFile != "":
 			targetsList, loadErr := brutusinput.LoadTargetsFromFile(flagTargetsFile)
 			if loadErr != nil {
@@ -257,21 +256,21 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 			if len(targetsList) == 0 {
 				return fmt.Errorf("targets file %q has no targets", flagTargetsFile)
 			}
-			scanResults, _ = runLogonFingerprint(targetsList, rc)
+			findings = runLogonFingerprint(targetsList, rc)
 		default:
 			if flagTarget == "" {
 				return fmt.Errorf("--target is required (or pipe targets to stdin, or use --targets-file)")
 			}
-			scanResults, _ = runScanSingleTarget(flagTarget, rc)
+			findings = runScanSingleTarget(flagTarget, rc)
 		}
 
 		if flagJSON {
-			outputScanJSONL(jsonWriter, scanResults)
+			outputScanJSONL(jsonWriter, findings)
 		} else {
-			outputScanHuman(scanResults, base.useColor)
+			outputScanHuman(findings, base.useColor)
 		}
 
-		return scanExitError(scanResults)
+		return scanExitError(findings)
 	}
 
 	// Interactive modes (exec/web) drive the sticky-keys backdoor, so they are
@@ -286,36 +285,49 @@ func runLogonChecks(cmd *cobra.Command, checks logon.Check) error {
 		return fmt.Errorf("--target is required for interactive sticky keys modes")
 	}
 
-	results, _ := runStickyKeysInteractive(flagTarget, rc)
+	interaction := runStickyKeysInteractive(flagTarget, rc)
 	if flagJSON {
-		outputScanJSONL(jsonWriter, results)
+		outputInteractionJSON(jsonWriter, &interaction)
 	} else {
-		outputScanHuman(results, base.useColor)
+		outputInteractionHuman(&interaction, base.useColor)
 	}
 
-	return scanExitError(results)
+	return interactionExitError(&interaction)
 }
 
 // scanExitError maps aggregated scan outcomes to the process exit error for the
 // logon family of scans. A completed scan is a success whether or not a backdoor
 // was found, so a clean/nothing-found result is NOT an error (exit 0). Any
-// indeterminate result takes precedence and yields errIndeterminate (exit 2) so
-// the operator knows to rerun the affected hosts.
-func scanExitError(results []brutus.Result) error {
-	for i := range results {
-		if results[i].Indeterminate {
-			return errIndeterminate
-		}
+// rerun-eligible verdict takes precedence and yields errIndeterminate (exit 2)
+// so the operator knows to rerun the affected hosts. The terminal
+// not-scannable verdicts (nla_required, unreachable) are not rerun candidates
+// and so do not affect the exit code.
+func scanExitError(findings []logon.Finding) error {
+	if logon.AnyNeedsRerun(findings) {
+		return errIndeterminate
+	}
+	return nil
+}
+
+// interactionExitError maps an operator-driven interaction to a process exit
+// error. Unlike a scan, an interaction that did not reach the backdoor is a
+// failure: the operator asked for access, not for a verdict.
+func interactionExitError(r *logon.InteractionResult) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	if !r.Succeeded {
+		return fmt.Errorf("%s: backdoor not reached on %s", r.Mode, r.Target)
 	}
 	return nil
 }
 
 // runLogonFingerprint fingerprints targets with Nerva and runs logon-screen
 // detection on any discovered RDP services.
-func runLogonFingerprint(targets []string, base *runConfig) ([]brutus.Result, bool) {
+func runLogonFingerprint(targets []string, base *runConfig) []logon.Finding {
 	stop, services, ok := fingerprintTargets(targets, base)
 	if !ok {
-		return nil, false
+		return nil
 	}
 	defer stop()
 

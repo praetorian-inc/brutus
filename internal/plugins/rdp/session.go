@@ -56,7 +56,7 @@ type StickyKeysResult struct {
 	// SessionTerminated records that the server ended the RDP session mid-scan
 	// (e.g. a pre-auth logon session torn down before the response settled). The
 	// scan observed no trustworthy post-trigger render, so the verdict cannot be a
-	// positive; it also selects the short-budget retry in DetectStickyKeys.
+	// positive; it also selects the short-budget retry in DetectStickyKeysOutcome.
 	SessionTerminated bool
 	// TerminationReason is the server-reported reason behind SessionTerminated,
 	// surfaced in the operator-facing banner instead of being discarded.
@@ -82,7 +82,7 @@ type UtilmanResult struct {
 	// SessionTerminated records that the server ended the RDP session mid-scan
 	// (e.g. a pre-auth logon session torn down before the response settled). The
 	// scan observed no trustworthy post-trigger render, so the verdict cannot be a
-	// positive; it also selects the short-budget retry in DetectUtilman.
+	// positive; it also selects the short-budget retry in DetectUtilmanOutcome.
 	SessionTerminated bool
 	// TerminationReason is the server-reported reason behind SessionTerminated,
 	// surfaced in the operator-facing banner instead of being discarded.

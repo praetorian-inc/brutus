@@ -22,12 +22,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
 // withScanTargetFn swaps the package-level scanTargetFn seam for the duration of
 // a test and restores the original via the returned cleanup function.
-func withScanTargetFn(t *testing.T, fn func(ctx context.Context, target string, base *runConfig) ([]brutus.Result, bool)) {
+func withScanTargetFn(t *testing.T, fn func(ctx context.Context, target string, base *runConfig) []logon.Finding) {
 	t.Helper()
 	orig := scanTargetFn
 	scanTargetFn = fn
@@ -39,17 +39,17 @@ func withScanTargetFn(t *testing.T, fn func(ctx context.Context, target string, 
 // goroutine finishes first. Each fake scan returns two results (mirroring the
 // real sticky-keys + utilman pair) so we assert the flattened order.
 func TestRunScanTargetsConcurrent_PreservesInputOrder(t *testing.T) {
-	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) ([]brutus.Result, bool) {
-		return []brutus.Result{
-			{Target: target, ScanType: "sticky_keys"},
-			{Target: target, ScanType: "utilman"},
-		}, false
+	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) []logon.Finding {
+		return []logon.Finding{
+			{Target: target, Check: logon.BackdoorStickyKeys, Verdict: logon.VerdictClean},
+			{Target: target, Check: logon.BackdoorUtilman, Verdict: logon.VerdictClean},
+		}
 	})
 
 	targets := []string{"a:3389", "b:3389", "c:3389", "d:3389", "e:3389"}
 	base := &runConfig{baseConfigOptions: &baseConfigOptions{threads: 3}}
 
-	results, _ := runScanTargetsConcurrent(targets, base)
+	findings := runScanTargetsConcurrent(targets, base)
 
 	// Two results per target, flattened in input order.
 	expectedOrder := []string{
@@ -59,9 +59,9 @@ func TestRunScanTargetsConcurrent_PreservesInputOrder(t *testing.T) {
 		"d:3389", "d:3389",
 		"e:3389", "e:3389",
 	}
-	actualOrder := make([]string, len(results))
-	for i := range results {
-		actualOrder[i] = results[i].Target
+	actualOrder := make([]string, len(findings))
+	for i := range findings {
+		actualOrder[i] = findings[i].Target
 	}
 	assert.Equal(t, expectedOrder, actualOrder)
 }
@@ -75,7 +75,7 @@ func TestRunScanTargetsConcurrent_BoundedByThreads(t *testing.T) {
 
 	var current, peak atomic.Int32
 
-	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) ([]brutus.Result, bool) {
+	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) []logon.Finding {
 		n := current.Add(1)
 		for {
 			p := peak.Load()
@@ -85,7 +85,7 @@ func TestRunScanTargetsConcurrent_BoundedByThreads(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 		current.Add(-1)
-		return []brutus.Result{{Target: target}}, false
+		return []logon.Finding{{Target: target, Verdict: logon.VerdictClean}}
 	})
 
 	targets := make([]string, 20)
@@ -102,23 +102,37 @@ func TestRunScanTargetsConcurrent_BoundedByThreads(t *testing.T) {
 	assert.GreaterOrEqual(t, observed, 2, "expected parallel execution, not serial")
 }
 
-// TestRunScanTargetsConcurrent_HasSuccess verifies hasSuccess is true iff at
-// least one fake scan reports success.
-func TestRunScanTargetsConcurrent_HasSuccess(t *testing.T) {
+// TestRunScanTargetsConcurrent_AggregatesPositives verifies that a positive on
+// any single target is visible in the aggregated findings. This replaces the
+// old hasSuccess bool: "did anything turn up" is now derived from the verdicts
+// rather than threaded alongside them, so it cannot disagree with them.
+func TestRunScanTargetsConcurrent_AggregatesPositives(t *testing.T) {
 	base := &runConfig{baseConfigOptions: &baseConfigOptions{threads: 4}}
 	targets := []string{"a:3389", "b:3389", "c:3389"}
 
-	// No target succeeds.
-	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) ([]brutus.Result, bool) {
-		return []brutus.Result{{Target: target}}, false
+	// No target has a backdoor.
+	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) []logon.Finding {
+		return []logon.Finding{{Target: target, Verdict: logon.VerdictClean}}
 	})
-	_, hasSuccess := runScanTargetsConcurrent(targets, base)
-	assert.False(t, hasSuccess, "no target succeeded, hasSuccess must be false")
+	assert.False(t, logon.AnyPositive(runScanTargetsConcurrent(targets, base)),
+		"no target has a backdoor")
 
-	// Exactly one target (b) succeeds.
-	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) ([]brutus.Result, bool) {
-		return []brutus.Result{{Target: target}}, target == "b:3389"
+	// Exactly one target (b) has one.
+	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) []logon.Finding {
+		v := logon.VerdictClean
+		if target == "b:3389" {
+			v = logon.VerdictBackdoorConfirmed
+		}
+		return []logon.Finding{{Target: target, Verdict: v}}
 	})
-	_, hasSuccess = runScanTargetsConcurrent(targets, base)
-	assert.True(t, hasSuccess, "one target succeeded, hasSuccess must be true")
+	assert.True(t, logon.AnyPositive(runScanTargetsConcurrent(targets, base)),
+		"one target has a backdoor")
+
+	// A non-NLA host whose trigger produced the normal dialog is NOT a positive.
+	// The old bool reported exactly this case as success.
+	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) []logon.Finding {
+		return []logon.Finding{{Target: target, Verdict: logon.VerdictNoBackdoor}}
+	})
+	assert.False(t, logon.AnyPositive(runScanTargetsConcurrent(targets, base)),
+		"no_backdoor means the check ran and found nothing; it is never a positive")
 }

@@ -22,31 +22,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
-// TestRunScanTargetsConcurrent_CancelledIndexIndeterminate verifies that every
-// target emits non-nil, INDETERMINATE results when the context is already
-// canceled on entry — no target may silently vanish (emit nil/empty results)
-// when the run is canceled (invariant I5/I6).
-//
-// This test is RED until the developer adds an injectable-context entry point:
-//
-//	func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *runConfig) ([]brutus.Result, bool)
-//
-// with the existing runScanTargetsConcurrent wrapping it via its own
-// signal.NotifyContext.
-func TestRunScanTargetsConcurrent_CancelledIndexIndeterminate(t *testing.T) {
+// TestRunScanTargetsConcurrent_CancelledTargetsStillReport verifies that every
+// target emits a non-nil, cancelled finding when the context is already
+// canceled on entry — no target may silently vanish when the run is canceled
+// (invariant I5/I6).
+func TestRunScanTargetsConcurrent_CancelledTargetsStillReport(t *testing.T) {
 	// Install a scan fake that records invocations. The point of this test is
 	// that the fake must NOT be called for any target — cancellation must
 	// short-circuit before any per-target scan work begins.
 	scanInvoked := false
-	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) ([]brutus.Result, bool) {
+	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) []logon.Finding {
 		scanInvoked = true
-		return []brutus.Result{
-			{Target: target, ScanType: "sticky_keys"},
-			{Target: target, ScanType: "utilman"},
-		}, false
+		return []logon.Finding{
+			{Target: target, Check: logon.BackdoorStickyKeys, Verdict: logon.VerdictClean},
+			{Target: target, Check: logon.BackdoorUtilman, Verdict: logon.VerdictClean},
+		}
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -58,22 +51,25 @@ func TestRunScanTargetsConcurrent_CancelledIndexIndeterminate(t *testing.T) {
 		timeout: 5 * time.Second,
 	}}
 
-	results, hasSuccess := runScanTargetsConcurrentCtx(ctx, targets, base)
+	findings := runScanTargetsConcurrentCtx(ctx, targets, base)
 
-	// Every target must contribute results — no silent nil/empty.
-	require.NotNil(t, results, "results slice must not be nil")
-	assert.Equal(t, len(targets)*2, len(results),
-		"each target must contribute exactly 2 results (sticky + utilman)")
+	// Every target must contribute findings — no silent nil/empty.
+	require.NotNil(t, findings, "findings slice must not be nil")
+	assert.Equal(t, len(targets)*2, len(findings),
+		"each target must contribute exactly 2 findings (sticky + utilman)")
 
-	// Every result must be INDETERMINATE — hosts never ran.
-	for i, r := range results {
-		assert.True(t, r.Indeterminate,
-			"result[%d] (target %s) must be Indeterminate (scan was canceled)", i, r.Target)
-		assert.False(t, r.Success,
-			"result[%d] must not be Success (scan was canceled)", i)
+	// Every finding must read as cancelled — the hosts never ran.
+	for i := range findings {
+		f := &findings[i]
+		assert.Equal(t, logon.VerdictCancelled, f.Verdict,
+			"findings[%d] (target %s) must be cancelled (scan was canceled)", i, f.Target)
+		assert.True(t, f.Verdict.NeedsRerun(),
+			"findings[%d] must be a rerun candidate", i)
+		assert.False(t, f.Verdict.Scanned(),
+			"findings[%d] never produced a reading", i)
 	}
 
-	assert.False(t, hasSuccess, "canceled scan must not report success")
+	assert.False(t, logon.AnyPositive(findings), "a canceled scan cannot report a positive")
 	assert.False(t, scanInvoked,
 		"scanTargetFn must not be invoked when context is canceled before any target runs")
 }

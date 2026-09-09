@@ -562,7 +562,7 @@ func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *ru
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
 					// Context canceled while queued: the host never ran, so it
-					// must read as CANCELLED, never silently disappear.
+					// must read as CANCELED, never silently disappear.
 					perTarget[idx] = logon.CancelledResults(target, base.checks)
 					return nil
 				}

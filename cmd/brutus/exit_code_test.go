@@ -64,8 +64,8 @@ func TestScanExitError(t *testing.T) {
 			wantErr:  errIndeterminate,
 		},
 		{
-			name:     "cancelled is a rerun candidate too",
-			findings: []logon.Finding{{Verdict: logon.VerdictCancelled}},
+			name:     "canceled is a rerun candidate too",
+			findings: []logon.Finding{{Verdict: logon.VerdictCanceled}},
 			wantErr:  errIndeterminate,
 		},
 		{

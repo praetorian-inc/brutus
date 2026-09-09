@@ -38,7 +38,7 @@ const (
 // target and returns one Finding per check performed.
 //
 // Every return path yields a Finding whose Verdict is set, including the states
-// that mean the host was never scanned (nla_required, unreachable, cancelled),
+// that mean the host was never scanned (nla_required, unreachable, canceled),
 // so a caller never has to infer "not scanned" from an empty or clean-looking
 // result. Use AnyPositive to ask whether a backdoor was found.
 //
@@ -77,7 +77,7 @@ func DetectBackdoors(ctx context.Context, target string, connectTimeout, timeout
 	// STAGE 2 — existing decode-slot-gated WASM pipeline.
 	if err := decodeSlots.Acquire(ctx, 1); err != nil {
 		// Context canceled while queued: the host never ran, so it must read
-		// as cancelled, never silently clean.
+		// as canceled, never silently clean.
 		return CancelledResults(target, checks)
 	}
 	defer decodeSlots.Release(1)

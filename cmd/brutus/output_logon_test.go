@@ -48,7 +48,7 @@ func TestSeverityTag(t *testing.T) {
 		logon.VerdictNLARequired:       "[INFO]",
 		logon.VerdictUnreachable:       "[INFO]",
 		logon.VerdictIndeterminate:     "[WARN]",
-		logon.VerdictCancelled:         "[WARN]",
+		logon.VerdictCanceled:          "[WARN]",
 		logon.VerdictUnknown:           "[WARN]",
 	} {
 		assert.Equal(t, want, severityTag(v), "severityTag(%s)", v)

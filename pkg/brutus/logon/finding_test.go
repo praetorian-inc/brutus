@@ -85,7 +85,7 @@ func TestVerdictPredicates(t *testing.T) {
 		{VerdictNoBackdoor, false, true, false},
 		{VerdictClean, false, true, false},
 		{VerdictIndeterminate, false, false, true},
-		{VerdictCancelled, false, false, true},
+		{VerdictCanceled, false, false, true},
 		{VerdictNLARequired, false, false, false},
 		{VerdictUnreachable, false, false, false},
 		{VerdictUnknown, false, false, false},
@@ -201,5 +201,5 @@ func TestAnyNeedsRerun(t *testing.T) {
 		{Verdict: VerdictClean},
 		{Verdict: VerdictIndeterminate},
 	}))
-	assert.True(t, AnyNeedsRerun([]Finding{{Verdict: VerdictCancelled}}))
+	assert.True(t, AnyNeedsRerun([]Finding{{Verdict: VerdictCanceled}}))
 }

@@ -141,7 +141,7 @@ func downgradeContaminatedUtilman(checks Check, findings []Finding) {
 
 // CancelledResults returns the findings for a host whose decode slot was never
 // acquired (context canceled while queued). The host did not run, so it reads
-// as cancelled — never silently clean.
+// as canceled — never silently clean.
 func CancelledResults(target string, checks Check) []Finding {
-	return terminalFindings(target, checks, VerdictCancelled, "scan canceled before start (rerun)")
+	return terminalFindings(target, checks, VerdictCanceled, "scan canceled before start (rerun)")
 }

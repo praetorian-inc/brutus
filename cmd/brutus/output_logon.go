@@ -42,7 +42,7 @@ func severityTag(v logon.Verdict) string {
 		return "[CRITICAL]"
 	case logon.VerdictBackdoorLikely:
 		return "[HIGH]"
-	case logon.VerdictIndeterminate, logon.VerdictCancelled, logon.VerdictUnknown:
+	case logon.VerdictIndeterminate, logon.VerdictCanceled, logon.VerdictUnknown:
 		return "[WARN]"
 	default:
 		return "[INFO]"
@@ -91,8 +91,8 @@ func findingMessage(f *logon.Finding) string {
 		msg = fmt.Sprintf("%s check: clean (no response to %s)", noun, triggerLabel(f.Check))
 	case logon.VerdictIndeterminate:
 		msg = indeterminateMessage(noun, d)
-	case logon.VerdictCancelled:
-		msg = fmt.Sprintf("%s check CANCELLED (%s)", noun, d.SkipReason)
+	case logon.VerdictCanceled:
+		msg = fmt.Sprintf("%s check CANCELED (%s)", noun, d.SkipReason)
 	case logon.VerdictNLARequired:
 		msg = fmt.Sprintf("nla_required (%s)", d.SkipReason)
 	case logon.VerdictUnreachable:

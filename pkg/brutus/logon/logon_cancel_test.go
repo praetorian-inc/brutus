@@ -64,12 +64,12 @@ func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 
 	findings := DetectBackdoors(ctx, "1.2.3.4:3389", 3*time.Second, 5*time.Second, false, 0, CheckBoth, "", false, false)
 
-	// The host never ran; both findings must read as cancelled.
+	// The host never ran; both findings must read as canceled.
 	require.Len(t, findings, 2, "canceled context must produce exactly 2 findings (sticky + utilman)")
 	assert.False(t, AnyPositive(findings), "no scan ran; nothing can be positive")
 
 	for i := range findings {
-		assert.Equal(t, VerdictCancelled, findings[i].Verdict, "findings[%d] must be cancelled (never ran)", i)
+		assert.Equal(t, VerdictCanceled, findings[i].Verdict, "findings[%d] must be canceled (never ran)", i)
 		assert.True(t, findings[i].Verdict.NeedsRerun(), "findings[%d] must be a rerun candidate", i)
 		assert.False(t, findings[i].Verdict.Scanned(), "findings[%d] never produced a reading", i)
 	}
@@ -81,7 +81,7 @@ func TestDetectBackdoors_CancelledWhileQueued(t *testing.T) {
 }
 
 // TestCancelledResults verifies the content of the CancelledResults helper: one
-// finding per selected check, each carrying the cancelled verdict and a reason.
+// finding per selected check, each carrying the canceled verdict and a reason.
 // Content, not just length — a length-only assertion would miss a regression
 // that reported a host that never ran as clean.
 func TestCancelledResults(t *testing.T) {
@@ -97,18 +97,18 @@ func TestCancelledResults(t *testing.T) {
 
 	for _, f := range findings {
 		assert.Equal(t, target, f.Target)
-		assert.Equal(t, VerdictCancelled, f.Verdict)
-		assert.True(t, f.Verdict.NeedsRerun(), "a cancelled host must be rerun")
-		assert.False(t, f.Verdict.Scanned(), "a cancelled host produced no reading")
+		assert.Equal(t, VerdictCanceled, f.Verdict)
+		assert.True(t, f.Verdict.NeedsRerun(), "a canceled host must be rerun")
+		assert.False(t, f.Verdict.Scanned(), "a canceled host produced no reading")
 		assert.False(t, f.Verdict.Positive())
 		assert.Contains(t, f.Diagnostics.SkipReason, "canceled",
 			"the reason the host was not scanned must reach the operator")
 	}
 }
 
-// TestCancelledResults_RespectsSelector pins that the cancelled path reports
+// TestCancelledResults_RespectsSelector pins that the canceled path reports
 // the same checks the scan would have run. It previously always returned both,
-// so a cancelled "brutus stickykeys" scan invented a utilman result.
+// so a canceled "brutus stickykeys" scan invented a utilman result.
 func TestCancelledResults_RespectsSelector(t *testing.T) {
 	sticky := CancelledResults("h:3389", CheckStickyKeys)
 	require.Len(t, sticky, 1)

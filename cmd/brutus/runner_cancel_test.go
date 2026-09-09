@@ -26,7 +26,7 @@ import (
 )
 
 // TestRunScanTargetsConcurrent_CancelledTargetsStillReport verifies that every
-// target emits a non-nil, cancelled finding when the context is already
+// target emits a non-nil, canceled finding when the context is already
 // canceled on entry — no target may silently vanish when the run is canceled
 // (invariant I5/I6).
 func TestRunScanTargetsConcurrent_CancelledTargetsStillReport(t *testing.T) {
@@ -58,11 +58,11 @@ func TestRunScanTargetsConcurrent_CancelledTargetsStillReport(t *testing.T) {
 	assert.Equal(t, len(targets)*2, len(findings),
 		"each target must contribute exactly 2 findings (sticky + utilman)")
 
-	// Every finding must read as cancelled — the hosts never ran.
+	// Every finding must read as canceled — the hosts never ran.
 	for i := range findings {
 		f := &findings[i]
-		assert.Equal(t, logon.VerdictCancelled, f.Verdict,
-			"findings[%d] (target %s) must be cancelled (scan was canceled)", i, f.Target)
+		assert.Equal(t, logon.VerdictCanceled, f.Verdict,
+			"findings[%d] (target %s) must be canceled (scan was canceled)", i, f.Target)
 		assert.True(t, f.Verdict.NeedsRerun(),
 			"findings[%d] must be a rerun candidate", i)
 		assert.False(t, f.Verdict.Scanned(),

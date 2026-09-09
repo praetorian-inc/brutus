@@ -159,6 +159,46 @@ func TestDetectBackdoors_NoRetryOnStabilizedClean(t *testing.T) {
 	assert.False(t, findings[1].Verdict.NeedsRerun())
 }
 
+// TestDetectBackdoors_NoRetryOnNoBackdoor pins that the non-NLA reading is
+// treated as the final observation it is.
+//
+// no_backdoor means the trigger fired and produced the normal Windows dialog:
+// the check worked. A retry could come back indeterminate and would replace a
+// real observation with nothing -- the false negative the cardinal rule
+// forbids. It must also not be mistaken for a positive, which is exactly what
+// the old Success bool did with this state.
+func TestDetectBackdoors_NoRetryOnNoBackdoor(t *testing.T) {
+	const target = "host:3389"
+
+	origProbe := nlaProbe
+	nlaProbe = func(ctx context.Context, target string, connectTimeout, readDeadline time.Duration, proxyURL string) rdp.NegoClass {
+		return rdp.NegoScannable
+	}
+	var attempts atomic.Int32
+	origRunDetection := runDetection
+	runDetection = func(ctx context.Context, tgt string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
+		attempts.Add(1)
+		return noBackdoorResults(tgt)
+	}
+	t.Cleanup(func() {
+		runDetection = origRunDetection
+		nlaProbe = origProbe
+	})
+
+	findings := DetectBackdoors(context.Background(), target, 3*time.Second, 5*time.Second, false, 2, CheckBoth, "", false, false)
+
+	require.Len(t, findings, 2)
+	assert.Equal(t, int32(1), attempts.Load(),
+		"no_backdoor is a real observation: it must not be retried")
+	assert.False(t, AnyPositive(findings),
+		"a host with no backdoor must never aggregate as a positive")
+	assert.False(t, AnyNeedsRerun(findings))
+	for i := range findings {
+		assert.True(t, findings[i].Verdict.Scanned(),
+			"findings[%d] reached a real reading", i)
+	}
+}
+
 // TestDetectBackdoors_AttemptCap verifies that when every attempt returns
 // indeterminate, DetectBackdoors stops after exactly maxRetries+1 total attempts
 // and returns the final (still-indeterminate) result.

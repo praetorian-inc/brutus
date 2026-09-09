@@ -39,9 +39,9 @@ const (
 	// VerdictIndeterminate: no verdict could be reached (render never
 	// stabilized, connect/wasm failure). Eligible for rerun.
 	VerdictIndeterminate Verdict = "indeterminate"
-	// VerdictCancelled: the scan was cancelled before it started. Never ran, so
+	// VerdictCanceled: the scan was canceled before it started. Never ran, so
 	// it is not clean.
-	VerdictCancelled Verdict = "cancelled"
+	VerdictCanceled Verdict = "canceled"
 	// VerdictNLARequired: NLA/CredSSP is enforced, so the logon screen is not
 	// reachable pre-auth. Terminal — not scannable, not a rerun candidate.
 	VerdictNLARequired Verdict = "nla_required"
@@ -74,7 +74,7 @@ func (v Verdict) Scanned() bool {
 // scanning again. Terminal states (nla_required, unreachable) are excluded:
 // rerunning them cannot change the answer.
 func (v Verdict) NeedsRerun() bool {
-	return v == VerdictIndeterminate || v == VerdictCancelled
+	return v == VerdictIndeterminate || v == VerdictCanceled
 }
 
 // Diagnostics carries the operator-facing detail behind a Verdict. It explains
@@ -196,7 +196,7 @@ func findingFrom(target string, out *rdp.CheckOutcome) Finding {
 
 // terminalFindings builds the finding set for a host that was never scanned,
 // one per check the selector asked for. Used for the pre-scan terminal states
-// (NLA enforced, unreachable, cancelled) which are decided before any check
+// (NLA enforced, unreachable, canceled) which are decided before any check
 // runs and therefore have no detection outcome to convert.
 func terminalFindings(target string, checks Check, verdict Verdict, skipReason string) []Finding {
 	var findings []Finding

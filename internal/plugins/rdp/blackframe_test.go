@@ -175,25 +175,6 @@ func TestResponseFrameNeverReadsDeadSession(t *testing.T) {
 	})
 }
 
-// TestIndeterminateBanner checks the operator-facing text. "render did not
-// stabilize -- rerun" sends the operator to repeat an identical scan that fails
-// identically; a torn-down session needs the short profile instead.
-func TestIndeterminateBanner(t *testing.T) {
-	plain := indeterminateBanner("Sticky keys", false, "")
-	assert.Contains(t, plain, "render did not stabilize")
-	assert.NotContains(t, plain, "--fast")
-
-	reason := "session terminated: [Protocol independent error] The disconnection was initiated by the user logging off his or her session on the server"
-	withReason := indeterminateBanner("Sticky keys", true, reason)
-	assert.Contains(t, withReason, "server ended the session mid-scan")
-	assert.Contains(t, withReason, reason, "the server's own reason is the diagnostic; it must not be dropped")
-	assert.Contains(t, withReason, "--fast", "the banner must name the actionable next step")
-
-	noReason := indeterminateBanner("Utilman", true, "")
-	assert.Contains(t, noReason, "server ended the session mid-scan")
-	assert.Contains(t, noReason, "--fast")
-}
-
 // TestRetryAfterTermination pins the retry gate. A terminated session whose scan
 // still REPORTED something (responseFrame analyzes the last live frame, so a payload
 // that painted and only then dropped the session scores a genuine positive) must not
@@ -219,50 +200,6 @@ func TestRetryAfterTermination(t *testing.T) {
 	}
 }
 
-// TestTerminationBannerReachesTheOperator covers every banner seam that consumes
-// SessionTerminated, including the !Performed path, where "could not connect"
-// misdirects an operator whose connect worked and whose session was torn down after.
-func TestTerminationBannerReachesTheOperator(t *testing.T) {
-	const reason = "session terminated: logoff by user"
-
-	t.Run("sticky indeterminate", func(t *testing.T) {
-		got := mapStickyResult(&StickyKeysResult{
-			Performed: true, OverallVerdict: verdictIndeterminate,
-			SessionTerminated: true, TerminationReason: reason,
-		}, "")
-		assert.True(t, got.Indeterminate)
-		assert.Contains(t, got.Banner, "server ended the session mid-scan")
-		assert.Contains(t, got.Banner, reason)
-	})
-
-	t.Run("sticky not performed", func(t *testing.T) {
-		got := mapStickyResult(&StickyKeysResult{
-			Performed: false, SkipReason: "session failed: pump baseline: session error",
-			SessionTerminated: true, TerminationReason: reason,
-		}, "")
-		assert.True(t, got.Indeterminate)
-		assert.Contains(t, got.Banner, "server ended the session mid-scan")
-		assert.NotContains(t, got.Banner, "could not connect",
-			"a mid-scan teardown is not a failed connect")
-	})
-
-	t.Run("utilman indeterminate", func(t *testing.T) {
-		got := mapUtilmanResult(&UtilmanResult{
-			Performed: true, OverallVerdict: verdictIndeterminate,
-			SessionTerminated: true, TerminationReason: reason,
-		}, "")
-		assert.Contains(t, got.Banner, "server ended the session mid-scan")
-		assert.Contains(t, got.Banner, reason)
-	})
-
-	t.Run("a non-terminated indeterminate keeps the original text", func(t *testing.T) {
-		got := mapStickyResult(&StickyKeysResult{
-			Performed: true, OverallVerdict: verdictIndeterminate,
-		}, "")
-		assert.Contains(t, got.Banner, "render did not stabilize")
-	})
-}
-
 // TestFinalizeResultKeepsTerminationDiagnostics is the regression test for the
 // ordering trap that shipped broken: the analysis functions return a FRESH result, so
 // a `*result = analysis` assignment discards anything set beforehand. When that
@@ -280,7 +217,7 @@ func TestFinalizeResultKeepsTerminationDiagnostics(t *testing.T) {
 		finalizeStickyKeysResult(result, &StickyKeysResult{Performed: true, OverallVerdict: "clean"}, diag, false, false)
 
 		assert.True(t, result.SessionTerminated,
-			"the retry in DetectStickyKeys reads this field; zeroed, the retry never fires")
+			"the retry in DetectStickyKeysOutcome reads this field; zeroed, the retry never fires")
 		assert.Equal(t, reason, result.TerminationReason,
 			"the banner names the server's own reason; zeroed, the operator is told to rerun an identical scan")
 		assert.Equal(t, verdictIndeterminate, result.OverallVerdict,

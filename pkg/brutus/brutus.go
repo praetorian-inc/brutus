@@ -119,12 +119,11 @@ type Config struct {
 // (Plugin.Test / KeyPlugin.TestKey vs. CheckUnauth), so it cannot drift the
 // way per-plugin self-reporting would.
 //
-// Only those two boundaries stamp Kind. Producers that build a Result
-// directly, pkg/brutus/logon among them, leave it KindUnspecified even when
-// they set Success, so an unspecified kind does not mean the attempt failed.
-// A consumer must therefore test Kind == KindCredential positively, and must
-// never infer a credential authentication from Success alone or from
-// Kind != KindUnauthenticated.
+// Only those two boundaries stamp Kind. Producers that build a Result directly
+// and bypass them leave it KindUnspecified even when they set Success, so an
+// unspecified kind does not mean the attempt failed. A consumer must therefore
+// test Kind == KindCredential positively, and must never infer a credential
+// authentication from Success alone or from Kind != KindUnauthenticated.
 type ResultKind string
 
 const (

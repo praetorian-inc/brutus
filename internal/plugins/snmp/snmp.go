@@ -11,7 +11,6 @@ package snmp
 import (
 	"context"
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -119,35 +118,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// parseTarget splits target into host and port.
-// Supports formats: "host", "host:port", "[ipv6]:port"
 func parseTarget(target string) (host string, port int, err error) {
-	// Check for IPv6 with port
-	if strings.HasPrefix(target, "[") {
-		// IPv6 format: [::1]:161
-		var portStr string
-		host, portStr, err = net.SplitHostPort(target)
-		if err != nil {
-			// IPv6 without port: [::1]
-			return strings.Trim(target, "[]"), DefaultPort, nil
-		}
-		port, err = strconv.Atoi(portStr)
-		if err != nil {
-			return "", 0, fmt.Errorf("invalid port: %s", portStr)
-		}
-		return host, port, nil
+	host, portStr := brutus.ParseTarget(target, strconv.Itoa(DefaultPort))
+	host = strings.Trim(host, "[]")
+	port, err = strconv.Atoi(portStr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid port: %s", portStr)
 	}
-
-	// Check for port separator
-	if strings.Contains(target, ":") {
-		parts := strings.SplitN(target, ":", 2)
-		port, err = strconv.Atoi(parts[1])
-		if err != nil {
-			return "", 0, fmt.Errorf("invalid port: %s", parts[1])
-		}
-		return parts[0], port, nil
-	}
-
-	// No port specified, use default
-	return target, DefaultPort, nil
+	return host, port, nil
 }

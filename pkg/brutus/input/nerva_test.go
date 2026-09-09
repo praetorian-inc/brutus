@@ -375,10 +375,6 @@ func TestClassifyStdinLine_Invalid(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// HasNoAuth / Anonymous Access Detection
-// =============================================================================
-
 func TestHasNoAuth_TopLevelAnonymousAccess(t *testing.T) {
 	nrv := NervaResult{
 		IP:              "10.0.0.1",

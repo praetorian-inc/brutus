@@ -26,11 +26,9 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/google"
 )
 
-// ---------------------------------------------------------------------------
 // TestEnumGoogleCmd_Flags
 // Verifies that all documented flags exist on enumGoogleCmd and that
 // no shorthand collides with the global --threads/-t flag.
-// ---------------------------------------------------------------------------
 
 func TestEnumGoogleCmd_Flags(t *testing.T) {
 	// --emails / -e
@@ -91,10 +89,8 @@ func TestEnumGoogleCmd_RegisteredUnderActiveCmd(t *testing.T) {
 	assert.True(t, found, "enumGoogleCmd must be registered as a subcommand of enumActiveCmd (hard move)")
 }
 
-// ---------------------------------------------------------------------------
 // TestOutputGoogleEnumJSONL
 // Feeds google.Result values and asserts the type/method/idp fields.
-// ---------------------------------------------------------------------------
 
 func TestOutputGoogleEnumJSONL(t *testing.T) {
 	tests := []struct {
@@ -192,10 +188,6 @@ func TestOutputGoogleEnumJSONL(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// outputGoogleEnumJSONL — First/Last name propagation (10T-535, 4/8)
-// ---------------------------------------------------------------------------
-
 // TestOutputGoogleEnumJSONL_NameFields pins the never-invent-a-name rule: a
 // Result carrying First/Last (from --domain generation) must emit
 // "first"/"last" in the JSONL row, while a Result with empty First/Last
@@ -283,10 +275,8 @@ func TestOutputGoogleEnumJSONL_NameFields(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // TestOutputGoogleEnumResultLine
 // Verifies human-readable line output for EXISTS, gmail, and ANSI safety.
-// ---------------------------------------------------------------------------
 
 func TestOutputGoogleEnumResultLine(t *testing.T) {
 	t.Run("workspace-sso with IdP shows EXISTS and IdP", func(t *testing.T) {
@@ -361,7 +351,6 @@ func TestOutputGoogleEnumResultLine(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // googleEnumTargetList
 //
 // 10T-535 (4/8): googleEnumTargets() ([]string, error) is retargeted onto
@@ -370,7 +359,6 @@ func TestOutputGoogleEnumResultLine(t *testing.T) {
 // assertion (dedup, "provide" error) is preserved; the tests are
 // strengthened to also assert the never-invent-a-name rule for
 // CLI-supplied addresses.
-// ---------------------------------------------------------------------------
 
 func resetGoogleEnumTargetFlags() (restore func()) {
 	origEmails := flagGoogleEnumEmails

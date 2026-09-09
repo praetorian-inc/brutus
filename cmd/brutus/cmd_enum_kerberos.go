@@ -80,10 +80,8 @@ func init() {
 func runEnumKerberos(cmd *cobra.Command, args []string) error {
 	useColor := isColorEnabled(flagNoColor)
 
-	// Phase 1: Build username list
 	var usernames []string
 
-	// From --users flag
 	if flagKerbUsers != "" {
 		for _, u := range strings.Split(flagKerbUsers, ",") {
 			u = strings.TrimSpace(u)
@@ -93,7 +91,6 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// From --user-file flag
 	if flagKerbUserFile != "" {
 		fileUsers, err := loadLinesFromFile(flagKerbUserFile)
 		if err != nil {
@@ -106,7 +103,6 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no usernames to enumerate — provide --users/-u or --user-file/-U")
 	}
 
-	// Phase 2: Setup output writer
 	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
 	if err != nil {
 		return err
@@ -116,60 +112,47 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 		flagJSON = true
 	}
 
-	// Phase 3: Context with signal handling
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Phase 4: Worker pool setup
 	if !flagQuiet && !flagJSON {
 		fmt.Fprintf(os.Stderr, "%s Enumerating %d user(s) against %s (%s)...\n",
 			dim(useColor, SymbolInfo), len(usernames), flagEnumDomain, flagKerbDC)
 	}
 
-	// Create errgroup with bounded concurrency
 	g, ctx := errgroup.WithContext(ctx)
 	sem := semaphore.NewWeighted(int64(flagThreads))
 
-	// Create rate limiter if configured
 	var limiter *rate.Limiter
 	if flagRateLimit > 0 {
 		limiter = rate.NewLimiter(rate.Limit(flagRateLimit), 1)
 	}
 
-	// Result collection
 	type kerbResult struct {
 		result *kerberos.Result
 		err    error
 	}
 	resultsCh := make(chan kerbResult, len(usernames))
 
-	// Launch workers
 	for _, username := range usernames {
-		username := username // Capture loop variable
-
 		g.Go(func() error {
-			// Acquire semaphore
 			if err := sem.Acquire(ctx, 1); err != nil {
 				return err
 			}
 			defer sem.Release(1)
 
-			// Apply rate limiting
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
 					return err
 				}
 			}
 
-			// Apply jitter if configured
 			if flagJitter > 0 {
 				time.Sleep(time.Duration(flagJitter.Nanoseconds() * int64(1+rand.Float64())))
 			}
 
-			// Enumerate user
 			result := kerberos.EnumUser(ctx, flagKerbDC, flagEnumDomain, username, flagTimeout)
 
-			// Send result
 			select {
 			case resultsCh <- kerbResult{result: result, err: nil}:
 			case <-ctx.Done():
@@ -180,23 +163,19 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Wait for all workers
 	if err := g.Wait(); err != nil && err != context.Canceled {
 		return fmt.Errorf("enumeration failed: %w", err)
 	}
 	close(resultsCh)
 
-	// Phase 5: Collect and output results
 	var results []*kerberos.Result
 	for r := range resultsCh {
 		results = append(results, r.result)
 	}
 
 	if flagJSON {
-		// JSONL output
 		outputKerberosJSONL(jsonWriter, results)
 	} else {
-		// Human-readable output
 		outputKerberosHuman(results, useColor)
 	}
 

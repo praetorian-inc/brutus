@@ -22,10 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// TestIsAllowedVerificationURL
-// ---------------------------------------------------------------------------
-
 func TestIsAllowedVerificationURL(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -115,10 +111,6 @@ func TestIsAllowedVerificationURL(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// TestBrowserCommand
-// ---------------------------------------------------------------------------
 
 func TestBrowserCommand(t *testing.T) {
 	const url = "https://login.microsoft.com/device"

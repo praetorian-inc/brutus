@@ -35,10 +35,6 @@ func newParsedSpec(t *testing.T, data []byte) *Spec {
 	return spec
 }
 
-// ---------------------------------------------------------------------------
-// T3: evaluate — status condition, first-match ordering, default
-// ---------------------------------------------------------------------------
-
 // TestEvaluate_Status verifies that a status-only rule fires correctly for
 // scalar match, list match, ordering, and the default fallback.
 func TestEvaluate_Status(t *testing.T) {
@@ -153,10 +149,6 @@ func TestEvaluate_FirstMatchOrdering(t *testing.T) {
 	assert.Equal(t, "exists", verdict, "first matching rule must win")
 	assert.Equal(t, enum.ConfidenceHigh, conf)
 }
-
-// ---------------------------------------------------------------------------
-// T4: evaluate — body_contains and body_regex
-// ---------------------------------------------------------------------------
 
 // TestEvaluate_BodyContains verifies that body_contains triggers only when
 // the substring is present in the response body.
@@ -289,10 +281,6 @@ func TestEvaluate_StatusAndBodyAND(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// T5: evaluate — json_field (path + equals/in)
-// ---------------------------------------------------------------------------
-
 // TestEvaluate_JSONField verifies json_field matching including nested path,
 // "in" set, missing path → false, and non-JSON body → false.
 func TestEvaluate_JSONField(t *testing.T) {
@@ -410,10 +398,6 @@ func TestEvaluate_JSONField(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// T6: evaluate — header (present + equals)
-// ---------------------------------------------------------------------------
-
 // TestEvaluate_Header verifies header matching with present=true, equals, and
 // missing header cases.
 func TestEvaluate_Header(t *testing.T) {
@@ -515,10 +499,6 @@ func TestEvaluate_Header(t *testing.T) {
 			"a header that was never set must not count as present")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// T7: applyVerdict + errInconclusive (R7 no-body-in-error)
-// ---------------------------------------------------------------------------
 
 // TestApplyVerdict verifies the verdict-to-result mapping for all three
 // verdicts, and specifically that the "error" verdict message contains only

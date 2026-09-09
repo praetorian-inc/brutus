@@ -296,9 +296,6 @@ type UnauthOnlyChecker interface {
 // which is important for concurrent usage.
 type PluginFactory func() Plugin
 
-// Configuration Validation
-// =============================================================================
-
 // applyDefaults populates protocol-specific default credentials from embedded
 // wordlists when UseDefaults is true and no credentials have been provided.
 // Existing credentials are never overwritten.
@@ -351,14 +348,12 @@ func (c *Config) validate() error {
 
 	c.applyDefaults()
 
-	// Need either: paired Credentials OR (Usernames + Passwords/Keys)
 	hasPairedCreds := len(c.Credentials) > 0
 	hasUnpairedCreds := len(c.Usernames) > 0 && (len(c.Passwords) > 0 || len(c.Keys) > 0)
 	if !hasPairedCreds && !hasUnpairedCreds {
 		return errors.New("credentials required: use Credentials for paired, or Usernames with Passwords/Keys")
 	}
 
-	// Apply defaults
 	if c.Timeout == 0 {
 		c.Timeout = 10 * time.Second
 	}
@@ -372,22 +367,16 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// =============================================================================
-// Brute Force Execution
-// =============================================================================
-
 // BruteWithContext executes a brute force attack using the provided configuration and context.
 //
 // The context can be used to cancel the operation early via context cancellation.
 // The plugin is resolved once via GetPlugin and shared across all worker goroutines.
 // See the Plugin interface documentation for thread-safety requirements.
 func BruteWithContext(ctx context.Context, cfg *Config) ([]Result, error) {
-	// 1. Validate configuration
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	// 2. Get protocol plugin (use provided plugin if set, otherwise lookup by name)
 	var plug Plugin
 	if cfg.Plugin != nil {
 		plug = cfg.Plugin
@@ -399,7 +388,6 @@ func BruteWithContext(ctx context.Context, cfg *Config) ([]Result, error) {
 		}
 	}
 
-	// 3. Run worker pool with provided context
 	results, err := runWorkers(ctx, cfg, plug)
 	if err != nil {
 		return results, fmt.Errorf("brute force failed: %w", err)

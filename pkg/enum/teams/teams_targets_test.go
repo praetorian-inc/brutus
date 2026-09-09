@@ -98,13 +98,11 @@ func newTargetsTestEnumerator(t *testing.T, srv *httptest.Server) *Enumerator {
 	return e
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateTargetsWith_NamesRideOnResult
 // Core test: 3 targets with distinct names against a stub that reports
 // existence for all of them. Each returned EnumResult must carry the name of
 // the target that produced it, correlated by email. An implementation that
 // stamps every EnumResult with the first target's name fails this test.
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	t.Parallel()
@@ -137,11 +135,9 @@ func TestTeamsEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	assert.Equal(t, ExistenceYes, byEmail[registeredEmail].Exists, "registeredEmail must be reported as existing by the stub")
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateTargetsWith_NamelessTargetStaysNameless
 // A Target with no name (address supplied by the operator, not generated)
 // must yield First=="" && Last=="". The library must never invent a name.
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	t.Parallel()
@@ -158,12 +154,10 @@ func TestTeamsEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	assert.Empty(t, results[0].Last, "Last must stay empty for a nameless Target")
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateWith_StillWorksAndYieldsEmptyNames
 // Pins that the existing EnumerateWith([]string) entry point is unaffected by
 // the refactor: it still returns correct results, and since bare addresses
 // carry no name, First/Last must be empty.
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	t.Parallel()
@@ -191,12 +185,10 @@ func TestTeamsEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	assert.Equal(t, ExistenceYes, byEmail[registeredEmail].Exists, "registeredEmail must be reported as existing by the stub")
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateTargetsWith_NamesSurviveErrorPath
 // A name is a property of the address, not of the check outcome. Drive an
 // EnumResult whose Error is non-nil (the mock server's 500 for failingEmail)
 // and assert the name is still stamped.
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	t.Parallel()
@@ -220,11 +212,9 @@ func TestTeamsEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	assert.Equal(t, "fail", r.Last, "name must survive even when the probe errors")
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateTargetsWith_MixedNamedAndUnnamed
 // A single batch containing both named and unnamed targets: each EnumResult
 // must get exactly its own target's name, or empty for the unnamed ones.
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	t.Parallel()
@@ -256,12 +246,10 @@ func TestTeamsEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateTargetsWith_EveryTargetSlotFilled
 // len(results) == len(targets) and every target is present even when some
 // probes fail. Completion order is not asserted (the worker pool is
 // concurrent); correlation is by email only.
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 	t.Parallel()
@@ -298,7 +286,6 @@ func TestTeamsEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 	assert.NoError(t, byEmail["notfound@contoso.com"].Error)
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateTargetsWith_NamesSurviveCancelledContext
 //
 // Chokepoint test: with the context already canceled before the call, every
@@ -317,7 +304,6 @@ func TestTeamsEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 // TestTeamsEnumerateWith_CanceledContextNowRecordsEverySlot below for the
 // same behavior change asserted through the unchanged EnumerateWith(
 // []string) entry point that cmd/brutus actually calls.
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T) {
 	t.Parallel()
@@ -353,7 +339,6 @@ func TestTeamsEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestTeamsEnumerateWith_CanceledContextNowRecordsEverySlot
 //
 // THE explicit before/after test for teams' abort-path behavior change
@@ -376,7 +361,6 @@ func TestTeamsEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T) {
 // TestGithubEnumerateWith_CanceledContextNowRecordsEverySlot in
 // github_targets_test.go, where establishSession's own error handling
 // intercepts an already-canceled context before the pool ever runs).
-// ---------------------------------------------------------------------------
 
 func TestTeamsEnumerateWith_CanceledContextNowRecordsEverySlot(t *testing.T) {
 	t.Parallel()

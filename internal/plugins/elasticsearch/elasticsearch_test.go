@@ -125,10 +125,6 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
-// =============================================================================
-// CheckUnauth tests (using httptest for mock HTTP servers)
-// =============================================================================
-
 func TestCheckUnauth_OpenAccess(t *testing.T) {
 	// Simulate Elasticsearch with security disabled (200 OK without auth)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

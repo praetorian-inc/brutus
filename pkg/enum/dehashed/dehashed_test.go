@@ -29,19 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Test helper: same-package client pointing at a test server.
-// ---------------------------------------------------------------------------
-
 func newTestClient(baseURL string) *Client {
 	c, _ := NewClient("testkey", 5*time.Second, 10, "") // Empty proxy never errors.
 	c.baseURL = baseURL
 	return c
 }
-
-// ---------------------------------------------------------------------------
-// Task 1: toRecord identity mapping
-// ---------------------------------------------------------------------------
 
 func TestToRecord(t *testing.T) {
 	src := &apiEntry{
@@ -69,10 +61,6 @@ func TestToRecord(t *testing.T) {
 	assert.Equal(t, "2021-01", got.ObtainedDate)
 }
 
-// ---------------------------------------------------------------------------
-// Task 2: APIError Unwrap sentinel mapping
-// ---------------------------------------------------------------------------
-
 func TestAPIError_Unwrap(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -97,12 +85,10 @@ func TestAPIError_Unwrap(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // P0-SCOPE: TestSearch_CollectsCredentials
 // Verify that the API "password" field is collected into Record.Passwords and
 // surfaces through Refine into Entry.Passwords. Verify that "hashed_password"
 // is NEVER collected (not present in Record or Entry — dropped at unmarshal).
-// ---------------------------------------------------------------------------
 
 func TestSearch_CollectsCredentials(t *testing.T) {
 	// The mock API returns two entries for the same email with different passwords,
@@ -195,10 +181,6 @@ func TestSearch_CollectsCredentials(t *testing.T) {
 			"hashed_password value must never appear in Entry.Passwords")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Task A: TestRefine — table-driven coverage of Refine()
-// ---------------------------------------------------------------------------
 
 func TestRefine(t *testing.T) {
 	tests := []struct {
@@ -443,10 +425,6 @@ func TestRefine(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Task B: TestIsCombolist
-// ---------------------------------------------------------------------------
-
 func TestIsCombolist(t *testing.T) {
 	// Every entry in combolistDatabases must match itself (exact) and a variation.
 	for _, entry := range combolistDatabases {
@@ -477,10 +455,6 @@ func TestIsCombolist(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Task 3: Search pagination
-// ---------------------------------------------------------------------------
 
 // makePagedServer builds an httptest server that serves DeHashed-shaped POST
 // responses. It reads the page number from the decoded JSON body (not a query
@@ -630,10 +604,6 @@ func TestSearch_Pagination(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Task 4: Context cancellation
-// ---------------------------------------------------------------------------
-
 func TestSearch_ContextCancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Slow server: block longer than the context deadline.
@@ -658,10 +628,6 @@ func TestSearch_ContextCancellation(t *testing.T) {
 	_, err := c.Search(ctx, "example.com", 0)
 	require.Error(t, err)
 }
-
-// ---------------------------------------------------------------------------
-// Task 5: do() — auth header and URL safety
-// ---------------------------------------------------------------------------
 
 func TestDo_SetsAuthHeader(t *testing.T) {
 	const testKey = "super-secret-key-xyz"
@@ -690,10 +656,6 @@ func TestDo_SetsAuthHeader(t *testing.T) {
 	assert.NotContains(t, capturedURL, testKey)
 }
 
-// ---------------------------------------------------------------------------
-// Task 6: do() — malformed JSON returns decode error
-// ---------------------------------------------------------------------------
-
 func TestDo_MalformedJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -710,10 +672,6 @@ func TestDo_MalformedJSON(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decoding dehashed response")
 }
-
-// ---------------------------------------------------------------------------
-// buildQuery
-// ---------------------------------------------------------------------------
 
 func TestBuildQuery(t *testing.T) {
 	tests := []struct {
@@ -739,10 +697,6 @@ func TestBuildQuery(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// filterBySource
-// ---------------------------------------------------------------------------
-
 func TestFilterBySource(t *testing.T) {
 	recs := []Record{
 		{Email: []string{"a@x.com"}, Database: "Adobe"},
@@ -767,10 +721,6 @@ func TestFilterBySource(t *testing.T) {
 		assert.Len(t, filterBySource(recs, nil), 3)
 	})
 }
-
-// ---------------------------------------------------------------------------
-// SearchWithOptions — source scoping (query grouping + client-side backstop)
-// ---------------------------------------------------------------------------
 
 func TestSearchWithOptions_Sources(t *testing.T) {
 	all := []apiEntry{
@@ -816,10 +766,6 @@ func TestSearchWithOptions_Sources(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, res2.Records, 1, "limit bounds matching records")
 }
-
-// ---------------------------------------------------------------------------
-// Refine — detailed fields (IPAddresses, Addresses, DOBs, ObtainedDates)
-// ---------------------------------------------------------------------------
 
 func TestRefine_DetailedFields(t *testing.T) {
 	t.Run("non-dedup single record populates ip/address/dob/obtained (deduped)", func(t *testing.T) {

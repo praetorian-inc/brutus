@@ -26,10 +26,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// ---------------------------------------------------------------------------
-// Test 7: TestOutputTeamsAuditJSONL
-// ---------------------------------------------------------------------------
-
 // TestOutputTeamsAuditJSONL verifies:
 //   - One JSON line per finding.
 //   - Each line has type=="teams_finding".
@@ -168,10 +164,6 @@ func TestOutputTeamsAuditJSONL_AllSeverities(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test 8: TestOutputTeamsAuditHuman_Sanitizes
-// ---------------------------------------------------------------------------
-
 // TestOutputTeamsAuditHuman_Sanitizes verifies that:
 //   - A raw ANSI escape byte (0x1b) in Finding.Evidence is absent from the output
 //     when useColor==false (sanitizeTerminal is applied).
@@ -255,10 +247,6 @@ func TestOutputTeamsAuditHuman_Sanitizes(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// Test 9: TestEnumTeamsAuditCmd_Registered
-// ---------------------------------------------------------------------------
-
 // TestEnumTeamsAuditCmd_Registered verifies:
 //   - The audit subcommand is registered on enumTeamsCmd with Use=="audit".
 //   - The --email flag exists.
@@ -324,10 +312,6 @@ func TestEnumTeamsAuditCmd_Registered(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// outputTeamsAuditHuman: severity color labels
-// ---------------------------------------------------------------------------
-
 // TestOutputTeamsAuditHuman_SeverityLabels verifies that each severity level is
 // rendered with its uppercase label in the human output.
 func TestOutputTeamsAuditHuman_SeverityLabels(t *testing.T) {
@@ -366,10 +350,6 @@ func TestOutputTeamsAuditHuman_SeverityLabels(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// outputTeamsAuditHuman: token leakage regression
-// ---------------------------------------------------------------------------
 
 // TestOutputTeamsAuditHuman_NoTokens verifies that known token-sentinel strings
 // never appear in the human audit output. The Audit function never receives

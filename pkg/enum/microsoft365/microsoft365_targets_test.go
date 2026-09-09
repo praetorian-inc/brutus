@@ -66,13 +66,11 @@ func newTargetsMockServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateTargetsWith_NamesRideOnResult
 // Core test: 3 targets with distinct names against a stub that reports
 // existence for all of them. Each returned Result must carry the name of the
 // target that produced it, correlated by email. An implementation that
 // stamps every Result with the first target's name fails this test.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	t.Parallel()
@@ -106,11 +104,9 @@ func TestEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateTargetsWith_NamelessTargetStaysNameless
 // A Target with no name (address supplied by the operator, not generated)
 // must yield First=="" && Last=="". The library must never invent a name.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	t.Parallel()
@@ -128,12 +124,10 @@ func TestEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	assert.Empty(t, results[0].Last, "Last must stay empty for a nameless Target")
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_StillWorksAndYieldsEmptyNames
 // Pins that the existing EnumerateWith([]string) entry point is unaffected by
 // the refactor: it still returns correct results, and since bare addresses
 // carry no name, First/Last must be empty.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	t.Parallel()
@@ -162,12 +156,10 @@ func TestEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateTargetsWith_NamesSurviveErrorPath
 // A name is a property of the address, not of the check outcome. Drive a
 // Result whose Error is non-nil (stub returns 500 -> "unexpected status") and
 // assert the name is still stamped.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	t.Parallel()
@@ -191,11 +183,9 @@ func TestEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	assert.Equal(t, "fail", r.Last, "name must survive even when the probe errors")
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateTargetsWith_MixedNamedAndUnnamed
 // A single batch containing both named and unnamed targets: each Result must
 // get exactly its own target's name, or empty for the unnamed ones.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	t.Parallel()
@@ -228,12 +218,10 @@ func TestEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateTargetsWith_OrderingAndLength
 // len(results) == len(targets) and every index is filled even when some
 // probes fail. Completion order is not asserted (the worker pool is
 // concurrent); correlation is by email.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateTargetsWith_OrderingAndLength(t *testing.T) {
 	t.Parallel()
@@ -273,7 +261,6 @@ func TestEnumerateTargetsWith_OrderingAndLength(t *testing.T) {
 	assert.NoError(t, byEmail["ok2@x.com"].Error)
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateTargetsWith_NamesSurviveCancelledContext
 // Chokepoint test: with the context already canceled before the call, every
 // goroutine takes the <-ctx.Done() early-return branch and calls
@@ -282,7 +269,6 @@ func TestEnumerateTargetsWith_OrderingAndLength(t *testing.T) {
 // (record(i, *c.CheckAccount(...))) rather than inside record() itself, these
 // Results would come back nameless. This is what makes record() the enforced
 // chokepoint rather than an incidental detail.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T) {
 	t.Parallel()

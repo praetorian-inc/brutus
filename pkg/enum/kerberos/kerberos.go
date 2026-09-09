@@ -59,7 +59,6 @@ func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time
 		Realm:    realm,
 	}
 
-	// Build AS-REQ
 	asReqBytes, err := buildASReq(username, realm)
 	if err != nil {
 		result.Error = fmt.Errorf("building AS-REQ: %w", err)
@@ -67,7 +66,6 @@ func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time
 		return result
 	}
 
-	// Send to KDC
 	response, err := sendKerberosTCP(ctx, kdcAddr, asReqBytes, timeout)
 	if err != nil {
 		result.Error = fmt.Errorf("sending AS-REQ: %w", err)
@@ -75,19 +73,16 @@ func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time
 		return result
 	}
 
-	// Parse response
-	// Try AS-REP first (success - user exists with no preauth)
+	// AS-REP means the user exists and does not require preauth.
 	var asRep messages.ASRep
 	err = asRep.Unmarshal(response)
 	if err == nil {
-		// AS-REP received - user exists AND has no preauth required
 		result.Exists = true
 		result.NoPreAuth = true
 		result.Duration = time.Since(start)
 		return result
 	}
 
-	// Not AS-REP, try KRB-ERROR
 	var krbErr messages.KRBError
 	err = krbErr.Unmarshal(response)
 	if err != nil {
@@ -96,17 +91,13 @@ func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time
 		return result
 	}
 
-	// Interpret error code
 	switch krbErr.ErrorCode {
 	case errorcode.KDC_ERR_C_PRINCIPAL_UNKNOWN:
-		// User does not exist
 		result.Exists = false
 	case errorcode.KDC_ERR_PREAUTH_REQUIRED:
-		// User exists (preauth required)
 		result.Exists = true
 		result.NoPreAuth = false
 	default:
-		// Other error
 		result.Error = fmt.Errorf("KDC error: %s", errorcode.Lookup(krbErr.ErrorCode))
 	}
 
@@ -116,39 +107,32 @@ func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time
 
 // buildASReq constructs a Kerberos AS-REQ message without pre-authentication data.
 func buildASReq(username, realm string) ([]byte, error) {
-	// Uppercase realm per Kerberos convention
 	realm = strings.ToUpper(realm)
 
-	// Generate random nonce
 	nonceInt, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt32))
 	if err != nil {
 		return nil, fmt.Errorf("generating nonce: %w", err)
 	}
 	nonce := int(nonceInt.Int64())
 
-	// Client principal name
 	cname := types.PrincipalName{
 		NameType:   nametype.KRB_NT_PRINCIPAL,
 		NameString: []string{username},
 	}
 
-	// Service principal name (krbtgt/REALM)
 	sname := types.PrincipalName{
 		NameType:   nametype.KRB_NT_SRV_INST,
 		NameString: []string{"krbtgt", realm},
 	}
 
-	// Till time: 24 hours from now
 	till := time.Now().UTC().Add(24 * time.Hour)
 
-	// Encryption types: AES256, AES128, RC4-HMAC (most common)
 	etypes := []int32{
 		etypeID.AES256_CTS_HMAC_SHA1_96,
 		etypeID.AES128_CTS_HMAC_SHA1_96,
 		etypeID.RC4_HMAC,
 	}
 
-	// Construct AS-REQ with empty PAData (no pre-authentication)
 	asReq := messages.ASReq{
 		KDCReqFields: messages.KDCReqFields{
 			PVNO:    iana.PVNO,
@@ -166,7 +150,6 @@ func buildASReq(username, realm string) ([]byte, error) {
 		},
 	}
 
-	// Marshal to bytes
 	return asReq.Marshal()
 }
 
@@ -179,7 +162,6 @@ func sendKerberosTCP(ctx context.Context, addr string, data []byte, timeout time
 		addr = net.JoinHostPort(addr, "88")
 	}
 
-	// Dial with context
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
@@ -196,7 +178,6 @@ func sendKerberosTCP(ctx context.Context, addr string, data []byte, timeout time
 		return nil, fmt.Errorf("setting deadline: %w", err)
 	}
 
-	// Write 4-byte length prefix + data
 	length := make([]byte, 4)
 	binary.BigEndian.PutUint32(length, uint32(len(data)))
 
@@ -207,7 +188,6 @@ func sendKerberosTCP(ctx context.Context, addr string, data []byte, timeout time
 		return nil, fmt.Errorf("writing data: %w", err)
 	}
 
-	// Read 4-byte response length
 	respLength := make([]byte, 4)
 	if _, err := io.ReadFull(conn, respLength); err != nil {
 		return nil, fmt.Errorf("reading response length: %w", err)
@@ -218,7 +198,6 @@ func sendKerberosTCP(ctx context.Context, addr string, data []byte, timeout time
 		return nil, fmt.Errorf("response too large: %d bytes", respSize)
 	}
 
-	// Read response body
 	response := make([]byte, respSize)
 	if _, err := io.ReadFull(conn, response); err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)

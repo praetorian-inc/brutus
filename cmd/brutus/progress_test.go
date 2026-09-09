@@ -24,10 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// progressLine tests
-// ---------------------------------------------------------------------------
-
 // TestProgressLine_MidScan verifies the format of a mid-scan progress line with
 // a known total. The output must contain the bar brackets, percentage, count,
 // ETA label, and the custom metrics tail.
@@ -91,10 +87,6 @@ func TestProgressLine_ZeroProcessed(t *testing.T) {
 	assert.Contains(t, line, "ETA --", "ETA must be '--' when processed==0")
 }
 
-// ---------------------------------------------------------------------------
-// formatDuration table tests
-// ---------------------------------------------------------------------------
-
 // TestFormatDuration covers the coarse human-friendly rendering of durations.
 func TestFormatDuration(t *testing.T) {
 	t.Parallel()
@@ -134,10 +126,6 @@ func TestFormatDuration(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// progressRate tests
-// ---------------------------------------------------------------------------
 
 // TestProgressRate covers the throughput formatting for edge cases and both
 // decimal regimes.
@@ -197,10 +185,6 @@ func TestProgressRate(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Disabled reporter produces no output
-// ---------------------------------------------------------------------------
-
 // TestProgressReporter_DisabledNoOutput verifies that a reporter constructed
 // with enabled=false is a complete no-op: Start, Update, Clear, and Stop all
 // produce no bytes in the output writer.
@@ -217,10 +201,6 @@ func TestProgressReporter_DisabledNoOutput(t *testing.T) {
 
 	assert.Equal(t, 0, buf.Len(), "disabled reporter must produce no output bytes")
 }
-
-// ---------------------------------------------------------------------------
-// Non-TTY flush: deterministic elapsed via injected clock
-// ---------------------------------------------------------------------------
 
 // TestProgressReporter_NonTTYFlush verifies that calling flush(true) on a
 // non-TTY reporter writes a newline-terminated line containing the expected

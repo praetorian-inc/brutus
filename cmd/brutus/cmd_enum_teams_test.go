@@ -29,10 +29,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// ---------------------------------------------------------------------------
-// Command registration
-// ---------------------------------------------------------------------------
-
 func TestTeamsCommandRegistered(t *testing.T) {
 	// Verify enumActiveCmd is a direct child of enumCmd (hard move).
 	var activeFound bool
@@ -81,10 +77,6 @@ func TestTeamsCommandRegistered(t *testing.T) {
 	require.NotNil(t, scopeShort, "-s shorthand must exist on auth subcommand")
 }
 
-// ---------------------------------------------------------------------------
-// Flag-default guards (CLI layer regressions for fixes #2 and #3)
-// ---------------------------------------------------------------------------
-
 // TestEnumTeamsAuthFlagDefaults guards two CLI-layer regressions:
 //
 //   - Fix #2: default tenant must be "organizations" (not "common"). A regression
@@ -111,10 +103,6 @@ func TestEnumTeamsAuthFlagDefaults(t *testing.T) {
 			"--no-browser must default to false (browser auto-opens unless explicitly disabled)")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Panic-regression test (fix #1: --tenant shorthand -t collision with global --threads/-t)
-// ---------------------------------------------------------------------------
 
 // TestEnumTeamsAuth_NoFlagCollisionPanic is a keystone regression test for the
 // cobra panic that fired in mergePersistentFlags when the global persistent
@@ -167,10 +155,6 @@ func TestEnumTeamsAuth_NoFlagCollisionPanic(t *testing.T) {
 	require.Nil(t, panicVal, "rootCmd.Execute() panicked: %v (flag -t shorthand collision?)", panicVal)
 }
 
-// ---------------------------------------------------------------------------
-// classifyTeamsError
-// ---------------------------------------------------------------------------
-
 func TestClassifyTeamsError(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -190,10 +174,6 @@ func TestClassifyTeamsError(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// outputTeamsTokenJSONL
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsTokenJSONL(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
@@ -232,10 +212,6 @@ func TestOutputTeamsTokenJSONL(t *testing.T) {
 	_, hasExpiresAt := obj["expires_at"]
 	assert.True(t, hasExpiresAt, "expires_at must be present in JSONL output")
 }
-
-// ---------------------------------------------------------------------------
-// outputTeamsTokenHuman
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsTokenHuman(t *testing.T) {
 	t.Run("access token shows first 20 chars plus ellipsis", func(t *testing.T) {
@@ -302,14 +278,6 @@ func TestOutputTeamsTokenHuman(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// outputTeamsDeviceCodeHuman
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Test: teamsEnumDomain
-// ---------------------------------------------------------------------------
-
 func TestTeamsEnumDomain(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -357,10 +325,6 @@ func TestTeamsEnumDomain(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test: outputTeamsPostureJSONL — type discriminator, field values
-// ---------------------------------------------------------------------------
-
 func TestOutputTeamsPostureJSONL(t *testing.T) {
 	posture := teams.TenantPosture{
 		Domain:              "contoso.com",
@@ -399,10 +363,8 @@ func TestOutputTeamsPostureJSONL(t *testing.T) {
 	assert.Equal(t, "TeamsOnly", obj["coexistence_mode"])
 }
 
-// ---------------------------------------------------------------------------
 // Test: outputTeamsEnumJSONL — config fields (user_type not "type", no tokens,
 // ANSI escape sanitization)
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsEnumJSONL_ConfigFields(t *testing.T) {
 	acctEnabled := true
@@ -457,10 +419,8 @@ func TestOutputTeamsEnumJSONL_ConfigFields(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Test: ANSI escape in OutOfOfficeNote is sanitized in human output and escaped
 // in JSONL output
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsEnumJSONL_ANSIEscapeInOOO(t *testing.T) {
 	// A malicious OutOfOfficeNote containing a raw ESC byte.
@@ -489,10 +449,6 @@ func TestOutputTeamsEnumJSONL_ANSIEscapeInOOO(t *testing.T) {
 	assert.NotEmpty(t, escObj["out_of_office_note"],
 		"out_of_office_note must be non-empty after JSON encoding")
 }
-
-// ---------------------------------------------------------------------------
-// Test: sanitizeTerminal strips ESC in CoExistenceMode (posture human output)
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsPostureHuman_SanitizesCoExistenceMode(t *testing.T) {
 	// Inject a CoExistenceMode containing an ANSI CSI sequence.

@@ -58,10 +58,6 @@ func searchServerReturning(statusCode int, body string) *httptest.Server {
 	}))
 }
 
-// ---------------------------------------------------------------------------
-// Test 1: Existence YES
-// ---------------------------------------------------------------------------
-
 func TestEnumerateOne_ExistenceYes(t *testing.T) {
 	srv := searchServerReturning(http.StatusOK,
 		`[{"displayName":"Alice","mri":"8:orgid:abc"}]`)
@@ -76,10 +72,6 @@ func TestEnumerateOne_ExistenceYes(t *testing.T) {
 	assert.Equal(t, "alice@contoso.com", res.Email)
 	assert.NoError(t, res.Error)
 }
-
-// ---------------------------------------------------------------------------
-// Test 2: Existence NO — empty array and non-array body
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_ExistenceNo_EmptyArray(t *testing.T) {
 	srv := searchServerReturning(http.StatusOK, `[]`)
@@ -104,10 +96,6 @@ func TestEnumerateOne_ExistenceNo_NonArrayBody(t *testing.T) {
 		"a non-array 200 body must not produce ExistenceYes")
 }
 
-// ---------------------------------------------------------------------------
-// Test 3: Blocked (403) — error must not contain the access token
-// ---------------------------------------------------------------------------
-
 func TestEnumerateOne_Blocked(t *testing.T) {
 	srv := searchServerReturning(http.StatusForbidden, `{"error":"forbidden"}`)
 	defer srv.Close()
@@ -124,10 +112,6 @@ func TestEnumerateOne_Blocked(t *testing.T) {
 			"Error must not contain the access token")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Test 4: 401 + refresh success — refresh invoked exactly once
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_UnauthorizedThenRefresh(t *testing.T) {
 	var callCount atomic.Int32
@@ -160,12 +144,10 @@ func TestEnumerateOne_UnauthorizedThenRefresh(t *testing.T) {
 	assert.Equal(t, int32(1), refreshCount.Load(), "refresh func must be invoked exactly once")
 }
 
-// ---------------------------------------------------------------------------
 // Test 5: 401 + no refresh -> ExistenceUnknown, error mentions "unauthorized",
 //
 //	error does NOT contain the token
 //
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_UnauthorizedNoRefresh(t *testing.T) {
 	srv := searchServerReturning(http.StatusUnauthorized, "")
@@ -184,12 +166,10 @@ func TestEnumerateOne_UnauthorizedNoRefresh(t *testing.T) {
 		"error must not contain the access token")
 }
 
-// ---------------------------------------------------------------------------
 // Test 6: 401 loop guard — server always returns 401, refresh always succeeds,
 //
 //	result must be ExistenceUnknown and test must complete quickly
 //
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_UnauthorizedLoopGuard(t *testing.T) {
 	var refreshCount atomic.Int32
@@ -216,10 +196,6 @@ func TestEnumerateOne_UnauthorizedLoopGuard(t *testing.T) {
 		"refresh must be invoked at most once regardless of repeated 401s")
 }
 
-// ---------------------------------------------------------------------------
-// Test 7: Other status (500) -> ExistenceUnknown, error mentions 500
-// ---------------------------------------------------------------------------
-
 func TestEnumerateOne_ServerError500(t *testing.T) {
 	srv := searchServerReturning(http.StatusInternalServerError, `{"error":"internal"}`)
 	defer srv.Close()
@@ -233,7 +209,6 @@ func TestEnumerateOne_ServerError500(t *testing.T) {
 		"error should mention the unexpected status code")
 }
 
-// ---------------------------------------------------------------------------
 // Test 8: Malformed JSON on 200 -> ExistenceUnknown — actually per production
 //
 //	code: json.Unmarshal errors return nil (silent decode failure means ExistenceNo).
@@ -242,7 +217,6 @@ func TestEnumerateOne_ServerError500(t *testing.T) {
 //	So malformed JSON produces ExistenceNo (not ExistenceUnknown) and no Error.
 //	This test pins that actual behavior and verifies no token leaks.
 //
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_MalformedJSON(t *testing.T) {
 	srv := searchServerReturning(http.StatusOK, `not-valid-json{{`)
@@ -263,10 +237,6 @@ func TestEnumerateOne_MalformedJSON(t *testing.T) {
 			"error must not contain the access token")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Test 9: Presence success
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_PresenceSuccess(t *testing.T) {
 	searchSrv := searchServerReturning(http.StatusOK,
@@ -290,10 +260,6 @@ func TestEnumerateOne_PresenceSuccess(t *testing.T) {
 	assert.Equal(t, "Desktop", res.DeviceType)
 	assert.NoError(t, res.Error)
 }
-
-// ---------------------------------------------------------------------------
-// Test 10: Presence failure is non-fatal
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_PresenceFailureNonFatal(t *testing.T) {
 	searchSrv := searchServerReturning(http.StatusOK,
@@ -334,10 +300,6 @@ func TestEnumerateOne_PresenceEmptyArrayNonFatal(t *testing.T) {
 	assert.Empty(t, res.DeviceType)
 	assert.NoError(t, res.Error)
 }
-
-// ---------------------------------------------------------------------------
-// Test 11: Request assertions — headers, authorization, URL encoding
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_RequestHeaders(t *testing.T) {
 	var captured *http.Request
@@ -453,11 +415,9 @@ func TestEnumerateOne_PresenceRequestAssertions(t *testing.T) {
 		"presence request body MRI must match the search result MRI")
 }
 
-// ---------------------------------------------------------------------------
 // Test: getPresence sends a browser User-Agent — regression for presence
 // requests going out as the default Go-http-client UA (which Teams silently
 // rejects), mirroring the browser UA already sent by search().
-// ---------------------------------------------------------------------------
 
 func TestGetPresence_SendsBrowserUserAgent(t *testing.T) {
 	searchSrv := searchServerReturning(http.StatusOK,
@@ -490,10 +450,6 @@ func TestGetPresence_SendsBrowserUserAgent(t *testing.T) {
 	assert.NotContains(t, ua, "Go-http-client",
 		"presence request must not go out with the default Go-http-client User-Agent")
 }
-
-// ---------------------------------------------------------------------------
-// Test 12: Concurrency — Enumerate over 6 emails with threads=2
-// ---------------------------------------------------------------------------
 
 func TestEnumerate_Concurrency(t *testing.T) {
 	var inFlight atomic.Int32
@@ -541,7 +497,6 @@ func TestEnumerate_Concurrency(t *testing.T) {
 		"in-flight requests must never exceed threads=2")
 }
 
-// ---------------------------------------------------------------------------
 // Test 13: Concurrent 401→refresh→retry — regression for the data race on
 // e.accessToken.
 //
@@ -556,7 +511,6 @@ func TestEnumerate_Concurrency(t *testing.T) {
 // exactly one refreshOnce() call while many goroutines are concurrently
 // reading e.token() — maximizing the read/write overlap the race detector
 // needs to observe.
-// ---------------------------------------------------------------------------
 
 func TestEnumerate_ConcurrentRefreshNoRace(t *testing.T) {
 	var reqCount atomic.Int32
@@ -618,14 +572,8 @@ func TestEnumerate_ConcurrentRefreshNoRace(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test 13: P0-1 token-safety table — error paths must not leak tokens
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Test: ParsesConfigFields — externalsearchv3 rich body: type, tenantId,
 // userPrincipalName, objectId, accountEnabled, featureSettings.coExistenceMode
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_ParsesConfigFields(t *testing.T) {
 	srv := searchServerReturning(http.StatusOK,
@@ -645,10 +593,6 @@ func TestEnumerateOne_ParsesConfigFields(t *testing.T) {
 	assert.Equal(t, "TeamsOnly", res.CoExistenceMode)
 	assert.NoError(t, res.Error)
 }
-
-// ---------------------------------------------------------------------------
-// Test: Presence parses sourceNetwork and both OOO note locations
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_PresenceParsesSourceNetworkAndOOO(t *testing.T) {
 	// Sub-test 1: OOO note under presence.outOfOfficeNote (direct path).
@@ -699,10 +643,6 @@ func TestEnumerateOne_PresenceParsesSourceNetworkAndOOO(t *testing.T) {
 		assert.NoError(t, res.Error)
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Test: DerivePosture — table-driven coverage of all aggregation logic
-// ---------------------------------------------------------------------------
 
 func TestDerivePosture(t *testing.T) {
 	boolPtr := func(b bool) *bool { return &b }
@@ -817,10 +757,6 @@ func TestDerivePosture(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test: DerivePosture_DomainAndCounts — Total, UsersFound, Blocked403, Domain
-// ---------------------------------------------------------------------------
-
 func TestDerivePosture_DomainAndCounts(t *testing.T) {
 	results := []EnumResult{
 		{Exists: ExistenceYes},
@@ -838,10 +774,6 @@ func TestDerivePosture_DomainAndCounts(t *testing.T) {
 	assert.Equal(t, 1, p.Blocked403, "Blocked403 must count ExistenceBlocked results only")
 	assert.Equal(t, "open", p.ExternalChatAllowed, "open because UsersFound > 0")
 }
-
-// ---------------------------------------------------------------------------
-// Test: TokenSafetyTable
-// ---------------------------------------------------------------------------
 
 func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
 	const accessToken = "SUPER-SECRET-ACCESS-TOKEN"
@@ -891,10 +823,6 @@ func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Consumer-account filtering tests
-// ---------------------------------------------------------------------------
 
 // TestEnumerateOne_ConsumerOnly_IgnoredByDefault verifies that a search result
 // containing a single consumer (8:live:) user is treated as ExistenceNo when
@@ -1003,10 +931,6 @@ func TestEnumerateOne_CorporateOnly_AlwaysFound(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test: AccountType — table-driven classification of MRI prefixes
-// ---------------------------------------------------------------------------
-
 func TestAccountType(t *testing.T) {
 	tests := []struct {
 		mri  string
@@ -1032,10 +956,6 @@ func TestAccountType(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Test: EnumerateWith — callback invoked exactly once per email
-// ---------------------------------------------------------------------------
 
 // searchServerPerEmail returns an httptest.Server that returns a user for
 // emails in the existSet (200 + user JSON) and an empty array for all others.
@@ -1116,10 +1036,6 @@ func TestEnumerateWith_CallbackPerResult(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test: EnumerateWith — nil callback behaves like Enumerate
-// ---------------------------------------------------------------------------
-
 func TestEnumerateWith_NilCallback(t *testing.T) {
 	const n = 10
 	srv := searchServerReturning(http.StatusOK, `[]`)
@@ -1152,10 +1068,6 @@ func TestEnumerateWith_NilCallback(t *testing.T) {
 			"Enumerate and EnumerateWith(nil) must agree on result[%d].Exists", i)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Test: EnumerateWith — threads=0 must not deadlock (clamped to 1)
-// ---------------------------------------------------------------------------
 
 // TestEnumerateWith_ZeroThreadsDoesNotHang is a regression test for the bug
 // where passing threads=0 to EnumerateWith made errgroup.SetLimit(0) block
@@ -1191,9 +1103,6 @@ func TestEnumerateWith_ZeroThreadsDoesNotHang(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test: EnumerateWith streaming race — non-nil callback under -race
-// ---------------------------------------------------------------------------
 //
 // This test extends TestEnumerate_ConcurrentRefreshNoRace to verify that the
 // streaming (onResult callback) surface is also race-clean when a concurrent

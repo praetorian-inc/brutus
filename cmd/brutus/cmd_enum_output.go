@@ -300,10 +300,6 @@ func outputEnumJSONL(w io.Writer, results []enum.Result) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Hunter.io output functions
-// ---------------------------------------------------------------------------
-
 // sanitizeTerminal strips C0/C1 control code points, ESC (U+001B), and full
 // ANSI/VT100 escape sequences from s before rendering attacker-controlled
 // strings in the human table (P0-4 security requirement). It decodes
@@ -474,10 +470,6 @@ func outputHunterJSONL(w io.Writer, result *hunter.DomainResult) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Teams (Microsoft Entra ID device code) output functions
-// ---------------------------------------------------------------------------
-
 // outputTeamsDeviceCodeHuman prints device code auth instructions.
 // All server-provided strings are sanitized via sanitizeTerminal (P0-4).
 func outputTeamsDeviceCodeHuman(w io.Writer, dc *teams.DeviceCode, useColor bool) {
@@ -524,10 +516,6 @@ func outputTeamsTokenJSONL(w io.Writer, tok *teams.TokenSet) {
 		_, _ = fmt.Fprintf(os.Stderr, "Error encoding teams token JSON: %v\n", err)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Teams user enumeration output functions
-// ---------------------------------------------------------------------------
 
 // outputTeamsEnumResultLine prints ONE Teams enumeration result row: Email,
 // status label, Display Name, and MRI, with the account type appended for EXISTS
@@ -769,10 +757,6 @@ func outputTeamsPostureJSONL(w io.Writer, p *teams.TenantPosture) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Teams audit (graded findings) output functions
-// ---------------------------------------------------------------------------
-
 // auditEvidenceMaxRunes bounds how much server-derived evidence (e.g. an
 // out-of-office note) is rendered in the human report.
 const auditEvidenceMaxRunes = 200
@@ -922,10 +906,6 @@ func presence(token string) string {
 	return "<present>"
 }
 
-// ---------------------------------------------------------------------------
-// Google Workspace account enumeration output functions
-// ---------------------------------------------------------------------------
-
 // outputGoogleEnumResultLine prints ONE Google enumeration result row. EXISTS
 // rows show the email, an "[+] EXISTS" label, and a method note: workspace-sso
 // renders as " (workspace-sso -> <IdP>)" (or just " (workspace-sso)" when the
@@ -1026,10 +1006,6 @@ func outputGoogleEnumJSONL(w io.Writer, results []google.Result) {
 		}
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Microsoft 365 account enumeration output functions
-// ---------------------------------------------------------------------------
 
 // microsoft365ExistsNote builds the parenthetical annotation for an EXISTS row:
 // the tenant relationship the GetCredentialType API reveals and, when the

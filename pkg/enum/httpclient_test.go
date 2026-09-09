@@ -28,10 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// TestNewEnumHTTPClientWithProxy — Section D
-// ---------------------------------------------------------------------------
-
 func TestNewEnumHTTPClientWithProxy_EmptyProxy(t *testing.T) {
 	client, err := NewEnumHTTPClientWithProxy(5*time.Second, "")
 	require.NoError(t, err)

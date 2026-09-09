@@ -27,10 +27,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// ---------------------------------------------------------------------------
-// Detection entry points (connection setup + detection sequence)
-// ---------------------------------------------------------------------------
-
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
 // The noVision flag disables Vision API confirmation. budget selects the settle
 // profile; fast enforces the never-clean invariant.
@@ -93,10 +89,6 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, c
 
 	return utilmanResult
 }
-
-// ---------------------------------------------------------------------------
-// Detection sequences (non-NLA connection → trigger → analyze)
-// ---------------------------------------------------------------------------
 
 // runStickyKeysDetection performs the full detection sequence on a non-NLA connection.
 // timeout is the per-host budget passed to each session pump phase. budget selects
@@ -286,10 +278,6 @@ func safeFilenameComponent(s string) string {
 	}
 	return b.String()
 }
-
-// ---------------------------------------------------------------------------
-// Banner formatting (append detection results to auth banner)
-// ---------------------------------------------------------------------------
 
 // finalizeStickyKeysResult folds an analysis outcome into result while KEEPING the session
 // diagnostics the analysis knows nothing about.

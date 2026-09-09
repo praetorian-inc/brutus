@@ -27,10 +27,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/hunter"
 )
 
-// ---------------------------------------------------------------------------
-// Task 4: resolveHunterAPIKey + classifyHunterError
-// ---------------------------------------------------------------------------
-
 func TestResolveHunterAPIKey(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -113,10 +109,6 @@ func TestClassifyHunterError(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Task 5: Command registration
-// ---------------------------------------------------------------------------
-
 func TestEnumHunterRegistered(t *testing.T) {
 	// 1. enumCmd must have a "passive" subcommand.
 	var passive *cobra.Command
@@ -165,10 +157,6 @@ func TestEnumHunterRegistered(t *testing.T) {
 	assert.True(t, alias.Hidden, "back-compat hunter alias must be Hidden")
 	assert.NotEmpty(t, alias.Deprecated, "back-compat hunter alias must be Deprecated")
 }
-
-// ---------------------------------------------------------------------------
-// Task 6: outputHunterJSONL + outputHunterHuman + sanitizeTerminal + truncate
-// ---------------------------------------------------------------------------
 
 func TestOutputHunterJSONL(t *testing.T) {
 	t.Run("single person emits one JSONL line", func(t *testing.T) {

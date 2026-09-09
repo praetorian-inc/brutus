@@ -87,12 +87,10 @@ func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port
 		return fmt.Errorf("no protocol specified and port has no service detected")
 	}
 
-	// Validate port number
 	if input.Port < 1 || input.Port > 65535 {
 		return fmt.Errorf("invalid port number: %d", input.Port)
 	}
 
-	// Validate hostname
 	if input.Parent.DNS == "" {
 		return fmt.Errorf("no hostname specified in port parent asset")
 	}

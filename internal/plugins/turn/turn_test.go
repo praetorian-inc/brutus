@@ -35,10 +35,6 @@ func TestPlugin_Name(t *testing.T) {
 	assert.Equal(t, "turn", p.Name())
 }
 
-// =============================================================================
-// Mock TURN Server
-// =============================================================================
-
 // mockTURNServer starts a UDP listener that runs a scripted TURN conversation.
 func mockTURNServer(t *testing.T, handler func(pc net.PacketConn)) (addr string, cleanup func()) {
 	t.Helper()
@@ -112,10 +108,6 @@ func buildMockSuccessResponse(txID [12]byte) []byte {
 	copy(msg[8:20], txID[:])
 	return msg
 }
-
-// =============================================================================
-// Plugin Tests
-// =============================================================================
 
 func TestPlugin_Test_ValidCredentials(t *testing.T) {
 	refreshReceived := make(chan struct{}, 1)
@@ -467,10 +459,6 @@ func TestPlugin_Test_MissingRealmOrNonce(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "missing realm or nonce")
 }
 
-// =============================================================================
-// UnauthChecker Tests
-// =============================================================================
-
 func TestPlugin_CheckUnauth_OpenRelay(t *testing.T) {
 	refreshReceived := make(chan struct{}, 1)
 
@@ -535,10 +523,6 @@ func TestPlugin_CheckUnauth_Unreachable(t *testing.T) {
 
 	assert.False(t, result.Success)
 }
-
-// =============================================================================
-// STUN Encoding/Parsing Unit Tests
-// =============================================================================
 
 func TestBuildAllocateRequest(t *testing.T) {
 	txID := [12]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}

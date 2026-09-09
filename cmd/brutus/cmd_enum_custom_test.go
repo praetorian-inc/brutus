@@ -30,10 +30,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/custom"
 )
 
-// ---------------------------------------------------------------------------
-// T11: Command registration
-// ---------------------------------------------------------------------------
-
 // TestEnumCustomRegistered verifies that "custom" is registered as a
 // subcommand of enumCmd with the required flags, shorthands, and required
 // annotation — mirrors cmd_enum_hunter_test.go::TestEnumHunterRegistered.
@@ -92,10 +88,6 @@ func TestEnumCustomRegistered(t *testing.T) {
 	}
 	require.True(t, found, "custom subcommand must be registered with enumActiveCmd")
 }
-
-// ---------------------------------------------------------------------------
-// T11: runEnumCustom error paths
-// ---------------------------------------------------------------------------
 
 // TestRunEnumCustom_BadSpec verifies that runEnumCustom returns a non-nil
 // error when the spec file contains invalid content.
@@ -190,10 +182,6 @@ func TestRunEnumCustom_OversizeFile(t *testing.T) {
 	err = runEnumCustom(enumCustomCmd, nil)
 	require.Error(t, err, "oversize spec file must be rejected before parse (R8)")
 }
-
-// ---------------------------------------------------------------------------
-// F1: Subject-building helpers (dedupe, buildCustomSubjects)
-// ---------------------------------------------------------------------------
 
 // TestDedupe_RemovesDuplicatesPreservingOrder verifies that dedupe removes
 // repeated values while preserving the first-seen order.
@@ -364,10 +352,6 @@ func TestBuildCustomSubjects_ConstraintRateLimitDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"seed@example.com"}, got)
 }
-
-// ---------------------------------------------------------------------------
-// New: TestRunEnumCustom_EndToEnd — 32% → higher coverage of runEnumCustom
-// ---------------------------------------------------------------------------
 
 // oracleSpecForTest builds the JSON for a schema-v1 oracle whose URL points at
 // srv. The oracle uses a POST with a JSON body that includes the {{username}}

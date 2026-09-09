@@ -32,10 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Test infrastructure helpers
-// ---------------------------------------------------------------------------
-
 // noopSleep is a sleep function that returns immediately without sleeping.
 // It is used to replace the real sleepCtx in tests so rate-limit retries don't
 // cause real delays.
@@ -247,10 +243,6 @@ func newRotatingTestEnumerator(t *testing.T, webSrv *httptest.Server, existenceM
 	return e
 }
 
-// ---------------------------------------------------------------------------
-// Existence tests: 422 → Exists=true, 200 → Exists=false
-// ---------------------------------------------------------------------------
-
 // TestExistence_422_ExistsTrue verifies that an HTTP 422 from the validity
 // endpoint is mapped to Exists=true.
 func TestExistence_422_ExistsTrue(t *testing.T) {
@@ -285,10 +277,6 @@ func TestExistence_200_ExistsFalse(t *testing.T) {
 	require.NoError(t, results[0].Error)
 	assert.False(t, results[0].Exists, "HTTP 200 must map to Exists=false (address available)")
 }
-
-// ---------------------------------------------------------------------------
-// 429 retry: retries then succeeds
-// ---------------------------------------------------------------------------
 
 // TestExistence_429_RetryThenSucceed verifies that a 429 response causes a
 // retry (with noopSleep so no actual delay), and that the subsequent 422
@@ -337,10 +325,6 @@ func TestExistence_429_RetryThenSucceed(t *testing.T) {
 	assert.Equal(t, int32(2), callCount.Load(), "exactly 2 calls to validity endpoint expected (1 retry)")
 }
 
-// ---------------------------------------------------------------------------
-// Session parse failure → error on all results
-// ---------------------------------------------------------------------------
-
 // TestSessionParseFail_JoinPageMissingAutoCheck verifies that when the join
 // page HTML does not contain the expected <auto-check> block, every Result
 // carries the session error.
@@ -374,10 +358,6 @@ func TestSessionParseFail_JoinPageMissingAutoCheck(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Sanity-check: address that should not exist does not come back as 422
-// ---------------------------------------------------------------------------
-
 // TestSanityCheck_RandomAddressReturns200 is a behavioral test confirming that
 // the sanity-check path inside establishSession does NOT block session setup
 // when the random address correctly returns 200 (the expected case). The
@@ -397,10 +377,6 @@ func TestSanityCheck_RandomAddressReturns200(t *testing.T) {
 	require.NoError(t, results[0].Error)
 	assert.True(t, results[0].Exists)
 }
-
-// ---------------------------------------------------------------------------
-// Reveal: happy path — email → username mapping
-// ---------------------------------------------------------------------------
 
 // TestReveal_HappyPath verifies that Reveal creates a repo, pushes commits,
 // lists them, and returns the correct email→username mapping. Also tests that
@@ -430,10 +406,6 @@ func TestReveal_HappyPath(t *testing.T) {
 		"bob's email must be excluded from mapping when top-level author is null")
 }
 
-// ---------------------------------------------------------------------------
-// Reveal: empty token returns error
-// ---------------------------------------------------------------------------
-
 // TestReveal_EmptyToken verifies that Reveal returns an error immediately
 // when called on an Enumerator with an empty token.
 func TestReveal_EmptyToken(t *testing.T) {
@@ -455,10 +427,6 @@ func TestReveal_EmptyToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "token required",
 		"error must mention that a token is required")
 }
-
-// ---------------------------------------------------------------------------
-// Reveal: repo cleanup (DELETE) is always attempted
-// ---------------------------------------------------------------------------
 
 // TestReveal_DeleteAlwaysAttempted verifies that the repo DELETE is always
 // called even when a mid-flow step (pushCommit) fails. The DELETE is the
@@ -520,10 +488,6 @@ func TestReveal_DeleteAlwaysAttempted(t *testing.T) {
 		"repo DELETE must be called exactly once as deferred cleanup, even when pushCommit fails")
 }
 
-// ---------------------------------------------------------------------------
-// Reveal: repo cleanup (DELETE) survives a canceled reveal context
-// ---------------------------------------------------------------------------
-
 // TestReveal_DeletesEvenWhenContextCancelled verifies that the deferred repo
 // DELETE is still sent even when the reveal ctx is canceled mid-flow. The
 // settle-delay sleep cancels the ctx and returns context.Canceled, after
@@ -582,10 +546,6 @@ func TestReveal_DeletesEvenWhenContextCancelled(t *testing.T) {
 	assert.Equal(t, int32(1), deleteCount.Load(),
 		"repo DELETE must still be sent even though the reveal ctx was canceled")
 }
-
-// ---------------------------------------------------------------------------
-// Auth header: PAT is sent as Bearer <token> on every API call
-// ---------------------------------------------------------------------------
 
 // TestReveal_BearerTokenSentToAPI verifies that the PAT is sent as
 // "Authorization: Bearer <token>" on every API request and is never embedded
@@ -657,10 +617,6 @@ func TestReveal_BearerTokenSentToAPI(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Token never appears in Result.Error text
-// ---------------------------------------------------------------------------
-
 // TestReveal_TokenNotLeakedInError verifies that even when the API returns an
 // unexpected error, the PAT value never appears in the error string returned
 // by Reveal.
@@ -687,10 +643,6 @@ func TestReveal_TokenNotLeakedInError(t *testing.T) {
 	assert.NotContains(t, revErr.Error(), token,
 		"PAT must never appear in Reveal error text")
 }
-
-// ---------------------------------------------------------------------------
-// Reveal: DELETE failure surfaces owner/repo for manual cleanup
-// ---------------------------------------------------------------------------
 
 // TestReveal_DeleteFailure_SurfacesRepoForManualCleanup is a focused regression
 // test for the P1-A security fix: when the deferred repo DELETE fails, Reveal
@@ -813,14 +765,6 @@ func TestReveal_MidFlowErrorAndDeleteFailure_OriginalErrorJoined(t *testing.T) {
 		"PAT must never appear in Reveal error text")
 }
 
-// ---------------------------------------------------------------------------
-// EnumerateWith: callback invoked once per email, results in input order
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Redirect regression: /join 302 → /signup, CSRF only on final page
-// ---------------------------------------------------------------------------
-
 // TestExistence_FollowsJoinRedirectForCSRF is a regression test for the bug
 // where the existence client refused to follow redirects: the real
 // github.com/join returns a 302 to /signup, and the CSRF authenticity_token
@@ -891,10 +835,6 @@ func TestExistence_FollowsJoinRedirectForCSRF(t *testing.T) {
 		"HTTP 422 from validity endpoint must map to Exists=true")
 }
 
-// ---------------------------------------------------------------------------
-// EnumerateWith: callback invoked once per email, results in input order
-// ---------------------------------------------------------------------------
-
 // TestEnumerateWith_CallbackSerializationAndOrder verifies that onResult is
 // called exactly once per email (under concurrent workers) and that the
 // returned slice preserves input order.
@@ -950,10 +890,6 @@ func TestEnumerateWith_CallbackSerializationAndOrder(t *testing.T) {
 	assert.False(t, results[3].Exists, "d@ (200) must be Exists=false")
 }
 
-// ---------------------------------------------------------------------------
-// NewEnumerator: rotatingProxy flag wires correct backoff / retry constants
-// ---------------------------------------------------------------------------
-
 // TestNewEnumerator_RotatingProxy verifies that the rotatingProxy parameter
 // controls which 429-retry constants are stored on the Enumerator.
 // When false the defaults (rateLimitBackoff / maxRateLimitRetries) are used;
@@ -984,10 +920,6 @@ func TestNewEnumerator_RotatingProxy(t *testing.T) {
 			"existenceMaxRetries must equal rotatingProxyMaxRetries when rotatingProxy=true and a proxy is configured")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// EnumerateWith: threads=0 must not deadlock (clamped to 1)
-// ---------------------------------------------------------------------------
 
 // TestEnumerateWith_ZeroThreadsDoesNotHang is a regression test for the bug
 // where passing threads=0 to EnumerateWith made errgroup.SetLimit(0) block
@@ -1023,10 +955,6 @@ func TestEnumerateWith_ZeroThreadsDoesNotHang(t *testing.T) {
 		assert.NoError(t, r.Error, "result[%d] must complete without error against the mock server", i)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// establishSession retry behavior: /join non-200 is retried, 200-no-token fails fast
-// ---------------------------------------------------------------------------
 
 // TestSession_RetriesOn403ThenSucceeds verifies that establishSession retries
 // the /join fetch when GitHub's bot/rate detection returns a non-200 (e.g.
@@ -1288,10 +1216,6 @@ func TestExistence_SetsAcceptHeader(t *testing.T) {
 		"the validity-check POST must carry Accept: */*")
 }
 
-// ---------------------------------------------------------------------------
-// postValidity 403 handling: rotating-proxy retries, non-rotating fails fast
-// ---------------------------------------------------------------------------
-
 // validity403Mux builds an http.ServeMux for the postValidity 403-handling
 // tests. /join always serves a valid CSRF-bearing page. /email_validity_checks
 // always returns 200 for the sanity-check address (any @foobar.com email, per
@@ -1416,10 +1340,6 @@ func TestExistence_403ExhaustsRetries_RotatingProxy(t *testing.T) {
 		"validity endpoint must be hit existenceMaxRetries+1 times: the initial attempt plus every retry")
 }
 
-// ---------------------------------------------------------------------------
-// NewEnumerator: rotatingProxy disables HTTP keep-alives (fresh exit IP)
-// ---------------------------------------------------------------------------
-
 // closeObservingWebServer starts a fake GitHub web server whose
 // /email_validity_checks handler records, in sawClose, whether the inbound
 // request for the (non-sanity-check) target email carried r.Close == true —
@@ -1512,10 +1432,6 @@ func TestNewEnumerator_RotatingProxyDisablesKeepAlives(t *testing.T) {
 			"rotatingProxy=false must NOT set DisableKeepAlives — connections must be kept alive (r.Close == false)")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// NewEnumerator: --rotating-proxy without --proxy is not effectively rotating
-// ---------------------------------------------------------------------------
 
 // TestNewEnumerator_RotatingProxyRequiresProxy is a regression test for a
 // Codex P2 fix: --rotating-proxy without --proxy connects directly, so

@@ -28,11 +28,9 @@ import (
 	m365 "github.com/praetorian-inc/brutus/pkg/enum/microsoft365"
 )
 
-// ---------------------------------------------------------------------------
 // TestEnumMicrosoft365Cmd_Flags
 // Verifies that all documented flags exist on enumMicrosoft365Cmd and that
 // no shorthand collides with the global --threads/-t flag.
-// ---------------------------------------------------------------------------
 
 func TestEnumMicrosoft365Cmd_Flags(t *testing.T) {
 	// --emails / -e
@@ -92,11 +90,9 @@ func TestEnumMicrosoft365Cmd_RegisteredUnderActiveCmd(t *testing.T) {
 	assert.True(t, found, "enumMicrosoft365Cmd must be registered as a subcommand of enumActiveCmd")
 }
 
-// ---------------------------------------------------------------------------
 // TestEncodeMicrosoft365EnumResult
 // Feeds m365.Result values and asserts the type/if_exists_result/federation
 // fields, including omitempty behavior.
-// ---------------------------------------------------------------------------
 
 func TestEncodeMicrosoft365EnumResult(t *testing.T) {
 	tests := []struct {
@@ -240,10 +236,8 @@ func TestEncodeMicrosoft365EnumResult(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // TestOutputMicrosoft365EnumResultLine
 // Verifies human-readable line output for EXISTS, federation, and ANSI safety.
-// ---------------------------------------------------------------------------
 
 func TestOutputMicrosoft365EnumResultLine(t *testing.T) {
 	t.Run("managed exists shows EXISTS and managed", func(t *testing.T) {
@@ -359,7 +353,6 @@ func TestOutputMicrosoft365EnumResultLine(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // microsoft365EnumTargetList / microsoft365EnumGenerate
 //
 // 10T-535 (6/8): microsoft365EnumTargets() ([]string, error) is retargeted
@@ -372,7 +365,6 @@ func TestOutputMicrosoft365EnumResultLine(t *testing.T) {
 // preserved, "provide" error, --limit capping, invalid-format error) is
 // preserved; there is no dead adapter left behind pinning the old []string
 // signatures.
-// ---------------------------------------------------------------------------
 
 func resetMicrosoft365EnumFlags() (restore func()) {
 	origEmails := flagM365EnumEmails
@@ -491,7 +483,6 @@ func TestMicrosoft365EnumTargetList_DomainGeneratedCarriesName(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // THE CRITICAL TRAP (10T-535, 6/8) — INVERSE of gravatar's (5/8) trap.
 //
 // gravatar.CheckAccount lower-cases a COPY of the address it is given (only
@@ -530,7 +521,6 @@ func TestMicrosoft365EnumTargetList_DomainGeneratedCarriesName(t *testing.T) {
 //  3. A lookup keyed on the independently lower-cased form of that same
 //     address must NOT recover a name — proving the index is keyed on the
 //     original-cased address the checker echoes, not a normalized one.
-// ---------------------------------------------------------------------------
 
 func TestMicrosoft365EnumTargetList_GeneratedAddressesRetainOriginalCasingForNameLookup(t *testing.T) {
 	defer resetMicrosoft365EnumFlags()()
@@ -600,10 +590,6 @@ func TestMicrosoft365EnumTargetList_GeneratedAddressesRetainOriginalCasingForNam
 	}
 }
 
-// ---------------------------------------------------------------------------
-// microsoft365EnumGenerate
-// ---------------------------------------------------------------------------
-
 func TestMicrosoft365EnumGenerate_ProducesCandidatesForDomain(t *testing.T) {
 	defer resetMicrosoft365EnumFlags()()
 
@@ -665,10 +651,6 @@ func TestMicrosoft365EnumGenerate_InvalidFormatRejected(t *testing.T) {
 	require.Error(t, err, "an invalid --format must be rejected")
 	assert.Contains(t, err.Error(), "invalid --format")
 }
-
-// ---------------------------------------------------------------------------
-// encodeMicrosoft365EnumResult — First/Last name propagation (10T-535, 6/8)
-// ---------------------------------------------------------------------------
 
 // TestEncodeMicrosoft365EnumResult_NameFields pins the never-invent-a-name
 // rule: a Result carrying First/Last (from --domain generation) must emit

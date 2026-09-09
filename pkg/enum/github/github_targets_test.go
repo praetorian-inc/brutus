@@ -54,14 +54,12 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateTargetsWith_NamesRideOnResult
 // Core test: 3 targets with distinct names against a stub that reports
 // existence per the configured status map. Each returned Result must carry
 // the name of the target that produced it, correlated by email. An
 // implementation that stamps every Result with the first target's name fails
 // this test.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	t.Parallel()
@@ -96,11 +94,9 @@ func TestGithubEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	assert.True(t, byEmail["exists@example.com"].Exists, "the 422-mapped email must be reported as existing")
 }
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateTargetsWith_NamelessTargetStaysNameless
 // A Target with no name (address supplied by the operator, not generated)
 // must yield First=="" && Last=="". The library must never invent a name.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	t.Parallel()
@@ -116,12 +112,10 @@ func TestGithubEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	assert.Empty(t, results[0].Last, "Last must stay empty for a nameless Target")
 }
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateWith_StillWorksAndYieldsEmptyNames
 // Pins that the existing EnumerateWith([]string) entry point is unaffected by
 // the refactor: it still returns correct results, and since bare addresses
 // carry no name, First/Last must be empty.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	t.Parallel()
@@ -151,13 +145,11 @@ func TestGithubEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	assert.True(t, byEmail["exists@example.com"].Exists, "the 422-mapped email must be reported as existing")
 }
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateTargetsWith_NamesSurviveErrorPath
 // A name is a property of the address, not of the check outcome. Drive a
 // Result whose Error is non-nil (an unmapped-status response from the
 // validity endpoint, mirroring postValidity's "default: unexpected status"
 // branch) and assert the name is still stamped.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	t.Parallel()
@@ -183,11 +175,9 @@ func TestGithubEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	assert.Equal(t, "fail", r.Last, "name must survive even when the probe errors")
 }
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateTargetsWith_MixedNamedAndUnnamed
 // A single batch containing both named and unnamed targets: each Result must
 // get exactly its own target's name, or empty for the unnamed ones.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	t.Parallel()
@@ -218,12 +208,10 @@ func TestGithubEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateTargetsWith_EveryTargetSlotFilled
 // len(results) == len(targets) and every target is present even when some
 // probes fail. Completion order is not asserted (the worker pool is
 // concurrent); correlation is by email only.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 	t.Parallel()
@@ -264,7 +252,6 @@ func TestGithubEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 	assert.NoError(t, byEmail["notexists-slot@example.com"].Error)
 }
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateTargetsWith_SessionFailureFillsEverySlotStamped
 //
 // github's pre-pool gate: if establishSession fails, every Target is
@@ -282,7 +269,6 @@ func TestGithubEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 // stamped with their own name -- proving EnumerateTargetsWith's session-gate
 // branch calls StampName (or an equivalent inline assignment) per target,
 // not just newError.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateTargetsWith_SessionFailureFillsEverySlotStamped(t *testing.T) {
 	t.Parallel()
@@ -329,7 +315,6 @@ func TestGithubEnumerateTargetsWith_SessionFailureFillsEverySlotStamped(t *testi
 	assert.Len(t, cbResults, len(targets), "onResult must fire exactly once per target on the session-failure path too")
 }
 
-// ---------------------------------------------------------------------------
 // TestGithubEnumerateWith_CanceledContextNowRecordsEverySlot
 //
 // THE explicit before/after test for github's abort-path behavior change
@@ -363,7 +348,6 @@ func TestGithubEnumerateTargetsWith_SessionFailureFillsEverySlotStamped(t *testi
 // already Done, so their `select { case <-ctx.Done(): ... }` guard fires
 // deterministically -- this is exactly the branch that used to `return nil`
 // with no record call at all.
-// ---------------------------------------------------------------------------
 
 func TestGithubEnumerateWith_CanceledContextNowRecordsEverySlot(t *testing.T) {
 	t.Parallel()

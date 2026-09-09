@@ -30,10 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Test helper
-// ---------------------------------------------------------------------------
-
 // newTestClient creates a Client pointed at baseURL, overriding the default
 // base URL set by NewClient. Mirrors hunter_test.go:122-126.
 func newTestClient(baseURL string) *Client {
@@ -41,10 +37,6 @@ func newTestClient(baseURL string) *Client {
 	c.baseURL = baseURL
 	return c
 }
-
-// ---------------------------------------------------------------------------
-// T001: toPerson + APIError
-// ---------------------------------------------------------------------------
 
 func TestToPerson(t *testing.T) {
 	src := apolloPerson{
@@ -123,10 +115,6 @@ func TestAPIError_Error(t *testing.T) {
 	assert.NotContains(t, msg, "SECRETKEY-DO-NOT-LEAK",
 		"APIError.Error() must not include Details (P0-1 key-leak prevention)")
 }
-
-// ---------------------------------------------------------------------------
-// T002: searchPage + matchPerson + do
-// ---------------------------------------------------------------------------
 
 func makeSearchResponse(people []apolloPerson, total int) []byte {
 	resp := apolloSearchResponse{
@@ -298,10 +286,6 @@ func TestDo_SetsAuthHeader(t *testing.T) {
 	// The key must NOT appear in the request URL (P0-1: header-based auth only).
 	assert.NotContains(t, capturedURL, "testkey", "API key must not appear in URL")
 }
-
-// ---------------------------------------------------------------------------
-// T003: Discover pagination (was SearchPeople) + EnrichByIDs + RevealEmails
-// ---------------------------------------------------------------------------
 
 // pagedSearchServer returns an httptest.Server that serves paginated Apollo
 // search results (page-based, not offset-based). Each request must include a
@@ -562,10 +546,6 @@ func TestDiscover_ContextCancellation(t *testing.T) {
 	require.Error(t, err, "expected error due to context cancellation")
 }
 
-// ---------------------------------------------------------------------------
-// T003b: EnrichByIDs — selective per-id enrichment
-// ---------------------------------------------------------------------------
-
 // makeMatchResponseForID returns a full apolloMatchResponse JSON payload for the
 // given Apollo person id. The email is derived from the id so each person gets a
 // distinct email, making assertions straightforward.
@@ -707,10 +687,6 @@ func TestEnrichByIDs_SurfacesFirstError(t *testing.T) {
 	assert.Equal(t, "p1", enriched[0].ID)
 	assert.True(t, enriched[0].Revealed)
 }
-
-// ---------------------------------------------------------------------------
-// RevealEmails tests
-// ---------------------------------------------------------------------------
 
 func TestRevealEmails_Merge(t *testing.T) {
 	// 3 people: server returns email for p1, email for p2, empty for p3.

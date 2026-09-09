@@ -38,10 +38,6 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
-// ---------------------------------------------------------------------------
-// TestHashEmail
-// ---------------------------------------------------------------------------
-
 func TestHashEmail(t *testing.T) {
 	t.Parallel()
 
@@ -52,10 +48,8 @@ func TestHashEmail(t *testing.T) {
 	assert.Equal(t, HashEmail("john.smith@mckesson.com"), HashEmail("  John.Smith@McKesson.com  "))
 }
 
-// ---------------------------------------------------------------------------
 // TestCheckAccount — mock server keyed by hash, mirroring microsoft365's
 // newMockServer pattern.
-// ---------------------------------------------------------------------------
 
 // registeredEmail is the email whose Gravatar hash the mock server treats as
 // "registered" (200); every other hash 404s.
@@ -149,12 +143,10 @@ func TestCheckAccount_ContextCancelled(t *testing.T) {
 	assert.False(t, result.Exists)
 }
 
-// ---------------------------------------------------------------------------
 // TestNewChecker — default baseURL is asserted indirectly by pointing the
 // checker at a test server and verifying it can be constructed with an empty
 // baseURL/proxyURL without error (baseURL is unexported, so behavior is
 // verified via CheckAccount against a real server rather than field access).
-// ---------------------------------------------------------------------------
 
 func TestNewChecker_DefaultBaseURLUsedWhenEmpty(t *testing.T) {
 	t.Parallel()
@@ -192,12 +184,10 @@ func TestNewChecker_WithProxyURL(t *testing.T) {
 	assert.NotNil(t, c)
 }
 
-// ---------------------------------------------------------------------------
 // enum.HTTPClientFromContext precedence: CheckAccount must prefer a shared
 // enum HTTP client carried on ctx (set via enum.WithHTTPClient) over the
 // Checker's own client, and fall back to its own client when ctx carries
 // none.
-// ---------------------------------------------------------------------------
 
 func TestCheckAccount_UsesHTTPClientFromContext(t *testing.T) {
 	t.Parallel()
@@ -247,7 +237,6 @@ func TestCheckAccount_FallsBackToOwnClientWithoutContextClient(t *testing.T) {
 	assert.True(t, result.Exists)
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_Callback
 // 4 emails, threads=4, onResult callback appends under a mutex.
 // After the run:
@@ -258,7 +247,6 @@ func TestCheckAccount_FallsBackToOwnClientWithoutContextClient(t *testing.T) {
 //
 // Run the package under -race (go test -race ./pkg/enum/gravatar/) to verify
 // the callback serialization guarantee.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_Callback(t *testing.T) {
 	t.Parallel()
@@ -328,11 +316,9 @@ func TestEnumerateWith_Callback(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_NilCallback
 // Passing nil as the callback must not panic and must return one result per
 // email.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_NilCallback(t *testing.T) {
 	t.Parallel()
@@ -349,13 +335,11 @@ func TestEnumerateWith_NilCallback(t *testing.T) {
 	require.Len(t, results, len(emails), "nil callback must not panic; must return one result per email")
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_CanceledContextRecordsAllSlots
 // Regression guard: with an already-canceled context, every worker hits the
 // <-ctx.Done() guard before the HTTP call. Each guard must still record
 // before returning, so every index is filled (Email set, input order
 // preserved) and the callback fires exactly once per email.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_CanceledContextRecordsAllSlots(t *testing.T) {
 	t.Parallel()
@@ -393,12 +377,10 @@ func TestEnumerateWith_CanceledContextRecordsAllSlots(t *testing.T) {
 	assert.Len(t, cbResults, len(emails), "onResult callback must fire exactly once per email, even on the canceled-context path")
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang
 // Regression guard: threads<=0 must be normalized to 1 before g.SetLimit.
 // SetLimit(0) would permit zero concurrent goroutines, so no worker could
 // ever run and EnumerateWith would hang forever.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
 	tests := []struct {

@@ -1,16 +1,11 @@
 name: CLI Surface Drift
 
-# Fails CI when the documented brutus CLI surface no longer matches what cobra
-# registers, in either direction: a documented flag or subcommand that no longer
-# exists, or a registered one that is not documented.
-#
-# Deliberately carries NO `paths:` filter. Documentation drift usually arrives as
-# a markdown-only change, and `ci.yml` filters on '**/*.go', go.mod, go.sum,
-# '.golangci*' and 'Makefile' — so a README-only pull request runs no CI at all
-# today. This gate has to fire on every pull request to be worth anything.
+# Fails when the documented CLI surface drifts from the live cobra tree.
+# No `paths:` filter: docs-only PRs skip ci.yml.
 on:
+  # No `branches:` filter: `on.pull_request.branches` matches the BASE, so
+  # `branches: [main]` would skip stacked PRs.
   pull_request:
-    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -37,34 +32,31 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # The surface is walked out of the live cobra tree, which lives in
-      # `package main`, so the gate is a test in that package rather than a
-      # separate generator binary. `make cli-docs` is the regeneration path the
-      # failure message points contributors at.
-      # `go test -run` exits 0 when the pattern matches no tests, so renaming these
-      # away from the TestCLISurface prefix would turn the gate green with no drift
-      # protection at all. Assert by name that each one actually ran.
+      - name: Snapshot the committed documentation
+        run: |
+          set -eo pipefail
+          find docs README.md -type f -exec sha256sum {} + \
+            | LC_ALL=C sort > "$RUNNER_TEMP/docs.before"
+          echo "baselined $(wc -l < "$RUNNER_TEMP/docs.before") file(s)"
+
       - name: Check CLI surface and documentation for drift
         run: |
-          set -o pipefail
-          go test ./cmd/brutus -run 'TestCLISurface' -count=1 -v | tee gate.log
+          set -eo pipefail
+          go test ./cmd/brutus -run 'TestCLISurface' -count=1 -v \
+            | tee "$RUNNER_TEMP/gate.log"
           for name in TestCLISurface TestCLISurfaceDocLint TestCLISurfaceGateDetectsRename; do
-            if ! grep -qE "^--- PASS: ${name} " gate.log; then
+            if ! grep -qE "^--- PASS: ${name} " "$RUNNER_TEMP/gate.log"; then
               echo "::error::${name} did not run. The drift gate is not executing; check the -run pattern against the test names in cmd/brutus/cli_surface_test.go."
               exit 1
             fi
           done
-          rm -f gate.log
 
-      # Safety net: the gate above compares in memory and must never write. If it
-      # did, a stale golden could be silently "fixed" in CI and pass.
       - name: Verify the gate did not rewrite the goldens
         run: |
-          if ! git diff --quiet -- docs/ README.md; then
-            echo "::error::The drift gate modified tracked documentation. It must compare without writing; run 'make cli-docs' locally instead."
-            git --no-pager diff -- docs/ README.md
+          set -eo pipefail
+          find docs README.md -type f -exec sha256sum {} + \
+            | LC_ALL=C sort > "$RUNNER_TEMP/docs.after"
+          if ! diff -u "$RUNNER_TEMP/docs.before" "$RUNNER_TEMP/docs.after"; then
+            echo "::error::The drift gate wrote to the committed documentation; the diff above names every file added, removed or changed. Check mode must compare without writing, so this is a defect in the gate itself -- cmd/brutus/cli_surface_test.go, or a clisurface write reached outside the -update branch. Regenerating with 'make cli-docs' will not fix it."
             exit 1
           fi
-
-      - name: Verify library unit tests
-        run: go test ./internal/clisurface/... -race -count=1

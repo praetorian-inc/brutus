@@ -1007,7 +1007,7 @@ Collect breach-exposed identity data for a domain via DeHashed
 
 | Flag | Short | Type | Default | Description |
 | --- | --- | --- | --- | --- |
-| `--all-emails` |  | bool | `false` | Keep all emails, not just those @<domain> (disables corporate-only filtering) |
+| `--all-emails` |  | bool | `false` | Keep all emails, not just those @&lt;domain&gt; (disables corporate-only filtering) |
 | `--api-key` |  | string |  | DeHashed API key (overrides DEHASHED_API_KEY; WARNING: visible in process list and shell history — prefer DEHASHED_API_KEY) |
 | `--detailed` |  | bool | `false` | Emit a single structured JSON document with full per-contact detail (ip addresses, addresses, dobs, obtained dates) and run metadata |
 | `--domain` | `-d` | string |  | Domain to search (required) |
@@ -1326,7 +1326,7 @@ Collect breach-exposed identity data for a domain via DeHashed
 
 | Flag | Short | Type | Default | Description |
 | --- | --- | --- | --- | --- |
-| `--all-emails` |  | bool | `false` | Keep all emails, not just those @<domain> (disables corporate-only filtering) |
+| `--all-emails` |  | bool | `false` | Keep all emails, not just those @&lt;domain&gt; (disables corporate-only filtering) |
 | `--api-key` |  | string |  | DeHashed API key (overrides DEHASHED_API_KEY; WARNING: visible in process list and shell history — prefer DEHASHED_API_KEY) |
 | `--detailed` |  | bool | `false` | Emit a single structured JSON document with full per-contact detail (ip addresses, addresses, dobs, obtained dates) and run metadata |
 | `--domain` | `-d` | string |  | Domain to search (required) |

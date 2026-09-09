@@ -155,6 +155,8 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	}
 	analysis := runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	finalizeStickyKeysResult(result, &analysis, diag, stabilized, fast)
+	result.BaselinePNG = encodeFramePNG(baseline, width, height)
+	result.ResponsePNG = encodeFramePNG(response, width, height)
 
 	return result, nil
 }
@@ -216,6 +218,8 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	}
 	analysis := runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	finalizeUtilmanResult(result, &analysis, diag, stabilized, fast)
+	result.BaselinePNG = encodeFramePNG(baseline, width, height)
+	result.ResponsePNG = encodeFramePNG(response, width, height)
 
 	return result, nil
 }
@@ -229,6 +233,18 @@ func stabilizedVerdict(verdict string, stabilized, fast bool) string {
 		return verdictIndeterminate
 	}
 	return verdict
+}
+
+func encodeFramePNG(rgba []byte, w, h uint32) []byte {
+	if len(rgba) == 0 || w == 0 || h == 0 {
+		return nil
+	}
+	pngData, err := rgbaToPNG(rgba, w, h)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[!] screenshot encode: %v\n", err)
+		return nil
+	}
+	return pngData
 }
 
 // dumpFrame is an env-var-gated DEBUG aid: when dir is non-empty it saves the

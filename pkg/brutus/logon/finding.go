@@ -63,6 +63,10 @@ type Finding struct {
 	Confidence  float64
 	Stabilized  bool
 	Diagnostics Diagnostics
+	// BaselinePNG / ResponsePNG are the captured frames, or nil when the check
+	// never produced a framebuffer. Not serialized by the CLI JSONL path.
+	BaselinePNG []byte
+	ResponsePNG []byte
 }
 
 func AnyPositive(findings []Finding) bool {
@@ -114,6 +118,8 @@ func findingFrom(target string, out *rdp.CheckOutcome) Finding {
 			SessionTerminated: out.SessionTerminated,
 			TerminationReason: out.TerminationReason,
 		},
+		BaselinePNG: out.BaselinePNG,
+		ResponsePNG: out.ResponsePNG,
 	}
 
 	switch {

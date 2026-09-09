@@ -61,6 +61,11 @@ type StickyKeysResult struct {
 	// TerminationReason is the server-reported reason behind SessionTerminated,
 	// surfaced in the operator-facing banner instead of being discarded.
 	TerminationReason string
+	// BaselinePNG / ResponsePNG are the captured frames encoded as PNG, or nil
+	// when the check never produced a framebuffer (or encode failed). Set after
+	// finalizeStickyKeysResult so the analysis overwrite cannot drop them.
+	BaselinePNG []byte
+	ResponsePNG []byte
 }
 
 // UtilmanResult holds the outcome of utilman backdoor detection.
@@ -87,6 +92,8 @@ type UtilmanResult struct {
 	// TerminationReason is the server-reported reason behind SessionTerminated,
 	// surfaced in the operator-facing banner instead of being discarded.
 	TerminationReason string
+	BaselinePNG       []byte
+	ResponsePNG       []byte
 }
 
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).

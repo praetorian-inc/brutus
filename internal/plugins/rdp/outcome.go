@@ -33,6 +33,8 @@ type CheckOutcome struct {
 	RegionNote        string
 	SessionTerminated bool
 	TerminationReason string
+	BaselinePNG       []byte
+	ResponsePNG       []byte
 }
 
 func stickyOutcome(r *StickyKeysResult) *CheckOutcome {
@@ -49,6 +51,8 @@ func stickyOutcome(r *StickyKeysResult) *CheckOutcome {
 		RegionNote:        r.RegionNote,
 		SessionTerminated: r.SessionTerminated,
 		TerminationReason: r.TerminationReason,
+		BaselinePNG:       r.BaselinePNG,
+		ResponsePNG:       r.ResponsePNG,
 	}
 }
 
@@ -66,6 +70,8 @@ func utilmanOutcome(r *UtilmanResult) *CheckOutcome {
 		RegionNote:        r.RegionNote,
 		SessionTerminated: r.SessionTerminated,
 		TerminationReason: r.TerminationReason,
+		BaselinePNG:       r.BaselinePNG,
+		ResponsePNG:       r.ResponsePNG,
 	}
 }
 

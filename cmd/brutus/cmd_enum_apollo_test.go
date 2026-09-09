@@ -29,10 +29,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/apollo"
 )
 
-// ---------------------------------------------------------------------------
-// T004: resolveApolloAPIKey + classifyApolloError (security: no key leak)
-// ---------------------------------------------------------------------------
-
 func TestResolveApolloAPIKey(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -138,10 +134,6 @@ func TestClassifyApolloError_NetworkWrap(t *testing.T) {
 	assert.Contains(t, result.Error(), "timeout")
 }
 
-// ---------------------------------------------------------------------------
-// T005: runEnumApollo input validation (--limit < 0, --reveal with --limit 0)
-// ---------------------------------------------------------------------------
-
 // resetApolloFlags resets the package-level apollo flag vars to safe defaults.
 // Discover is the default (flagApolloEnrich=false). --enrich opts in to enrichment.
 func resetApolloFlags() {
@@ -216,10 +208,6 @@ func TestRunEnumApollo_EnrichWithPositiveLimitPassesGuard(t *testing.T) {
 	assert.NotContains(t, err.Error(), "--enrich requires",
 		"positive --limit must clear the --enrich credit guard")
 }
-
-// ---------------------------------------------------------------------------
-// T003 cmd: outputApolloJSONL + outputApolloHuman
-// ---------------------------------------------------------------------------
 
 func TestOutputApolloJSONL(t *testing.T) {
 	t.Run("discovery person emits has_email/has_phone availability, no email values", func(t *testing.T) {
@@ -395,10 +383,6 @@ func TestOutputApolloHuman(t *testing.T) {
 		assert.Contains(t, out, "No people found")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// T006: enumApolloCmd registration
-// ---------------------------------------------------------------------------
 
 func TestEnumApolloRegistered(t *testing.T) {
 	// 1. enumCmd must have a "passive" subcommand.

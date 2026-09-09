@@ -27,10 +27,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// ---------------------------------------------------------------------------
-// Test: outputTeamsEnumResultLine — account-type suffix for EXISTS results
-// ---------------------------------------------------------------------------
-
 func TestOutputTeamsEnumResultLine_AccountType(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -113,10 +109,6 @@ func TestOutputTeamsEnumResultLine_AccountType(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test: outputTeamsEnumResultLine — server strings are sanitized (ANSI strip)
-// ---------------------------------------------------------------------------
-
 func TestOutputTeamsEnumResultLine_Sanitizes(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -160,10 +152,6 @@ func TestOutputTeamsEnumResultLine_Sanitizes(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Test: outputTeamsEnumJSONL — account_type field presence and values
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsEnumJSONL_AccountType(t *testing.T) {
 	tests := []struct {
@@ -250,10 +238,6 @@ func TestOutputTeamsEnumJSONL_AccountType(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Test: outputTeamsEnumJSONL — ExistenceBlocked shape and existence value coverage
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsEnumJSONL_BlockedAndExistenceValues(t *testing.T) {
 	tokenFields := []string{"access_token", "refresh_token", "id_token"}
@@ -377,10 +361,6 @@ func TestOutputTeamsEnumJSONL_BlockedAndExistenceValues(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// Test: outputTeamsEnumJSONL — error result encodes correctly, no token fields
-// ---------------------------------------------------------------------------
-
 func TestOutputTeamsEnumJSONL_ErrorResult(t *testing.T) {
 	results := []teams.EnumResult{
 		{
@@ -414,10 +394,6 @@ func TestOutputTeamsEnumJSONL_ErrorResult(t *testing.T) {
 			"JSONL output must never contain token field %q", field)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Test: outputTeamsEnumSummary — counts ExistenceBlocked in the Exists headline
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsEnumSummary(t *testing.T) {
 	// 2 ExistenceYes, 3 ExistenceBlocked, 1 ExistenceNo, 1 ExistenceUnknown.

@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
 // pushCommit: HTTP 409 conflict retries
 //
 // A REUSED reveal repo (SetRevealRepo) can have two runs pushing to the same
@@ -38,7 +37,6 @@ import (
 // build on the newRevealServer/revealRecorder/newPersistentEnumerator helpers
 // from persistent_repo_test.go, extended with revealServerOpts.pushStatuses so
 // the PUT .../contents/... route can answer with a scripted status sequence.
-// ---------------------------------------------------------------------------
 
 // counterName returns a newName replacement that yields a distinct value on
 // every call. newTestEnumerator (via newPersistentEnumerator) wires

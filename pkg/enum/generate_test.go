@@ -28,10 +28,6 @@ import (
 // stay valid if the wordlist is ever updated.
 const maxWordlistSize = 248231
 
-// ---------------------------------------------------------------------------
-// TestGenerateUsernames_FirstDotLast
-// ---------------------------------------------------------------------------
-
 // TestGenerateUsernames_FirstDotLast verifies that the first.last format
 // produces a non-empty, bounded, frequency-ranked result set whose head
 // entries match the expected most-likely pairs from the wordlist.
@@ -59,10 +55,6 @@ func TestGenerateUsernames_FirstDotLast(t *testing.T) {
 	assert.True(t, top5["david.smith"] || top5["michael.smith"],
 		"david.smith or michael.smith must appear in the top 5 first.last entries")
 }
-
-// ---------------------------------------------------------------------------
-// TestGenerateUsernames_DerivedFormats
-// ---------------------------------------------------------------------------
 
 // TestGenerateUsernames_DerivedFormats verifies that each format derives its
 // first entry from the #1 ranked pair (john.smith → first=john, last=smith).
@@ -104,10 +96,6 @@ func TestGenerateUsernames_DerivedFormats(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// TestGenerateUsernames_Dedup
-// ---------------------------------------------------------------------------
 
 // TestGenerateUsernames_Dedup verifies that formats that collapse many source
 // pairs to the same output (e.g. "first" produces "john" from every
@@ -158,10 +146,6 @@ func TestGenerateUsernames_Dedup(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// TestGenerateUsernames_MultiPartSurnames
-// ---------------------------------------------------------------------------
-
 // TestGenerateUsernames_MultiPartSurnames verifies that multi-dot source lines
 // are handled correctly. For first.last format the full dotted name is
 // preserved; for concatenated formats dots are stripped.
@@ -208,10 +192,6 @@ func TestGenerateUsernames_MultiPartSurnames(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// TestGenerateUsernames_AllFormatsBoundedAndNonEmpty
-// ---------------------------------------------------------------------------
-
 // TestGenerateUsernames_AllFormatsBoundedAndNonEmpty is a table-driven test
 // that verifies every supported format produces a non-empty, bounded result
 // with no empty-string entries and all-lowercase output.
@@ -247,10 +227,6 @@ func TestGenerateUsernames_AllFormatsBoundedAndNonEmpty(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// TestGenerateUsernames_UnknownFormat
-// ---------------------------------------------------------------------------
-
 // TestGenerateUsernames_UnknownFormat verifies that an unrecognized format
 // string causes all pairs to be skipped (formatUsername returns "" for the
 // default branch), producing an empty result with no error.
@@ -262,10 +238,6 @@ func TestGenerateUsernames_UnknownFormat(t *testing.T) {
 	assert.Empty(t, result,
 		"unknown format must produce an empty result (formatUsername default branch returns \"\")")
 }
-
-// ---------------------------------------------------------------------------
-// TestGenerateEmails
-// ---------------------------------------------------------------------------
 
 // TestGenerateEmails verifies that GenerateEmails appends @domain to each
 // username and produces the same count as the corresponding GenerateUsernames
@@ -297,10 +269,6 @@ func TestGenerateEmails(t *testing.T) {
 		"GenerateEmails must produce the same count as GenerateUsernames for the same format")
 }
 
-// ---------------------------------------------------------------------------
-// TestListFormats_IncludesFirstUnderLast
-// ---------------------------------------------------------------------------
-
 // TestListFormats_IncludesFirstUnderLast verifies that ListFormats includes the
 // "first_last" format constant.
 func TestListFormats_IncludesFirstUnderLast(t *testing.T) {
@@ -310,10 +278,6 @@ func TestListFormats_IncludesFirstUnderLast(t *testing.T) {
 	assert.Contains(t, formats, FormatFirstUnderLast,
 		"ListFormats must include FormatFirstUnderLast (%q)", FormatFirstUnderLast)
 }
-
-// ---------------------------------------------------------------------------
-// TestGenerateUsernames_FirstUnderLast
-// ---------------------------------------------------------------------------
 
 // TestGenerateUsernames_FirstUnderLast verifies all structural properties of
 // the first_last format: ranked head entry, underscore separator, no dots,
@@ -370,10 +334,6 @@ func TestGenerateUsernames_FirstUnderLast(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// TestGenerateEmails_FirstUnderLast
-// ---------------------------------------------------------------------------
-
 // TestGenerateEmails_FirstUnderLast verifies that GenerateEmails with
 // first_last format produces properly formatted email addresses.
 func TestGenerateEmails_FirstUnderLast(t *testing.T) {
@@ -407,7 +367,6 @@ func TestGenerateEmails_FirstUnderLast(t *testing.T) {
 		"GenerateEmails must produce the same count as GenerateUsernames for first_last")
 }
 
-// ---------------------------------------------------------------------------
 // 10T-535: GenerateCandidates
 //
 // GenerateUsernames/GenerateEmails throw away the (first, lastRaw) pair that
@@ -416,7 +375,6 @@ func TestGenerateEmails_FirstUnderLast(t *testing.T) {
 // John, James, or Jane). GenerateCandidates must expose the name that was
 // actually used, and GenerateUsernames/GenerateEmails must become thin
 // wrappers over it so all existing call sites keep working unchanged.
-// ---------------------------------------------------------------------------
 
 // TestGenerateCandidates_UsernameParity verifies that GenerateCandidates and
 // GenerateUsernames produce the exact same usernames, in the exact same
@@ -680,7 +638,6 @@ func TestGenerateCandidates_AllFormatsPopulated(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // 10T-535: Candidate.Target
 //
 // Target carries a generated (or supplied) email together with the name it
@@ -688,7 +645,6 @@ func TestGenerateCandidates_AllFormatsPopulated(t *testing.T) {
 // so consumers never need to reverse-derive a name from an address (the
 // "jsmith" could be John/James/Jane problem). Candidate.Target(domain) is the
 // conversion point from generator output to framework input.
-// ---------------------------------------------------------------------------
 
 // TestCandidate_Target verifies that Candidate.Target(domain) produces an
 // Email identical to Candidate.Email(domain), and carries First/Last through

@@ -22,14 +22,12 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
 // capResults — generic type parameter (10T-535, 3/8)
 //
 // cmd_enum_generate_test.go already exercises capResults over []string
 // (its original, non-generic shape). This test exercises the generic
 // signature (capResults[T any]) over a non-string element type, so the type
 // parameter itself — not just the []string instantiation — is verified.
-// ---------------------------------------------------------------------------
 
 // TestCapResults_GenericOverNonStringType verifies that capResults works over
 // a non-string type (enum.Target), proving it is generic rather than
@@ -47,10 +45,6 @@ func TestCapResults_GenericOverNonStringType(t *testing.T) {
 	assert.Equal(t, input[:2], got,
 		"capResults[enum.Target] must cap to the first N elements, same as capResults[string]")
 }
-
-// ---------------------------------------------------------------------------
-// enumTargetEmails
-// ---------------------------------------------------------------------------
 
 // TestEnumTargetEmails_PreservesOrder verifies that enumTargetEmails projects
 // []enum.Target -> []string of addresses, preserving input order.
@@ -78,10 +72,6 @@ func TestEnumTargetEmails_EmptyInput(t *testing.T) {
 	got := enumTargetEmails(nil)
 	assert.Empty(t, got, "enumTargetEmails on a nil slice must return an empty slice")
 }
-
-// ---------------------------------------------------------------------------
-// enumNamesByEmail / enumNameFor
-// ---------------------------------------------------------------------------
 
 // TestEnumNamesByEmail_IndexesGeneratedTargets verifies that
 // enumNamesByEmail builds an address -> name index from generated targets

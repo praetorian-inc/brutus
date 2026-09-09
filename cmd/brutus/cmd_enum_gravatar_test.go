@@ -28,7 +28,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/gravatar"
 )
 
-// ---------------------------------------------------------------------------
 // gravatarEnumTargetList / gravatarEnumGenerate
 //
 // 10T-535 (5/8): gravatarEnumTargets() ([]string, error) is retargeted onto
@@ -39,7 +38,6 @@ import (
 // reason. Every prior assertion (trim, case-insensitive dedup, "provide"
 // error, --limit capping, invalid-format error) is preserved; there is no
 // dead adapter left behind pinning the old []string signatures.
-// ---------------------------------------------------------------------------
 
 func resetGravatarEnumFlags() (restore func()) {
 	origEmails := flagGravatarEnumEmails
@@ -142,7 +140,6 @@ func TestGravatarEnumTargetList_DomainGeneratedCarriesName(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // THE CRITICAL TRAP (10T-535, 5/8)
 //
 // cmd_enum_gravatar.go's target-building/dedup loop (formerly line ~196 of
@@ -171,7 +168,6 @@ func TestGravatarEnumTargetList_DomainGeneratedCarriesName(t *testing.T) {
 //     receive and echo back (target.Email itself, and independently its
 //     lower-cased form — asserting these are identical is exactly the
 //     invariant the fix must hold).
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumTargetList_GeneratedAddressesAreLowerCasedForNameLookup(t *testing.T) {
 	defer resetGravatarEnumFlags()()
@@ -235,10 +231,6 @@ func TestGravatarEnumTargetList_GeneratedAddressesAreLowerCasedForNameLookup(t *
 	}
 }
 
-// ---------------------------------------------------------------------------
-// gravatarEnumGenerate
-// ---------------------------------------------------------------------------
-
 func TestGravatarEnumGenerate_ProducesCandidatesForDomain(t *testing.T) {
 	defer resetGravatarEnumFlags()()
 
@@ -300,10 +292,6 @@ func TestGravatarEnumGenerate_InvalidFormatRejected(t *testing.T) {
 	require.Error(t, err, "an invalid --format must be rejected")
 	assert.Contains(t, err.Error(), "invalid --format")
 }
-
-// ---------------------------------------------------------------------------
-// outputGravatarEnumJSONL — First/Last name propagation (10T-535, 5/8)
-// ---------------------------------------------------------------------------
 
 // TestOutputGravatarEnumJSONL_NameFields pins the never-invent-a-name rule: a
 // Result carrying First/Last (from --domain generation) must emit

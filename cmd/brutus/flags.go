@@ -26,10 +26,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-// ---------------------------------------------------------------------------
-// Package-level flag variables (bound to cobra/pflag)
-// ---------------------------------------------------------------------------
-
 // Target flags
 var (
 	flagTarget      string
@@ -110,10 +106,6 @@ var (
 
 // Version flag
 var flagVersion bool
-
-// ---------------------------------------------------------------------------
-// Flag registration functions
-// ---------------------------------------------------------------------------
 
 // registerSharedFlags registers persistent flags that propagate to all subcommands.
 func registerSharedFlags(cmd *cobra.Command) {
@@ -219,10 +211,6 @@ func registerLogonFlags(cmd *cobra.Command) {
 func registerRootFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&flagVersion, "version", false, "Show version information")
 }
-
-// ---------------------------------------------------------------------------
-// Config builder
-// ---------------------------------------------------------------------------
 
 // resolveProxyURL merges the --proxy and --proxy-user flags into a single
 // canonical proxy URL. Returns "" when no proxy is configured.
@@ -348,10 +336,6 @@ func isFlagChanged(cmd *cobra.Command, name string) bool {
 	pf := cmd.InheritedFlags().Lookup(name)
 	return pf != nil && pf.Changed
 }
-
-// ---------------------------------------------------------------------------
-// Utility functions (moved from main.go)
-// ---------------------------------------------------------------------------
 
 // setupAIConfig creates the LLM configuration for AI mode.
 func setupAIConfig(aiMode bool, anthropicKey, perplexityKey string) (*brutus.LLMConfig, error) {

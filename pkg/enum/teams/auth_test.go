@@ -39,10 +39,6 @@ func newTestClient(t *testing.T, tenantID, clientID, scopes, deviceCodeURL, toke
 	return c
 }
 
-// ---------------------------------------------------------------------------
-// APIError
-// ---------------------------------------------------------------------------
-
 func TestAPIError_Error(t *testing.T) {
 	err := &APIError{StatusCode: 400, Code: "invalid_client", Description: "AADSTS70011"}
 	msg := err.Error()
@@ -51,10 +47,6 @@ func TestAPIError_Error(t *testing.T) {
 	assert.Contains(t, msg, "AADSTS70011")
 }
 
-// ---------------------------------------------------------------------------
-// NewClient defaults
-// ---------------------------------------------------------------------------
-
 func TestNewClient_Defaults(t *testing.T) {
 	c, err := NewClient("", "", "", "", 5*time.Second)
 	require.NoError(t, err)
@@ -62,10 +54,6 @@ func TestNewClient_Defaults(t *testing.T) {
 	assert.Equal(t, DefaultClientID, c.clientID)
 	assert.Equal(t, DefaultScope, c.scopes)
 }
-
-// ---------------------------------------------------------------------------
-// StartDeviceFlow
-// ---------------------------------------------------------------------------
 
 func TestStartDeviceFlow_Success(t *testing.T) {
 	resp := deviceCodeAPIResponse{
@@ -210,10 +198,6 @@ func TestStartDeviceFlow_MissingDeviceCode(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing")
 }
-
-// ---------------------------------------------------------------------------
-// WaitForToken
-// ---------------------------------------------------------------------------
 
 func makeTokenResponse() tokenAPIResponse {
 	return tokenAPIResponse{
@@ -475,10 +459,6 @@ func TestWaitForToken_MissingAccessToken(t *testing.T) {
 	assert.Contains(t, err.Error(), "missing")
 }
 
-// ---------------------------------------------------------------------------
-// NewClient — timeout flooring
-// ---------------------------------------------------------------------------
-
 func TestNewClient_TimeoutFloor(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -520,10 +500,6 @@ func TestNewClient_TimeoutFloor(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// NewClient — proxy URL validation
-// ---------------------------------------------------------------------------
 
 func TestNewClient_Proxy(t *testing.T) {
 	tests := []struct {
@@ -571,10 +547,6 @@ func TestNewClient_Proxy(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// decodeAuthError — table-driven for all 4 sentinel cases plus unknown
-// ---------------------------------------------------------------------------
 
 func TestDecodeAuthError_AllStates(t *testing.T) {
 	tests := []struct {

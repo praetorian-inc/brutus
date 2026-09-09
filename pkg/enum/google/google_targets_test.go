@@ -66,13 +66,11 @@ func newTargetsMockServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// ---------------------------------------------------------------------------
 // TestGoogleEnumerateTargetsWith_NamesRideOnResult
 // Core test: 3 targets with distinct names against a stub that reports
 // existence for all of them. Each returned Result must carry the name of the
 // target that produced it, correlated by email. An implementation that
 // stamps every Result with the first target's name fails this test.
-// ---------------------------------------------------------------------------
 
 func TestGoogleEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	t.Parallel()
@@ -105,11 +103,9 @@ func TestGoogleEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestGoogleEnumerateTargetsWith_NamelessTargetStaysNameless
 // A Target with no name (address supplied by the operator, not generated)
 // must yield First=="" && Last=="". The library must never invent a name.
-// ---------------------------------------------------------------------------
 
 func TestGoogleEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	t.Parallel()
@@ -126,12 +122,10 @@ func TestGoogleEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	assert.Empty(t, results[0].Last, "Last must stay empty for a nameless Target")
 }
 
-// ---------------------------------------------------------------------------
 // TestGoogleEnumerateWith_StillWorksAndYieldsEmptyNames
 // Pins that the existing EnumerateWith([]string) entry point is unaffected by
 // the refactor: it still returns correct results, and since bare addresses
 // carry no name, First/Last must be empty.
-// ---------------------------------------------------------------------------
 
 func TestGoogleEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	t.Parallel()
@@ -159,12 +153,10 @@ func TestGoogleEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestGoogleEnumerateTargetsWith_NamesSurviveErrorPath
 // A name is a property of the address, not of the check outcome. Drive a
 // Result whose Error is non-nil (GXLU connection hijacked/closed) and assert
 // the name is still stamped.
-// ---------------------------------------------------------------------------
 
 func TestGoogleEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	t.Parallel()
@@ -187,11 +179,9 @@ func TestGoogleEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	assert.Equal(t, "fail", r.Last, "name must survive even when the probe errors")
 }
 
-// ---------------------------------------------------------------------------
 // TestGoogleEnumerateTargetsWith_MixedNamedAndUnnamed
 // A single batch containing both named and unnamed targets: each Result must
 // get exactly its own target's name, or empty for the unnamed ones.
-// ---------------------------------------------------------------------------
 
 func TestGoogleEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	t.Parallel()
@@ -223,12 +213,10 @@ func TestGoogleEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestGoogleEnumerateTargetsWith_OrderingAndLength
 // len(results) == len(targets) and every index is filled even when some
 // probes fail. Completion order is not asserted (the worker pool is
 // concurrent); correlation is by email.
-// ---------------------------------------------------------------------------
 
 func TestGoogleEnumerateTargetsWith_OrderingAndLength(t *testing.T) {
 	t.Parallel()
@@ -267,7 +255,6 @@ func TestGoogleEnumerateTargetsWith_OrderingAndLength(t *testing.T) {
 	assert.NoError(t, byEmail["ok2@x.com"].Error)
 }
 
-// ---------------------------------------------------------------------------
 // TestGoogleEnumerateTargetsWith_NamesSurviveCancelledContext
 // Chokepoint test: with the context already canceled before the call, every
 // goroutine takes the <-ctx.Done() early-return branch and calls
@@ -276,7 +263,6 @@ func TestGoogleEnumerateTargetsWith_OrderingAndLength(t *testing.T) {
 // (record(i, e.CheckAccount(...))) rather than inside record() itself, these
 // Results would come back nameless. This is what makes record() the enforced
 // chokepoint rather than an incidental detail.
-// ---------------------------------------------------------------------------
 
 func TestGoogleEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T) {
 	t.Parallel()

@@ -37,10 +37,6 @@ func newTestClient(baseURL string) *Client {
 	return c
 }
 
-// ---------------------------------------------------------------------------
-// T101: toContact + APIError/Unwrap
-// ---------------------------------------------------------------------------
-
 func TestToContact(t *testing.T) {
 	// v3 batch response: results array with top-level emails/phones on each result
 	// (no contactMethods wrapper). Verified against live API 2026-06-26.
@@ -173,10 +169,6 @@ func TestAPIError_Error(t *testing.T) {
 	assert.NotContains(t, err.Error(), "SECRETKEY-DO-NOT-LEAK",
 		"APIError.Error() must not include Details (P0-1 key-leak prevention)")
 }
-
-// ---------------------------------------------------------------------------
-// T102: Enrich success + auth header + request body
-// ---------------------------------------------------------------------------
 
 func TestEnrich_Success(t *testing.T) {
 	var capturedReqBody []byte
@@ -406,10 +398,6 @@ func TestEnrich_ContextCancellation(t *testing.T) {
 	_, err := c.Enrich(ctx, &ContactQuery{Email: "a@b.com"}, RevealOptions{Email: true})
 	require.Error(t, err, "context cancellation must produce an error")
 }
-
-// ---------------------------------------------------------------------------
-// T106: SearchDomain — prospecting search + enrich pagination
-// ---------------------------------------------------------------------------
 
 // prospectSearchBody mirrors the fields our handler needs to inspect.
 type prospectSearchBody struct {

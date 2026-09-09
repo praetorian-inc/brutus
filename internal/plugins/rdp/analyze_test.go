@@ -167,10 +167,6 @@ func TestRgbaToPNG(t *testing.T) {
 	assert.Equal(t, byte(0x50), pngData[1])
 }
 
-// ---------------------------------------------------------------------------
-// A1: detectChangedRectangle returns bounding box
-// ---------------------------------------------------------------------------
-
 func TestDetectChangedRectangle_ReturnsBox(t *testing.T) {
 	w, h := uint32(100), uint32(100)
 	size := int(w) * int(h) * 4
@@ -194,10 +190,6 @@ func TestDetectChangedRectangle_ReturnsBox(t *testing.T) {
 	assert.Equal(t, 79, box.maxY)
 	assert.Greater(t, box.changedCount, 0)
 }
-
-// ---------------------------------------------------------------------------
-// A2: classifyRegion — console vs dialog vs unknown discrimination
-// ---------------------------------------------------------------------------
 
 // paintBox fills a rectangular region of an RGBA buffer with the given gray value.
 func paintBox(buf []byte, w, x0, y0, x1, y1 int, gray byte) {
@@ -247,13 +239,11 @@ func TestClassifyRegion_Unknown(t *testing.T) {
 	assert.Equal(t, regionUnknown, classifyRegion(resp, w, h, box))
 }
 
-// ---------------------------------------------------------------------------
 // A3: decideVerdict — gates backdoor_likely on keepHigh boolean
 // Signature: decideVerdict(verdict string, keepHigh bool) string
 // When keepHigh=false a backdoor_likely is downgraded to indeterminate.
 // All other verdicts pass through unchanged.
 // CARDINAL RULE: backdoor_likely with keepHigh=false → indeterminate, NEVER clean.
-// ---------------------------------------------------------------------------
 
 func TestDecideVerdict(t *testing.T) {
 	tests := []struct {
@@ -289,12 +279,10 @@ func TestDecideVerdict(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // A6: consoleGatePasses — pure predicate unit table
 // Signature: consoleGatePasses(response []byte, width, height uint32, box changedBox, confidence float64) bool
 // Tests cover: FP fragmented shift, full-screen console, windowed console,
 // confidence-floor path, floor boundary, below-floor non-rect, degenerate box.
-// ---------------------------------------------------------------------------
 
 func TestConsoleGatePasses(t *testing.T) {
 	const W, H = uint32(1024), uint32(768)
@@ -410,11 +398,9 @@ func TestConsoleGatePasses(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // A7: TestConsoleGate_EndToEnd — end-to-end frame→verdict gate behavior
 // Drives runUtilmanAnalysis and runStickyKeysAnalysis on 1024×768 RGBA frames.
 // No WASM, no network. Baseline = uniform mid-gray 128.
-// ---------------------------------------------------------------------------
 
 func TestConsoleGate_EndToEnd(t *testing.T) {
 	const W, H = uint32(1024), uint32(768)
@@ -531,12 +517,10 @@ func TestConsoleGate_EndToEnd(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // A4: runStickyKeysAnalysis — light/small/centered dialog → clean
 // A light legit dialog (gray 200) adds almost no dark pixels, so the
 // dark-delta discriminator correctly returns "clean", not indeterminate.
 // This is the better outcome vs. the old behavioral approach.
-// ---------------------------------------------------------------------------
 
 func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	w, h := uint32(1000), uint32(1000)
@@ -555,10 +539,6 @@ func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	assert.NotEqual(t, "backdoor_likely", res.OverallVerdict,
 		"a light legit dialog must not be flagged as backdoor_likely")
 }
-
-// ---------------------------------------------------------------------------
-// B: dark-pixel-delta core logic — new tests for the primary discriminator
-// ---------------------------------------------------------------------------
 
 // TestDarkPixelCount verifies the count of pixels below darkBrightnessMax.
 func TestDarkPixelCount(t *testing.T) {
@@ -698,10 +678,6 @@ func TestDarkDeltaVerdict(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// C1: structural guard — runStickyKeysAnalysis must have the vulnerable branch
-// ---------------------------------------------------------------------------
-
 // TestRunStickyKeysAnalysis_HasVulnerableBranch guards that runStickyKeysAnalysis
 // contains a symmetric `visionVerdict == "vulnerable"` branch matching the one
 // already present in runUtilmanAnalysis (analyze.go ~line 456).
@@ -719,10 +695,6 @@ func TestRunStickyKeysAnalysis_HasVulnerableBranch(t *testing.T) {
 		"runStickyKeysAnalysis is missing the visionVerdict == \"vulnerable\" branch; "+
 			"found %d occurrence(s), need >= 2 (one per analysis function)", count)
 }
-
-// ---------------------------------------------------------------------------
-// A5: regionConfidenceAndNote — pure verdict×region → (confidence, note)
-// ---------------------------------------------------------------------------
 
 func TestRegionConfidenceAndNote(t *testing.T) {
 	const base = 0.75

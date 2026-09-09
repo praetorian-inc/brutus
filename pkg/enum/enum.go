@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// pkg/enum/enum.go
+// Package enum implements account-enumeration oracles, username generation,
+// and a shared worker pool used by the brutus enum subcommands.
 package enum
 
 import (

@@ -329,10 +329,6 @@ func TestFramesQuiet(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Task 7: composition guard — gate output composes with never-clean invariant
-// ---------------------------------------------------------------------------
-
 // TestConsoleGate_ComposesWithStabilizedVerdict locks the composition invariant:
 // after the console gate downgrades backdoor_likely → indeterminate, the
 // stabilizedVerdict pass-through must leave "indeterminate" unchanged. Neither
@@ -379,13 +375,11 @@ func TestCheckLabeling(t *testing.T) {
 	assert.Equal(t, BackdoorUtilman, utilman.Check)
 }
 
-// ---------------------------------------------------------------------------
 // Outcome normalization: the dial-failure vs. other-failure distinction must
 // survive the hop out of this package, because pkg/brutus/logon turns
 // Unreachable into a TERMINAL verdict and every other !Performed failure into
 // a rerun candidate. Flattening the two together here would silently make
 // unreachable hosts retryable, or worse, clean.
-// ---------------------------------------------------------------------------
 
 func TestStickyOutcome_PreservesUnreachable(t *testing.T) {
 	out := stickyOutcome(&StickyKeysResult{Performed: false, Unreachable: true, SkipReason: "connection failed: i/o timeout"})

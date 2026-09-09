@@ -25,10 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// T10: EnumerateWithPlugin
-// ---------------------------------------------------------------------------
-
 // stubPlugin is an in-test implementation of Plugin that always returns a
 // configurable result. It is safe for concurrent use (stateless).
 type stubPlugin struct {
@@ -150,7 +146,6 @@ func TestEnumerateWithPlugin_SingleThread(t *testing.T) {
 	require.Len(t, results, 5, "single-threaded must still produce all results")
 }
 
-// ---------------------------------------------------------------------------
 // 10T-535 PR2: Config.Targets carries names through the framework, ADDITIVELY
 // alongside the legacy Config.Emails field. Nothing above this line changes:
 // the tests above still construct Config with only Emails, which is itself
@@ -160,7 +155,6 @@ func TestEnumerateWithPlugin_SingleThread(t *testing.T) {
 // promote each Emails entry to a nameless Target{Email: e}. validate() must
 // accept either field being populated and must keep rejecting the case
 // where both are empty.
-// ---------------------------------------------------------------------------
 
 // recordingPlugin is a stub Plugin that records every email it was asked to
 // Check, so tests can assert exactly what the framework passed into the

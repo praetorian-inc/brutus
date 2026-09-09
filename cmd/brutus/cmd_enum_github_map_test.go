@@ -24,10 +24,6 @@ import (
 	githubenum "github.com/praetorian-inc/brutus/pkg/enum/github"
 )
 
-// ---------------------------------------------------------------------------
-// Flag registration
-// ---------------------------------------------------------------------------
-
 // TestEnumGithubMapCmd_Flags verifies that enumGithubMapCmd carries the
 // required flags and shorthands, and that no shorthand collides with the
 // global persistent --threads/-t flag.
@@ -56,10 +52,6 @@ func TestEnumGithubMapCmd_Flags(t *testing.T) {
 		"enumGithubMapCmd must not define a local -t shorthand (collides with global --threads/-t)")
 }
 
-// ---------------------------------------------------------------------------
-// Command wiring
-// ---------------------------------------------------------------------------
-
 // TestEnumGithubMapCmd_WiredUnderGithub verifies that enumGithubMapCmd is
 // registered as a child of enumGithubCmd with Use == "map".
 func TestEnumGithubMapCmd_WiredUnderGithub(t *testing.T) {
@@ -72,10 +64,6 @@ func TestEnumGithubMapCmd_WiredUnderGithub(t *testing.T) {
 	}
 	assert.True(t, found, `enumGithubCmd must have a "map" subcommand`)
 }
-
-// ---------------------------------------------------------------------------
-// collectGithubEmails
-// ---------------------------------------------------------------------------
 
 // TestCollectGithubEmails exercises the shared email-collection helper with
 // table-driven cases covering CSV dedup+trim, generated appending, and the
@@ -137,10 +125,6 @@ func TestCollectGithubEmails(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// githubMapResults
-// ---------------------------------------------------------------------------
 
 // TestGithubMapResults verifies that githubMapResults builds per-email results
 // from the reveal mapping, preserving input order and correctly marking

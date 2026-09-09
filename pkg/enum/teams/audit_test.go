@@ -39,10 +39,6 @@ func hasFinding(findings []Finding, id string) bool {
 	return ok
 }
 
-// ---------------------------------------------------------------------------
-// Test 1: TestAudit_ExternalAccessOpen
-// ---------------------------------------------------------------------------
-
 func TestAudit_ExternalAccessOpen(t *testing.T) {
 	baseResult := EnumResult{
 		Email:  "alice@contoso.com",
@@ -73,10 +69,6 @@ func TestAudit_ExternalAccessOpen(t *testing.T) {
 			"teams-external-access must be absent when ExternalChatAllowed==\"unknown\"")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Test 2: TestAudit_UserEnumeration
-// ---------------------------------------------------------------------------
 
 func TestAudit_UserEnumeration(t *testing.T) {
 	posture := TenantPosture{ExternalChatAllowed: "open"}
@@ -115,10 +107,6 @@ func TestAudit_UserEnumeration(t *testing.T) {
 			"teams-user-enumeration must be absent when Exists==ExistenceUnknown")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Test 3: TestAudit_PresenceAndOOF_GatedByPresenceChecked
-// ---------------------------------------------------------------------------
 
 func TestAudit_PresenceAndOOF_GatedByPresenceChecked(t *testing.T) {
 	posture := TenantPosture{ExternalChatAllowed: "blocked"}
@@ -187,10 +175,6 @@ func TestAudit_PresenceAndOOF_GatedByPresenceChecked(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// Test 4: TestAudit_MetadataDisclosure
-// ---------------------------------------------------------------------------
-
 func TestAudit_MetadataDisclosure(t *testing.T) {
 	posture := TenantPosture{ExternalChatAllowed: "open"}
 
@@ -252,10 +236,6 @@ func TestAudit_MetadataDisclosure(t *testing.T) {
 			"teams-metadata-disclosure must be absent when Exists!=ExistenceYes")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Test 5: TestAudit_Ordering
-// ---------------------------------------------------------------------------
 
 func TestAudit_Ordering(t *testing.T) {
 	// Craft a result+posture that triggers Medium + Low + Info findings.
@@ -365,10 +345,6 @@ func TestAudit_Ordering_WithinSeverityByID(t *testing.T) {
 		"teams-user-enumeration must appear among Info-severity findings (severity changed from Low to Info)")
 }
 
-// ---------------------------------------------------------------------------
-// Test 6: TestAudit_NoTokensInFindings
-// ---------------------------------------------------------------------------
-
 // TestAudit_NoTokensInFindings verifies that token-sentinel strings never
 // appear in any Finding field. The Audit function receives no tokens, so this
 // is primarily a structural guard: if caller code ever accidentally routes token
@@ -430,10 +406,6 @@ func TestAudit_NoTokensInFindings(t *testing.T) {
 			"Remediation must not contain the access-token sentinel")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Helpers used across multiple tests
-// ---------------------------------------------------------------------------
 
 // TestAudit_EmptyResult verifies that Audit never panics on a zero-value result
 // and returns an empty (non-nil) slice.

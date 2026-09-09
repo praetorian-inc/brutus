@@ -29,10 +29,6 @@ import (
 	githubenum "github.com/praetorian-inc/brutus/pkg/enum/github"
 )
 
-// ---------------------------------------------------------------------------
-// Flag registration
-// ---------------------------------------------------------------------------
-
 // TestEnumGithubCmd_Flags verifies that enumGithubCmd carries the required
 // flags and shorthands, and that no shorthand collides with the global
 // persistent --threads/-t flag.
@@ -76,10 +72,6 @@ func TestEnumGithubCmd_Flags(t *testing.T) {
 	require.Nil(t, noT,
 		"enumGithubCmd must not define a local -t shorthand (collides with global --threads/-t)")
 }
-
-// ---------------------------------------------------------------------------
-// Command wiring (HARD MOVE assertion)
-// ---------------------------------------------------------------------------
 
 // TestEnumGithubCmd_WiredUnderActiveCmd verifies the cobra tree after the
 // "enum active" hard move:
@@ -128,10 +120,6 @@ func TestEnumGithubCmd_WiredUnderActiveCmd(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// --no-reveal flag contract
-// ---------------------------------------------------------------------------
-
 // TestEnumGithubCmd_NoRevealFlag asserts the flag-level contract for the
 // boolean --no-reveal flag registered on enumGithubCmd:
 //  1. The flag exists on the command.
@@ -146,7 +134,6 @@ func TestEnumGithubCmd_NoRevealFlag(t *testing.T) {
 	assert.Equal(t, "", f.Shorthand, "--no-reveal must have no shorthand")
 }
 
-// ---------------------------------------------------------------------------
 // githubEnumTargetList
 //
 // 10T-535 (3/8): githubEnumTargets() ([]string, error) is retargeted onto
@@ -155,7 +142,6 @@ func TestEnumGithubCmd_NoRevealFlag(t *testing.T) {
 // assertion (dedup, "provide" error) is preserved; the tests are
 // strengthened to also assert the never-invent-a-name rule for
 // CLI-supplied addresses.
-// ---------------------------------------------------------------------------
 
 func resetGithubEnumTargetFlags() (restore func()) {
 	origEmails := flagGithubEnumEmails
@@ -277,10 +263,6 @@ func TestGithubEnumTargetList_DedupPrecedence(t *testing.T) {
 	assert.Empty(t, got[0].Last, "the surviving deduplicated entry must be the CLI-supplied one and carry no name")
 }
 
-// ---------------------------------------------------------------------------
-// resolveGithubToken
-// ---------------------------------------------------------------------------
-
 // TestResolveGithubToken verifies the flag-overrides-env, env-fallback, and
 // empty-allowed behaviors. The token is never required (existence-only mode is
 // valid with an empty token).
@@ -341,10 +323,6 @@ func TestResolveGithubToken_FlagValueReturned(t *testing.T) {
 	assert.Equal(t, "flag-overrides", got,
 		"flag value must take precedence over GITHUB_TOKEN env var")
 }
-
-// ---------------------------------------------------------------------------
-// outputGithubEnumJSONL
-// ---------------------------------------------------------------------------
 
 // TestOutputGithubEnumJSONL verifies the JSON structure of each output line:
 // type, email, exists, optional username and error fields.
@@ -438,10 +416,6 @@ func TestOutputGithubEnumJSONL(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// outputGithubEnumJSONL — First/Last name propagation (10T-535, 3/8)
-// ---------------------------------------------------------------------------
-
 // TestOutputGithubEnumJSONL_NameFields pins the never-invent-a-name rule: a
 // Result carrying First/Last (from --domain generation) must emit
 // "first"/"last" in the JSONL row, while a Result with empty First/Last
@@ -527,10 +501,6 @@ func TestOutputGithubEnumJSONL_NameFields(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// outputGithubEnumResultLine
-// ---------------------------------------------------------------------------
-
 // TestOutputGithubEnumResultLine_Error verifies that a result with a non-nil
 // Error renders the dedicated error row: the red "[-]" symbol, the literal
 // word "error", and a truncated/sanitized chunk of the error message. It must
@@ -569,10 +539,6 @@ func TestOutputGithubEnumResultLine_NotFoundStillWorks(t *testing.T) {
 	assert.NotContains(t, out, " error ", "a not-found result must not render the error row")
 }
 
-// ---------------------------------------------------------------------------
-// outputGithubEnumSummary
-// ---------------------------------------------------------------------------
-
 // TestOutputGithubEnumSummary_ShowsRepresentativeError verifies that when
 // errored results are present, the summary shows an "Errors: N" line followed
 // by a representative "e.g. <msg>" line containing the FIRST errored
@@ -597,10 +563,6 @@ func TestOutputGithubEnumSummary_ShowsRepresentativeError(t *testing.T) {
 		"summary need only show the first errored result's message, not every one")
 }
 
-// ---------------------------------------------------------------------------
-// firstGithubEnumError
-// ---------------------------------------------------------------------------
-
 // TestFirstGithubEnumError verifies that firstGithubEnumError returns the
 // first non-nil error's message, and "" when no result has an error.
 func TestFirstGithubEnumError(t *testing.T) {
@@ -624,7 +586,6 @@ func TestFirstGithubEnumError(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // stampGithubResultNames (10T-535, 3/8)
 //
 // pkg/enum/github/existence.go's EnumerateWith does `results[i] = res;
@@ -637,7 +598,6 @@ func TestFirstGithubEnumError(t *testing.T) {
 // without a network call. These tests pin exactly the property the loop
 // exists for: index-based, in-place mutation of the caller's slice — a
 // by-value `for _, r := range results` "simplification" must fail them.
-// ---------------------------------------------------------------------------
 
 // TestStampGithubResultNames_HitStampsNameFromIndex verifies that a result
 // whose email is present in the index gets its First/Last stamped from the

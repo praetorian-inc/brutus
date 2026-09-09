@@ -97,11 +97,9 @@ func newMockServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// ---------------------------------------------------------------------------
 // TestCheckAccount_WorkspaceSSO_SAMLHeader
 // AccountChooser responds with Google-Accounts-SAML header and no Location.
 // Existence confirmed, Method=workspace-sso, IdP="" (no Location to parse).
-// ---------------------------------------------------------------------------
 
 func TestCheckAccount_WorkspaceSSO_SAMLHeader(t *testing.T) {
 	t.Parallel()
@@ -119,11 +117,9 @@ func TestCheckAccount_WorkspaceSSO_SAMLHeader(t *testing.T) {
 	assert.Equal(t, "saml@example.com", res.Email)
 }
 
-// ---------------------------------------------------------------------------
 // TestCheckAccount_WorkspaceSSO_NonGoogleRedirect
 // AccountChooser returns Location to a non-Google host (Okta IdP redirect).
 // Existence confirmed, Method=workspace-sso, IdP="login.okta.com".
-// ---------------------------------------------------------------------------
 
 func TestCheckAccount_WorkspaceSSO_NonGoogleRedirect(t *testing.T) {
 	t.Parallel()
@@ -141,11 +137,9 @@ func TestCheckAccount_WorkspaceSSO_NonGoogleRedirect(t *testing.T) {
 	assert.Equal(t, "okta@example.com", res.Email)
 }
 
-// ---------------------------------------------------------------------------
 // TestCheckAccount_Gmail_GXLU
 // AccountChooser returns Google ServiceLogin (not found via SSO).
 // GXLU server sets GMAIL_AT cookie → Exists=true, Method=gmail, IdP="".
-// ---------------------------------------------------------------------------
 
 func TestCheckAccount_Gmail_GXLU(t *testing.T) {
 	t.Parallel()
@@ -162,12 +156,10 @@ func TestCheckAccount_Gmail_GXLU(t *testing.T) {
 	assert.Equal(t, "gmail@example.com", res.Email)
 }
 
-// ---------------------------------------------------------------------------
 // TestCheckAccount_NotFound
 // AccountChooser: Google ServiceLogin redirect (no SSO).
 // GXLU: no GMAIL_AT cookie.
 // Result: Exists=false, Method=MethodNone.
-// ---------------------------------------------------------------------------
 
 func TestCheckAccount_NotFound(t *testing.T) {
 	t.Parallel()
@@ -184,10 +176,8 @@ func TestCheckAccount_NotFound(t *testing.T) {
 	assert.Equal(t, "unknown@example.com", res.Email)
 }
 
-// ---------------------------------------------------------------------------
 // TestCheckAccount_TransportError (optional)
 // Point base URLs at a closed port → transport error → Exists=false, Error!=nil.
-// ---------------------------------------------------------------------------
 
 func TestCheckAccount_TransportError(t *testing.T) {
 	t.Parallel()
@@ -210,7 +200,6 @@ func TestCheckAccount_TransportError(t *testing.T) {
 	assert.NotNil(t, res.Error, "transport error must be reflected in Result.Error")
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_Callback
 // 6 emails, threads=4, onResult callback appends under a mutex.
 // After the run:
@@ -221,7 +210,6 @@ func TestCheckAccount_TransportError(t *testing.T) {
 //
 // Run the package under -race (go test -race ./pkg/enum/google/) to verify
 // the callback serialization guarantee.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_Callback(t *testing.T) {
 	t.Parallel()
@@ -281,10 +269,8 @@ func TestEnumerateWith_Callback(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_NilCallback
 // Passing nil as the callback must not panic and must return one result per email.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_NilCallback(t *testing.T) {
 	t.Parallel()
@@ -299,7 +285,6 @@ func TestEnumerateWith_NilCallback(t *testing.T) {
 	require.Len(t, results, len(emails), "nil callback must not panic; must return one result per email")
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_CanceledContextRecordsAllSlots
 // Regression guard: with an already-canceled context, every worker hits the
 // <-ctx.Done() guard before any HTTP call. Each guard must still call
@@ -307,7 +292,6 @@ func TestEnumerateWith_NilCallback(t *testing.T) {
 // order preserved) and the callback fires exactly once per email. Reverting
 // that record() call leaves the dropped slots as zero-value Result{} (empty
 // Email, nil Error) and skips the callback for those emails.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_CanceledContextRecordsAllSlots(t *testing.T) {
 	t.Parallel()
@@ -344,13 +328,11 @@ func TestEnumerateWith_CanceledContextRecordsAllSlots(t *testing.T) {
 	assert.Len(t, cbResults, len(emails), "onResult callback must fire exactly once per email, even on the canceled-context path")
 }
 
-// ---------------------------------------------------------------------------
 // TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang
 // Regression guard: threads<=0 must be normalized to 1 before g.SetLimit.
 // SetLimit(0) would permit zero concurrent goroutines, so no worker could ever
 // run and EnumerateWith would hang forever. Guarded by a timeout rather than
 // relying solely on `go test -timeout`, so failure is immediate and specific.
-// ---------------------------------------------------------------------------
 
 func TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
 	tests := []struct {
@@ -393,13 +375,11 @@ func TestEnumerateWith_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestCheckAccount_SendsBrowserUserAgent
 // Regression guard: NewEnumerator wraps its transport with enum.WithUserAgent
 // so outbound requests carry a browser User-Agent instead of Go's default
 // "Go-http-client/1.1". Captures the User-Agent seen by both the
 // AccountChooser and GXLU endpoints and asserts it looks like a browser UA.
-// ---------------------------------------------------------------------------
 
 func TestCheckAccount_SendsBrowserUserAgent(t *testing.T) {
 	t.Parallel()
@@ -434,10 +414,6 @@ func TestCheckAccount_SendsBrowserUserAgent(t *testing.T) {
 	assert.NotContains(t, ua, "Go-http-client", "requests must not carry Go's default User-Agent")
 	assert.Contains(t, ua, "Mozilla", "requests must carry a browser User-Agent")
 }
-
-// ---------------------------------------------------------------------------
-// idpHost helper (unit coverage for the unexported helper)
-// ---------------------------------------------------------------------------
 
 func Test_idpHost(t *testing.T) {
 	tests := []struct {

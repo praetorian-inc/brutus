@@ -61,10 +61,6 @@ const (
 	headerAPIKey = "api_key"
 )
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 // ContactQuery carries exactly one identity group (validated at the CLI layer).
 type ContactQuery struct {
 	FirstName     string
@@ -167,10 +163,6 @@ func (e *APIError) Unwrap() error {
 	}
 	return nil
 }
-
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
 
 // Client holds state for querying the Lusha v3 search-and-enrich API.
 type Client struct {
@@ -280,10 +272,6 @@ func (c *Client) SearchDomain(ctx context.Context, domain string, limit int) (*D
 
 	return result, nil
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 // do performs a single JSON request. It sets the api_key header inline (never
 // in the URL), reads the body via the bounded reader (P0-3), and maps non-2xx
@@ -525,12 +513,10 @@ func toProspectContact(d *prospectEnrichData) Contact {
 	return c
 }
 
-// ---------------------------------------------------------------------------
 // JSON-mapping structs (unexported) — verified against live API 2026-06-26.
 // Architecture §11: isolated here so a single edit corrects a live mismatch
 // without touching control flow. httptest tests use controlled payloads and
 // pass regardless of live-schema correctness.
-// ---------------------------------------------------------------------------
 
 // lushaEnrichRequest is the v3 search-and-enrich request body. The real v3
 // POST /v3/contacts/search-and-enrich uses a BATCH shape: a contacts array
@@ -628,10 +614,8 @@ type lushaErrorEnvelope struct {
 	Message string `json:"message"`
 }
 
-// ---------------------------------------------------------------------------
 // Prospecting (roster) JSON-mapping structs — field names DIFFER from the
 // single-identity search-and-enrich structs above. Verified live 2026-06-26.
-// ---------------------------------------------------------------------------
 
 // prospectSearchRequest filters prospecting search by company domain.
 type prospectSearchRequest struct {

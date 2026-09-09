@@ -29,10 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Task 1.1 — golden bytes for buildNegReq
-// ---------------------------------------------------------------------------
-
 // TestNegoBuildNegReq verifies that buildNegReq() returns exactly the 19-byte
 // TPKT+X.224 Connection Request with embedded RDP_NEG_REQ (no cookie), using
 // requestedProtocols = PROTOCOL_SSL = 0x00000001.  Offering HYBRID would cause
@@ -49,10 +45,6 @@ func TestNegoBuildNegReq(t *testing.T) {
 	}
 	assert.Equal(t, want, buildNegReq())
 }
-
-// ---------------------------------------------------------------------------
-// Task 1.2 — table-driven test for classifyNegResponse
-// ---------------------------------------------------------------------------
 
 // ccWithNeg builds a TPKT+X.224 Connection Confirm (code 0xD0) of total length
 // 19 with an 8-byte negotiation trailer so classifyNegResponse has a valid
@@ -169,10 +161,6 @@ func TestNegoClassify(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Task 1.3 — fakeConn + ProbeNLA round-trip tests
-// ---------------------------------------------------------------------------
-
 // fakeConn implements net.Conn backed by a bytes.Buffer for reads and records
 // all bytes written so tests can assert the exact wire request sent.
 // SetDeadline/SetReadDeadline/SetWriteDeadline are no-ops (return nil).
@@ -240,10 +228,6 @@ func TestProbeNLA_EmptyEOF(t *testing.T) {
 	got := ProbeNLA(context.Background(), fc, 2*time.Second)
 	assert.Equal(t, NegoProbeError, got)
 }
-
-// ---------------------------------------------------------------------------
-// Task 1 — NegoUnreachable distinct class test
-// ---------------------------------------------------------------------------
 
 // TestNegoUnreachable_IsDistinctClass verifies that NegoUnreachable is a 4th,
 // distinct NegoClass value. All four values must be distinct — if any two share

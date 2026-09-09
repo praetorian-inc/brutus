@@ -22,10 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// RevealWith: onProgress callback sequencing
-// ---------------------------------------------------------------------------
-
 // TestRevealWith_ProgressCallback verifies that RevealWith invokes onProgress
 // exactly once per email, with strictly increasing done values 1, 2, …, N and
 // total always equal to len(emails). The final invocation must have done ==

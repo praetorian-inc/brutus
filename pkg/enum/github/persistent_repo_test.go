@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
 // Persistent reveal repo (SetRevealRepo)
 //
 // These tests exercise the opt-in mode in which RevealWith REUSES a named
@@ -39,7 +38,6 @@ import (
 // recording server below counts every route reveal touches, so each test can
 // assert not just the returned mapping but the request pattern — which is the
 // whole point of the mode (no repo churn, no delete, a bounded commit listing).
-// ---------------------------------------------------------------------------
 
 // revealRecorder records the requests a reveal run made against the fake API.
 type revealRecorder struct {
@@ -453,10 +451,6 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
-// ---------------------------------------------------------------------------
-// SetRevealRepo: name validation
-// ---------------------------------------------------------------------------
-
 // TestSetRevealRepo_AcceptsValidNames verifies the names GitHub itself allows
 // are accepted and actually switch the enumerator into persistent mode.
 func TestSetRevealRepo_AcceptsValidNames(t *testing.T) {
@@ -529,10 +523,6 @@ func TestSetRevealRepo_RejectionLeavesPreviousModeIntact(t *testing.T) {
 
 	assert.Equal(t, "good-name", e.revealRepo, "the previously accepted name must survive a rejected one")
 }
-
-// ---------------------------------------------------------------------------
-// Persistent mode: repo resolution
-// ---------------------------------------------------------------------------
 
 // TestRevealWith_Persistent_ReusesExistingRepo is the steady state: the repo is
 // already there, so reveal READS it (one request, which also yields the default
@@ -716,9 +706,6 @@ func TestRevealWith_Persistent_RepoReadErrorFails(t *testing.T) {
 	assert.Zero(t, got.pushes)
 }
 
-// ---------------------------------------------------------------------------
-// Persistent mode: an existing repo must be confirmed private before reuse
-// ---------------------------------------------------------------------------
 //
 // Reveal writes every target email into commit metadata. A repo it did not
 // just create itself is not one it can assume anything about, so
@@ -806,10 +793,6 @@ func TestRevealWith_Persistent_RaceRereadRefusesPublicRepo(t *testing.T) {
 	assert.Zero(t, got.pushes, "no commits may be pushed after a race onto a public repo")
 	assert.Zero(t, got.repoDeletes)
 }
-
-// ---------------------------------------------------------------------------
-// Persistent mode: the commit listing is bounded to THIS call
-// ---------------------------------------------------------------------------
 
 // TestRevealWith_Persistent_SendsNoSince pins the redesign's removal of
 // ?since=: persistent mode no longer floors the commit listing by time at
@@ -984,7 +967,6 @@ func TestRevealWith_UnlinkedEmailStopsAtShortPage(t *testing.T) {
 	assert.Len(t, got.commitQueries, 1, "a short page ends the listing")
 }
 
-// ---------------------------------------------------------------------------
 // listCommitLogins: maxPages bounds the walk
 //
 // Review feedback on the early-stop mechanism above asked for a bound: without
@@ -994,7 +976,6 @@ func TestRevealWith_UnlinkedEmailStopsAtShortPage(t *testing.T) {
 // it actually stops the walk, reaching it is not an error, a batch bigger than
 // one page still gets every page it needs, and the early stop still wins
 // first when it can.
-// ---------------------------------------------------------------------------
 
 // manyFullCommitPages returns n pages of commitsPerPage entries each, none of
 // which mention any address a test in this section requests — used to script
@@ -1170,7 +1151,6 @@ func TestRevealWith_EarlyStopWinsForBatchEvenWithLargerBound(t *testing.T) {
 		"the early stop must win as soon as every requested address resolves, even though the bound permits a second page")
 }
 
-// ---------------------------------------------------------------------------
 // Persistent mode: the returned mapping is filtered to THIS call's emails
 //
 // A reused repo's commit history holds more than this call's own pushes: an
@@ -1180,7 +1160,6 @@ func TestRevealWith_EarlyStopWinsForBatchEvenWithLargerBound(t *testing.T) {
 // never asked about — was added to the returned mapping regardless. These
 // tests pin the fix: listCommitLogins must return pairs for the REQUESTED
 // emails and nothing else, named so the intent survives refactoring.
-// ---------------------------------------------------------------------------
 
 // TestRevealWith_Persistent_OmitsForeignEmailFromSameCommitPage is the direct
 // reproduction of the bug all three reviewers found: a commits page holding
@@ -1270,7 +1249,6 @@ func TestRevealWith_Persistent_DuplicateRequestedEmailStillResolves(t *testing.T
 		"the duplicate must not prevent the early paging stop once the single distinct email resolves")
 }
 
-// ---------------------------------------------------------------------------
 // Persistent mode: the run-branch model
 //
 // The reused-repo redesign gives every RevealWith call its OWN branch,
@@ -1280,7 +1258,6 @@ func TestRevealWith_Persistent_DuplicateRequestedEmailStillResolves(t *testing.T
 // tests exercise that lifecycle directly — creation, scoping of pushes and
 // the commit listing, cleanup (including on failure), and the bounded name-
 // collision retry.
-// ---------------------------------------------------------------------------
 
 // TestRevealWith_Persistent_RunBranchLifecycle is the steady-state case: an
 // existing private repo that already has a base commit. Reveal must create
@@ -1467,14 +1444,12 @@ func TestRevealWith_Persistent_RunBranchNameCollisionExhausted(t *testing.T) {
 	assert.Zero(t, got.pushes, "no commits may be pushed once the run branch could not be created")
 }
 
-// ---------------------------------------------------------------------------
 // Persistent mode: base commit initialization
 //
 // A newly created reveal repo is empty, and an empty repo has no commit to
 // branch the run branch from. ensureBaseCommit initializes it on the first
 // call, and every later call reuses that one commit as the base. These tests
 // exercise that path directly.
-// ---------------------------------------------------------------------------
 
 // TestRevealWith_Persistent_InitializesEmptyRepoOn404 covers the ref-read
 // answer for a genuinely empty repo (no branch yet): one init commit is

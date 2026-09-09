@@ -178,10 +178,6 @@ type session struct {
 	cookieHeader string
 }
 
-// ---------------------------------------------------------------------------
-// Constructor
-// ---------------------------------------------------------------------------
-
 // NewEnumerator builds an Enumerator. The HTTP client is built via
 // brutus.NewHTTPClientWithProxy so the SOCKS5 --proxy flag works. token may be
 // empty (existence-only mode); Reveal requires a non-empty token. When
@@ -259,10 +255,6 @@ func NewEnumerator(proxyURL string, timeout time.Duration, token string, rotatin
 		newName:             randomHexName,
 	}, nil
 }
-
-// ---------------------------------------------------------------------------
-// Package helpers
-// ---------------------------------------------------------------------------
 
 // parseCSRFToken walks the join page HTML and returns the value of the hidden
 // input nested inside the <auto-check src="/email_validity_checks"> element.

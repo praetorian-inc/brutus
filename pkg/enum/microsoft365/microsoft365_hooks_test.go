@@ -39,7 +39,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
 // TestWorker_Label
 // microsoft365's pre-migration panic diagnostics were prefixed
 // "microsoft365 enum", yielding "microsoft365 enum: panic checking %s: %v"
@@ -48,7 +47,6 @@ import (
 // this exact string must never drift -- changing it is a log-format change
 // for anything that greps stderr or a Result's Error text, not a cosmetic
 // rename.
-// ---------------------------------------------------------------------------
 
 func TestWorker_Label(t *testing.T) {
 	t.Parallel()
@@ -59,7 +57,6 @@ func TestWorker_Label(t *testing.T) {
 	assert.Equal(t, "microsoft365 enum", c.worker().Label)
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_NewErrorShape
 // microsoft365's failure results carry no fields beyond Email and Error
 // (PLAN.md Part 0.4). Comparing the full struct -- not just Email/Error
@@ -67,7 +64,6 @@ func TestWorker_Label(t *testing.T) {
 // have caught gravatar's Hash regression had it been applied there, so it
 // must prove a negative (nothing else got set) as well as a positive
 // (Email/Error got set).
-// ---------------------------------------------------------------------------
 
 func TestWorker_NewErrorShape(t *testing.T) {
 	t.Parallel()
@@ -81,13 +77,11 @@ func TestWorker_NewErrorShape(t *testing.T) {
 	assert.Equal(t, Result{Email: "a@b.com", Error: sentinel}, got)
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_StampNameCopiesFirstLastOnly
 // StampName's documented contract (targetworker.go) is a one-line copy of
 // First/Last from the originating Target. This asserts both halves of that
 // contract: First/Last land correctly, and every other field on an
 // already-populated Result is left untouched.
-// ---------------------------------------------------------------------------
 
 func TestWorker_StampNameCopiesFirstLastOnly(t *testing.T) {
 	t.Parallel()
@@ -119,7 +113,6 @@ func TestWorker_StampNameCopiesFirstLastOnly(t *testing.T) {
 	assert.Equal(t, before.Duration, res.Duration, "StampName must not touch Duration")
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_NilResultGuardRoutesThroughNewError
 //
 // PLAN.md Part 3.3 requires that microsoft365's nil-result substitute route
@@ -142,7 +135,6 @@ func TestWorker_StampNameCopiesFirstLastOnly(t *testing.T) {
 // the package's real NewError. It is the strongest assertion reachable
 // without contorting the production code for testability; it does not prove
 // the guard itself is reached.
-// ---------------------------------------------------------------------------
 
 func TestWorker_NilResultGuardRoutesThroughNewError(t *testing.T) {
 	t.Parallel()

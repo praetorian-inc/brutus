@@ -189,7 +189,7 @@ func TestRefine(t *testing.T) {
 		opts    RefineOptions
 		check   func(t *testing.T, got []Entry)
 	}{
-		// ----- CorporateOnly -----
+		// CorporateOnly
 		{
 			name: "CorporateOnly: keeps @domain email, drops @gmail.com email",
 			records: []Record{
@@ -224,7 +224,7 @@ func TestRefine(t *testing.T) {
 				assert.Equal(t, "bob@gmail.com", got[0].Email)
 			},
 		},
-		// ----- Dedup merge -----
+		// Dedup merge
 		{
 			name: "Dedup: two records with same email → one Entry, Count=2, databases merged",
 			records: []Record{
@@ -291,7 +291,7 @@ func TestRefine(t *testing.T) {
 				assert.ElementsMatch(t, []string{"+44-7000-000001", "+44-7000-000002"}, got[0].Phones)
 			},
 		},
-		// ----- ExcludeCombolists -----
+		// ExcludeCombolists
 		{
 			name: "ExcludeCombolists: Naz.API dropped",
 			records: []Record{
@@ -343,7 +343,7 @@ func TestRefine(t *testing.T) {
 				assert.Equal(t, "x@example.com", got[0].Email)
 			},
 		},
-		// ----- All opts false = passthrough -----
+		// All opts false = passthrough
 		{
 			name: "All opts false: @gmail kept, no dedup, combolists kept, Count=1",
 			records: []Record{
@@ -361,7 +361,7 @@ func TestRefine(t *testing.T) {
 				assert.Equal(t, "bob@gmail.com", got[1].Email)
 			},
 		},
-		// ----- Edge cases -----
+		// Edge cases
 		{
 			name:    "Empty input → empty output",
 			records: []Record{},

@@ -75,21 +75,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "389")
 
-	// Build LDAP URL
 	ldapURL := fmt.Sprintf("ldap://%s:%s", host, port)
 	if port == "636" {
 		ldapURL = fmt.Sprintf("ldaps://%s:%s", host, port)
 	}
 
-	// Connect to LDAP server with timeout
-	// Read TLS mode from context
 	tlsMode := pluginCfg.TLSMode
 
-	// Configure TLS based on mode
-	// Note: For LDAP, even "disable" needs TLS config for LDAPS (port 636)
+	// For LDAP, even "disable" needs TLS config for LDAPS (port 636).
 	var tlsConfig *tls.Config
 	switch tlsMode {
 	case "verify":
@@ -128,7 +123,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			}
 			conn = tlsConn
 		}
-		// Wrap the connection into an LDAP connection
 		ldapConn := ldap.NewConn(conn, isTLS)
 		ldapConn.Start()
 		defer func() { _ = ldapConn.Close() }()
@@ -154,13 +148,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Set operation timeout
 	conn.SetTimeout(timeout)
 
-	// Try binding with simple username first
 	err = conn.Bind(username, password)
 	if err == nil {
-		// Success with simple username
 		result.Success = true
 		return result
 	}
@@ -169,7 +160,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// The previous dc=example,dc=com DN patterns were dead code that never
 	// matched real LDAP directories.
 
-	// Classify the error
 	result.Error = classifyError(err)
 	return result
 }

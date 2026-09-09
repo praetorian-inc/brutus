@@ -87,7 +87,6 @@ func TestOutputTeamsEnumResultLine_AccountType(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			outputTeamsEnumResultLine(&buf, &tc.result, false /* useColor */)
@@ -141,7 +140,6 @@ func TestOutputTeamsEnumResultLine_Sanitizes(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			outputTeamsEnumResultLine(&buf, &tc.result, false)
@@ -206,7 +204,6 @@ func TestOutputTeamsEnumJSONL_AccountType(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			outputTeamsEnumJSONL(&buf, []teams.EnumResult{tc.result})

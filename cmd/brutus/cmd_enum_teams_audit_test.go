@@ -331,7 +331,6 @@ func TestOutputTeamsAuditHuman_SeverityLabels(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(string(tc.severity), func(t *testing.T) {
 			findings := []teams.Finding{
 				{

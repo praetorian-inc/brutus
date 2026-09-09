@@ -100,7 +100,6 @@ func fingerprintSingleTarget(target string, base *runConfig) (*fingerprintedServ
 func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, []nervaplugins.Service, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
-	// Phase 1: Parse host:port strings into Nerva targets.
 	var nervaTargets []nervaplugins.Target
 	for _, t := range targets {
 		nt, err := brutusinput.ParseNervaTarget(ctx, t)
@@ -116,7 +115,6 @@ func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, 
 		return nil, nil, false
 	}
 
-	// Phase 2: Fingerprint with Nerva.
 	if !base.quiet {
 		fmt.Fprintf(os.Stderr, "%s Fingerprinting %d target(s) with Nerva...\n",
 			dim(base.useColor, SymbolInfo), len(nervaTargets))

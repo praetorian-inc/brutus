@@ -119,7 +119,6 @@ func TestFormatDuration(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.expected, formatDuration(tc.input))
@@ -177,7 +176,6 @@ func TestProgressRate(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.expected, progressRate(tc.processed, tc.elapsed))

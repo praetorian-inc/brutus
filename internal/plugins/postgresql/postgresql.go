@@ -87,10 +87,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("postgresql", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "5432")
 
-	// Build PostgreSQL connection string.
 	// Default to dbname=postgres (the system database that always exists),
 	// consistent with how the MSSQL plugin defaults to database=master.
 	// Without this, lib/pq defaults to dbname=<username> which fails when
@@ -99,7 +97,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	connStr := fmt.Sprintf("dbname=postgres user=%s password=%s host=%s port=%s sslmode=%s connect_timeout=%d",
 		username, password, host, port, sslMode(pluginCfg.TLSMode), int(timeout.Seconds()))
 
-	// Open database connection
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		result.Error = classifyError(err)
@@ -107,18 +104,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = db.Close() }()
 
-	// Create context with timeout
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Test connection with Ping
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

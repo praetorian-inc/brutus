@@ -87,11 +87,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("rdp", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Parse target
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
-	// Parse domain\username (reuse SMB pattern)
 	domain, user := parseDomainUsername(username)
 
 	// Initialize WASM engine (singleton, first call compiles)
@@ -101,7 +99,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Create TCP connection with timeout (proxy-aware)
 	conn, err := brutus.DialWithProxy(ctx, "tcp", addr, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)

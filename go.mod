@@ -7,7 +7,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/go-ldap/ldap/v3 v3.4.14
-	github.com/go-sql-driver/mysql v1.10.0
+	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gocql/gocql v1.7.0
 	github.com/gosnmp/gosnmp v1.44.0
 	github.com/hirochachacha/go-smb2 v1.1.0

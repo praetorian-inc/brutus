@@ -204,7 +204,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Phase 1: DNS TXT recon — supporting context, not the headline. Surfaces
+	// DNS TXT recon is supporting context, not the headline. Surfaces
 	// the candidate oracles so the oracle check below has something to validate.
 	// Full TXT detail stays under --verbose and in JSON; the human path leads
 	// with a single "Discovered candidate oracles" line.

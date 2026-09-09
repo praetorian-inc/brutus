@@ -198,7 +198,6 @@ func parseTarget(target string, useHTTPS bool) (host string, port int) {
 	if strings.Contains(target, ":") {
 		h, p, err := net.SplitHostPort(target)
 		if err == nil {
-			// Parse port string to int
 			var portNum int
 			_, err := fmt.Sscanf(p, "%d", &portNum)
 			if err == nil {
@@ -207,7 +206,6 @@ func parseTarget(target string, useHTTPS bool) (host string, port int) {
 		}
 	}
 
-	// No port specified or parsing failed - use default
 	defaultPort := 5985
 	if useHTTPS {
 		defaultPort = 5986

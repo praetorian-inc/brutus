@@ -61,7 +61,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("smtp", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Connect with timeout (proxy-aware)
 	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -69,14 +68,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Set deadline for the entire operation
 	deadline := time.Now().Add(timeout)
 	if deadlineErr := conn.SetDeadline(deadline); deadlineErr != nil {
 		result.Error = brutus.WrapConnError(deadlineErr)
 		return result
 	}
 
-	// Create SMTP client
 	host, _, err := net.SplitHostPort(target)
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: invalid target format: %w", err)

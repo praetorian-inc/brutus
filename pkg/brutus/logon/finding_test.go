@@ -120,6 +120,20 @@ func TestFindingFrom_CarriesVerdictAndDiagnostics(t *testing.T) {
 	assert.Equal(t, "logoff by user", f.Diagnostics.TerminationReason)
 }
 
+func TestFindingFrom_CarriesScreenshots(t *testing.T) {
+	baseline := []byte{0x89, 0x50, 0x4E, 0x47, 0x01}
+	response := []byte{0x89, 0x50, 0x4E, 0x47, 0x02}
+	f := findingFrom("10.0.0.5:3389", &rdp.CheckOutcome{
+		Check:       rdp.BackdoorStickyKeys,
+		Performed:   true,
+		Verdict:     "backdoor_likely",
+		BaselinePNG: baseline,
+		ResponsePNG: response,
+	})
+	assert.Equal(t, baseline, f.BaselinePNG)
+	assert.Equal(t, response, f.ResponsePNG)
+}
+
 func TestTerminalFindings_RespectsSelector(t *testing.T) {
 	for _, tc := range []struct {
 		checks Check

@@ -441,6 +441,32 @@ func TestOutcome_CarriesEveryDiagnostic(t *testing.T) {
 	assert.Equal(t, "server initiated disconnect", out.TerminationReason)
 }
 
+func TestOutcome_CarriesScreenshots(t *testing.T) {
+	baseline := []byte{0x89, 0x50, 0x4E, 0x47, 0x01}
+	response := []byte{0x89, 0x50, 0x4E, 0x47, 0x02}
+
+	sticky := stickyOutcome(&StickyKeysResult{BaselinePNG: baseline, ResponsePNG: response})
+	assert.Equal(t, baseline, sticky.BaselinePNG)
+	assert.Equal(t, response, sticky.ResponsePNG)
+
+	utilman := utilmanOutcome(&UtilmanResult{BaselinePNG: baseline, ResponsePNG: response})
+	assert.Equal(t, baseline, utilman.BaselinePNG)
+	assert.Equal(t, response, utilman.ResponsePNG)
+}
+
+func TestEncodeFramePNG(t *testing.T) {
+	assert.Nil(t, encodeFramePNG(nil, 1, 1))
+	assert.Nil(t, encodeFramePNG([]byte{0, 0, 0, 255}, 0, 1))
+	assert.Nil(t, encodeFramePNG([]byte{0, 0, 0}, 1, 1))
+	assert.Nil(t, encodeFramePNG(make([]byte, 4), 2, 1))
+	assert.Nil(t, encodeFramePNG([]byte{1}, ^uint32(0), ^uint32(0)))
+
+	pngData := encodeFramePNG([]byte{0, 0, 0, 255}, 1, 1)
+	require.NotEmpty(t, pngData)
+	assert.Equal(t, byte(0x89), pngData[0])
+	assert.Equal(t, byte(0x50), pngData[1])
+}
+
 // TestSafeFilenameComponentCannotEscapeADirectory pins the traversal fix. A target
 // reaches dumpFrame straight from the scan list, and ParseTarget validates a host's
 // shape but not its contents, so a hostile targets-file line arrives intact.

@@ -66,6 +66,23 @@ func TestRunScanTargetsConcurrent_PreservesInputOrder(t *testing.T) {
 	assert.Equal(t, expectedOrder, actualOrder)
 }
 
+func TestRunScanTargetsConcurrent_DropsScreenshots(t *testing.T) {
+	withScanTargetFn(t, func(_ context.Context, target string, _ *runConfig) []logon.Finding {
+		return []logon.Finding{{
+			Target:      target,
+			Check:       logon.BackdoorStickyKeys,
+			Verdict:     logon.VerdictBackdoorLikely,
+			BaselinePNG: []byte{0x89, 0x50},
+			ResponsePNG: []byte{0x89, 0x51},
+		}}
+	})
+
+	findings := runScanTargetsConcurrent([]string{"a:3389"}, &runConfig{baseConfigOptions: &baseConfigOptions{threads: 1}})
+	assert.Len(t, findings, 1)
+	assert.Nil(t, findings[0].BaselinePNG)
+	assert.Nil(t, findings[0].ResponsePNG)
+}
+
 // TestRunScanTargetsConcurrent_BoundedByThreads verifies that concurrency is
 // bounded by base.threads and that parallelism actually occurs. We track peak
 // observed concurrency with an atomic counter incremented on entry and

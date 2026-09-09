@@ -503,7 +503,7 @@ func runScanSingleTarget(target string, base *runConfig) []logon.Finding {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return scanTargetFn(ctx, target, base)
+	return dropScreenshots(scanTargetFn(ctx, target, base))
 }
 
 // scanTargetFn performs detection for a single target. It is a package-level
@@ -511,6 +511,14 @@ func runScanSingleTarget(target string, base *runConfig) []logon.Finding {
 var scanTargetFn = func(ctx context.Context, target string, base *runConfig) []logon.Finding {
 	return logon.DetectBackdoors(ctx, target, base.connectTimeout, base.timeout, base.aiMode, base.maxRetries, base.checks,
 		base.proxyURL, base.noNLAProbe, base.fast)
+}
+
+func dropScreenshots(findings []logon.Finding) []logon.Finding {
+	for i := range findings {
+		findings[i].BaselinePNG = nil
+		findings[i].ResponsePNG = nil
+	}
+	return findings
 }
 
 // runScanTargetsConcurrent runs sticky-keys/utilman detection across many targets
@@ -571,7 +579,7 @@ func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *ru
 				perTarget[idx] = logon.CancelledResults(target, base.checks)
 				return nil
 			}
-			perTarget[idx] = scanTargetFn(ctx, target, base)
+			perTarget[idx] = dropScreenshots(scanTargetFn(ctx, target, base))
 			return nil
 		})
 	}

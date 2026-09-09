@@ -61,14 +61,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("snmp", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Parse target into host and port
 	host, port, err := parseTarget(target)
 	if err != nil {
 		result.Error = fmt.Errorf("connection error: invalid target: %w", err)
 		return result
 	}
 
-	// Create SNMP client
 	snmp := &gosnmp.GoSNMP{
 		Target:    host,
 		Port:      uint16(port),
@@ -79,7 +77,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		Context:   ctx,
 	}
 
-	// Connect (establishes UDP socket)
 	if connectErr := snmp.Connect(); connectErr != nil {
 		result.Error = brutus.WrapConnError(connectErr)
 		return result
@@ -91,7 +88,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	response, err := snmp.Get(oids)
 
 	if err != nil {
-		// Check if context was canceled
 		if ctx.Err() != nil {
 			result.Error = brutus.WrapConnError(ctx.Err())
 			return result
@@ -103,7 +99,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Check SNMP protocol error
 	if response.Error != gosnmp.NoError {
 		// SNMP error response - might indicate invalid community
 		// or OID not supported. Treat as auth failure.
@@ -111,7 +106,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Success! Extract banner from sysDescr
 	result.Success = true
 	if len(response.Variables) > 0 {
 		switch v := response.Variables[0].Value.(type) {

@@ -95,7 +95,6 @@ func TestTeamsOracleAvailable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := teamsOracleAvailable(tc.result)
 			assert.Equal(t, tc.want, got,
@@ -335,7 +334,6 @@ func TestTeamsDiscoverLine_Mapping(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			line := teamsDiscoverLine(&tc.result)
 

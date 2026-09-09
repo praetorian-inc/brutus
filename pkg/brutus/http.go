@@ -117,7 +117,6 @@ func DetectHTTPAuthType(target string, useHTTPS bool, timeout time.Duration, tls
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Build banner from response headers and body
 	var bannerBuilder strings.Builder
 	fmt.Fprintf(&bannerBuilder, "HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
 

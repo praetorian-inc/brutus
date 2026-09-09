@@ -749,7 +749,6 @@ func TestDerivePosture(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			p := DerivePosture("contoso.com", tc.results)
 			tc.check(t, p)
@@ -802,7 +801,6 @@ func TestEnumerateOne_TokenSafetyTable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			srv := searchServerReturning(tc.statusCode, tc.body)
 			defer srv.Close()
@@ -879,7 +877,6 @@ func TestEnumerateOne_PrefersCorporateOverConsumer(t *testing.T) {
 	const mixedBody = `[{"displayName":"Personal","mri":"8:live:.cid.aaa"},{"displayName":"Corp User","mri":"8:orgid:bbb","userPrincipalName":"corp@x.com"}]`
 
 	for _, includeConsumer := range []bool{false, true} {
-		includeConsumer := includeConsumer
 		t.Run(fmt.Sprintf("includeConsumer=%v", includeConsumer), func(t *testing.T) {
 			srv := searchServerReturning(http.StatusOK, mixedBody)
 			defer srv.Close()
@@ -912,7 +909,6 @@ func TestEnumerateOne_CorporateOnly_AlwaysFound(t *testing.T) {
 	const corpBody = `[{"displayName":"Jane","mri":"8:orgid:xyz"}]`
 
 	for _, includeConsumer := range []bool{false, true} {
-		includeConsumer := includeConsumer
 		t.Run(fmt.Sprintf("includeConsumer=%v", includeConsumer), func(t *testing.T) {
 			srv := searchServerReturning(http.StatusOK, corpBody)
 			defer srv.Close()
@@ -949,7 +945,6 @@ func TestAccountType(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.mri, func(t *testing.T) {
 			got := AccountType(tc.mri)
 			assert.Equal(t, tc.want, got, "AccountType(%q) should be %q", tc.mri, tc.want)

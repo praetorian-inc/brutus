@@ -105,7 +105,6 @@ func TestCollectGithubEmails(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// Build the sentinel error for this case (so we can use errors.Is).
 			sentinel := tc.noSourceErr

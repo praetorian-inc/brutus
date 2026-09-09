@@ -151,7 +151,6 @@ func runFromStdin(base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 		errMsg(base.useColor, "reading stdin: %v", err)
 	}
 
-	// Phase 2: batch-fingerprint bare host:port targets via Nerva.
 	if len(bareTargets) > 0 {
 		fpResults, fpSuccess := runFromFingerprint(bareTargets, base, jsonOut)
 		allResults = append(allResults, fpResults...)
@@ -304,7 +303,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		ProxyURL:        base.proxyURL,
 	}
 
-	// Handle HTTP with AI-researched credentials
 	if (protocol == "http" || protocol == "https") && len(aiCreds) > 0 {
 		config.Usernames = nil
 		config.Passwords = nil
@@ -313,7 +311,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		logVerbose(base.verbose, "Using %d AI-researched credentials for HTTP (+ admin:admin fallback)", len(aiCreds))
 	}
 
-	// Handle browser-specific configuration
 	if protocol == "browser" && base.web != nil {
 		config.Threads = base.web.browserTabs
 		config.Timeout = base.web.browserTimeout
@@ -371,18 +368,15 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		totalAttempts, config.Threads, config.Timeout)
 	logVerbose(base.verbose, "Starting brute force...")
 
-	// Create context that cancels on SIGINT/SIGTERM
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Run brute force with context
 	results, err := brutus.BruteWithContext(ctx, config)
 	if err != nil {
 		errMsg(base.useColor, "testing %s: %v", target, err)
 		return nil, false
 	}
 
-	// Check for success
 	hasSuccess := false
 	successCount := 0
 	for i := range results {

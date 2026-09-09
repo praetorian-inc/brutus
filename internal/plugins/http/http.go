@@ -139,7 +139,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		req.SetBasicAuth(username, password)
 	}
 
-	// Execute request
 	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -150,22 +149,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read limited response body for banner
 	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, MaxBodyRead))
 
-	// Build banner from HTTP response (for LLM analysis)
 	result.Banner = buildHTTPBanner(resp, bodyBytes)
 
-	// Classify response
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		// Success - valid credentials
 		result.Success = true
 
 	case resp.StatusCode == http.StatusUnauthorized,
 		resp.StatusCode == http.StatusForbidden:
-		// Auth failure - invalid credentials
-		// Return Success=false, Error=nil
 
 	default:
-		// Unexpected status - treat as error
 		result.Error = fmt.Errorf("connection error: HTTP %d", resp.StatusCode)
 	}
 

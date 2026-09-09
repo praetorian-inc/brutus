@@ -76,7 +76,6 @@ func TestGenerateUsernames_DerivedFormats(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.format, func(t *testing.T) {
 			t.Parallel()
 
@@ -176,7 +175,6 @@ func TestGenerateUsernames_MultiPartSurnames(t *testing.T) {
 	}
 
 	for _, format := range noDotFormats {
-		format := format
 		t.Run(format+"_no_dots", func(t *testing.T) {
 			t.Parallel()
 
@@ -202,7 +200,6 @@ func TestGenerateUsernames_AllFormatsBoundedAndNonEmpty(t *testing.T) {
 	require.Len(t, formats, 9, "ListFormats must return exactly 9 formats")
 
 	for _, format := range formats {
-		format := format
 		t.Run(format, func(t *testing.T) {
 			t.Parallel()
 
@@ -386,7 +383,6 @@ func TestGenerateCandidates_UsernameParity(t *testing.T) {
 	formats := []string{FormatFirstDotLast, FormatFLast}
 
 	for _, format := range formats {
-		format := format
 		t.Run(format, func(t *testing.T) {
 			t.Parallel()
 
@@ -418,7 +414,6 @@ func TestGenerateCandidates_EmailParity(t *testing.T) {
 	formats := []string{FormatFirstDotLast, FormatFLast}
 
 	for _, format := range formats {
-		format := format
 		t.Run(format, func(t *testing.T) {
 			t.Parallel()
 
@@ -447,7 +442,6 @@ func TestGenerateCandidates_NamesPopulated(t *testing.T) {
 	t.Parallel()
 
 	for _, format := range []string{FormatFirstDotLast, FormatFLast} {
-		format := format
 		t.Run(format, func(t *testing.T) {
 			t.Parallel()
 
@@ -583,7 +577,6 @@ func TestCandidate_Email(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -621,7 +614,6 @@ func TestGenerateCandidates_AllFormatsPopulated(t *testing.T) {
 	t.Parallel()
 
 	for _, format := range ListFormats() {
-		format := format
 		t.Run(format, func(t *testing.T) {
 			t.Parallel()
 
@@ -682,7 +674,6 @@ func TestCandidate_Target(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -90,8 +90,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = client.Close() }()
 
-	// Try STARTTLS if available
-	// Read TLS mode from context
 	tlsMode := pluginCfg.TLSMode
 	if tlsMode != "disable" {
 		if ok, _ := client.Extension("STARTTLS"); ok {
@@ -110,17 +108,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		}
 	}
 
-	// Create auth mechanism (try PLAIN first, which is most common)
 	auth := smtp.PlainAuth("", username, password, host)
 
-	// Attempt authentication
 	err = client.Auth(auth)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

@@ -62,7 +62,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("ssh", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Create SSH client config
 	config := &ssh.ClientConfig{
 		User: username,
 		Auth: []ssh.AuthMethod{
@@ -72,7 +71,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		Timeout:         timeout,
 	}
 
-	// Connect with context-aware timeout
 	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -85,7 +83,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// a server that stalls the handshake hangs the worker.
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)
 	if err != nil {
 		result.Error = classifyAuthError(err)
@@ -103,7 +100,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		}
 	}()
 
-	// Success
 	result.Success = true
 	return result
 }
@@ -122,13 +118,11 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 	defer func() { result.Duration = time.Since(start) }()
 	result.Key = key
 
-	// Validate key is provided
 	if len(key) == 0 {
 		result.Error = fmt.Errorf("connection error: empty private key")
 		return result
 	}
 
-	// Parse private key
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
 		// Check if key is passphrase-protected
@@ -140,7 +134,6 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 		return result
 	}
 
-	// Create SSH client config with public key auth
 	config := &ssh.ClientConfig{
 		User: username,
 		Auth: []ssh.AuthMethod{
@@ -150,7 +143,6 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 		Timeout:         timeout,
 	}
 
-	// Connect with context-aware timeout
 	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -163,7 +155,6 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 	// a server that stalls the handshake hangs the worker.
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	// Perform SSH handshake
 	sshConn, chans, reqs, err := ssh.NewClientConn(conn, target, config)
 	if err != nil {
 		result.Error = classifyAuthError(err)
@@ -181,7 +172,6 @@ func (p *Plugin) TestKey(ctx context.Context, target, username string, key []byt
 		}
 	}()
 
-	// Success
 	result.Success = true
 	return result
 }

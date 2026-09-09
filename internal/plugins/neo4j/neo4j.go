@@ -58,16 +58,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("neo4j", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Build Neo4j Bolt URI
 	uri := fmt.Sprintf("bolt://%s", target)
-
-	// Create authentication token
 	auth := neo4j.BasicAuth(username, password, "")
-
-	// Read TLS mode from context
 	tlsMode := pluginCfg.TLSMode
 
-	// Create driver with TLS config
 	driver, err := neo4j.NewDriverWithContext(uri, auth, func(c *config.Config) {
 		c.TlsConfig = brutus.BuildTLSConfig(tlsMode)
 	})
@@ -77,18 +71,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = driver.Close(ctx) }()
 
-	// Create context with timeout for verification
 	verifyCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Verify connectivity and authentication
 	err = driver.VerifyConnectivity(verifyCtx)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

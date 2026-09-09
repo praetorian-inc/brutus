@@ -187,7 +187,6 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--domain, --emails/-e, or --email-file/-E is required (or pass a --known-valid address with a domain)")
 	}
 
-	// Setup output writer
 	jsonWriter, forceJSON, closeOutput, err := setupOutputWriter(flagOutputFile)
 	if err != nil {
 		return err
@@ -235,10 +234,8 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Phase 2: Build email list
 	var emails []string
 
-	// From --emails flag
 	if flagOraclesEmails != "" {
 		for _, e := range strings.Split(flagOraclesEmails, ",") {
 			e = strings.TrimSpace(e)
@@ -248,7 +245,6 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// From --email-file flag
 	if flagOraclesEmailFile != "" {
 		fileEmails, loadErr := loadLinesFromFile(flagOraclesEmailFile)
 		if loadErr != nil {
@@ -279,7 +275,6 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 	// what was checked even when there are no emails to enumerate.
 	checkLabel := oracleCheckLabel(emails)
 
-	// Phase 3: Determine oracles to check
 	var services []string
 	if flagOraclesServices != "" {
 		for _, s := range strings.Split(flagOraclesServices, ",") {
@@ -309,7 +304,7 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 	}
 	// If still empty, enum.Config.Services=nil means "all registered"
 
-	// Phase 3.5: Oracle check against the known-valid email — THE HEADLINE.
+	// Oracle check against the known-valid email — THE HEADLINE.
 	// --known-valid is a required flag, so this validation always runs before
 	// enumeration. It reports, per oracle, whether the oracle WORKED or NOT, and
 	// enumeration is restricted to the oracles that confirmed the known-valid
@@ -405,7 +400,6 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 			dim(useColor, SymbolInfo), len(emails), len(svcNames), strings.Join(svcNames, ", "))
 	}
 
-	// Phase 4: Run enumeration against the working oracles
 	cfg := &enum.Config{
 		Emails:    emails,
 		Services:  services,
@@ -422,7 +416,6 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("enumeration failed: %w", err)
 	}
 
-	// Phase 5: Output results
 	if flagJSON {
 		if dnsResult != nil {
 			outputDNSReconJSONL(jsonWriter, dnsResult, teamsOracleAvailable(dnsResult))
@@ -456,7 +449,6 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Phase 1: Determine oracles to test
 	var services []string
 	teamsRequested := false
 	if flagOraclesServices != "" {
@@ -511,7 +503,6 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 				dim(useColor, SymbolInfo), len(services), flagOraclesKnownValid)
 		}
 
-		// Phase 2: Test oracles
 		cfg := &enum.Config{
 			Emails:   []string{flagOraclesKnownValid},
 			Services: services,
@@ -527,7 +518,7 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Phase 2.5: Opportunistically confirm the Teams oracle. Attempt only when
+	// Opportunistically confirm the Teams oracle. Attempt only when
 	// the org looks like M365 (microsoft365 discovered) or the user explicitly
 	// asked for teams via -s. Resolution and printing handle the no-token case
 	// gracefully (no error). teams is never run through the unauthenticated
@@ -537,7 +528,6 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 		teamsLine = confirmTeamsOracle(ctx, flagOraclesKnownValid, useColor)
 	}
 
-	// Phase 3: Output results
 	if flagJSON {
 		outputEnumJSONL(jsonWriter, results)
 		if teamsLine != "" {

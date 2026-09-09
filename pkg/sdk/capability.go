@@ -22,6 +22,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 
 	"github.com/praetorian-inc/capability-sdk/pkg/capability"
@@ -95,7 +97,7 @@ func (c *Capability) Invoke(ctx capability.ExecutionContext, input capmodel.Port
 		return fmt.Errorf("no hostname specified in port parent asset")
 	}
 
-	target := fmt.Sprintf("%s:%d", input.Parent.DNS, input.Port)
+	target := net.JoinHostPort(input.Parent.DNS, strconv.Itoa(input.Port))
 
 	cfg := &brutus.Config{
 		Target:      target,

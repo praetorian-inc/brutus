@@ -17,7 +17,9 @@ package mssql
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"net"
+	"net/url"
+	"strconv"
 	"time"
 
 	_ "github.com/denisenkom/go-mssqldb"
@@ -57,9 +59,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mssql", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// TrustServerCertificate=true and encrypt=disable allow connections without cert validation.
-	connStr := fmt.Sprintf("sqlserver://%s:%s@%s?database=master&connection+timeout=%d&encrypt=disable&TrustServerCertificate=true",
-		username, password, target, int(timeout.Seconds()))
+	connStr := mssqlURL(target, username, password, timeout)
 
 	db, err := sql.Open("sqlserver", connStr)
 	if err != nil {
@@ -83,4 +83,24 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	result.Success = true
 	return result
+}
+
+func mssqlURL(target, username, password string, timeout time.Duration) string {
+	host, port := brutus.ParseTarget(target, "1433")
+	timeoutSec := int(timeout.Seconds())
+	if timeoutSec < 1 {
+		timeoutSec = 1
+	}
+	u := &url.URL{
+		Scheme: "sqlserver",
+		User:   url.UserPassword(username, password),
+		Host:   net.JoinHostPort(host, port),
+	}
+	q := url.Values{}
+	q.Set("database", "master")
+	q.Set("connection timeout", strconv.Itoa(timeoutSec))
+	q.Set("encrypt", "disable")
+	q.Set("TrustServerCertificate", "true")
+	u.RawQuery = q.Encode()
+	return u.String()
 }

@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -236,7 +237,12 @@ func stabilizedVerdict(verdict string, stabilized, fast bool) string {
 }
 
 func encodeFramePNG(rgba []byte, w, h uint32) []byte {
-	if len(rgba) == 0 || w == 0 || h == 0 {
+	pixels := uint64(w) * uint64(h)
+	if pixels == 0 || pixels > uint64(math.MaxInt/4) {
+		return nil
+	}
+	need := int(pixels * 4)
+	if len(rgba) < need {
 		return nil
 	}
 	pngData, err := rgbaToPNG(rgba, w, h)

@@ -457,6 +457,9 @@ func TestOutcome_CarriesScreenshots(t *testing.T) {
 func TestEncodeFramePNG(t *testing.T) {
 	assert.Nil(t, encodeFramePNG(nil, 1, 1))
 	assert.Nil(t, encodeFramePNG([]byte{0, 0, 0, 255}, 0, 1))
+	assert.Nil(t, encodeFramePNG([]byte{0, 0, 0}, 1, 1))
+	assert.Nil(t, encodeFramePNG(make([]byte, 4), 2, 1))
+	assert.Nil(t, encodeFramePNG([]byte{1}, ^uint32(0), ^uint32(0)))
 
 	pngData := encodeFramePNG([]byte{0, 0, 0, 255}, 1, 1)
 	require.NotEmpty(t, pngData)

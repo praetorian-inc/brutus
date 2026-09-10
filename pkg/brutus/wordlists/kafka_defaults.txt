@@ -1,0 +1,9 @@
+# Kafka Default Credentials
+admin:admin
+kafka:kafka
+# --- cautious ---
+admin:password
+user:user
+# --- aggressive ---
+kafka:password
+broker:broker

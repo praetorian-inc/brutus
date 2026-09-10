@@ -1,0 +1,8 @@
+# ZooKeeper Default Credentials
+zk:zk
+admin:admin
+# --- cautious ---
+zookeeper:zookeeper
+# --- aggressive ---
+super:zookeeper
+guest:guest

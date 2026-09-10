@@ -44,4 +44,5 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/turn"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/vnc"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/winrm"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/zookeeper"
 )

@@ -15,14 +15,11 @@
 package nats
 
 import (
-	"bufio"
 	"context"
-	"crypto/tls"
-	"encoding/json"
-	"fmt"
 	"net"
-	"strings"
 	"time"
+
+	"github.com/nats-io/nats.go"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -33,6 +30,7 @@ var natsAuthIndicators = []string{
 	"authorization violation",
 	"authentication",
 	"auth required",
+	"nats: authorization",
 }
 
 func init() {
@@ -49,12 +47,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("nats", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	ok, err := connect(ctx, target, username, password, timeout, pluginCfg)
+	err := connect(ctx, target, username, password, timeout, pluginCfg)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
-	result.Success = ok
+	result.Success = true
 	return result
 }
 
@@ -62,9 +60,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	result := brutus.NewResult("nats", target, "(unauthenticated)", "")
 	start := time.Now()
 	defer func() { result.Duration = time.Since(start) }()
-
-	ok, err := connect(ctx, target, "", "", timeout, pluginCfg)
-	if err != nil || !ok {
+	if err := connect(ctx, target, "", "", timeout, pluginCfg); err != nil {
 		return result
 	}
 	result.Success = true
@@ -72,59 +68,39 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	return result
 }
 
+type proxyDialer struct {
+	ctx     context.Context
+	timeout time.Duration
+	proxy   string
+}
+
+func (d proxyDialer) Dial(network, address string) (net.Conn, error) {
+	return brutus.DialWithProxy(d.ctx, network, address, d.timeout, d.proxy)
+}
+
 func connect(ctx context.Context, target, username, password string,
-	timeout time.Duration, pluginCfg brutus.PluginConfig) (bool, error) {
+	timeout time.Duration, pluginCfg brutus.PluginConfig) error {
 	host, port := brutus.ParseTarget(target, defaultPort)
-	conn, err := brutus.DialWithProxy(ctx, "tcp", net.JoinHostPort(host, port), timeout, pluginCfg.ProxyURL)
-	if err != nil {
-		return false, err
+	url := "nats://" + net.JoinHostPort(host, port)
+	opts := []nats.Option{
+		nats.Name("brutus"),
+		nats.Timeout(timeout),
+		nats.NoReconnect(),
+		nats.DontRandomize(),
+		nats.SetCustomDialer(proxyDialer{ctx: ctx, timeout: timeout, proxy: pluginCfg.ProxyURL}),
 	}
-	defer func() { _ = conn.Close() }()
-	if tlsCfg := brutus.BuildTLSConfig(pluginCfg.TLSMode); tlsCfg != nil {
-		tlsCfg.ServerName = host
-		tconn := tls.Client(conn, tlsCfg)
-		if err := tconn.HandshakeContext(ctx); err != nil {
-			return false, err
-		}
-		conn = tconn
-	}
-	_ = conn.SetDeadline(time.Now().Add(timeout))
-
-	reader := bufio.NewReader(conn)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return false, err
-	}
-	if !strings.HasPrefix(line, "INFO") {
-		return false, fmt.Errorf("unexpected nats banner: %s", strings.TrimSpace(line))
-	}
-
-	opts := map[string]string{"verbose": "false", "pedantic": "false", "lang": "go", "version": "brutus"}
 	if username != "" || password != "" {
-		opts["user"] = username
-		opts["pass"] = password
+		opts = append(opts, nats.UserInfo(username, password))
 	}
-	body, _ := json.Marshal(opts)
-	if _, err := fmt.Fprintf(conn, "CONNECT %s\r\nPING\r\n", body); err != nil {
-		return false, err
+	if tlsCfg := brutus.BuildTLSConfig(pluginCfg.TLSMode); tlsCfg != nil {
+		opts = append(opts, nats.Secure(tlsCfg))
 	}
-	for {
-		resp, err := reader.ReadString('\n')
-		if err != nil {
-			return false, err
-		}
-		resp = strings.TrimSpace(resp)
-		switch {
-		case strings.HasPrefix(resp, "+OK"), strings.HasPrefix(resp, "PONG"):
-			return true, nil
-		case strings.HasPrefix(resp, "-ERR"):
-			return false, fmt.Errorf("%s", resp)
-		case strings.HasPrefix(resp, "INFO"):
-			continue
-		default:
-			return false, fmt.Errorf("unexpected nats response: %s", resp)
-		}
+	nc, err := nats.Connect(url, opts...)
+	if err != nil {
+		return err
 	}
+	nc.Close()
+	return nil
 }
 
 var classifyError = brutus.NewClassifier(natsAuthIndicators)

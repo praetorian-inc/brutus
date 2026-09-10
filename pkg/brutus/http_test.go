@@ -233,7 +233,7 @@ func TestHTTPBasicAuthProbe_Run(t *testing.T) {
 		assert.Equal(t, "mypass", gotPass)
 	})
 
-	t.Run("cancelled context", func(t *testing.T) {
+	t.Run("canceled context", func(t *testing.T) {
 		started := make(chan struct{})
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			close(started)

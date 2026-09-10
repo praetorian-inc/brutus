@@ -1,0 +1,9 @@
+# AMQP / RabbitMQ Default Credentials
+guest:guest
+# --- cautious ---
+admin:admin
+rabbitmq:rabbitmq
+# --- aggressive ---
+guest:guest
+admin:password
+user:user

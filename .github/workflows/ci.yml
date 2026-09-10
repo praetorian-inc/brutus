@@ -27,7 +27,7 @@ jobs:
     permissions:
       contents: read
     with:
-      golangci-lint-version: "v2.13.1"
+      golangci-lint-version: "v2.13.2"
       build-cmd-path: ./cmd/brutus
       build-binary-name: brutus
     secrets: inherit

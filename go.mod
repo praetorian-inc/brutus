@@ -72,6 +72,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/projectdiscovery/wappalyzergo v0.2.17 // indirect
 	github.com/quic-go/quic-go v0.60.0 // indirect
+	github.com/rabbitmq/amqp091-go v1.14.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect

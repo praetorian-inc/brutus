@@ -126,10 +126,15 @@ func TestIsUniformFrame(t *testing.T) {
 	assert.True(t, isUniformFrame(nil), "no pixels carries no evidence")
 }
 
-// TestFlatBaselineAndResponseStaysClean guards the other direction: two flat frames
-// are a genuine "nothing changed", not a torn-down session, and must stay clean.
-// The guard is deliberately scoped to a flat response against a NON-flat baseline.
-func TestFlatBaselineAndResponseStaysClean(t *testing.T) {
+// TestFlatFramesAreIndeterminate pins the corrected contract: a flat frame on EITHER
+// side is a non-observation, never a "clean". Two flat frames are NOT a genuine
+// "nothing changed" -- nothing ever rendered, so no logon screen was seen to certify
+// clean. This was observed live: a host caught mid-session-transition returned two
+// black frames and the old scoping ("flat response vs NON-flat baseline" only) reported
+// a hollow "clean" on a host that was never actually inspected. A flat (unpainted)
+// baseline is worse still: it makes darkDelta clamp every response -- even a real
+// console -- to a false clean, hiding a backdoor. Both directions must be indeterminate.
+func TestFlatFramesAreIndeterminate(t *testing.T) {
 	w, h := uint32(50), uint32(50)
 	size := int(w) * int(h) * 4
 	flat := func() []byte {
@@ -139,9 +144,21 @@ func TestFlatBaselineAndResponseStaysClean(t *testing.T) {
 		}
 		return buf
 	}
+	nonFlat := func() []byte {
+		buf := flat()
+		buf[0], buf[1], buf[2] = 200, 200, 200 // one differing pixel -> not uniform
+		return buf
+	}
 	ctx := context.Background()
-	assert.Equal(t, "clean", runStickyKeysAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
-	assert.Equal(t, "clean", runUtilmanAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
+	// Both flat: nothing ever rendered.
+	assert.Equal(t, verdictIndeterminate, runStickyKeysAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
+	assert.Equal(t, verdictIndeterminate, runUtilmanAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
+	// Flat (unpainted) baseline, real response: darkDelta reference is invalid.
+	assert.Equal(t, verdictIndeterminate, runStickyKeysAnalysis(ctx, flat(), nonFlat(), w, h, "").OverallVerdict)
+	assert.Equal(t, verdictIndeterminate, runUtilmanAnalysis(ctx, flat(), nonFlat(), w, h, "").OverallVerdict)
+	// Flat response against a real baseline: observed nothing after the trigger.
+	assert.Equal(t, verdictIndeterminate, runStickyKeysAnalysis(ctx, nonFlat(), flat(), w, h, "").OverallVerdict)
+	assert.Equal(t, verdictIndeterminate, runUtilmanAnalysis(ctx, nonFlat(), flat(), w, h, "").OverallVerdict)
 }
 
 // TestResponseFrameNeverReadsDeadSession covers the frame-selection seam. With a

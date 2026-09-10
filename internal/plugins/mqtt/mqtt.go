@@ -16,87 +16,51 @@ package mqtt
 
 import (
 	"context"
-	"crypto/tls"
-	"encoding/binary"
-	"fmt"
-	"io"
 	"net"
 	"time"
+
+	paho "github.com/eclipse/paho.mqtt.golang"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
-const (
-	defaultPort = "1883"
-	clientID    = "brutus"
-
-	packetConnect = 0x10
-	packetConnack = 0x20
-
-	protoLevel311 = 0x04
-
-	flagCleanSession = 0x02
-	flagPassword     = 0x40
-	flagUsername     = 0x80
-
-	codeAccepted      = 0
-	codeBadUserOrPass = 4
-	codeNotAuthorized = 5
-)
+const defaultPort = "1883"
 
 var mqttAuthIndicators = []string{
 	"not authorized",
 	"bad user name or password",
 	"bad username or password",
-	"connack 4",
-	"connack 5",
+	"not authorised",
 }
 
 func init() {
-	brutus.Register("mqtt", func() brutus.Plugin {
-		return &Plugin{}
-	})
+	brutus.Register("mqtt", func() brutus.Plugin { return &Plugin{} })
 }
 
-// Plugin implements MQTT password authentication via CONNECT/CONNACK.
 type Plugin struct{}
 
-// Name returns the protocol name.
-func (p *Plugin) Name() string {
-	return "mqtt"
-}
+func (p *Plugin) Name() string { return "mqtt" }
 
-// Test attempts MQTT CONNECT authentication using the provided credentials.
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
 	result := brutus.NewResult("mqtt", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	code, err := p.connect(ctx, target, username, password, timeout, pluginCfg)
+	err := connect(ctx, target, username, password, timeout, pluginCfg)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
-	switch code {
-	case codeAccepted:
-		result.Success = true
-	case codeBadUserOrPass, codeNotAuthorized:
-		result.Error = nil
-	default:
-		result.Error = fmt.Errorf("connection error: mqtt connack %d", code)
-	}
+	result.Success = true
 	return result
 }
 
-// CheckUnauth probes for MQTT that accepts CONNECT with no credentials.
 func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	result := brutus.NewResult("mqtt", target, "(unauthenticated)", "")
 	start := time.Now()
 	defer func() { result.Duration = time.Since(start) }()
-
-	code, err := p.connect(ctx, target, "", "", timeout, pluginCfg)
-	if err != nil || code != codeAccepted {
+	if err := connect(ctx, target, "", "", timeout, pluginCfg); err != nil {
 		return result
 	}
 	result.Success = true
@@ -104,97 +68,40 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	return result
 }
 
-func (p *Plugin) connect(ctx context.Context, target, username, password string,
-	timeout time.Duration, pluginCfg brutus.PluginConfig) (byte, error) {
+func connect(ctx context.Context, target, username, password string,
+	timeout time.Duration, pluginCfg brutus.PluginConfig) error {
 	host, port := brutus.ParseTarget(target, defaultPort)
 	addr := net.JoinHostPort(host, port)
-
-	conn, err := brutus.DialWithProxy(ctx, "tcp", addr, timeout, pluginCfg.ProxyURL)
-	if err != nil {
-		return 0, err
+	scheme := "tcp"
+	if pluginCfg.TLSMode == "verify" || pluginCfg.TLSMode == "skip-verify" {
+		scheme = "ssl"
 	}
-	defer func() { _ = conn.Close() }()
 
+	opts := paho.NewClientOptions()
+	opts.AddBroker(scheme + "://" + addr)
+	opts.SetClientID("brutus")
+	opts.SetUsername(username)
+	opts.SetPassword(password)
+	opts.SetConnectTimeout(timeout)
+	opts.SetAutoReconnect(false)
+	opts.SetConnectRetry(false)
+	opts.SetKeepAlive(0)
+	opts.SetPingTimeout(timeout)
 	if tlsCfg := brutus.BuildTLSConfig(pluginCfg.TLSMode); tlsCfg != nil {
-		tlsCfg.ServerName = host
-		tconn := tls.Client(conn, tlsCfg)
-		if err := tconn.HandshakeContext(ctx); err != nil {
-			return 0, err
-		}
-		conn = tconn
+		opts.SetTLSConfig(tlsCfg)
 	}
+	opts.SetDialer(&net.Dialer{Timeout: timeout})
 
-	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
-		return 0, err
+	client := paho.NewClient(opts)
+	token := client.Connect()
+	if !token.WaitTimeout(timeout) {
+		return context.DeadlineExceeded
 	}
-
-	if _, err := conn.Write(encodeConnect(username, password)); err != nil {
-		return 0, err
+	if err := token.Error(); err != nil {
+		return err
 	}
-	return readConnack(conn)
-}
-
-func encodeConnect(username, password string) []byte {
-	var flags byte = flagCleanSession
-	payload := encodeMQTTString(clientID)
-	if username != "" || password != "" {
-		flags |= flagUsername
-		payload = append(payload, encodeMQTTString(username)...)
-		if password != "" {
-			flags |= flagPassword
-			payload = append(payload, encodeMQTTString(password)...)
-		}
-	}
-
-	vh := encodeMQTTString("MQTT")
-	vh = append(vh, protoLevel311, flags, 0x00, 0x3c)
-	body := append(vh, payload...)
-	pkt := []byte{packetConnect}
-	pkt = append(pkt, encodeRemainingLength(len(body))...)
-	return append(pkt, body...)
-}
-
-func encodeMQTTString(s string) []byte {
-	b := []byte(s)
-	out := make([]byte, 2+len(b))
-	binary.BigEndian.PutUint16(out, uint16(len(b)))
-	copy(out[2:], b)
-	return out
-}
-
-func encodeRemainingLength(n int) []byte {
-	var out []byte
-	for {
-		encoded := byte(n % 128)
-		n /= 128
-		if n > 0 {
-			encoded |= 0x80
-		}
-		out = append(out, encoded)
-		if n == 0 {
-			break
-		}
-	}
-	return out
-}
-
-func readConnack(r io.Reader) (byte, error) {
-	hdr := make([]byte, 2)
-	if _, err := io.ReadFull(r, hdr); err != nil {
-		return 0, err
-	}
-	if hdr[0]&0xF0 != packetConnack {
-		return 0, fmt.Errorf("expected CONNACK, got 0x%02x", hdr[0])
-	}
-	remaining := int(hdr[1])
-	if remaining < 2 {
-		return 0, fmt.Errorf("short CONNACK remaining length %d", remaining)
-	}
-	body := make([]byte, remaining)
-	if _, err := io.ReadFull(r, body); err != nil {
-		return 0, err
-	}
-	return body[1], nil
+	client.Disconnect(0)
+	return nil
 }
 
 var classifyError = brutus.NewClassifier(mqttAuthIndicators)

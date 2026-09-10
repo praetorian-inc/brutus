@@ -31,6 +31,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mssql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mysql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/neo4j"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/opcua"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/oracle"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/pop3"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/postgresql"

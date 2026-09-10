@@ -2,6 +2,7 @@ package ipmi
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ func TestPlugin_Test_Unreachable(t *testing.T) {
 	assert.NotNil(t, r.Error)
 }
 
-func TestChecksum(t *testing.T) {
-	assert.Equal(t, byte(0), checksum([]byte{0xff, 0x01}))
+func TestClassifyError(t *testing.T) {
+	assert.Nil(t, classifyError(errors.New("authentication failed")))
+	assert.NotNil(t, classifyError(errors.New("i/o timeout")))
 }

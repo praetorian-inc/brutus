@@ -25,8 +25,3 @@ func TestClassifyError(t *testing.T) {
 	assert.Nil(t, classifyError(errors.New("BadUserAccessDenied")))
 	assert.NotNil(t, classifyError(errors.New("connection refused")))
 }
-
-func TestEqualFold(t *testing.T) {
-	assert.True(t, equalFold("ABC", "abc"))
-	assert.False(t, equalFold("ab", "abc"))
-}

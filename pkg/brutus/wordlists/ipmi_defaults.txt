@@ -1,0 +1,10 @@
+# IPMI BMC Default Credentials
+ADMIN:ADMIN
+root:calvin
+# --- cautious ---
+ADMIN:admin
+admin:admin
+# --- aggressive ---
+root:root
+Administrator:Administrator
+USERID:PASSW0RD

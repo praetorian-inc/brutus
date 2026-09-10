@@ -454,7 +454,7 @@ func (p *panickingEnumPlugin) Check(context.Context, string, time.Duration) *Res
 
 type nilEnumPlugin struct{ name string }
 
-func (p *nilEnumPlugin) Name() string { return p.name }
+func (p *nilEnumPlugin) Name() string                                         { return p.name }
 func (p *nilEnumPlugin) Check(context.Context, string, time.Duration) *Result { return nil }
 
 func TestEnumerateWithPlugin_PanicPreservesName(t *testing.T) {
@@ -487,7 +487,7 @@ func TestEnumerateWithPlugin_NilResultPreservesName(t *testing.T) {
 	assert.Equal(t, "nil@example.com", results[0].Email)
 }
 
-func TestEnumerateWithPlugin_CancelledContext(t *testing.T) {
+func TestEnumerateWithPlugin_CanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

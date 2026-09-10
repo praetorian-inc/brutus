@@ -30,7 +30,6 @@ var mqttAuthIndicators = []string{
 	"not authorized",
 	"bad user name or password",
 	"bad username or password",
-	"not authorised",
 }
 
 func init() {
@@ -70,6 +69,9 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 
 func connect(ctx context.Context, target, username, password string,
 	timeout time.Duration, pluginCfg brutus.PluginConfig) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	host, port := brutus.ParseTarget(target, defaultPort)
 	addr := net.JoinHostPort(host, port)
 	scheme := "tcp"

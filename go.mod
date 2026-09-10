@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/chromedp/chromedp v0.16.0
 	github.com/denisenkom/go-mssqldb v0.12.3
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/go-sql-driver/mysql v1.10.1
@@ -42,7 +43,6 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
 	github.com/emersion/go-message v0.18.2 // indirect
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect

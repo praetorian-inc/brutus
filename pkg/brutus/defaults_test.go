@@ -5,7 +5,7 @@ import (
 )
 
 func TestDefaultCredentials_LoadsWordlists(t *testing.T) {
-	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "vnc", "rdp", "smb", "mongodb", "snmp", "http", "https", "browser", "elasticsearch, "ipmi"}
+	protocols := []string{"ssh", "mysql", "ftp", "redis", "postgresql", "vnc", "rdp", "smb", "mongodb", "snmp", "http", "https", "browser", "elasticsearch", "ipmi"}
 	for _, proto := range protocols {
 		creds := DefaultCredentials(proto)
 		if len(creds) == 0 {

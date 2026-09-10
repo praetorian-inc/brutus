@@ -36,6 +36,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/postgresql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/redis"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/sip"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smtp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/snmp"

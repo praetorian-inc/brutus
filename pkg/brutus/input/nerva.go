@@ -83,6 +83,9 @@ func MapServiceToProtocol(service string) string {
 		"imap": "imap",
 		"pop3": "pop3",
 
+		"activemq": "activemq",
+		"activemq-openwire": "activemq",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

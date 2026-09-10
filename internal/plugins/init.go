@@ -16,6 +16,7 @@ package plugins
 
 // Import all plugins to auto-register them
 import (
+	_ "github.com/praetorian-inc/brutus/internal/plugins/activemq"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/browser"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/cassandra"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/couchdb"

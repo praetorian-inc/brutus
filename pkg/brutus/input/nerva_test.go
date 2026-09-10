@@ -57,6 +57,8 @@ func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 		{"https", "https"},
 		{"mysql", "mysql"},
 		{"postgresql", "postgresql"},
+		{"activemq", "activemq"},
+		{"activemq-openwire", "activemq"},
 		{"unknown", ""},
 	}
 

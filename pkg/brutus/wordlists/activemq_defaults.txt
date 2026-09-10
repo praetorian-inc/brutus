@@ -1,0 +1,8 @@
+# ActiveMQ Default Credentials
+admin:admin
+# --- cautious ---
+activemq:activemq
+user:user
+# --- aggressive ---
+admin:password
+system:manager

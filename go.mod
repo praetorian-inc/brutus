@@ -69,9 +69,11 @@ require (
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/masterzen/simplexml v0.0.0-20190410153822-31eea3082786 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/projectdiscovery/wappalyzergo v0.2.17 // indirect
 	github.com/quic-go/quic-go v0.60.0 // indirect
+	github.com/segmentio/kafka-go v0.4.51 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tidwall/transform v0.0.0-20201103190739-32f242e2dbde // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect

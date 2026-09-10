@@ -28,6 +28,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/kubernetes"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ldap"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mongodb"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/mqtt"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mssql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mysql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/neo4j"

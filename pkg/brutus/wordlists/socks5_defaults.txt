@@ -1,0 +1,9 @@
+# SOCKS5 Default Credentials
+user:user
+socks:socks
+# --- cautious ---
+admin:admin
+proxy:proxy
+# --- aggressive ---
+user:password
+guest:guest

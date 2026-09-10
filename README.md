@@ -29,7 +29,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
-- **27 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Oracle, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
+- **42 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Oracle, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, MQTT, AMQP, Kafka, and more
 - **SOCKS5 proxy support:** Route all traffic through a SOCKS5 proxy with `--proxy`
 - **Aggressiveness modes:** `--mode cautious|default|aggressive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
@@ -452,7 +452,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 
 ## Supported Protocols
 
-Brutus supports **27 protocols**:
+Brutus supports **42 protocols**:
 
 ### Network Services
 | Protocol | Port | Auth Methods | Use Case |
@@ -504,6 +504,25 @@ Brutus supports **27 protocols**:
 | SMTP | 25/587 | Password | Mail relay |
 | IMAP | 143/993 | Password | Mailbox access |
 | POP3 | 110/995 | Password | Mailbox access |
+| MQTT | 1883/8883 | Password, Anonymous | IoT brokers |
+| SIP | 5060/5061 | Digest | VoIP |
+
+### Messaging & Coordination
+| Protocol | Port | Auth Methods | Use Case |
+|----------|------|--------------|----------|
+| AMQP | 5672/5671 | SASL PLAIN | RabbitMQ |
+| Kafka | 9092 | SASL/PLAIN | Brokers |
+| NATS | 4222 | Password, Token, Anonymous | Messaging |
+| ActiveMQ | 61616 | Password | OpenWire brokers |
+| ZooKeeper | 2181 | Digest, Anonymous | Coordination |
+| Memcached | 11211 | SASL, Anonymous | Caches |
+| SOCKS5 | 1080 | RFC 1929 | Proxies |
+| rsync | 873 | Module secrets, Anonymous | File sync |
+| XMPP | 5222 | SASL PLAIN | Chat |
+| Firebird | 3050 | Password | Embedded databases |
+| DB2 | 50000 | Password | Enterprise databases |
+| OPC UA | 4840 | Username token, Anonymous | ICS/SCADA |
+| IPMI | 623/udp | RMCP | BMC / lights-out |
 
 ---
 

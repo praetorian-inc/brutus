@@ -1,0 +1,10 @@
+# MQTT Default Credentials
+admin:admin
+admin:password
+# --- cautious ---
+mosquitto:mosquitto
+mqtt:mqtt
+# --- aggressive ---
+admin:
+anonymous:
+guest:guest

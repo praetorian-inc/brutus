@@ -1,0 +1,9 @@
+# rsync module secrets (username = module name)
+rsync:rsync
+backup:backup
+# --- cautious ---
+public:public
+files:files
+# --- aggressive ---
+data:data
+share:share

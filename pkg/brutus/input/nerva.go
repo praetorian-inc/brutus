@@ -83,6 +83,8 @@ func MapServiceToProtocol(service string) string {
 		"imap": "imap",
 		"pop3": "pop3",
 
+		"db2": "db2",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

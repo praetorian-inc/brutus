@@ -1,0 +1,9 @@
+# DB2 Default Credentials
+db2inst1:db2inst1
+db2admin:db2admin
+# --- cautious ---
+db2inst1:password
+db2admin:db2pass
+# --- aggressive ---
+db2fenc1:db2fenc1
+dasusr1:dasusr1

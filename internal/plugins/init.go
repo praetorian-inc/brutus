@@ -19,6 +19,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/browser"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/cassandra"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/couchdb"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/db2"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/docker"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/elasticsearch"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ftp"

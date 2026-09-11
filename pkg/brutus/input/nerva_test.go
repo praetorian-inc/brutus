@@ -57,6 +57,7 @@ func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 		{"https", "https"},
 		{"mysql", "mysql"},
 		{"postgresql", "postgresql"},
+		{"socks5", "socks5"},
 		{"unknown", ""},
 	}
 

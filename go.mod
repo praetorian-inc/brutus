@@ -19,6 +19,7 @@ require (
 	github.com/praetorian-inc/capability-sdk v0.0.0-20260908174325-de5f920e8132
 	github.com/praetorian-inc/nerva v1.69.5
 	github.com/redis/go-redis/v9 v9.22.0
+	github.com/segmentio/kafka-go v0.4.51
 	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -69,6 +70,7 @@ require (
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/masterzen/simplexml v0.0.0-20190410153822-31eea3082786 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/projectdiscovery/wappalyzergo v0.2.17 // indirect
 	github.com/quic-go/quic-go v0.60.0 // indirect

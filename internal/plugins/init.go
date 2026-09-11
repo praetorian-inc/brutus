@@ -25,6 +25,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/http"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/imap"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/influxdb"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/kafka"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/kubernetes"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ldap"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/memcached"

@@ -29,7 +29,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
-- **28 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Oracle, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
+- **29 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Oracle, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, and more
 - **SOCKS5 proxy support:** Route all traffic through a SOCKS5 proxy with `--proxy`
 - **Aggressiveness modes:** `--mode cautious|default|aggressive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
@@ -452,7 +452,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 
 ## Supported Protocols
 
-Brutus supports **28 protocols**:
+Brutus supports **29 protocols**:
 
 ### Network Services
 | Protocol | Port | Auth Methods | Use Case |
@@ -485,6 +485,7 @@ Brutus supports **28 protocols**:
 | MSSQL | 1433 | Password | Enterprise applications |
 | MongoDB | 27017 | Password | NoSQL backends |
 | Redis | 6379 | Password | Caching, sessions |
+| Memcached | 11211 | SASL, Anonymous | Caching |
 | Neo4j | 7687 | Password | Graph databases |
 | Cassandra | 9042 | Password | Distributed databases |
 | CouchDB | 5984 | HTTP Basic | Document stores |
@@ -505,6 +506,7 @@ Brutus supports **28 protocols**:
 | IMAP | 143/993 | Password | Mailbox access |
 | POP3 | 110/995 | Password | Mailbox access |
 | AMQP | 5672/5671 | SASL PLAIN | RabbitMQ |
+| SOCKS5 | 1080 | RFC 1929 | Proxies |
 
 ---
 

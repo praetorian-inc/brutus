@@ -58,6 +58,8 @@ func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 		{"mysql", "mysql"},
 		{"postgresql", "postgresql"},
 		{"amqp", "amqp"},
+		{"memcached", "memcached"},
+		{"socks5", "socks5"},
 		{"unknown", ""},
 	}
 

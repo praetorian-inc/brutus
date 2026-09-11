@@ -16,6 +16,8 @@ package kafka
 
 import (
 	"context"
+	"crypto/tls"
+	"errors"
 	"net"
 	"time"
 
@@ -33,7 +35,6 @@ var kafkaAuthIndicators = []string{
 	"illegal sasl",
 	"invalid credentials",
 	"unauthorized",
-	"sasl/plain",
 }
 
 func init() {
@@ -52,18 +53,37 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	host, port := brutus.ParseTarget(target, defaultPort)
 	addr := net.JoinHostPort(host, port)
+	tlsCfg := brutus.BuildTLSConfig(pluginCfg.TLSMode)
 
 	d := &kafka.Dialer{
 		ClientID:      "brutus",
 		Timeout:       timeout,
 		DualStack:     true,
-		TLS:           brutus.BuildTLSConfig(pluginCfg.TLSMode),
 		SASLMechanism: plain.Mechanism{Username: username, Password: password},
-	}
-	if pluginCfg.ProxyURL != "" {
-		d.DialFunc = func(ctx context.Context, network, address string) (net.Conn, error) {
-			return brutus.DialWithProxy(ctx, network, address, timeout, pluginCfg.ProxyURL)
-		}
+		DialFunc: func(ctx context.Context, network, address string) (net.Conn, error) {
+			c, err := brutus.DialWithProxy(ctx, network, address, timeout, pluginCfg.ProxyURL)
+			if err != nil {
+				return nil, err
+			}
+			_ = c.SetDeadline(time.Now().Add(timeout))
+			if tlsCfg == nil {
+				return c, nil
+			}
+			cfg := tlsCfg.Clone()
+			if cfg.ServerName == "" {
+				h, _, splitErr := net.SplitHostPort(address)
+				if splitErr != nil {
+					h = host
+				}
+				cfg.ServerName = h
+			}
+			tconn := tls.Client(c, cfg)
+			if err := tconn.HandshakeContext(ctx); err != nil {
+				_ = tconn.Close()
+				return nil, err
+			}
+			return tconn, nil
+		},
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -78,4 +98,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-var classifyError = brutus.NewClassifier(kafkaAuthIndicators)
+func classifyError(err error) error {
+	if errors.Is(err, kafka.SASLAuthenticationFailed) {
+		return nil
+	}
+	return brutus.ClassifyAuthError(err, kafkaAuthIndicators)
+}

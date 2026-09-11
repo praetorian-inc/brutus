@@ -485,6 +485,7 @@ Brutus supports **28 protocols**:
 | MSSQL | 1433 | Password | Enterprise applications |
 | MongoDB | 27017 | Password | NoSQL backends |
 | Redis | 6379 | Password | Caching, sessions |
+| Memcached | 11211 | SASL, Anonymous | Caching |
 | Neo4j | 7687 | Password | Graph databases |
 | Cassandra | 9042 | Password | Distributed databases |
 | CouchDB | 5984 | HTTP Basic | Document stores |

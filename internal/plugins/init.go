@@ -27,6 +27,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/influxdb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/kubernetes"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ldap"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/memcached"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mongodb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mssql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mysql"

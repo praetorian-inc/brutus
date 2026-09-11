@@ -1,0 +1,8 @@
+# Memcached Default Credentials
+admin:admin
+user:user
+# --- cautious ---
+memcached:memcached
+# --- aggressive ---
+root:root
+cache:cache

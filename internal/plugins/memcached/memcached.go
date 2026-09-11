@@ -30,9 +30,11 @@ import (
 const (
 	defaultPort    = "11211"
 	magicReq       = 0x80
+	magicRes       = 0x81
 	opcodeSASLAuth = 0x21
 	statusAuthErr  = 0x20
 	statusSuccess  = 0x00
+	maxBodyLen     = 1 << 20
 )
 
 func init() {
@@ -74,8 +76,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
+	if hdr[0] != magicRes || hdr[1] != opcodeSASLAuth {
+		result.Error = fmt.Errorf("connection error: unexpected memcached header")
+		return result
+	}
 	status := binary.BigEndian.Uint16(hdr[6:8])
 	bodyLen := binary.BigEndian.Uint32(hdr[8:12])
+	if bodyLen > maxBodyLen {
+		result.Error = fmt.Errorf("connection error: memcached body too large")
+		return result
+	}
 	if bodyLen > 0 {
 		_, _ = io.CopyN(io.Discard, conn, int64(bodyLen))
 	}
@@ -104,7 +114,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	if _, err := fmt.Fprintf(conn, "version\r\n"); err != nil {
 		return result
 	}
-	line, err := bufio.NewReader(conn).ReadString('\n')
+	line, err := brutus.ReadLine(bufio.NewReader(io.LimitReader(conn, 512)))
 	if err != nil {
 		return result
 	}

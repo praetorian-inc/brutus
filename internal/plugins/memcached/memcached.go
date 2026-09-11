@@ -111,7 +111,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	}
 	defer func() { _ = conn.Close() }()
 
-	if _, err := fmt.Fprintf(conn, "version\r\n"); err != nil {
+	if _, err = fmt.Fprintf(conn, "version\r\n"); err != nil {
 		return result
 	}
 	line, err := brutus.ReadLine(bufio.NewReader(io.LimitReader(conn, 512)))

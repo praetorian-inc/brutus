@@ -91,6 +91,20 @@ func TestParseTarget_IPv6(t *testing.T) {
 			wantHost:    "2001:db8::1",
 			wantPort:    "22",
 		},
+		{
+			name:        "bracketed IPv6 without port",
+			target:      "[::1]",
+			defaultPort: "22",
+			wantHost:    "[::1]",
+			wantPort:    "22",
+		},
+		{
+			name:        "empty target uses default port",
+			target:      "",
+			defaultPort: "22",
+			wantHost:    "",
+			wantPort:    "22",
+		},
 	}
 
 	for _, tt := range tests {

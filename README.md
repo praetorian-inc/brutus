@@ -505,6 +505,7 @@ Brutus supports **28 protocols**:
 | SMTP | 25/587 | Password | Mail relay |
 | IMAP | 143/993 | Password | Mailbox access |
 | POP3 | 110/995 | Password | Mailbox access |
+| SOCKS5 | 1080 | RFC 1929 | Proxies |
 
 ---
 

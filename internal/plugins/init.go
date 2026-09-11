@@ -40,6 +40,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smtp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/snmp"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/socks5"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ssh"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/telnet"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/turn"

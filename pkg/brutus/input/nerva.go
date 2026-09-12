@@ -93,6 +93,8 @@ func MapServiceToProtocol(service string) string {
 
 		"xmpp": "xmpp",
 
+		"rsync": "rsync",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

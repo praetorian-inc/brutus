@@ -91,6 +91,8 @@ func MapServiceToProtocol(service string) string {
 
 		"firebird": "firebird",
 
+		"xmpp": "xmpp",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

@@ -202,3 +202,65 @@ func TestRealFrames_Diagnostic(t *testing.T) {
 	}
 	fmt.Println()
 }
+
+// realVerdictFixture pairs a real capture with its exact expected OverallVerdict.
+// Unlike realFrameFixtures (HIGH vs not-HIGH), these pin the clean/indeterminate
+// contract that the flat-frame guard enforces.
+type realVerdictFixture struct {
+	name         string
+	baselineFile string
+	responseFile string
+	analysis     string // "sticky" or "utilman"
+	wantVerdict  string
+}
+
+var realVerdictFixtures = []realVerdictFixture{
+	{
+		// A real, legitimate Windows "Sticky Keys" dialog over a painted logon screen
+		// (captured on Omnicell host 205.140.220.194:7337). The dialog is LIGHT and the
+		// baseline is a real render, so this must resolve to a confident clean — never
+		// backdoor_likely. This is the exact false-positive shape behind the stale
+		// "RDP Logon Screen Backdoor" findings, so it stays a permanent guard.
+		name:         "legit_sticky_dialog",
+		baselineFile: "fp_legit_sticky_baseline.png",
+		responseFile: "fp_legit_sticky_response.png",
+		analysis:     "sticky",
+		wantVerdict:  "clean",
+	},
+	{
+		// Both frames captured black on a host caught mid-session-transition
+		// (205.140.220.76:7337): the logon screen never rendered. Nothing was observed,
+		// so this must be indeterminate (rerun), NOT a hollow "clean". Guards the
+		// empty-frame false negative.
+		name:         "empty_never_rendered",
+		baselineFile: "fp_empty_utilman_baseline.png",
+		responseFile: "fp_empty_utilman_response.png",
+		analysis:     "utilman",
+		wantVerdict:  verdictIndeterminate,
+	},
+}
+
+// TestRealFrames_VerdictRegression pins the clean/indeterminate contract against real
+// captures: a legit light dialog over a painted screen is a confident clean, and a
+// never-rendered (flat) capture is indeterminate, never a hollow clean.
+func TestRealFrames_VerdictRegression(t *testing.T) {
+	for _, fx := range realVerdictFixtures {
+		t.Run(fx.name, func(t *testing.T) {
+			baseline, w, h := loadFrameRGBA(t, fx.baselineFile)
+			response, w2, h2 := loadFrameRGBA(t, fx.responseFile)
+			require.Equal(t, w, w2)
+			require.Equal(t, h, h2)
+
+			var verdict string
+			ctx := context.Background()
+			if fx.analysis == "sticky" {
+				verdict = runStickyKeysAnalysis(ctx, baseline, response, w, h, "").OverallVerdict
+			} else {
+				verdict = runUtilmanAnalysis(ctx, baseline, response, w, h, "").OverallVerdict
+			}
+			assert.Equal(t, fx.wantVerdict, verdict, "%s: verdict mismatch", fx.name)
+			assert.NotEqual(t, "backdoor_likely", verdict,
+				"%s: a legit dialog / empty frame must never be flagged backdoor_likely", fx.name)
+		})
+	}
+}

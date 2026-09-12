@@ -89,6 +89,8 @@ func MapServiceToProtocol(service string) string {
 		"memcached": "memcached",
 		"socks5":    "socks5",
 
+		"firebird": "firebird",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

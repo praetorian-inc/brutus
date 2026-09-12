@@ -57,6 +57,7 @@ func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 		{"https", "https"},
 		{"mysql", "mysql"},
 		{"postgresql", "postgresql"},
+		{"firebird", "firebird"},
 		{"mqtt", "mqtt"},
 		{"amqp", "amqp"},
 		{"kafka", "kafka"},

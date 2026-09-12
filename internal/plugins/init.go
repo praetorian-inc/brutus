@@ -22,6 +22,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/couchdb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/docker"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/elasticsearch"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/firebird"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ftp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/http"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/imap"

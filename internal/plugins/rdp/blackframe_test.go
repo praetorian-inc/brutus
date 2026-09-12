@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,10 +127,15 @@ func TestIsUniformFrame(t *testing.T) {
 	assert.True(t, isUniformFrame(nil), "no pixels carries no evidence")
 }
 
-// TestFlatBaselineAndResponseStaysClean guards the other direction: two flat frames
-// are a genuine "nothing changed", not a torn-down session, and must stay clean.
-// The guard is deliberately scoped to a flat response against a NON-flat baseline.
-func TestFlatBaselineAndResponseStaysClean(t *testing.T) {
+// TestFlatFramesAreIndeterminate pins the corrected contract: a flat frame on EITHER
+// side is a non-observation, never a "clean". Two flat frames are NOT a genuine
+// "nothing changed" -- nothing ever rendered, so no logon screen was seen to certify
+// clean. This was observed live: a host caught mid-session-transition returned two
+// black frames and the old scoping ("flat response vs NON-flat baseline" only) reported
+// a hollow "clean" on a host that was never actually inspected. A flat (unpainted)
+// baseline is worse still: it makes darkDelta clamp every response -- even a real
+// console -- to a false clean, hiding a backdoor. Both directions must be indeterminate.
+func TestFlatFramesAreIndeterminate(t *testing.T) {
 	w, h := uint32(50), uint32(50)
 	size := int(w) * int(h) * 4
 	flat := func() []byte {
@@ -139,9 +145,21 @@ func TestFlatBaselineAndResponseStaysClean(t *testing.T) {
 		}
 		return buf
 	}
+	nonFlat := func() []byte {
+		buf := flat()
+		buf[0], buf[1], buf[2] = 200, 200, 200 // one differing pixel -> not uniform
+		return buf
+	}
 	ctx := context.Background()
-	assert.Equal(t, "clean", runStickyKeysAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
-	assert.Equal(t, "clean", runUtilmanAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
+	// Both flat: nothing ever rendered.
+	assert.Equal(t, verdictIndeterminate, runStickyKeysAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
+	assert.Equal(t, verdictIndeterminate, runUtilmanAnalysis(ctx, flat(), flat(), w, h, "").OverallVerdict)
+	// Flat (unpainted) baseline, real response: darkDelta reference is invalid.
+	assert.Equal(t, verdictIndeterminate, runStickyKeysAnalysis(ctx, flat(), nonFlat(), w, h, "").OverallVerdict)
+	assert.Equal(t, verdictIndeterminate, runUtilmanAnalysis(ctx, flat(), nonFlat(), w, h, "").OverallVerdict)
+	// Flat response against a real baseline: observed nothing after the trigger.
+	assert.Equal(t, verdictIndeterminate, runStickyKeysAnalysis(ctx, nonFlat(), flat(), w, h, "").OverallVerdict)
+	assert.Equal(t, verdictIndeterminate, runUtilmanAnalysis(ctx, nonFlat(), flat(), w, h, "").OverallVerdict)
 }
 
 // TestResponseFrameNeverReadsDeadSession covers the frame-selection seam. With a
@@ -345,4 +363,92 @@ func TestRetryOnTerminationWiring(t *testing.T) {
 		assert.Zero(t, calls)
 		assert.Same(t, positive, got)
 	})
+}
+
+// TestRetryOnUnstableWiring covers the more-patient retry of a non-stabilized scan as it
+// is wired: whether the rerun fires, and which result reaches the caller. The patient
+// retry must fire ONLY on a performed, non-terminated, non-stabilized indeterminate, and
+// must never overwrite a settled observation (cardinal rule).
+func TestRetryOnUnstableWiring(t *testing.T) {
+	unstable := func() *StickyKeysResult {
+		return &StickyKeysResult{Performed: true, OverallVerdict: verdictIndeterminate, Stabilized: false}
+	}
+
+	t.Run("reruns a non-stabilized indeterminate more patiently", func(t *testing.T) {
+		calls := 0
+		second := &StickyKeysResult{Performed: true, OverallVerdict: "clean", Stabilized: true}
+		got := retryStickyKeysOnUnstable(false, unstable(), func() *StickyKeysResult {
+			calls++
+			return second
+		})
+		assert.Equal(t, 1, calls, "a render that did not settle must get a patient retry")
+		assert.Same(t, second, got)
+	})
+
+	t.Run("never overwrites a settled finding", func(t *testing.T) {
+		for _, verdict := range []string{"backdoor_confirmed", "backdoor_likely", "vulnerable", "clean"} {
+			first := &StickyKeysResult{Performed: true, OverallVerdict: verdict, Stabilized: true}
+			calls := 0
+			got := retryStickyKeysOnUnstable(false, first, func() *StickyKeysResult {
+				calls++
+				return unstable()
+			})
+			assert.Zero(t, calls, "%s: a stabilized verdict is a real observation and must not be re-run", verdict)
+			assert.Same(t, first, got)
+		}
+	})
+
+	t.Run("does not fire on a terminated session (termination retry owns that)", func(t *testing.T) {
+		first := &StickyKeysResult{Performed: true, OverallVerdict: verdictIndeterminate, Stabilized: false, SessionTerminated: true}
+		calls := 0
+		got := retryStickyKeysOnUnstable(false, first, func() *StickyKeysResult { calls++; return nil })
+		assert.Zero(t, calls, "a teardown is retried on the SHORT profile, not the patient one")
+		assert.Same(t, first, got)
+	})
+
+	t.Run("does not fire when the scan never performed", func(t *testing.T) {
+		first := &StickyKeysResult{Performed: false, OverallVerdict: verdictIndeterminate, Stabilized: false}
+		calls := 0
+		got := retryStickyKeysOnUnstable(false, first, func() *StickyKeysResult { calls++; return nil })
+		assert.Zero(t, calls, "a connect/wasm failure has no render to settle")
+		assert.Same(t, first, got)
+	})
+
+	t.Run("does not fire in fast mode", func(t *testing.T) {
+		calls := 0
+		got := retryStickyKeysOnUnstable(true, unstable(), func() *StickyKeysResult { calls++; return nil })
+		assert.Zero(t, calls, "--fast triage never spends extra settle time")
+		assert.Equal(t, verdictIndeterminate, got.OverallVerdict)
+	})
+
+	t.Run("tolerates a nil result", func(t *testing.T) {
+		calls := 0
+		got := retryStickyKeysOnUnstable(false, nil, func() *StickyKeysResult { calls++; return nil })
+		assert.Zero(t, calls)
+		assert.Nil(t, got)
+	})
+
+	t.Run("utilman is wired the same way", func(t *testing.T) {
+		calls := 0
+		first := &UtilmanResult{Performed: true, OverallVerdict: verdictIndeterminate, Stabilized: false}
+		second := &UtilmanResult{Performed: true, OverallVerdict: "clean", Stabilized: true}
+		got := retryUtilmanOnUnstable(false, first, func() *UtilmanResult { calls++; return second })
+		assert.Equal(t, 1, calls)
+		assert.Same(t, second, got)
+
+		calls = 0
+		settled := &UtilmanResult{Performed: true, OverallVerdict: "clean", Stabilized: true}
+		got = retryUtilmanOnUnstable(false, settled, func() *UtilmanResult { calls++; return second })
+		assert.Zero(t, calls, "a stabilized clean must not be re-run")
+		assert.Same(t, settled, got)
+	})
+}
+
+// TestPatientTimeout pins the patient-retry deadline: double the base, capped so an
+// already-generous --scan-timeout cannot balloon a stuck host without limit.
+func TestPatientTimeout(t *testing.T) {
+	assert.Equal(t, 20*time.Second, patientTimeout(10*time.Second))
+	assert.Equal(t, 30*time.Second, patientTimeout(15*time.Second))
+	assert.Equal(t, 45*time.Second, patientTimeout(40*time.Second), "cap holds")
+	assert.Equal(t, 45*time.Second, patientTimeout(60*time.Second), "cap holds above 2x")
 }

@@ -82,6 +82,12 @@ func MapServiceToProtocol(service string) string {
 		"smtp": "smtp",
 		"imap": "imap",
 		"pop3": "pop3",
+		"mqtt": "mqtt",
+
+		"amqp":      "amqp",
+		"kafka":     "kafka",
+		"memcached": "memcached",
+		"socks5":    "socks5",
 
 		"firebird": "firebird",
 

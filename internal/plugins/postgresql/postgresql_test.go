@@ -16,6 +16,7 @@ package postgresql
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -41,6 +42,40 @@ func getTestConfig() (host, user, pass string) {
 		pass = "postgres"
 	}
 	return
+}
+
+func TestPostgresURL(t *testing.T) {
+	t.Run("special chars in password", func(t *testing.T) {
+		s := postgresURL("db.example.com", "5432", "user", `p@ss word'`, "disable", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		pass, ok := u.User.Password()
+		require.True(t, ok)
+		assert.Equal(t, `p@ss word'`, pass)
+		assert.Equal(t, "user", u.User.Username())
+		assert.Equal(t, "db.example.com:5432", u.Host)
+		assert.Equal(t, "/postgres", u.Path)
+		assert.Equal(t, "disable", u.Query().Get("sslmode"))
+		assert.Equal(t, "1", u.Query().Get("connect_timeout"))
+	})
+	t.Run("IPv6", func(t *testing.T) {
+		s := postgresURL("::1", "5432", "postgres", "x", "disable", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "[::1]:5432", u.Host)
+	})
+	t.Run("subsecond timeout floors to 1s", func(t *testing.T) {
+		s := postgresURL("h", "5432", "u", "p", "disable", 200*time.Millisecond)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "1", u.Query().Get("connect_timeout"))
+	})
+	t.Run("skip-verify sslmode", func(t *testing.T) {
+		s := postgresURL("h", "5432", "u", "p", "skip-verify", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "pqgo-brutus-skip-verify", u.Query().Get("sslmode"))
+	})
 }
 
 func TestPlugin_Name(t *testing.T) {

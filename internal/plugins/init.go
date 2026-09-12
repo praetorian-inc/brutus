@@ -16,6 +16,7 @@ package plugins
 
 // Import all plugins to auto-register them
 import (
+	_ "github.com/praetorian-inc/brutus/internal/plugins/amqp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/browser"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/cassandra"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/couchdb"
@@ -26,9 +27,12 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/http"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/imap"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/influxdb"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/kafka"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/kubernetes"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ldap"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/memcached"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mongodb"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/mqtt"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mssql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mysql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/neo4j"
@@ -40,6 +44,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smtp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/snmp"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/socks5"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/ssh"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/telnet"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/turn"

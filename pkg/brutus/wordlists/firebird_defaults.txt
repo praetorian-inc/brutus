@@ -1,0 +1,8 @@
+# Firebird Default Credentials
+SYSDBA:masterkey
+# --- cautious ---
+SYSDBA:masterke
+sysdba:masterkey
+# --- aggressive ---
+SYSDBA:password
+SYSDBA:

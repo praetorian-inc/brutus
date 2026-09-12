@@ -150,6 +150,22 @@ var FastBudget = SettleBudget{
 	postKeystrokeWait: 700 * time.Millisecond,
 }
 
+// PatientBudget is the extra-patient settle profile used for a single retry of a
+// non-stabilized (indeterminate) careful scan. A host on a slow/high-latency link can
+// keep repainting past CarefulBudget's quiet window, or paint its logon screen in bursts
+// that never go quiet long enough inside the default deadline, so the first careful
+// attempt reads "render did not stabilize". Rather than surface that for a manual rerun,
+// one automatic retry widens the quiet window and per-frame read deadline so a slow paint
+// can settle. It is strictly more patient than CarefulBudget on every axis; the extra time
+// is spent ONLY on hosts that failed to settle, never on a host that already resolved.
+var PatientBudget = SettleBudget{
+	quietWindow:       2500 * time.Millisecond,
+	minPump:           2 * time.Second,
+	noisePixels:       2000,
+	readDeadline:      800 * time.Millisecond,
+	postKeystrokeWait: 2 * time.Second,
+}
+
 // MinViableTimeout is the smallest per-pump-phase timeout that can ever produce
 // a settled (non-indeterminate) verdict. A phase only settles after minPump has
 // elapsed AND the framebuffer has been quiet for quietWindow, so a --timeout

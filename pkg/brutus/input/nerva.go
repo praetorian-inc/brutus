@@ -109,6 +109,8 @@ func MapServiceToProtocol(service string) string {
 
 		"opcua": "opcua",
 
+		"ipmi": "ipmi",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

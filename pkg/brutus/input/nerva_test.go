@@ -59,6 +59,18 @@ func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 		{"postgresql", "postgresql"},
 		{"activemq", "activemq"},
 		{"activemq-openwire", "activemq"},
+		{"sip", "sip"},
+		{"sips", "sip"},
+		{"zookeeper", "zookeeper"},
+		{"nats", "nats"},
+		{"rsync", "rsync"},
+		{"xmpp", "xmpp"},
+		{"firebird", "firebird"},
+		{"mqtt", "mqtt"},
+		{"amqp", "amqp"},
+		{"kafka", "kafka"},
+		{"memcached", "memcached"},
+		{"socks5", "socks5"},
 		{"unknown", ""},
 	}
 

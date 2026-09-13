@@ -30,7 +30,10 @@ func newTestClient(t *testing.T, handler http.Handler) *Client {
 	t.Helper()
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	c := NewClient("test-key", 5*time.Second)
+	c, err := NewClient("test-key", 5*time.Second, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	c.baseURL = server.URL
 	c.pollInit = 10 * time.Millisecond
 	c.pollMax = 50 * time.Millisecond
@@ -218,7 +221,10 @@ func TestDownloadResult_Success(t *testing.T) {
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 
-	c := NewClient("test-key", 5*time.Second)
+	c, err := NewClient("test-key", 5*time.Second, "")
+	if err != nil {
+		t.Fatal(err)
+	}
 	c.baseURL = server.URL
 
 	// s3BaseURL is a const so we can't override it for tests. Instead, verify
@@ -232,6 +238,13 @@ func TestDownloadResult_Success(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestNewClient_InvalidProxy(t *testing.T) {
+	_, err := NewClient("test-key", time.Second, "ftp://127.0.0.1:9")
+	if err == nil {
+		t.Fatal("expected error for unsupported proxy scheme")
 	}
 }
 

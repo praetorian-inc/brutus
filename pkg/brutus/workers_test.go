@@ -78,6 +78,38 @@ func (p *panickingPlugin) Test(ctx context.Context, target, username, password s
 	panic("simulated plugin panic for regression test")
 }
 
+func TestExecuteWorkerPool_NilResult(t *testing.T) {
+	mock := &nilPlugin{}
+
+	cfg := &Config{
+		Target:    "test:22",
+		Protocol:  "nil-mock",
+		Usernames: []string{"user"},
+		Passwords: []string{"pass1", "pass2"},
+		Threads:   2,
+		Timeout:   1 * time.Second,
+		Plugin:    mock,
+	}
+
+	results, err := Brute(cfg)
+	assert.NoError(t, err)
+	assert.Len(t, results, 2)
+	for _, r := range results {
+		assert.False(t, r.Success)
+		assert.ErrorContains(t, r.Error, "plugin returned nil result")
+		assert.Equal(t, "nil-mock", r.Protocol)
+		assert.Equal(t, "user", r.Username)
+	}
+}
+
+type nilPlugin struct{}
+
+func (p *nilPlugin) Name() string { return "nil-mock" }
+
+func (p *nilPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	return nil
+}
+
 func TestCaptureBanner_EmptyUsernames(t *testing.T) {
 	// Setup: Config with only Credentials (no Usernames), HTTP protocol, LLM enabled
 	cfg := &Config{

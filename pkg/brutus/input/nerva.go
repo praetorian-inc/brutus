@@ -102,6 +102,9 @@ func MapServiceToProtocol(service string) string {
 		"sip": "sip",
 		"sips": "sip",
 
+		"activemq": "activemq",
+		"activemq-openwire": "activemq",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

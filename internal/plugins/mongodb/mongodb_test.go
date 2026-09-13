@@ -16,13 +16,40 @@ package mongodb
 
 import (
 	"context"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
+
+func TestMongoURI(t *testing.T) {
+	t.Run("special chars", func(t *testing.T) {
+		s := mongoURI("10.0.0.1:27017", "user", "p@ss:word", "")
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		pass, ok := u.User.Password()
+		require.True(t, ok)
+		assert.Equal(t, "p@ss:word", pass)
+		assert.Equal(t, "10.0.0.1:27017", u.Host)
+	})
+	t.Run("IPv6 default port", func(t *testing.T) {
+		s := mongoURI("::1", "user", "x", "")
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "[::1]:27017", u.Host)
+	})
+	t.Run("skip-verify", func(t *testing.T) {
+		s := mongoURI("db.example.com", "u", "p", "skip-verify")
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "true", u.Query().Get("tls"))
+		assert.Equal(t, "true", u.Query().Get("tlsInsecure"))
+	})
+}
 
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}

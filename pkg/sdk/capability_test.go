@@ -364,6 +364,38 @@ func TestInvoke_RejectsNegativeRateLimit(t *testing.T) {
 	assert.False(t, called, "bruteFunc should not be called when ratelimit is negative")
 }
 
+func TestInvoke_IPv6Target(t *testing.T) {
+	orig := bruteFunc
+	defer func() { bruteFunc = orig }()
+
+	var capturedCfg *brutus.Config
+	bruteFunc = func(_ context.Context, cfg *brutus.Config) ([]brutus.Result, error) {
+		capturedCfg = cfg
+		return nil, nil
+	}
+
+	c := NewCapability()
+	ctx := capability.ExecutionContext{
+		Manual: true,
+		Parameters: capability.Parameters{
+			{Name: "usernames", Value: "admin", Type: "string"},
+			{Name: "passwords", Value: "pass", Type: "string"},
+			{Name: "protocol", Value: "ssh", Type: "string"},
+		},
+	}
+	input := capmodel.Port{
+		Port:    22,
+		Service: "ssh",
+		Parent:  capmodel.Asset{DNS: "2001:db8::1"},
+	}
+	emitter := capability.EmitterFunc(func(_ ...any) error { return nil })
+
+	err := c.Invoke(ctx, input, emitter)
+	require.NoError(t, err)
+	require.NotNil(t, capturedCfg)
+	assert.Equal(t, "[2001:db8::1]:22", capturedCfg.Target)
+}
+
 func TestInvoke_ZeroRateLimitMeansUnlimited(t *testing.T) {
 	orig := bruteFunc
 	defer func() { bruteFunc = orig }()

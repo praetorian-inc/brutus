@@ -82,6 +82,28 @@ func MapServiceToProtocol(service string) string {
 		"smtp": "smtp",
 		"imap": "imap",
 		"pop3": "pop3",
+		"mqtt": "mqtt",
+
+		"amqp":      "amqp",
+		"kafka":     "kafka",
+		"memcached": "memcached",
+		"socks5":    "socks5",
+
+		"firebird": "firebird",
+
+		"xmpp": "xmpp",
+
+		"rsync": "rsync",
+
+		"nats": "nats",
+
+		"zookeeper": "zookeeper",
+
+		"sip": "sip",
+		"sips": "sip",
+
+		"activemq": "activemq",
+		"activemq-openwire": "activemq",
 
 		"db2": "db2",
 

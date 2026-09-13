@@ -29,7 +29,7 @@ Built in Go as a single binary with zero external dependencies, Brutus integrate
 
 **Key features:**
 - **Zero dependencies:** Single binary, cross-platform (Linux, Windows, macOS)
-- **40 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Oracle, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, MQTT, and more
+- **41 protocols:** SSH, RDP, MySQL, PostgreSQL, MSSQL, Oracle, Redis, SMB, LDAP, WinRM, SNMP, HTTP Basic Auth, MQTT, and more
 - **SOCKS5 proxy support:** Route all traffic through a SOCKS5 proxy with `--proxy`
 - **Aggressiveness modes:** `--mode cautious|default|aggressive` for tuning coverage vs. safety
 - **Pipeline integration:** Native support for Nerva, naabu, nmap, and masscan workflows
@@ -452,7 +452,7 @@ Brutus outputs only successful credentials in JSONL format (one JSON object per 
 
 ## Supported Protocols
 
-Brutus supports **40 protocols**:
+Brutus supports **41 protocols**:
 
 ### Network Services
 | Protocol | Port | Auth Methods | Use Case |
@@ -464,6 +464,7 @@ Brutus supports **40 protocols**:
 | VNC | 5900 | Password | Remote desktops |
 | RDP | 3389 | NLA/CredSSP, Password | Windows servers, workstations |
 | SNMP | 161 | Community String | Network devices, printers |
+| IPMI | 623/udp | RMCP | BMC / lights-out |
 | OPC UA | 4840 | Username token, Anonymous | ICS/SCADA |
 
 ### Web Services

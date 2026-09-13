@@ -59,7 +59,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	callID := randomHex(8)
 	branch := "z9hG4bK" + randomHex(8)
 	req := registerRequest(host, port, username, callID, branch, 1, "")
-	if _, err := io.WriteString(conn, req); err != nil {
+	if _, err = io.WriteString(conn, req); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
@@ -92,7 +92,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		authHdr += fmt.Sprintf(`, opaque=%q`, auth["opaque"])
 	}
 	req = registerRequest(host, port, username, callID, branch, 2, authHdr)
-	if _, err := io.WriteString(conn, req); err != nil {
+	if _, err = io.WriteString(conn, req); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
@@ -132,9 +132,10 @@ func registerRequest(host, port, user, callID, branch string, cseq int, auth str
 	return b.String()
 }
 
-func readSIP(conn net.Conn) (int, map[string]string, error) {
+func readSIP(conn net.Conn) (status int, headers map[string]string, err error) {
 	reader := bufio.NewReader(conn)
-	statusLine, err := reader.ReadString('\n')
+	var statusLine string
+	statusLine, err = reader.ReadString('\n')
 	if err != nil {
 		return 0, nil, err
 	}
@@ -142,10 +143,11 @@ func readSIP(conn net.Conn) (int, map[string]string, error) {
 	if len(parts) < 2 {
 		return 0, nil, fmt.Errorf("bad sip status line")
 	}
-	status, _ := strconv.Atoi(parts[1])
-	headers := map[string]string{}
+	status, _ = strconv.Atoi(parts[1])
+	headers = map[string]string{}
 	for {
-		line, err := reader.ReadString('\n')
+		var line string
+		line, err = reader.ReadString('\n')
 		if err != nil {
 			return 0, nil, err
 		}

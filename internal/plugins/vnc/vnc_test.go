@@ -16,6 +16,7 @@ package vnc
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"testing"
@@ -191,4 +192,75 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
+func TestClassifyError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool // true if classified as auth failure (returns nil)
+	}{
+		{
+			name:     "password check failed",
+			err:      errors.New("password check failed!"),
+			expected: true,
+		},
+		{
+			name:     "security handshake failed with reason",
+			err:      errors.New("security handshake failed: password check failed!"),
+			expected: true,
+		},
+		{
+			name:     "authentication failed",
+			err:      errors.New("authentication failed"),
+			expected: true,
+		},
+		{
+			name:     "authentication failure",
+			err:      errors.New("authentication failure"),
+			expected: true,
+		},
+		{
+			name:     "invalid password",
+			err:      errors.New("invalid password"),
+			expected: true,
+		},
+		{
+			name:     "too many authentication failures",
+			err:      errors.New("too many authentication failures"),
+			expected: true,
+		},
+		{
+			name:     "access denied",
+			err:      errors.New("access denied"),
+			expected: true,
+		},
+		{
+			name:     "connection refused",
+			err:      errors.New("connection refused"),
+			expected: false,
+		},
+		{
+			name:     "i/o timeout",
+			err:      errors.New("i/o timeout"),
+			expected: false,
+		},
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := classifyError(tt.err)
+			if tt.expected {
+				assert.Nil(t, result)
+			} else {
+				assert.NotNil(t, result)
+				assert.Contains(t, result.Error(), "connection error")
+			}
+		})
+	}
 }

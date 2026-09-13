@@ -105,6 +105,8 @@ func MapServiceToProtocol(service string) string {
 		"activemq": "activemq",
 		"activemq-openwire": "activemq",
 
+		"db2": "db2",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

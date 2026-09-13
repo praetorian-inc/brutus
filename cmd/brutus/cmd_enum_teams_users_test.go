@@ -27,10 +27,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// ---------------------------------------------------------------------------
-// Test 17: users subcommand is registered on enumTeamsCmd
-// ---------------------------------------------------------------------------
-
 func TestTeamsUsersSubcommandRegistered(t *testing.T) {
 	var usersFound bool
 	for _, cmd := range enumTeamsCmd.Commands() {
@@ -41,10 +37,6 @@ func TestTeamsUsersSubcommandRegistered(t *testing.T) {
 	}
 	require.True(t, usersFound, "users subcommand must be registered with enumTeamsCmd")
 }
-
-// ---------------------------------------------------------------------------
-// Test 18: Flag presence on enumTeamsUsersCmd, no shorthand collisions
-// ---------------------------------------------------------------------------
 
 func TestEnumTeamsUsersCmd_Flags(t *testing.T) {
 	flags := enumTeamsUsersCmd.Flags()
@@ -111,10 +103,6 @@ func TestEnumTeamsUsersCmd_Flags(t *testing.T) {
 		}
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Test 19: outputTeamsEnumJSONL — type, tri-state, no token fields, control char escape
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsEnumJSONL(t *testing.T) {
 	maliciousName := "EVIL\x1b[31mRED"
@@ -190,10 +178,6 @@ func TestOutputTeamsEnumJSONL(t *testing.T) {
 		"raw ESC byte must be escaped by encoding/json in JSONL output")
 }
 
-// ---------------------------------------------------------------------------
-// Test 21: --domain, --format, --limit flags exist on enumTeamsUsersCmd
-// ---------------------------------------------------------------------------
-
 // TestEnumTeamsUsersCmd_GenerationFlags verifies that the three generation
 // flags added to enumTeamsUsersCmd are correctly registered with the right
 // shorthands, default values, and no collision with -t/-s.
@@ -237,7 +221,6 @@ func TestEnumTeamsUsersCmd_GenerationFlags(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // Tests 22-26: teamsEnumTargetList / teamsEnumGenerate (10T-535, 7/8)
 //
 // teamsEnumTargets() ([]string, error) is retargeted onto
@@ -250,7 +233,6 @@ func TestEnumTeamsUsersCmd_GenerationFlags(t *testing.T) {
 // invalid-format error, limit-zero-returns-all, frequency-ranked ordering)
 // is preserved below; there is no dead adapter left behind pinning the old
 // []string signatures.
-// ---------------------------------------------------------------------------
 
 // resetTeamsEnumTargetFlags saves and restores every package-level flag var
 // touched by the teamsEnumTargetList/teamsEnumGenerate tests below, so tests
@@ -433,10 +415,6 @@ func TestTeamsEnumGenerate_LimitZeroReturnsAll(t *testing.T) {
 	assert.Less(t, len(targets), 300_000,
 		"limit=0 list must be bounded (<300,000 entries; embedded wordlist sanity check)")
 }
-
-// ---------------------------------------------------------------------------
-// Test 20: outputTeamsEnumResultLine — ANSI sanitization strips ESC byte
-// ---------------------------------------------------------------------------
 
 func TestOutputTeamsEnumResultLine_Sanitization(t *testing.T) {
 	evilName := "\x1b[31mEVIL"

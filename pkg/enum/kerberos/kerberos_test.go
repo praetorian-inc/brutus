@@ -175,7 +175,6 @@ func TestEnumUser_MultipleUsers(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			result := EnumUser(context.Background(), kdc.Addr(), "TEST.LOCAL", tt.username, 5*time.Second)

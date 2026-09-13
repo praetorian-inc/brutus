@@ -151,7 +151,6 @@ func runFromStdin(base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 		errMsg(base.useColor, "reading stdin: %v", err)
 	}
 
-	// Phase 2: batch-fingerprint bare host:port targets via Nerva.
 	if len(bareTargets) > 0 {
 		fpResults, fpSuccess := runFromFingerprint(bareTargets, base, jsonOut)
 		allResults = append(allResults, fpResults...)
@@ -304,7 +303,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		ProxyURL:        base.proxyURL,
 	}
 
-	// Handle HTTP with AI-researched credentials
 	if (protocol == "http" || protocol == "https") && len(aiCreds) > 0 {
 		config.Usernames = nil
 		config.Passwords = nil
@@ -313,7 +311,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		logVerbose(base.verbose, "Using %d AI-researched credentials for HTTP (+ admin:admin fallback)", len(aiCreds))
 	}
 
-	// Handle browser-specific configuration
 	if protocol == "browser" && base.web != nil {
 		config.Threads = base.web.browserTabs
 		config.Timeout = base.web.browserTimeout
@@ -356,11 +353,6 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		}
 	}
 
-	// Sticky keys interactive modes: bypass brute force entirely
-	if protocol == "rdp" && base.logon != nil && (base.logon.execCmd != "" || base.logon.webTerminal) {
-		return runStickyKeysInteractive(target, base)
-	}
-
 	// Verbose: print config summary before starting
 	logVerbose(base.verbose, "Target: %s (protocol: %s)", target, protocol)
 	logVerbose(base.verbose, "Paired credentials: %d, Usernames: %d, Passwords: %d, Keys: %d",
@@ -376,19 +368,15 @@ func runSingleTarget(target, protocol, tlsMode string, base *runConfig, aiCreds 
 		totalAttempts, config.Threads, config.Timeout)
 	logVerbose(base.verbose, "Starting brute force...")
 
-
-	// Create context that cancels on SIGINT/SIGTERM
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Run brute force with context
 	results, err := brutus.BruteWithContext(ctx, config)
 	if err != nil {
 		errMsg(base.useColor, "testing %s: %v", target, err)
 		return nil, false
 	}
 
-	// Check for success
 	hasSuccess := false
 	successCount := 0
 	for i := range results {
@@ -419,42 +407,42 @@ func detectTLS(baseTLSMode string, tlsDetected, verbose bool) string {
 // runStickyKeysInteractive handles the --exec and --web interactive modes of the
 // logon family. These bypass normal brute force and instead exploit the sticky
 // keys backdoor interactively.
-func runStickyKeysInteractive(target string, base *runConfig) ([]brutus.Result, bool) {
+func runStickyKeysInteractive(target string, base *runConfig) logon.InteractionResult {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if base.logon.webTerminal {
-		result, success := logon.RunWebTerminal(ctx, logon.WebTerminalConfig{
+		result := logon.RunWebTerminal(ctx, logon.WebTerminalConfig{
 			Target:      target,
 			Timeout:     base.timeout,
 			OpenBrowser: base.logon.openBrowser,
 		})
-		if !success {
-			errMsg(base.useColor, "web terminal: %v", result.Error)
+		if result.Err != nil {
+			errMsg(base.useColor, "web terminal: %v", result.Err)
 		}
-		return []brutus.Result{result}, success
+		return result
 	}
 
 	if base.logon.execCmd != "" {
-		result, success := logon.RunExec(ctx, logon.ExecConfig{
+		result := logon.RunExec(ctx, logon.ExecConfig{
 			Target:       target,
 			Timeout:      base.timeout,
 			AIMode:       base.aiMode,
 			AnthropicKey: base.anthropicKey,
 		}, base.logon.execCmd)
-		if !success {
-			errMsg(base.useColor, "sticky keys exec: %v", result.Error)
+		if result.Err != nil {
+			errMsg(base.useColor, "sticky keys exec: %v", result.Err)
 		}
-		return []brutus.Result{result}, success
+		return result
 	}
 
-	return nil, false
+	return logon.InteractionResult{Target: target}
 }
 
 // runScanFromStdin reads targets from stdin and runs scan checks (logon-screen
 // backdoor detection) on RDP targets. Accepts the same three line formats as
 // runFromStdin: Nerva JSON, URI scheme, and bare host:port.
-func runScanFromStdin(base *runConfig) ([]brutus.Result, bool) {
+func runScanFromStdin(base *runConfig) []logon.Finding {
 	var scanTargets []string
 	var bareTargets []string
 
@@ -494,33 +482,37 @@ func runScanFromStdin(base *runConfig) ([]brutus.Result, bool) {
 		errMsg(base.useColor, "reading stdin: %v", err)
 	}
 
-	allResults, hasSuccess := runScanTargetsConcurrent(scanTargets, base)
+	allFindings := runScanTargetsConcurrent(scanTargets, base)
 
 	// Batch-fingerprint bare targets, then scan any discovered RDP services.
 	if len(bareTargets) > 0 {
-		fpResults, fpSuccess := runLogonFingerprint(bareTargets, base)
-		allResults = append(allResults, fpResults...)
-		if fpSuccess {
-			hasSuccess = true
-		}
+		allFindings = append(allFindings, runLogonFingerprint(bareTargets, base)...)
 	}
 
-	return allResults, hasSuccess
+	return allFindings
 }
 
 // runScanSingleTarget runs sticky keys detection on a single target.
-func runScanSingleTarget(target string, base *runConfig) ([]brutus.Result, bool) {
+func runScanSingleTarget(target string, base *runConfig) []logon.Finding {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	return scanTargetFn(ctx, target, base)
+	return dropScreenshots(scanTargetFn(ctx, target, base))
 }
 
 // scanTargetFn performs detection for a single target. It is a package-level
 // variable so tests can substitute a fake without a live RDP server.
-var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]brutus.Result, bool) {
+var scanTargetFn = func(ctx context.Context, target string, base *runConfig) []logon.Finding {
 	return logon.DetectBackdoors(ctx, target, base.connectTimeout, base.timeout, base.aiMode, base.maxRetries, base.checks,
 		base.proxyURL, base.noNLAProbe, base.fast)
+}
+
+func dropScreenshots(findings []logon.Finding) []logon.Finding {
+	for i := range findings {
+		findings[i].BaselinePNG = nil
+		findings[i].ResponsePNG = nil
+	}
+	return findings
 }
 
 // runScanTargetsConcurrent runs sticky-keys/utilman detection across many targets
@@ -529,7 +521,7 @@ var scanTargetFn = func(ctx context.Context, target string, base *runConfig) ([]
 // --threads controls host-level concurrency, because there is exactly one probe per
 // host (credential-level threading does not apply). Results are returned in input
 // order so output stays deterministic regardless of completion order.
-func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Result, bool) {
+func runScanTargetsConcurrent(targets []string, base *runConfig) []logon.Finding {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return runScanTargetsConcurrentCtx(ctx, targets, base)
@@ -537,9 +529,9 @@ func runScanTargetsConcurrent(targets []string, base *runConfig) ([]brutus.Resul
 
 // runScanTargetsConcurrentCtx is runScanTargetsConcurrent with an injectable
 // context, so tests can drive cancellation without sending real signals.
-func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *runConfig) ([]brutus.Result, bool) {
+func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *runConfig) []logon.Finding {
 	if len(targets) == 0 {
-		return nil, false
+		return nil
 	}
 
 	threads := base.threads
@@ -561,8 +553,7 @@ func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *ru
 		limiter = rate.NewLimiter(rate.Limit(base.rateLimit), 1)
 	}
 
-	perTarget := make([][]brutus.Result, len(targets))
-	success := make([]bool, len(targets))
+	perTarget := make([][]logon.Finding, len(targets))
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.SetLimit(threads)
@@ -573,34 +564,26 @@ func runScanTargetsConcurrentCtx(ctx context.Context, targets []string, base *ru
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
 					// Context canceled while queued: the host never ran, so it
-					// must read as INDETERMINATE, never silently disappear.
-					perTarget[idx] = logon.CancelledResults(target)
-					success[idx] = false
+					// must read as CANCELED, never silently disappear.
+					perTarget[idx] = logon.CancelledResults(target, base.checks)
 					return nil
 				}
 			}
 			if ctx.Err() != nil {
-				perTarget[idx] = logon.CancelledResults(target)
-				success[idx] = false
+				perTarget[idx] = logon.CancelledResults(target, base.checks)
 				return nil
 			}
-			results, ok := scanTargetFn(ctx, target, base)
-			perTarget[idx] = results
-			success[idx] = ok
+			perTarget[idx] = dropScreenshots(scanTargetFn(ctx, target, base))
 			return nil
 		})
 	}
 	_ = g.Wait()
 
-	var all []brutus.Result
-	hasSuccess := false
+	var all []logon.Finding
 	for i := range targets {
 		all = append(all, perTarget[i]...)
-		if success[i] {
-			hasSuccess = true
-		}
 	}
-	return all, hasSuccess
+	return all
 }
 
 // runFromNmapFile loads targets from an nmap XML file and processes each
@@ -684,11 +667,11 @@ func runFromMasscanFile(base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
 
 // runScanFromNmapFile loads nmap results and runs logon-screen detection
 // on any RDP services found.
-func runScanFromNmapFile(base *runConfig) ([]brutus.Result, bool) {
+func runScanFromNmapFile(base *runConfig) []logon.Finding {
 	nmapResults, err := brutusinput.LoadNmapFile(flagNmapFile)
 	if err != nil {
 		errMsg(base.useColor, "%v", err)
-		return nil, false
+		return nil
 	}
 
 	var scanTargets []string
@@ -706,11 +689,11 @@ func runScanFromNmapFile(base *runConfig) ([]brutus.Result, bool) {
 
 // runScanFromMasscanFile loads masscan results and fingerprints them with
 // Nerva, then runs logon-screen detection on any discovered RDP services.
-func runScanFromMasscanFile(base *runConfig) ([]brutus.Result, bool) {
+func runScanFromMasscanFile(base *runConfig) []logon.Finding {
 	masscanResults, err := brutusinput.LoadMasscanFile(flagMasscanFile)
 	if err != nil {
 		errMsg(base.useColor, "%v", err)
-		return nil, false
+		return nil
 	}
 
 	targets := make([]string, 0, len(masscanResults))

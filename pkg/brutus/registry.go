@@ -20,10 +20,6 @@ import (
 	"sync"
 )
 
-// =============================================================================
-// Plugin Registry
-// =============================================================================
-
 var (
 	pluginRegistryMu sync.RWMutex
 	pluginRegistry   = make(map[string]PluginFactory)
@@ -83,10 +79,6 @@ func ResetPlugins() {
 	pluginRegistry = make(map[string]PluginFactory)
 }
 
-// =============================================================================
-// Unauth-Only Checker Registry
-// =============================================================================
-
 var (
 	unauthRegistryMu sync.RWMutex
 	unauthRegistry   = make(map[string]func() UnauthOnlyChecker)
@@ -133,10 +125,6 @@ func ResetUnauthCheckers() {
 	defer unauthRegistryMu.Unlock()
 	unauthRegistry = make(map[string]func() UnauthOnlyChecker)
 }
-
-// =============================================================================
-// Analyzer Registry
-// =============================================================================
 
 var (
 	analyzerRegistryMu sync.RWMutex

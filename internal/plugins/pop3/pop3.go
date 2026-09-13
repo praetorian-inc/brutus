@@ -53,7 +53,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("pop3", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Connect with context-aware timeout
 	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -61,7 +60,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Set overall deadline for POP3 operations
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	reader := bufio.NewReader(conn)
@@ -73,7 +71,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Send USER command
 	_, err = fmt.Fprintf(conn, "USER %s\r\n", username)
 	if err != nil {
 		result.Error = classifyAuthError(err)
@@ -100,7 +97,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Send PASS command
 	_, err = fmt.Fprintf(conn, "PASS %s\r\n", password)
 	if err != nil {
 		result.Error = classifyAuthError(err)
@@ -114,7 +110,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Check authentication result
 	switch {
 	case strings.HasPrefix(response, "+OK"):
 		result.Success = true

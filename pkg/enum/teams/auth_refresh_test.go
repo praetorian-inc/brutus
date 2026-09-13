@@ -27,10 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Test 16: DefaultScope constant is pinned to the Skype/Teams resource
-// ---------------------------------------------------------------------------
-
 func TestDefaultScope_PinnedToSkypeResource(t *testing.T) {
 	// Pin the corrected value: Teams uses the Skype resource, NOT Microsoft Graph.
 	// A regression to "https://graph.microsoft.com/.default" causes AADSTS65002.
@@ -42,10 +38,6 @@ func TestDefaultScope_PinnedToSkypeResource(t *testing.T) {
 		DefaultScope,
 		"DefaultScope must be the Skype/Teams resource .default scope, not the Graph scope")
 }
-
-// ---------------------------------------------------------------------------
-// Test 14: RefreshAccessToken happy path
-// ---------------------------------------------------------------------------
 
 func TestRefreshAccessToken_HappyPath(t *testing.T) {
 	const wantAccessToken = "fresh-access-token-value"
@@ -95,10 +87,6 @@ func TestRefreshAccessToken_HappyPath(t *testing.T) {
 	assert.Equal(t, DefaultScope, capturedForm.Get("scope"),
 		"scope must be DefaultScope (set by NewClient default)")
 }
-
-// ---------------------------------------------------------------------------
-// Test 15: RefreshAccessToken error — non-200 OAuth error terminates cleanly
-// ---------------------------------------------------------------------------
 
 func TestRefreshAccessToken_Error(t *testing.T) {
 	errBody, _ := json.Marshal(authErrorResponse{

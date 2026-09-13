@@ -16,7 +16,7 @@ package neo4j
 
 import (
 	"context"
-	"fmt"
+	"net"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -58,16 +58,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("neo4j", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Build Neo4j Bolt URI
-	uri := fmt.Sprintf("bolt://%s", target)
-
-	// Create authentication token
+	host, port := brutus.ParseTarget(target, "7687")
+	uri := "bolt://" + net.JoinHostPort(host, port)
 	auth := neo4j.BasicAuth(username, password, "")
-
-	// Read TLS mode from context
 	tlsMode := pluginCfg.TLSMode
 
-	// Create driver with TLS config
 	driver, err := neo4j.NewDriverWithContext(uri, auth, func(c *config.Config) {
 		c.TlsConfig = brutus.BuildTLSConfig(tlsMode)
 	})
@@ -75,20 +70,17 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = classifyError(err)
 		return result
 	}
-	defer func() { _ = driver.Close(ctx) }()
+	defer func() { _ = driver.Close(context.Background()) }()
 
-	// Create context with timeout for verification
 	verifyCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Verify connectivity and authentication
 	err = driver.VerifyConnectivity(verifyCtx)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

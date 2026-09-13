@@ -50,10 +50,6 @@ const (
 	defaultPageSize = 100
 )
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 // Person is one discovered contact for the domain.
 type Person struct {
 	Email      string
@@ -110,10 +106,6 @@ func (e *APIError) Unwrap() error {
 	}
 	return nil
 }
-
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
 
 // Client holds state for querying the Hunter.io Domain Search API.
 type Client struct {
@@ -205,10 +197,6 @@ func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainR
 	return result, nil
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 // fetchPage performs a single paginated GET request to the Hunter.io API.
 // perPage is the requested page size for this request (sent as the "limit" query
 // param), letting the caller shrink the final page to only what's still needed.
@@ -282,10 +270,6 @@ func toPerson(e *apiEmail) Person {
 		Sources:    sources,
 	}
 }
-
-// ---------------------------------------------------------------------------
-// JSON-mapping structs (unexported — map exactly to Hunter API response shape)
-// ---------------------------------------------------------------------------
 
 type apiResponse struct {
 	Data   apiData    `json:"data"`

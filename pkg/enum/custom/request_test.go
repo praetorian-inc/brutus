@@ -25,10 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// T8: derivePlaceholders
-// ---------------------------------------------------------------------------
-
 // TestDerivePlaceholders verifies the subject-to-placeholder mapping described
 // in architecture.md §7 (D5).
 func TestDerivePlaceholders(t *testing.T) {
@@ -80,10 +76,8 @@ func TestDerivePlaceholders(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // T8: buildRequest — per-sink escaping and rejection tests
 // One test per sink × hostile input (the P0 checks).
-// ---------------------------------------------------------------------------
 
 // buildSpecForRequest is a helper that creates a parsed, validated Spec from
 // raw JSON for request builder tests.
@@ -557,10 +551,6 @@ func TestBuildRequest_P0_5_SchemeAllowlistAtLoad(t *testing.T) {
 	require.Error(t, spec.Validate(),
 		"Validate must reject file:// scheme (P0-5 / R4)")
 }
-
-// ---------------------------------------------------------------------------
-// NF-1: userinfo authority injection — EXPECTED TO FAIL until production fix
-// ---------------------------------------------------------------------------
 
 // TestBuildRequest_RejectsUserinfoAuthority verifies that a subject whose value
 // smuggles a userinfo "@" into the authority of the post-substitution URL is

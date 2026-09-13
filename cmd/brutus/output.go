@@ -366,73 +366,6 @@ func outputJSONL(w io.Writer, results []brutus.Result) {
 	}
 }
 
-// --- Scan output formatters ---
-
-// outputScanHuman writes scan results in human-readable format.
-func outputScanHuman(results []brutus.Result, useColor bool) {
-	for i := range results {
-		r := &results[i]
-		scanType := "Sticky Keys Scan" // default
-		switch r.ScanType {
-		case "utilman":
-			scanType = "Utilman Scan"
-		case "sticky_keys":
-			scanType = "Sticky Keys Scan"
-		}
-
-		finding := extractFinding(r.Banner)
-		color, symbol := ColorCyan, SymbolInfo
-		switch finding {
-		case "[CRITICAL]":
-			color, symbol = ColorRed, SymbolError
-		case "[HIGH]":
-			color, symbol = ColorYellow, SymbolWarning
-		case "[WARN]":
-			color, symbol = ColorYellow, SymbolWarning
-		}
-
-		if useColor {
-			fmt.Printf("%s%s %s: %s%s  %s\n", color, symbol, scanType, r.Target, ColorReset, r.Banner)
-		} else {
-			fmt.Printf("%s: %s  %s\n", scanType, r.Target, r.Banner)
-		}
-	}
-}
-
-// outputScanJSONL writes scan results as JSONL for pipeline consumption.
-func outputScanJSONL(w io.Writer, results []brutus.Result) {
-	type ScanResult struct {
-		Protocol      string `json:"protocol"`
-		Target        string `json:"target"`
-		ScanType      string `json:"scan_type"`
-		Finding       string `json:"finding"`
-		Banner        string `json:"banner"`
-		Success       bool   `json:"success"`
-		Indeterminate bool   `json:"indeterminate"`
-	}
-
-	enc := json.NewEncoder(w)
-	for i := range results {
-		r := &results[i]
-		scanType := r.ScanType
-		if scanType == "" {
-			scanType = "sticky_keys" // default for backward compatibility
-		}
-		sr := ScanResult{
-			Protocol:      r.Protocol,
-			Target:        r.Target,
-			ScanType:      scanType,
-			Finding:       extractFinding(r.Banner),
-			Banner:        r.Banner,
-			Success:       r.Success,
-			Indeterminate: r.Indeterminate,
-		}
-		if err := enc.Encode(sr); err != nil {
-			fmt.Fprintf(os.Stderr, "Error encoding scan JSON: %v\n", err)
-		}
-	}
-}
-
 // --- Helpers ---
 
 // hasSecurityFinding checks if a banner contains security-relevant findings.
@@ -451,14 +384,4 @@ func splitLines(s string) []string {
 		}
 	}
 	return lines
-}
-
-// extractFinding extracts the severity tag from a banner string.
-func extractFinding(banner string) string {
-	for _, tag := range []string{"[CRITICAL]", "[HIGH]", "[WARN]", "[INFO]"} {
-		if strings.Contains(banner, tag) {
-			return tag
-		}
-	}
-	return ""
 }

@@ -271,10 +271,6 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string,
 	return result
 }
 
-// =============================================================================
-// STUN Message Building
-// =============================================================================
-
 // deallocate sends an authenticated Refresh request with LIFETIME=0 to release
 // a successful TURN allocation. This prevents per-user quota exhaustion during
 // brute force. Errors are ignored (fire-and-forget before connection close).
@@ -391,10 +387,6 @@ func newTransactionID() [12]byte {
 	return id
 }
 
-// =============================================================================
-// STUN Message Parsing
-// =============================================================================
-
 // parseSTUNMessage parses a STUN message, returning the message type,
 // the 12-byte transaction ID, and a map of attribute type -> raw value bytes.
 // Per RFC 5389 §7.3.1, only the first occurrence of each attribute is kept.
@@ -469,10 +461,6 @@ func getStringAttr(attrs map[uint16][]byte, attrType uint16) string {
 	}
 	return string(data)
 }
-
-// =============================================================================
-// STUN Attribute Encoding
-// =============================================================================
 
 // encodeAttr encodes a STUN attribute with TLV format and 4-byte padding.
 func encodeAttr(attrType uint16, value []byte) []byte {

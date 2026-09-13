@@ -64,10 +64,6 @@ func main() {
 	}
 }
 
-// =============================================================================
-// HANDLERS
-// =============================================================================
-
 // handleForgotPassword is the primary enumeration oracle. A valid email returns
 // HTTP 200 with a "reset link sent" message; an invalid one returns HTTP 404
 // with a "No account found" message. The status + message difference is the leak.
@@ -136,10 +132,6 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = fmt.Fprint(w, indexText)
 }
-
-// =============================================================================
-// HELPERS
-// =============================================================================
 
 // response is the JSON envelope returned by both API endpoints. Status is
 // omitted from the login responses (which only carry a message).

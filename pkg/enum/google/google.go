@@ -83,10 +83,6 @@ type Enumerator struct {
 	gxluBaseURL           string
 }
 
-// ---------------------------------------------------------------------------
-// Constructor
-// ---------------------------------------------------------------------------
-
 // NewEnumerator builds an Enumerator. The HTTP client is built via
 // brutus.NewHTTPClientWithProxy so the SOCKS5 --proxy flag works. The supplied
 // timeout is used directly as the per-request budget.
@@ -108,10 +104,6 @@ func NewEnumerator(proxyURL string, timeout time.Duration) (*Enumerator, error) 
 		gxluBaseURL:           gxluBaseURLDefault,
 	}, nil
 }
-
-// ---------------------------------------------------------------------------
-// Enumeration
-// ---------------------------------------------------------------------------
 
 // Enumerate looks up each email using a bounded worker pool, applying rate
 // limiting and jitter when rateLimit > 0. Results preserve input order. It is a
@@ -218,10 +210,6 @@ func (e *Enumerator) CheckAccount(ctx context.Context, email string) Result {
 
 	return res
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 // checkAccountChooser checks whether Google redirects to a SAML IdP for this
 // email. SSO-configured domains redirect valid accounts to their IdP; invalid

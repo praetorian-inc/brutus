@@ -28,10 +28,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// ---------------------------------------------------------------------------
-// TestTeamsOracleAvailable
-// ---------------------------------------------------------------------------
-
 // TestTeamsOracleAvailable verifies that teamsOracleAvailable reports true only
 // when the DNSReconResult contains a SaaSService named "microsoft365". It also
 // verifies that teams is never injected into the Services slice by DNS parsing
@@ -99,7 +95,6 @@ func TestTeamsOracleAvailable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got := teamsOracleAvailable(tc.result)
 			assert.Equal(t, tc.want, got,
@@ -107,10 +102,6 @@ func TestTeamsOracleAvailable(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// TestOutputDNSReconHuman_TeamsLine
-// ---------------------------------------------------------------------------
 
 // TestOutputDNSReconHuman_TeamsLine verifies that outputDNSReconHuman appends a
 // "teams" availability line when teamsAvailable is true, and does NOT show any
@@ -174,10 +165,6 @@ func TestOutputDNSReconHuman_EmptyServices_TeamsNotAvailable(t *testing.T) {
 		outputDNSReconHuman(empty, false, false)
 	})
 }
-
-// ---------------------------------------------------------------------------
-// TestOutputDNSReconJSONL_TeamsAvailable
-// ---------------------------------------------------------------------------
 
 // TestOutputDNSReconJSONL_TeamsAvailable verifies that outputDNSReconJSONL
 // emits "teams_available":true when teamsAvailable is true, and omits the key
@@ -276,10 +263,6 @@ func TestOutputDNSReconJSONL_TeamsAvailable(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// TestTeamsDiscoverLine_Mapping
-// ---------------------------------------------------------------------------
-
 // TestTeamsDiscoverLine_Mapping verifies that teamsDiscoverLine maps each of
 // the four Existence states to the correct human-readable status line. Token
 // values must never appear in the returned string.
@@ -351,7 +334,6 @@ func TestTeamsDiscoverLine_Mapping(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			line := teamsDiscoverLine(&tc.result)
 
@@ -366,10 +348,6 @@ func TestTeamsDiscoverLine_Mapping(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// TestConfirmTeamsOracle_NoToken
-// ---------------------------------------------------------------------------
 
 // TestConfirmTeamsOracle_NoToken verifies that confirmTeamsOracle returns the
 // "available (unconfirmed)" line and makes no network calls when no cached
@@ -408,10 +386,6 @@ func TestConfirmTeamsOracle_NoToken(t *testing.T) {
 	assert.Contains(t, line, "brutus enum active teams auth",
 		"no-token line must include the auth hint for the user")
 }
-
-// ---------------------------------------------------------------------------
-// TestResolveTeamsConfirmToken_NoCachedToken
-// ---------------------------------------------------------------------------
 
 // TestResolveTeamsConfirmToken_NoCachedToken verifies that resolveTeamsConfirmToken
 // returns ok=false when no credential store file exists (empty HOME directory).

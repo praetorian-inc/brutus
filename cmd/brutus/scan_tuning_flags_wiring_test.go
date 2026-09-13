@@ -31,7 +31,6 @@ var scanTuningFlagNames = []string{"connect-timeout", "mode", "retries"}
 // flags on rootCmd.
 func TestScanTuningFlags_NotOnRoot(t *testing.T) {
 	for _, name := range scanTuningFlagNames {
-		name := name
 		t.Run(name, func(t *testing.T) {
 			assert.Nil(t, rootCmd.PersistentFlags().Lookup(name),
 				"rootCmd must not have --%s as a persistent flag", name)
@@ -71,7 +70,6 @@ func TestScanTuningFlags_OnScanCommands(t *testing.T) {
 // scan-tuning flags, confirming the enum subtree is isolated from them.
 func TestScanTuningFlags_NotInheritedByEnumLeaf(t *testing.T) {
 	for _, name := range scanTuningFlagNames {
-		name := name
 		t.Run(name, func(t *testing.T) {
 			assert.Nil(t, enumGithubCmd.InheritedFlags().Lookup(name),
 				"enumGithubCmd must not inherit --%s", name)

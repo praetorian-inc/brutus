@@ -224,7 +224,6 @@ func TestScanTimeoutFlagWiring(t *testing.T) {
 // rejects it.
 func TestTimeoutRejectedOnLogonFamily(t *testing.T) {
 	for _, cmd := range []*cobra.Command{logonCmd, stickykeysCmd, utilmanCmd} {
-		cmd := cmd // capture range var
 		t.Run(cmd.Use+"_rejects_timeout_flag", func(t *testing.T) {
 			resetLogonFlags()
 			t.Cleanup(func() { resetTimeoutFlag(t) })

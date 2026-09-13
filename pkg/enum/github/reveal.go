@@ -44,10 +44,6 @@ const (
 	commitsPerPage = 100
 )
 
-// ---------------------------------------------------------------------------
-// Username reveal (authenticated)
-// ---------------------------------------------------------------------------
-
 // Reveal resolves GitHub usernames for the given (existing) emails. It is a
 // thin wrapper over RevealWith with no progress callback, preserving the
 // original signature for existing callers and tests.
@@ -230,10 +226,6 @@ func (e *Enumerator) SetRevealRepo(name string) error {
 	e.revealRepo = name
 	return nil
 }
-
-// ---------------------------------------------------------------------------
-// Reveal helpers
-// ---------------------------------------------------------------------------
 
 // getAuthUser GETs {api}/user and returns the authenticated account's login.
 func (e *Enumerator) getAuthUser(ctx context.Context) (string, error) {

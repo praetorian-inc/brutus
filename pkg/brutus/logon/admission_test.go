@@ -25,7 +25,6 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
-	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // withDecodeSlots replaces the process-wide decode semaphore with one of size n
@@ -66,7 +65,7 @@ func TestDecodeSlotBound(t *testing.T) {
 
 	var current, peak atomic.Int64
 	origRunDetection := runDetection
-	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) ([]brutus.Result, bool) {
+	runDetection = func(ctx context.Context, target string, connectTimeout, timeout time.Duration, aiMode bool, checks Check, fast bool) []Finding {
 		n := current.Add(1)
 		for {
 			p := peak.Load()
@@ -76,10 +75,10 @@ func TestDecodeSlotBound(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 		current.Add(-1)
-		return []brutus.Result{
-			{Target: target, ScanType: "sticky_keys"},
-			{Target: target, ScanType: "utilman"},
-		}, false
+		return []Finding{
+			{Target: target, Check: BackdoorStickyKeys, Verdict: VerdictClean},
+			{Target: target, Check: BackdoorUtilman, Verdict: VerdictClean},
+		}
 	}
 	t.Cleanup(func() {
 		runDetection = origRunDetection

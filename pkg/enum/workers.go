@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// pkg/enum/workers.go
 package enum
 
 import (
@@ -44,13 +43,11 @@ type enumTask struct {
 // runWorkers executes enumeration checks using a bounded worker pool.
 // Iterates emails x services, applying rate limiting and jitter.
 func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
-	// Resolve services to check
 	services := cfg.Services
 	if len(services) == 0 {
 		services = ListPlugins()
 	}
 
-	// Build task list: targets x services
 	var tasks []enumTask
 	for _, target := range cfg.resolveTargets() {
 		for _, svcName := range services {
@@ -76,7 +73,6 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 // recovery. It is the shared execution core for both the registry-keyed
 // runWorkers and the registry-bypassing EnumerateWithPlugin.
 func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, error) {
-	// Setup errgroup with bounded concurrency
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -100,13 +96,11 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 	}
 	g.SetLimit(threads)
 
-	// Rate limiter
 	var limiter *rate.Limiter
 	if cfg.RateLimit > 0 {
 		limiter = rate.NewLimiter(rate.Limit(cfg.RateLimit), 1)
 	}
 
-	// Result collection
 	var (
 		results []Result
 		mu      sync.Mutex
@@ -136,7 +130,6 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 			default:
 			}
 
-			// Rate limiting
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
 					return nil

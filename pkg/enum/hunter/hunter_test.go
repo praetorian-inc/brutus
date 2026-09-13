@@ -30,10 +30,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Task 1: toPerson + APIError/Unwrap
-// ---------------------------------------------------------------------------
-
 func TestToPerson(t *testing.T) {
 	src := apiEmail{
 		Value:      "alice@example.com",
@@ -93,10 +89,6 @@ func TestAPIError_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "401")
 	assert.Contains(t, err.Error(), "No valid API key")
 }
-
-// ---------------------------------------------------------------------------
-// Task 2: fetchPage - single-page success + error mapping
-// ---------------------------------------------------------------------------
 
 func makeResponse(domain, org string, emails []apiEmail, total, limit, offset int) []byte {
 	resp := apiResponse{
@@ -231,10 +223,6 @@ func TestFetchPage_QueryParams(t *testing.T) {
 	assert.Equal(t, "10", q.Get("limit"))
 	assert.Equal(t, "5", q.Get("offset"))
 }
-
-// ---------------------------------------------------------------------------
-// Task 3: Search pagination loop
-// ---------------------------------------------------------------------------
 
 func pagedServer(t *testing.T, allEmails []apiEmail, total, pageSize, midErrOffset int) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
@@ -411,10 +399,6 @@ func TestSearch_LimitReducesFinalPageRequest(t *testing.T) {
 	assert.Equal(t, []int{100, 50}, reqLimits, "final page must request only the remaining 50, not a full 100")
 	assert.False(t, result.Truncated, "a user-requested --limit cap is not a plan-cap truncation")
 }
-
-// ---------------------------------------------------------------------------
-// Plan-cap pagination regression tests (fix/hunter-plan-cap-pagination)
-// ---------------------------------------------------------------------------
 
 // TestSearch_PlanLimited_ReturnsPartial verifies that when Hunter returns HTTP 400
 // with a plan-cap details message mid-pagination, Search stops cleanly and returns

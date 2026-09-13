@@ -98,10 +98,6 @@ func NewChecker(baseURL, proxyURL string, timeout time.Duration) (*Checker, erro
 	}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Enumeration
-// ---------------------------------------------------------------------------
-
 // Enumerate looks up each email using a bounded worker pool, applying rate
 // limiting and jitter when rateLimit > 0. Results preserve input order. It is a
 // thin wrapper around EnumerateWith with no per-result callback.

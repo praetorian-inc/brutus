@@ -77,10 +77,6 @@ var (
 	ErrAccessDenied         = errors.New("access denied by user or admin")
 )
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 // DeviceCode holds the device authorization response. UserCode and
 // VerificationURI are shown to the user; deviceCode and interval are retained
 // internally for polling and are never exposed or logged.
@@ -116,10 +112,6 @@ type APIError struct {
 func (e *APIError) Error() string {
 	return fmt.Sprintf("entra device code error (HTTP %d): %q: %q", e.StatusCode, e.Code, e.Description)
 }
-
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
 
 // Client performs the Microsoft Entra ID device code OAuth2 flow.
 type Client struct {
@@ -312,10 +304,6 @@ func (c *Client) RefreshAccessToken(ctx context.Context, refreshToken string) (*
 	}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
 // poll performs a single token endpoint request for the given device code.
 // On HTTP 200 it returns a populated TokenSet. On an OAuth error it returns a
 // sentinel error (for the recoverable/terminal states) or an *APIError.
@@ -392,10 +380,6 @@ func decodeAuthError(statusCode int, body []byte) error {
 		Description: errResp.ErrorDescription,
 	}
 }
-
-// ---------------------------------------------------------------------------
-// JSON-mapping structs (unexported — map exactly to the Entra response shape)
-// ---------------------------------------------------------------------------
 
 type deviceCodeAPIResponse struct {
 	DeviceCode      string `json:"device_code"`

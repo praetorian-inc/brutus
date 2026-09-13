@@ -67,7 +67,6 @@ func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]strin
 		return nil, err
 	}
 
-	// Extract unique passwords
 	passwords := make([]string, 0, len(creds))
 	seen := make(map[string]bool)
 	for _, cred := range creds {
@@ -83,7 +82,6 @@ func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]strin
 // AnalyzeCredentials implements brutus.CredentialAnalyzer interface
 // Returns full credential pairs (username + password) for the identified application
 func (c *Client) AnalyzeCredentials(ctx context.Context, banner brutus.BannerInfo) ([]brutus.Credential, error) {
-	// Parse application info from banner (JSON format from vision analyzer)
 	var bannerData struct {
 		Application struct {
 			Type   string `json:"type"`
@@ -99,7 +97,6 @@ func (c *Client) AnalyzeCredentials(ctx context.Context, banner brutus.BannerInf
 		// Fallback: use banner as plain text (sanitize to prevent prompt injection)
 		creds, err = c.researchFromTextWithPairs(ctx, brutus.SanitizeBanner(banner.Banner))
 	} else {
-		// Research credentials for identified application
 		creds, err = c.ResearchCredentials(ctx,
 			bannerData.Application.Type,
 			bannerData.Application.Vendor,
@@ -111,7 +108,6 @@ func (c *Client) AnalyzeCredentials(ctx context.Context, banner brutus.BannerInf
 		return nil, err
 	}
 
-	// Convert to brutus.Credential
 	result := make([]brutus.Credential, 0, len(creds))
 	for _, cred := range creds {
 		result = append(result, brutus.Credential{
@@ -125,10 +121,8 @@ func (c *Client) AnalyzeCredentials(ctx context.Context, banner brutus.BannerInf
 
 // ResearchCredentials queries Perplexity for default credentials
 func (c *Client) ResearchCredentials(ctx context.Context, appType, vendor, model string) ([]Credential, error) {
-	// Build search query
 	query := buildSearchQuery(appType, vendor, model)
 
-	// Create API request
 	reqBody := apiRequest{
 		Model: c.getModel(),
 		Messages: []message{
@@ -139,24 +133,20 @@ func (c *Client) ResearchCredentials(ctx context.Context, appType, vendor, model
 		},
 	}
 
-	// Marshal request
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	// Create HTTP request
 	endpoint := c.getEndpoint()
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 
-	// Send request
 	client := &http.Client{Timeout: c.getTimeout()}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -164,13 +154,11 @@ func (c *Client) ResearchCredentials(ctx context.Context, appType, vendor, model
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Check status
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("perplexity api error (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
 	var apiResp apiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
@@ -180,10 +168,8 @@ func (c *Client) ResearchCredentials(ctx context.Context, appType, vendor, model
 		return []Credential{}, nil
 	}
 
-	// Extract credentials from response text
 	creds := parseCredentials(apiResp.Choices[0].Message.Content)
 
-	// Mark source
 	for i := range creds {
 		creds[i].Source = "perplexity"
 	}

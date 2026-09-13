@@ -23,58 +23,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/internal/plugins/rdp"
 )
 
-// stickyPositiveResult returns a sticky-keys result with Success=true,
-// simulating a confirmed sticky-keys backdoor.
-func stickyPositiveResult(target string) *brutus.Result {
-	return &brutus.Result{
-		Protocol: "rdp",
-		Target:   target,
-		Username: "(sticky-keys)",
-		ScanType: "sticky_keys",
-		Success:  true,
-		Banner:   "[CRITICAL] Sticky keys backdoor CONFIRMED",
+// The check fakes below return rdp.CheckOutcome, the typed detection-layer
+// shape. They no longer fabricate a credential result: there is no username to
+// invent and no banner to phrase, only a verdict.
+
+// stickyPositiveOutcome simulates a confirmed sticky-keys backdoor.
+func stickyPositiveOutcome() *rdp.CheckOutcome {
+	return &rdp.CheckOutcome{
+		Check: rdp.BackdoorStickyKeys, Performed: true, Stabilized: true,
+		Verdict: "backdoor_confirmed", Confidence: 0.95,
 	}
 }
 
-// stickyCleanResult returns a sticky-keys result with Success=false, Indeterminate=false,
-// simulating a clean (no backdoor) sticky-keys check.
-func stickyCleanResult(target string) *brutus.Result {
-	return &brutus.Result{
-		Protocol:      "rdp",
-		Target:        target,
-		Username:      "(sticky-keys)",
-		ScanType:      "sticky_keys",
-		Success:       false,
-		Indeterminate: false,
+// stickyCleanOutcome simulates a clean sticky-keys check.
+func stickyCleanOutcome() *rdp.CheckOutcome {
+	return &rdp.CheckOutcome{
+		Check: rdp.BackdoorStickyKeys, Performed: true, Stabilized: true,
+		Verdict: "clean",
 	}
 }
 
-// utilmanPositiveResult returns a utilman result with Success=true,
-// simulating a confirmed utilman backdoor.
-func utilmanPositiveResult(target string) *brutus.Result {
-	return &brutus.Result{
-		Protocol: "rdp",
-		Target:   target,
-		Username: "(utilman)",
-		ScanType: "utilman",
-		Success:  true,
-		Banner:   "[CRITICAL] Utilman backdoor CONFIRMED",
+// utilmanPositiveOutcome simulates a confirmed utilman backdoor.
+func utilmanPositiveOutcome() *rdp.CheckOutcome {
+	return &rdp.CheckOutcome{
+		Check: rdp.BackdoorUtilman, Performed: true, Stabilized: true,
+		Verdict: "backdoor_confirmed", Confidence: 0.95,
 	}
 }
 
-// utilmanCleanResult returns a utilman result with Success=false, Indeterminate=false,
-// simulating a clean (no backdoor) utilman check.
-func utilmanCleanResult(target string) *brutus.Result {
-	return &brutus.Result{
-		Protocol:      "rdp",
-		Target:        target,
-		Username:      "(utilman)",
-		ScanType:      "utilman",
-		Success:       false,
-		Indeterminate: false,
+// utilmanCleanOutcome simulates a clean utilman check.
+func utilmanCleanOutcome() *rdp.CheckOutcome {
+	return &rdp.CheckOutcome{
+		Check: rdp.BackdoorUtilman, Performed: true, Stabilized: true,
+		Verdict: "clean",
 	}
 }
 
@@ -82,8 +66,8 @@ func utilmanCleanResult(target string) *brutus.Result {
 // fakes for the duration of the test, restoring the originals via t.Cleanup.
 func withDetectSeams(
 	t *testing.T,
-	stickyFn func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result,
-	utilmanFn func(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result,
+	stickyFn func(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision, fast bool) *rdp.CheckOutcome,
+	utilmanFn func(ctx context.Context, target string, connectTimeout, timeout time.Duration, noVision, fast bool) *rdp.CheckOutcome,
 ) {
 	t.Helper()
 	origSticky := detectSticky
@@ -119,22 +103,22 @@ func TestRunDetection_ChecksSelector(t *testing.T) {
 		var stickyInvoked, utilmanInvoked bool
 
 		withDetectSeams(t,
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
 				stickyInvoked = true
-				return stickyCleanResult(tgt)
+				return stickyCleanOutcome()
 			},
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
 				utilmanInvoked = true
-				return utilmanCleanResult(tgt)
+				return utilmanCleanOutcome()
 			},
 		)
 
-		results, _ := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckStickyKeys, false)
+		findings := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckStickyKeys, false)
 
 		assert.True(t, stickyInvoked, "sticky fake must be called for CheckStickyKeys")
 		assert.False(t, utilmanInvoked, "utilman fake must NOT be called for CheckStickyKeys")
-		require.Len(t, results, 1, "CheckStickyKeys must produce exactly 1 result")
-		assert.Equal(t, "sticky_keys", results[0].ScanType,
+		require.Len(t, findings, 1, "CheckStickyKeys must produce exactly 1 result")
+		assert.Equal(t, BackdoorStickyKeys, findings[0].Check,
 			"single result must be sticky_keys")
 	})
 
@@ -142,22 +126,22 @@ func TestRunDetection_ChecksSelector(t *testing.T) {
 		var stickyInvoked, utilmanInvoked bool
 
 		withDetectSeams(t,
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
 				stickyInvoked = true
-				return stickyCleanResult(tgt)
+				return stickyCleanOutcome()
 			},
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
 				utilmanInvoked = true
-				return utilmanCleanResult(tgt)
+				return utilmanCleanOutcome()
 			},
 		)
 
-		results, _ := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckUtilman, false)
+		findings := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckUtilman, false)
 
 		assert.False(t, stickyInvoked, "sticky fake must NOT be called for CheckUtilman")
 		assert.True(t, utilmanInvoked, "utilman fake must be called for CheckUtilman")
-		require.Len(t, results, 1, "CheckUtilman must produce exactly 1 result")
-		assert.Equal(t, "utilman", results[0].ScanType,
+		require.Len(t, findings, 1, "CheckUtilman must produce exactly 1 result")
+		assert.Equal(t, BackdoorUtilman, findings[0].Check,
 			"single result must be utilman")
 	})
 
@@ -165,24 +149,24 @@ func TestRunDetection_ChecksSelector(t *testing.T) {
 		var invocationOrder []string
 
 		withDetectSeams(t,
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
 				invocationOrder = append(invocationOrder, "sticky")
-				return stickyCleanResult(tgt)
+				return stickyCleanOutcome()
 			},
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
 				invocationOrder = append(invocationOrder, "utilman")
-				return utilmanCleanResult(tgt)
+				return utilmanCleanOutcome()
 			},
 		)
 
-		results, _ := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
+		findings := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
 
 		require.Len(t, invocationOrder, 2, "both fakes must be invoked for CheckBoth")
 		assert.Equal(t, "sticky", invocationOrder[0], "sticky must run first")
 		assert.Equal(t, "utilman", invocationOrder[1], "utilman must run second")
-		require.Len(t, results, 2, "CheckBoth must produce exactly 2 results")
-		assert.Equal(t, "sticky_keys", results[0].ScanType, "results[0] must be sticky_keys")
-		assert.Equal(t, "utilman", results[1].ScanType, "results[1] must be utilman")
+		require.Len(t, findings, 2, "CheckBoth must produce exactly 2 results")
+		assert.Equal(t, BackdoorStickyKeys, findings[0].Check, "results[0] must be sticky_keys")
+		assert.Equal(t, BackdoorUtilman, findings[1].Check, "results[1] must be utilman")
 	})
 }
 
@@ -203,94 +187,96 @@ func TestRunDetection_ContaminationDowngrade(t *testing.T) {
 
 	t.Run("StickyPositive_UtilmanClean_Downgrades", func(t *testing.T) {
 		withDetectSeams(t,
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
-				return stickyPositiveResult(tgt)
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
+				return stickyPositiveOutcome()
 			},
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
-				return utilmanCleanResult(tgt)
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
+				return utilmanCleanOutcome()
 			},
 		)
 
-		results, _ := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
+		findings := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
 
-		require.Len(t, results, 2)
+		require.Len(t, findings, 2)
 		// Sticky: still positive (never downgraded).
-		assert.True(t, results[0].Success, "sticky result must remain Success=true")
-		assert.False(t, results[0].Indeterminate, "sticky result must not become Indeterminate")
+		assert.True(t, findings[0].Verdict.Positive(), "sticky result must remain Success=true")
+		assert.NotEqual(t, VerdictIndeterminate, findings[0].Verdict, "sticky result must not become Indeterminate")
 
 		// Utilman: downgraded to Indeterminate.
-		assert.True(t, results[1].Indeterminate,
+		assert.Equal(t, VerdictIndeterminate, findings[1].Verdict,
 			"utilman result must be downgraded to Indeterminate when sticky is positive and utilman is clean")
-		assert.False(t, results[1].Success,
+		assert.False(t, findings[1].Verdict.Positive(),
 			"utilman result must not be Success after downgrade")
 
-		// Banner must carry both "rerun" and "utilman" (per the plan spec).
-		assert.True(t,
-			strings.Contains(results[1].Banner, "rerun") || strings.Contains(results[1].Banner, "rerun:"),
-			"downgraded utilman banner must mention rerun, got: %q", results[1].Banner)
-		assert.Contains(t, strings.ToLower(results[1].Banner), "utilman",
-			"downgraded utilman banner must mention utilman")
+		// The reason for the downgrade travels as typed diagnostics, not as a
+		// banner a consumer would have to parse.
+		assert.Contains(t, findings[1].Diagnostics.SkipReason, "rerun",
+			"downgraded utilman finding must tell the operator to rerun, got: %q", findings[1].Diagnostics.SkipReason)
+		assert.Contains(t, strings.ToLower(findings[1].Diagnostics.SkipReason), "utilman",
+			"downgraded utilman finding must name the check to rerun")
+		assert.Zero(t, findings[1].Confidence,
+			"a downgraded reading carries no confidence")
 	})
 
 	t.Run("StickyClean_UtilmanClean_NoDowngrade", func(t *testing.T) {
 		withDetectSeams(t,
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
-				return stickyCleanResult(tgt)
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
+				return stickyCleanOutcome()
 			},
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
-				return utilmanCleanResult(tgt)
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
+				return utilmanCleanOutcome()
 			},
 		)
 
-		results, _ := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
+		findings := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
 
-		require.Len(t, results, 2)
-		assert.False(t, results[0].Indeterminate, "sticky must remain clean")
-		assert.False(t, results[0].Success, "sticky must remain non-positive")
-		assert.False(t, results[1].Indeterminate,
+		require.Len(t, findings, 2)
+		assert.NotEqual(t, VerdictIndeterminate, findings[0].Verdict, "sticky must remain clean")
+		assert.False(t, findings[0].Verdict.Positive(), "sticky must remain non-positive")
+		assert.NotEqual(t, VerdictIndeterminate, findings[1].Verdict,
 			"utilman must NOT be downgraded when sticky is also clean")
-		assert.False(t, results[1].Success, "utilman must remain clean")
+		assert.False(t, findings[1].Verdict.Positive(), "utilman must remain clean")
 	})
 
 	t.Run("StickyPositive_UtilmanPositive_NoDowngrade", func(t *testing.T) {
 		withDetectSeams(t,
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
-				return stickyPositiveResult(tgt)
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
+				return stickyPositiveOutcome()
 			},
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
-				return utilmanPositiveResult(tgt)
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
+				return utilmanPositiveOutcome()
 			},
 		)
 
-		results, _ := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
+		findings := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckBoth, false)
 
-		require.Len(t, results, 2)
-		assert.True(t, results[0].Success, "sticky must remain Success=true")
-		assert.True(t, results[1].Success,
+		require.Len(t, findings, 2)
+		assert.True(t, findings[0].Verdict.Positive(), "sticky must remain Success=true")
+		assert.True(t, findings[1].Verdict.Positive(),
 			"utilman must NOT be downgraded when it is a positive — positives are never downgraded")
-		assert.False(t, results[1].Indeterminate, "utilman must not become Indeterminate")
+		assert.NotEqual(t, VerdictIndeterminate, findings[1].Verdict, "utilman must not become Indeterminate")
 	})
 
 	t.Run("CheckUtilman_SingleMode_NoDowngrade", func(t *testing.T) {
 		// In single-utilman mode there is no preceding sticky check, so the
 		// contamination condition can never apply — clean must stay clean.
 		withDetectSeams(t,
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
 				// sticky fake should not even be called in CheckUtilman mode, but
 				// provide it defensively.
-				return stickyPositiveResult(tgt)
+				return stickyPositiveOutcome()
 			},
-			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, username string, noVision, fast bool) *brutus.Result {
-				return utilmanCleanResult(tgt)
+			func(ctx context.Context, tgt string, connectTimeout, to time.Duration, noVision, fast bool) *rdp.CheckOutcome {
+				return utilmanCleanOutcome()
 			},
 		)
 
-		results, _ := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckUtilman, false)
+		findings := runDetection(context.Background(), target, 3*time.Second, timeout, false, CheckUtilman, false)
 
-		require.Len(t, results, 1, "CheckUtilman must return exactly 1 result")
-		assert.Equal(t, "utilman", results[0].ScanType)
-		assert.False(t, results[0].Indeterminate,
+		require.Len(t, findings, 1, "CheckUtilman must return exactly 1 result")
+		assert.Equal(t, BackdoorUtilman, findings[0].Check)
+		assert.NotEqual(t, VerdictIndeterminate, findings[0].Verdict,
 			"single-mode utilman result must NOT be downgraded (no sticky context)")
-		assert.False(t, results[0].Success, "clean utilman result must remain clean")
+		assert.False(t, findings[0].Verdict.Positive(), "clean utilman result must remain clean")
 	})
 }

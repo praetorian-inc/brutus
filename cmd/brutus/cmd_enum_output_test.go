@@ -26,10 +26,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
-// outputEnumJSONL — First/Last name propagation (10T-535 PR2)
-// ---------------------------------------------------------------------------
-
 // TestOutputEnumJSONL_NameFields pins the never-invent-a-name rule for the
 // generic enum output path: a Result carrying First/Last (from --generate)
 // must emit "first"/"last" in the JSONL row, while a Result with empty

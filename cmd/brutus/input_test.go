@@ -23,10 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// parseCredentialPairs
-// ---------------------------------------------------------------------------
-
 func TestParseCredentialPairs_Basic(t *testing.T) {
 	creds, err := parseCredentialPairs("admin:admin,root:toor")
 	require.NoError(t, err)
@@ -117,10 +113,6 @@ func TestParseCredentialPairs_MixedValidAndInvalid(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid")
 }
-
-// ---------------------------------------------------------------------------
-// loadCredentials
-// ---------------------------------------------------------------------------
 
 func TestLoadCredentials_InlineOnly(t *testing.T) {
 	creds, err := loadCredentials("admin:pass,root:toor", "")

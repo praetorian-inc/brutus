@@ -62,7 +62,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("telnet", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Connect with context-aware timeout
 	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = classifyError(err)
@@ -70,12 +69,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Set overall timeout
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
 	reader := bufio.NewReader(conn)
 
-	// Read until login prompt (capture banner)
 	banner, err := waitForPrompt(reader, isLoginPrompt, timeout)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -83,40 +80,32 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	result.Banner = banner
 
-	// Send username (telnet protocol requires CR+LF line endings)
+	// Telnet requires CR+LF line endings.
 	if _, writeErr := fmt.Fprintf(conn, "%s\r\n", username); writeErr != nil {
 		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
 
-	// Read until password prompt
 	_, err = waitForPrompt(reader, isPasswordPrompt, timeout)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
-	// Send password (telnet protocol requires CR+LF line endings)
 	if _, writeErr := fmt.Fprintf(conn, "%s\r\n", password); writeErr != nil {
 		result.Error = brutus.WrapConnError(writeErr)
 		return result
 	}
 
-	// Read response and check for success/failure
 	response, err := readResponse(reader, timeout)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
-	// Classify response
 	result.Error = classifyTelnetResponse(response)
-	if result.Error == nil {
-		// Either auth failure or success
-		if isSuccessIndicator(response) {
-			result.Success = true
-		}
-		// If not success and Error==nil, it's auth failure
+	if result.Error == nil && isSuccessIndicator(response) {
+		result.Success = true
 	}
 
 	return result
@@ -162,7 +151,6 @@ func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
 	for time.Now().Before(deadline) {
 		b, err := reader.ReadByte()
 		if err != nil {
-			// Check what we have so far
 			if len(buffer) > 0 {
 				return string(buffer), nil
 			}
@@ -174,7 +162,6 @@ func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
 
 		buffer = append(buffer, b)
 
-		// Check for success or failure indicators
 		line := string(buffer)
 		if isSuccessIndicator(line) || containsAuthFailureIndicator(line) {
 			// Read a bit more to get full response
@@ -212,22 +199,16 @@ func classifyTelnetResponse(response string) error {
 
 	respLower := strings.ToLower(response)
 
-	// Check for connection errors first
 	if strings.Contains(respLower, "connection closed") {
 		return fmt.Errorf("connection error: connection closed")
 	}
 
-	// Check for success (return nil)
 	if isSuccessIndicator(response) {
 		return nil
 	}
 
-	// Check for auth failures using shared helper (return nil for auth failures)
-	// Convert response to error for ClassifyAuthError analysis
 	responseErr := errors.New(response)
-	classifErr := brutus.ClassifyAuthError(responseErr, telnetAuthIndicators)
-	if classifErr == nil {
-		// Shared helper returned nil, indicating auth failure
+	if brutus.ClassifyAuthError(responseErr, telnetAuthIndicators) == nil {
 		return nil
 	}
 

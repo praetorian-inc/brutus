@@ -46,7 +46,6 @@ func GetBrowser(tabCount int) (*Browser, error) {
 
 // startBrowser initializes Chrome and creates the tab pool
 func startBrowser(tabCount int, visible bool) (*Browser, error) {
-	// Create allocator context - headless unless visible mode is enabled
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", !visible),
 		chromedp.Flag("disable-gpu", !visible), // GPU can be enabled when visible
@@ -54,7 +53,6 @@ func startBrowser(tabCount int, visible bool) (*Browser, error) {
 		chromedp.Flag("disable-dev-shm-usage", true),
 	)
 
-	// Add window size for visible mode
 	if visible {
 		opts = append(opts,
 			chromedp.WindowSize(1280, 900),
@@ -63,7 +61,6 @@ func startBrowser(tabCount int, visible bool) (*Browser, error) {
 
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 
-	// Create browser context
 	browserCtx, _ := chromedp.NewContext(allocCtx)
 
 	// Start the browser by running an empty task
@@ -91,16 +88,12 @@ func startBrowser(tabCount int, visible bool) (*Browser, error) {
 // AcquireTab creates a fresh tab context (blocks if max tabs reached).
 // Each call creates a new tab to avoid state corruption issues with tab reuse.
 func (b *Browser) AcquireTab() (tabCtx context.Context, release func()) {
-	// Wait for semaphore slot
 	<-b.tabSem
 
-	// Create fresh tab context for this operation
 	tabCtx, tabCancel := chromedp.NewContext(b.browserCtx)
 
 	return tabCtx, func() {
-		// Close this tab when done
 		tabCancel()
-		// Return semaphore slot
 		b.tabSem <- struct{}{}
 	}
 }

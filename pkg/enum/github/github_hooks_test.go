@@ -40,7 +40,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
 // TestWorker_Label
 // github's pre-migration panic diagnostics were prefixed "github enum"
 // (existence.go:102,105), yielding "github enum: panic checking %s: %v" on
@@ -48,7 +47,6 @@ import (
 // reproduces that prefix verbatim via Label, so this exact string must never
 // drift -- changing it is a log-format change for anything that greps stderr
 // or a Result's Error text, not a cosmetic rename.
-// ---------------------------------------------------------------------------
 
 func TestWorker_Label(t *testing.T) {
 	t.Parallel()
@@ -63,7 +61,6 @@ func TestWorker_Label(t *testing.T) {
 	assert.Equal(t, "github enum", e.worker(&session{}).Label)
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_NewErrorShape
 //
 // github's failure results carry ONLY Email and Error -- no extra fields
@@ -71,7 +68,6 @@ func TestWorker_Label(t *testing.T) {
 // equality is deliberate here too: it fails loudly if a future change adds an
 // unexpected field to github's failure shape, not just if Email/Error are
 // individually wrong.
-// ---------------------------------------------------------------------------
 
 func TestWorker_NewErrorShape(t *testing.T) {
 	t.Parallel()
@@ -85,14 +81,12 @@ func TestWorker_NewErrorShape(t *testing.T) {
 	assert.Equal(t, Result{Email: "a@b.com", Error: sentinel}, got)
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_StampNameCopiesFirstLastOnly
 // StampName's documented contract (targetworker.go) is a one-line copy of
 // First/Last from the originating Target. This asserts both halves of that
 // contract: First/Last land correctly, and every other field on an
 // already-populated Result -- including Username, github's reveal-only
 // field -- is left untouched.
-// ---------------------------------------------------------------------------
 
 func TestWorker_StampNameCopiesFirstLastOnly(t *testing.T) {
 	t.Parallel()

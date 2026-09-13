@@ -1,0 +1,8 @@
+# NATS Default Credentials
+nats:nats
+admin:admin
+# --- cautious ---
+user:user
+# --- aggressive ---
+nats:password
+ruser:T0pS3cr3t

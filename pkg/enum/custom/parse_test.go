@@ -106,10 +106,6 @@ func TestParse_JSONEqualsYAML(t *testing.T) {
 	assert.Equal(t, len(jsonSpec.Oracle.Match.Rules), len(yamlSpec.Oracle.Match.Rules))
 }
 
-// ---------------------------------------------------------------------------
-// Table-driven invalid-spec tests
-// ---------------------------------------------------------------------------
-
 // invalidSpecCase describes a single invalid-spec test.
 type invalidSpecCase struct {
 	name         string

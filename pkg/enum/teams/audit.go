@@ -84,10 +84,6 @@ func Audit(domain, seedEmail string, result *EnumResult, posture *TenantPosture,
 	return findings
 }
 
-// ---------------------------------------------------------------------------
-// Rule builders (one per finding type)
-// ---------------------------------------------------------------------------
-
 // externalAccessFinding reports that external / cross-tenant Teams chat is
 // enabled: the externalsearchv3 endpoint resolved the seed user to this tenant
 // from an external context.
@@ -181,10 +177,6 @@ func metadataFinding(domain, seedEmail string, result *EnumResult) Finding {
 		Remediation: "This disclosure is inherent to Teams external resolution. Reduce external exposure by restricting federation/external access.",
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 // externalAccessSignals describes any federation/type signal observed on the
 // seed result, for inclusion in the external-access evidence string. It returns

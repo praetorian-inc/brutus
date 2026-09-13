@@ -27,10 +27,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
-// Existence enumeration (unauthenticated)
-// ---------------------------------------------------------------------------
-
 // Enumerate checks each email's existence using a bounded worker pool, applying
 // rate limiting and jitter when rateLimit > 0. Results preserve input order. It
 // is a thin wrapper around EnumerateWith with no per-result callback.
@@ -145,10 +141,6 @@ func (e *Enumerator) EnumerateTargetsWith(ctx context.Context, targets []enum.Ta
 
 	return e.worker(sess).Run(ctx, targets, threads, rateLimit, jitter, onResult)
 }
-
-// ---------------------------------------------------------------------------
-// Existence helpers
-// ---------------------------------------------------------------------------
 
 // establishSession fetches the join page, parses the CSRF token, and runs the
 // sanity check, retrying on transient failures. GitHub's signup page applies

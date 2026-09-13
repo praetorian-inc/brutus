@@ -49,10 +49,6 @@ const (
 	maxResults      = 10000
 )
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 // Record is one breach-exposed identity entry for the domain. It carries the
 // breach-exposed plaintext Passwords for the record; hashed_password remains
 // omitted by design (P0-SCOPE: hashes omitted).
@@ -191,10 +187,6 @@ func (e *APIError) Unwrap() error {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
-
 // Client holds state for querying the DeHashed v2 search API.
 type Client struct {
 	apiKey     string
@@ -300,10 +292,6 @@ func (c *Client) SearchWithOptions(ctx context.Context, opts SearchOptions) (*Do
 
 	return result, nil
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 // do performs a single POST to the DeHashed search API and returns the bounded
 // response body. The API key is sent only in the Dehashed-Api-Key header — it
@@ -498,12 +486,10 @@ func toRecord(e *apiEntry) Record {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // JSON-mapping structs (unexported — map to the DeHashed v2 response shape).
 // The plaintext "password" field IS mapped and flows into our data model.
 // "hashed_password" is DELIBERATELY omitted so hashes are dropped at unmarshal
 // and never enter our data model (P0-SCOPE).
-// ---------------------------------------------------------------------------
 
 type searchRequest struct {
 	Query string `json:"query"`

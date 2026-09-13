@@ -41,10 +41,6 @@ func firstElem(t *testing.T, v interface{}) interface{} {
 	return s[0]
 }
 
-// ---------------------------------------------------------------------------
-// Task 7: resolveDehashedAPIKey
-// ---------------------------------------------------------------------------
-
 func TestResolveDehashedAPIKey(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -87,10 +83,6 @@ func TestResolveDehashedAPIKey(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Task 8: classifyDehashedError — key must never appear in output
-// ---------------------------------------------------------------------------
 
 func TestClassifyDehashedError_NoKeyLeak(t *testing.T) {
 	tests := []struct {
@@ -141,10 +133,6 @@ func TestClassifyDehashedError_NoKeyLeak(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Task 9 (updated): outputDehashedHuman — showCredentials bool param
-// ---------------------------------------------------------------------------
 
 func TestOutputDehashedHuman(t *testing.T) {
 	t.Run("renders entries with email name username phone sources columns", func(t *testing.T) {
@@ -256,10 +244,6 @@ func TestOutputDehashedHuman(t *testing.T) {
 			"hashed_password must never appear in human output")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// Task 10 (updated): outputDehashedJSONL — showCredentials bool param
-// ---------------------------------------------------------------------------
 
 func TestOutputDehashedJSONL(t *testing.T) {
 	t.Run("single entry emits one JSONL line with expected fields", func(t *testing.T) {
@@ -399,10 +383,6 @@ func TestOutputDehashedJSONL(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// Task 11: enumDehashedCmd registration and flags (updated — passive regroup)
-// ---------------------------------------------------------------------------
-
 func TestEnumDehashedRegistered(t *testing.T) {
 	// 1. enumCmd must have a "passive" subcommand.
 	var passive *cobra.Command
@@ -468,10 +448,6 @@ func TestEnumDehashedRegistered(t *testing.T) {
 	assert.True(t, alias.Hidden, "back-compat dehashed alias must be Hidden")
 	assert.NotEmpty(t, alias.Deprecated, "back-compat dehashed alias must be Deprecated")
 }
-
-// ---------------------------------------------------------------------------
-// outputDehashedDetailedJSON
-// ---------------------------------------------------------------------------
 
 func TestOutputDehashedDetailedJSON(t *testing.T) {
 	collectedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)

@@ -153,10 +153,6 @@ func TestNewHTTPClient_BackwardCompat(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// TestBuildProxyURL — Section A
-// ---------------------------------------------------------------------------
-
 func TestBuildProxyURL(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -280,10 +276,6 @@ func TestBuildProxyURL_BrightDataRoundTrip(t *testing.T) {
 	assert.Equal(t, wantPass, gotPass, "percent-decoded password must match")
 }
 
-// ---------------------------------------------------------------------------
-// TestProxyTransport — Section B
-// ---------------------------------------------------------------------------
-
 func TestProxyTransport(t *testing.T) {
 	t.Run("http proxy sets Transport.Proxy not DialContext", func(t *testing.T) {
 		transport, err := ProxyTransport("http://u:p@h:8080", 5*time.Second, nil)
@@ -325,10 +317,6 @@ func TestProxyTransport(t *testing.T) {
 		require.Error(t, err)
 	})
 }
-
-// ---------------------------------------------------------------------------
-// TestProxyAuthorization_EndToEnd — Section C
-// ---------------------------------------------------------------------------
 
 // TestProxyAuthorization_EndToEnd stands up an httptest server acting as an
 // HTTP forward proxy. It verifies that NewHTTPClientWithProxy produces a client

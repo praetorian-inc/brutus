@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -26,199 +27,6 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-// unreachableScanBanner is the terminal verdict prefix for a host whose TCP dial
-// failed in the WASM scan path. It carries the literal token "unreachable" so
-// JSONL/grep and human output surface it, with a leading [INFO] tag. Shared by
-// both mappers to avoid drift between the two identical dial-failure sites.
-const unreachableScanBanner = "[INFO] unreachable (no RDP/TCP connection to host — not scannable): "
-
-// ---------------------------------------------------------------------------
-// CLI-level detection wrappers (format results as brutus.Result)
-// ---------------------------------------------------------------------------
-
-// DetectStickyKeys performs sticky keys backdoor detection and returns a brutus.Result
-// with the verdict formatted as a banner string.
-//
-// This function wraps RunStickyKeysCheck and interprets the StickyKeysResult into
-// a standardized Result format suitable for CLI output. fast selects the short
-// FastBudget settle profile and enforces the never-clean invariant.
-func DetectStickyKeys(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
-	plugin := &Plugin{}
-	budget := CarefulBudget
-	if fast {
-		budget = FastBudget
-	}
-	stickyResult := plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
-	// Some hosts drop the pre-auth logon session a few seconds in -- sooner than the
-	// careful profile's ~5s settle needs, so the post-trigger screen is never
-	// observed. The short profile completes inside that window, so retry once there
-	// rather than returning a scan that saw no render. Only from the careful budget:
-	// a --fast scan has no shorter profile to fall back to.
-	stickyResult = retryStickyKeysOnTermination(fast, stickyResult, func() *StickyKeysResult {
-		return plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
-	})
-	result := mapStickyResult(stickyResult, username)
-	result.Target = target
-	return result
-}
-
-// mapStickyResult interprets a StickyKeysResult into a standardized brutus.Result
-// suitable for CLI output. It is the single source of verdict→banner mapping,
-// reused by both the per-check entry point and the shared-connection path.
-func mapStickyResult(stickyResult *StickyKeysResult, username string) *brutus.Result {
-	result := brutus.NewResult("rdp", "", username, "")
-	result.ScanType = "sticky_keys"
-
-	if stickyResult == nil {
-		result.Error = fmt.Errorf("sticky keys check returned nil")
-		return result
-	}
-
-	if stickyResult.Unreachable {
-		// TCP dial failed: terminal-unreachable, NOT indeterminate. Success and
-		// Indeterminate stay at their zero values (false/false) so the retry loop
-		// never fires (cardinal rule: unreachable != clean, unreachable != rerun).
-		result.Banner = unreachableScanBanner + stickyResult.SkipReason
-		return result
-	}
-
-	if !stickyResult.Performed {
-		// A failed connect/instance is NOT a benign skip — it produced no
-		// verdict, so surface it loudly as indeterminate (rerun), not clean. A server
-		// that ended the session mid-scan gets the termination banner instead:
-		// "could not connect" misdirects an operator whose connect worked fine.
-		if stickyResult.SessionTerminated {
-			result.Banner = indeterminateBanner("Sticky keys", true, stickyResult.TerminationReason)
-		} else {
-			result.Banner = fmt.Sprintf("[WARN] Sticky keys check INDETERMINATE (could not connect — rerun): %s", stickyResult.SkipReason)
-		}
-		result.Indeterminate = true
-		return result
-	}
-
-	result.Success = false // Default to false (fail-closed)
-	switch stickyResult.OverallVerdict {
-	case "backdoor_confirmed":
-		result.Banner = fmt.Sprintf("[CRITICAL] Sticky keys backdoor CONFIRMED (confidence: %.0f%%)", stickyResult.Confidence*100)
-		result.Success = true
-	case "backdoor_likely":
-		result.Banner = fmt.Sprintf("[HIGH] Sticky keys backdoor likely (confidence: %.0f%%)", stickyResult.Confidence*100)
-		result.Success = true
-	case "vulnerable":
-		result.Banner = "[INFO] Non-NLA target, sticky keys triggers normally (no backdoor)"
-		result.Success = true
-	case verdictIndeterminate:
-		result.Banner = indeterminateBanner("Sticky keys", stickyResult.SessionTerminated, stickyResult.TerminationReason)
-		result.Indeterminate = true
-		// Success stays false
-	case "clean":
-		result.Banner = "[INFO] Sticky keys check: clean (no response to 5x Shift)"
-		// Success stays false
-	default:
-		result.Banner = fmt.Sprintf("[INFO] Sticky keys check returned unknown verdict: %q", stickyResult.OverallVerdict)
-		// Success stays false (fail-closed)
-	}
-
-	// Geometry diagnostic (never affects the verdict — confidence/banner only).
-	if stickyResult.RegionNote != "" {
-		result.Banner += fmt.Sprintf(" (%s)", stickyResult.RegionNote)
-	}
-
-	return result
-}
-
-// DetectUtilman performs utilman backdoor detection and returns a brutus.Result
-// with the verdict formatted as a banner string.
-//
-// This function wraps RunUtilmanCheck and interprets the UtilmanResult into
-// a standardized Result format suitable for CLI output. fast selects the short
-// FastBudget settle profile and enforces the never-clean invariant.
-func DetectUtilman(ctx context.Context, target string, connectTimeout, timeout time.Duration, username string, noVision, fast bool) *brutus.Result {
-	plugin := &Plugin{}
-	budget := CarefulBudget
-	if fast {
-		budget = FastBudget
-	}
-	utilmanResult := plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, budget, fast)
-	// See DetectStickyKeys: a host that drops the pre-auth session before the careful
-	// settle completes is still observable on the short profile.
-	utilmanResult = retryUtilmanOnTermination(fast, utilmanResult, func() *UtilmanResult {
-		return plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
-	})
-	result := mapUtilmanResult(utilmanResult, username)
-	result.Target = target
-	return result
-}
-
-// mapUtilmanResult interprets a UtilmanResult into a standardized brutus.Result
-// suitable for CLI output. It is the single source of verdict→banner mapping,
-// reused by both the per-check entry point and the shared-connection path.
-func mapUtilmanResult(utilmanResult *UtilmanResult, username string) *brutus.Result {
-	result := brutus.NewResult("rdp", "", username, "")
-	result.ScanType = "utilman"
-
-	if utilmanResult == nil {
-		result.Error = fmt.Errorf("utilman check returned nil")
-		return result
-	}
-
-	if utilmanResult.Unreachable {
-		// TCP dial failed: terminal-unreachable, NOT indeterminate. Success and
-		// Indeterminate stay at their zero values (false/false) so the retry loop
-		// never fires (cardinal rule: unreachable != clean, unreachable != rerun).
-		result.Banner = unreachableScanBanner + utilmanResult.SkipReason
-		return result
-	}
-
-	if !utilmanResult.Performed {
-		// A failed connect/instance is NOT a benign skip — it produced no
-		// verdict, so surface it loudly as indeterminate (rerun), not clean. A server
-		// that ended the session mid-scan gets the termination banner instead:
-		// "could not connect" misdirects an operator whose connect worked fine.
-		if utilmanResult.SessionTerminated {
-			result.Banner = indeterminateBanner("Utilman", true, utilmanResult.TerminationReason)
-		} else {
-			result.Banner = fmt.Sprintf("[WARN] Utilman check INDETERMINATE (could not connect — rerun): %s", utilmanResult.SkipReason)
-		}
-		result.Indeterminate = true
-		return result
-	}
-
-	result.Success = false // Default to false (fail-closed)
-	switch utilmanResult.OverallVerdict {
-	case "backdoor_confirmed":
-		result.Banner = fmt.Sprintf("[CRITICAL] Utilman backdoor CONFIRMED (confidence: %.0f%%)", utilmanResult.Confidence*100)
-		result.Success = true
-	case "backdoor_likely":
-		result.Banner = fmt.Sprintf("[HIGH] Utilman backdoor likely (confidence: %.0f%%)", utilmanResult.Confidence*100)
-		result.Success = true
-	case "vulnerable":
-		result.Banner = "[INFO] Non-NLA target, utilman triggers normally (no backdoor)"
-		result.Success = true
-	case verdictIndeterminate:
-		result.Banner = indeterminateBanner("Utilman", utilmanResult.SessionTerminated, utilmanResult.TerminationReason)
-		result.Indeterminate = true
-		// Success stays false
-	case "clean":
-		result.Banner = "[INFO] Utilman check: clean (no response to Win+U)"
-		// Success stays false
-	default:
-		result.Banner = fmt.Sprintf("[INFO] Utilman check returned unknown verdict: %q", utilmanResult.OverallVerdict)
-		// Success stays false (fail-closed)
-	}
-
-	// Geometry diagnostic (never affects the verdict — confidence/banner only).
-	if utilmanResult.RegionNote != "" {
-		result.Banner += fmt.Sprintf(" (%s)", utilmanResult.RegionNote)
-	}
-
-	return result
-}
-
-// ---------------------------------------------------------------------------
-// Detection entry points (connection setup + detection sequence)
-// ---------------------------------------------------------------------------
 
 // RunStickyKeysCheck performs sticky keys detection on a separate connection.
 // The noVision flag disables Vision API confirmation. budget selects the settle
@@ -293,10 +101,6 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, c
 	return utilmanResult
 }
 
-// ---------------------------------------------------------------------------
-// Detection sequences (non-NLA connection → trigger → analyze)
-// ---------------------------------------------------------------------------
-
 // runStickyKeysDetection performs the full detection sequence on a non-NLA connection.
 // timeout is the per-host budget passed to each session pump phase. budget selects
 // the settle profile; fast enforces the never-clean invariant in stabilizedVerdict.
@@ -354,6 +158,8 @@ func (p *Plugin) runStickyKeysDetection(ctx context.Context, inst *wasmInstance,
 	}
 	analysis := runStickyKeysAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	finalizeStickyKeysResult(result, &analysis, diag, stabilized, fast)
+	result.BaselinePNG = encodeFramePNG(baseline, width, height)
+	result.ResponsePNG = encodeFramePNG(response, width, height)
 
 	return result, nil
 }
@@ -415,6 +221,8 @@ func (p *Plugin) runUtilmanDetection(ctx context.Context, inst *wasmInstance, ad
 	}
 	analysis := runUtilmanAnalysis(ctx, baseline, response, width, height, visionAPIKey)
 	finalizeUtilmanResult(result, &analysis, diag, stabilized, fast)
+	result.BaselinePNG = encodeFramePNG(baseline, width, height)
+	result.ResponsePNG = encodeFramePNG(response, width, height)
 
 	return result, nil
 }
@@ -428,6 +236,23 @@ func stabilizedVerdict(verdict string, stabilized, fast bool) string {
 		return verdictIndeterminate
 	}
 	return verdict
+}
+
+func encodeFramePNG(rgba []byte, w, h uint32) []byte {
+	pixels := uint64(w) * uint64(h)
+	if pixels == 0 || pixels > uint64(math.MaxInt/4) {
+		return nil
+	}
+	need := int(pixels * 4)
+	if len(rgba) < need {
+		return nil
+	}
+	pngData, err := rgbaToPNG(rgba, w, h)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[!] screenshot encode: %v\n", err)
+		return nil
+	}
+	return pngData
 }
 
 // dumpFrame is an env-var-gated DEBUG aid: when dir is non-empty it saves the
@@ -485,10 +310,6 @@ func safeFilenameComponent(s string) string {
 	}
 	return b.String()
 }
-
-// ---------------------------------------------------------------------------
-// Banner formatting (append detection results to auth banner)
-// ---------------------------------------------------------------------------
 
 // finalizeStickyKeysResult folds an analysis outcome into result while KEEPING the session
 // diagnostics the analysis knows nothing about.
@@ -589,18 +410,41 @@ func retryAfterTermination(verdict string, performed bool) bool {
 	}
 }
 
-// indeterminateBanner renders the INDETERMINATE banner for a check that produced no
-// trustworthy render. When the server ended the session mid-scan it says so and
-// names the server's own reason, because "render did not stabilize" sends the
-// operator to rerun an identical scan that will fail identically -- the actionable
-// step is the short settle profile, which completes inside the window such a host
-// allows before it drops the pre-auth session.
-func indeterminateBanner(check string, sessionTerminated bool, reason string) string {
-	if !sessionTerminated {
-		return fmt.Sprintf("[WARN] %s check INDETERMINATE (render did not stabilize — rerun)", check)
+// retryStickyKeysOnUnstable re-runs a non-stabilized (indeterminate) scan once on the
+// MORE patient settle profile. A render that did not settle within CarefulBudget is not
+// an observation -- the operator would otherwise have to rerun it by hand -- so one
+// automatic, more-patient retry spends the extra time ONLY on the hosts that need it.
+// It never touches a host that already settled (clean or a positive), so it cannot lose
+// a finding (cardinal rule). Terminated sessions are handled by the termination retry
+// (a SHORTER profile, to beat a re-teardown), so this deliberately skips them. rerun is
+// invoked at most once. fast mode never retries (never-clean triage owns that path).
+func retryStickyKeysOnUnstable(fast bool, first *StickyKeysResult, rerun func() *StickyKeysResult) *StickyKeysResult {
+	if fast || first == nil || first.SessionTerminated {
+		return first
 	}
-	if reason == "" {
-		return fmt.Sprintf("[WARN] %s check INDETERMINATE (server ended the session mid-scan — retry with --fast)", check)
+	if !retryWhenUnstable(first.OverallVerdict, first.Performed, first.Stabilized) {
+		return first
 	}
-	return fmt.Sprintf("[WARN] %s check INDETERMINATE (server ended the session mid-scan: %s — retry with --fast)", check, reason)
+	return rerun()
+}
+
+// retryUtilmanOnUnstable is retryStickyKeysOnUnstable for the utilman check. See it for
+// the rationale; the wiring is identical so both checks share one retry decision.
+func retryUtilmanOnUnstable(fast bool, first *UtilmanResult, rerun func() *UtilmanResult) *UtilmanResult {
+	if fast || first == nil || first.SessionTerminated {
+		return first
+	}
+	if !retryWhenUnstable(first.OverallVerdict, first.Performed, first.Stabilized) {
+		return first
+	}
+	return rerun()
+}
+
+// retryWhenUnstable reports whether a (non-terminated) result is worth a more-patient
+// rerun: only a scan that performed but did not stabilize AND landed on indeterminate.
+// A stabilized verdict -- clean or a positive -- is a real observation and is never
+// re-run (the retry could only lose it). A never-performed scan (connect/wasm failure)
+// has no render to settle, so a patient retry buys nothing.
+func retryWhenUnstable(verdict string, performed, stabilized bool) bool {
+	return performed && !stabilized && verdict == verdictIndeterminate
 }

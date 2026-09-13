@@ -20,10 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// ---------------------------------------------------------------------------
-// capResults
-// ---------------------------------------------------------------------------
-
 // TestCapResults_LimitToN verifies that capResults returns exactly N items
 // when limit <= len(results).
 func TestCapResults_LimitToN(t *testing.T) {

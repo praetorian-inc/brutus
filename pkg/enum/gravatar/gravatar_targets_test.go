@@ -84,13 +84,11 @@ func newTargetsMockServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateTargetsWith_NamesRideOnResult
 // Core test: 3 targets with distinct names against a stub that reports
 // existence for all of them. Each returned Result must carry the name of the
 // target that produced it, correlated by email. An implementation that
 // stamps every Result with the first target's name fails this test.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	t.Parallel()
@@ -124,11 +122,9 @@ func TestGravatarEnumerateTargetsWith_NamesRideOnResult(t *testing.T) {
 	assert.True(t, byEmail[registeredEmail].Exists, "registeredEmail must be reported as existing by the stub")
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateTargetsWith_NamelessTargetStaysNameless
 // A Target with no name (address supplied by the operator, not generated)
 // must yield First=="" && Last=="". The library must never invent a name.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) {
 	t.Parallel()
@@ -146,12 +142,10 @@ func TestGravatarEnumerateTargetsWith_NamelessTargetStaysNameless(t *testing.T) 
 	assert.Empty(t, results[0].Last, "Last must stay empty for a nameless Target")
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateWith_StillWorksAndYieldsEmptyNames
 // Pins that the existing EnumerateWith([]string) entry point is unaffected by
 // the refactor: it still returns correct results, and since bare addresses
 // carry no name, First/Last must be empty.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	t.Parallel()
@@ -180,12 +174,10 @@ func TestGravatarEnumerateWith_StillWorksAndYieldsEmptyNames(t *testing.T) {
 	assert.True(t, byEmail[registeredEmail].Exists, "registeredEmail must be reported as existing by the stub")
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateTargetsWith_NamesSurviveErrorPath
 // A name is a property of the address, not of the check outcome. Drive a
 // Result whose Error is non-nil (the mock server's 500 for failingEmail) and
 // assert the name is still stamped.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	t.Parallel()
@@ -209,11 +201,9 @@ func TestGravatarEnumerateTargetsWith_NamesSurviveErrorPath(t *testing.T) {
 	assert.Equal(t, "fail", r.Last, "name must survive even when the probe errors")
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateTargetsWith_MixedNamedAndUnnamed
 // A single batch containing both named and unnamed targets: each Result must
 // get exactly its own target's name, or empty for the unnamed ones.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	t.Parallel()
@@ -246,12 +236,10 @@ func TestGravatarEnumerateTargetsWith_MixedNamedAndUnnamed(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateTargetsWith_EveryTargetSlotFilled
 // len(results) == len(targets) and every target is present even when some
 // probes fail. Completion order is not asserted (the worker pool is
 // concurrent); correlation is by email only.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 	t.Parallel()
@@ -289,14 +277,12 @@ func TestGravatarEnumerateTargetsWith_EveryTargetSlotFilled(t *testing.T) {
 	assert.NoError(t, byEmail["notexists@example.com"].Error)
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateTargetsWith_NamesSurviveCancelledContext
 // Chokepoint test: with the context already canceled before the call, every
 // goroutine takes the <-ctx.Done() early-return branch and records via
 // newError WITHOUT ever calling CheckAccount. If the name stamp lived only at
 // the CheckAccount call site rather than at the single funnel every outcome
 // passes through, these Results would come back nameless.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T) {
 	t.Parallel()
@@ -332,7 +318,6 @@ func TestGravatarEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T)
 	}
 }
 
-// ---------------------------------------------------------------------------
 // TestGravatarEnumerateTargetsWith_HashSurvivesFailingProbe
 //
 // This is the single most valuable test in this file (PLAN.md Part 3.3): every
@@ -348,7 +333,6 @@ func TestGravatarEnumerateTargetsWith_NamesSurviveCancelledContext(t *testing.T)
 //   - an already-canceled context -- this path never reaches CheckAccount at
 //     all, so newError alone is responsible for the Hash on this Result. If
 //     Hash is dropped, this is the case that proves it.
-// ---------------------------------------------------------------------------
 
 func TestGravatarEnumerateTargetsWith_HashSurvivesFailingProbe(t *testing.T) {
 	t.Parallel()

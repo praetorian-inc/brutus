@@ -56,7 +56,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("cassandra", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Create cluster configuration
 	cluster := gocql.NewCluster(target)
 	cluster.Authenticator = gocql.PasswordAuthenticator{
 		Username: username,
@@ -69,7 +68,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// don't enable TLS, and forcing TLS when the server doesn't support
 	// it causes "first record does not look like a TLS handshake" errors
 
-	// Create session with context
 	session, err := cluster.CreateSession()
 	if err != nil {
 		result.Error = classifyError(err)
@@ -77,18 +75,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer session.Close()
 
-	// Test connection with a simple query
 	queryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Query system.local to verify authentication and connection
 	iter := session.Query("SELECT now() FROM system.local").WithContext(queryCtx).Iter()
 	if err := iter.Close(); err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

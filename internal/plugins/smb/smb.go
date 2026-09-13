@@ -61,10 +61,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("smb", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "445")
 
-	// Connect with context timeout (proxy-aware)
 	conn, err := brutus.DialWithProxy(ctx, "tcp", net.JoinHostPort(host, port), timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -72,10 +70,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
-	// Parse domain and username
 	domain, user := parseDomainUsername(username)
 
-	// Perform SMB handshake and authentication
 	d := &smb2.Dialer{
 		Initiator: &smb2.NTLMInitiator{
 			User:     user,
@@ -91,7 +87,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = session.Logoff() }()
 
-	// Test authentication by connecting to IPC$ share
 	share, err := session.Mount("IPC$")
 	if err != nil {
 		result.Error = classifyError(err)
@@ -99,14 +94,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = share.Umount() }()
 
-	// Success - authentication worked
 	result.Success = true
 	return result
 }
 
-// parseTarget splits target into host and port.
-// If no port is specified, defaults to 445 (SMB).
-// Supports IPv6 addresses with brackets: [::1]:445
 // parseDomainUsername splits username into domain and username.
 // Supports formats: DOMAIN\username or just username.
 // Returns empty string for domain if not specified.

@@ -114,6 +114,33 @@ type Config struct {
 	ProxyURL        string        // SOCKS5 proxy URL for all connections (e.g., "socks5://127.0.0.1:1080")
 }
 
+// ResultKind identifies what a Result is evidence of. It is derived at the
+// package boundary from the interface the Result came back through
+// (Plugin.Test / KeyPlugin.TestKey vs. CheckUnauth), so it cannot drift the
+// way per-plugin self-reporting would.
+//
+// Only those two boundaries stamp Kind. Producers that build a Result directly
+// and bypass them leave it KindUnspecified even when they set Success, so an
+// unspecified kind does not mean the attempt failed. A consumer must therefore
+// test Kind == KindCredential positively, and must never infer a credential
+// authentication from Success alone or from Kind != KindUnauthenticated.
+type ResultKind string
+
+const (
+	// KindUnspecified is the zero value: this Result has not been classified.
+	KindUnspecified ResultKind = ""
+	// KindCredential means the tested credentials authenticated successfully.
+	KindCredential ResultKind = "credential_authentication"
+	// KindUnauthenticated means the service granted access with no credentials
+	// at all. It is NOT a credential authentication and must never be reported
+	// as weak or default credentials.
+	KindUnauthenticated ResultKind = "unauthenticated_access"
+	// KindFailed means the attempt did not authenticate.
+	KindFailed ResultKind = "failed_attempt"
+	// KindInconclusive means the attempt could not produce a clean verdict.
+	KindInconclusive ResultKind = "inconclusive_attempt"
+)
+
 // Result contains the outcome of testing a single credential.
 type Result struct {
 	Protocol      string        // protocol used
@@ -133,6 +160,11 @@ type Result struct {
 
 	// Scan metadata (optional, used by the logon-family scans for backdoor detection)
 	ScanType string // scan type identifier (e.g., "sticky_keys", "utilman")
+
+	// Kind classifies what this Result is evidence of. It is stamped at the
+	// pkg/brutus boundary (classifyCredentialResult / markUnauthenticated).
+	// Purely additive: a consumer that ignores Kind behaves exactly as before.
+	Kind ResultKind
 }
 
 // NewResult creates a Result pre-filled with common fields and Success=false.
@@ -145,6 +177,29 @@ func NewResult(protocol, target, username, password string) *Result {
 		Password: password,
 		Success:  false,
 	}
+}
+
+// classifyCredentialResult returns the kind for a Result produced by a
+// credential attempt (Plugin.Test / KeyPlugin.TestKey). Indeterminate takes
+// precedence over Success: a check that could not reach a verdict is
+// inconclusive, not a credential authentication.
+func classifyCredentialResult(r Result) ResultKind { //nolint:gocritic // hugeParam: signature fixed by the ENG-6689 Result-kind API contract
+	switch {
+	case r.Indeterminate:
+		return KindInconclusive
+	case r.Success:
+		return KindCredential
+	default:
+		return KindFailed
+	}
+}
+
+// markUnauthenticated stamps a Result produced by a CheckUnauth probe as
+// unauthenticated access. It sets Kind and nothing else: Success, Banner,
+// Username, Password and every other field keep their exact values, so the
+// stamp cannot change behavior for any existing consumer of this package.
+func markUnauthenticated(r *Result) {
+	r.Kind = KindUnauthenticated
 }
 
 // LLMConfig enables optional LLM-based banner analysis
@@ -241,9 +296,6 @@ type UnauthOnlyChecker interface {
 // which is important for concurrent usage.
 type PluginFactory func() Plugin
 
-// Configuration Validation
-// =============================================================================
-
 // applyDefaults populates protocol-specific default credentials from embedded
 // wordlists when UseDefaults is true and no credentials have been provided.
 // Existing credentials are never overwritten.
@@ -296,14 +348,12 @@ func (c *Config) validate() error {
 
 	c.applyDefaults()
 
-	// Need either: paired Credentials OR (Usernames + Passwords/Keys)
 	hasPairedCreds := len(c.Credentials) > 0
 	hasUnpairedCreds := len(c.Usernames) > 0 && (len(c.Passwords) > 0 || len(c.Keys) > 0)
 	if !hasPairedCreds && !hasUnpairedCreds {
 		return errors.New("credentials required: use Credentials for paired, or Usernames with Passwords/Keys")
 	}
 
-	// Apply defaults
 	if c.Timeout == 0 {
 		c.Timeout = 10 * time.Second
 	}
@@ -317,22 +367,16 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// =============================================================================
-// Brute Force Execution
-// =============================================================================
-
 // BruteWithContext executes a brute force attack using the provided configuration and context.
 //
 // The context can be used to cancel the operation early via context cancellation.
 // The plugin is resolved once via GetPlugin and shared across all worker goroutines.
 // See the Plugin interface documentation for thread-safety requirements.
 func BruteWithContext(ctx context.Context, cfg *Config) ([]Result, error) {
-	// 1. Validate configuration
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	// 2. Get protocol plugin (use provided plugin if set, otherwise lookup by name)
 	var plug Plugin
 	if cfg.Plugin != nil {
 		plug = cfg.Plugin
@@ -344,7 +388,6 @@ func BruteWithContext(ctx context.Context, cfg *Config) ([]Result, error) {
 		}
 	}
 
-	// 3. Run worker pool with provided context
 	results, err := runWorkers(ctx, cfg, plug)
 	if err != nil {
 		return results, fmt.Errorf("brute force failed: %w", err)
@@ -362,14 +405,25 @@ func CheckUnauthAccess(ctx context.Context, target, protocol string, timeout tim
 	// Try the standard plugin registry first
 	if plug, err := GetPlugin(protocol); err == nil {
 		if checker, ok := plug.(UnauthChecker); ok {
-			return checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+			r := checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+			// A confirmed finding from a CheckUnauth probe is unauthenticated
+			// access by construction. A probe that found the service enforces
+			// authentication is left unclassified rather than mislabeled.
+			if r != nil && r.Success {
+				markUnauthenticated(r)
+			}
+			return r
 		}
 		return nil
 	}
 
 	// Try the unauth-only registry
 	if checker, err := GetUnauthChecker(protocol); err == nil {
-		return checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+		r := checker.CheckUnauth(ctx, target, timeout, pluginCfg)
+		if r != nil && r.Success {
+			markUnauthenticated(r)
+		}
+		return r
 	}
 
 	return nil

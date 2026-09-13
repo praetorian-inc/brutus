@@ -61,11 +61,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("redis", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "6379")
 	addr := fmt.Sprintf("%s:%s", host, port)
 
-	// Create Redis client
 	client := redis.NewClient(&redis.Options{
 		Addr:         addr,
 		Password:     password,
@@ -76,18 +74,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	})
 	defer func() { _ = client.Close() }()
 
-	// Create context with timeout
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Test connection with Ping
 	err := client.Ping(pingCtx).Err()
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

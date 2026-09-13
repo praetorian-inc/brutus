@@ -25,10 +25,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/dehashed"
 )
 
-// ---------------------------------------------------------------------------
-// DeHashed output functions
-// ---------------------------------------------------------------------------
-
 // outputDehashedHuman renders refined DeHashed contacts as an aligned table.
 // All strings are breach-sourced and therefore hostile-controlled, so every
 // field is sanitized via sanitizeTerminal and truncated (P0-4) — including the

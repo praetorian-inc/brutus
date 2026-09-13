@@ -23,10 +23,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// TestEnumOracles_RequiresKnownValid
-// ---------------------------------------------------------------------------
-
 // TestEnumOracles_RequiresKnownValid confirms that "brutus enum oracles" errors at
 // flag-validation time when --known-valid is absent. registerOraclesFlags calls
 // cmd.MarkFlagRequired("known-valid"), so cobra rejects the invocation before
@@ -60,10 +56,6 @@ func TestEnumOracles_RequiresKnownValid(t *testing.T) {
 		"error message must mention \"known-valid\"; got: %q", err.Error())
 }
 
-// ---------------------------------------------------------------------------
-// TestEnumOraclesCmd_KnownValidMarkedRequired
-// ---------------------------------------------------------------------------
-
 // TestEnumOraclesCmd_KnownValidMarkedRequired asserts — without executing the
 // command — that the "known-valid" flag on enumOraclesCmd carries cobra's
 // required-flag annotation. This is a static check that complements
@@ -78,10 +70,6 @@ func TestEnumOraclesCmd_KnownValidMarkedRequired(t *testing.T) {
 	assert.True(t, required,
 		"--known-valid flag must carry cobra.BashCompOneRequiredFlag annotation (set by MarkFlagRequired)")
 }
-
-// ---------------------------------------------------------------------------
-// TestAddDomainIndependentOracles
-// ---------------------------------------------------------------------------
 
 // TestAddDomainIndependentOracles covers the helper that unions registered
 // domain-independent oracles (currently just "github") into the auto-discovered
@@ -183,10 +171,6 @@ func TestAddDomainIndependentOracles(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// TestEmailDomain
-// ---------------------------------------------------------------------------
-
 // TestEmailDomain covers the helper that extracts the domain portion of an
 // email address (the substring after the last "@"), used so --domain can
 // default to the domain of the required --known-valid email. It confirms the
@@ -214,10 +198,6 @@ func TestEmailDomain(t *testing.T) {
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// TestResolveOraclesDomain
-// ---------------------------------------------------------------------------
 
 // TestResolveOraclesDomain covers the helper that decides the effective org
 // domain for the oracles command. It confirms the precedence the fix relies on:

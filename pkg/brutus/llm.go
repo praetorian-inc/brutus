@@ -56,7 +56,6 @@ func createAnalyzer(cfg *LLMConfig) BannerAnalyzer {
 		return nil
 	}
 
-	// Get analyzer from registry
 	factory := GetAnalyzerFactory(cfg.Provider)
 	if factory == nil {
 		return nil

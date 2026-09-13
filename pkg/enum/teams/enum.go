@@ -127,10 +127,6 @@ const (
 	maxEnumBody   int64 = 64 << 10
 )
 
-// ---------------------------------------------------------------------------
-// Constructor
-// ---------------------------------------------------------------------------
-
 // NewEnumerator builds an Enumerator. The HTTP client is built via
 // brutus.NewHTTPClientWithProxy so the SOCKS5 --proxy flag works.
 //
@@ -165,10 +161,6 @@ func (e *Enumerator) SetRefreshFunc(fn func(ctx context.Context) (string, error)
 // accounts count as hits. Default false: only corporate (8:orgid:) matches
 // are treated as existing; a consumer-only match is reported as not found.
 func (e *Enumerator) SetIncludeConsumer(v bool) { e.includeConsumer = v }
-
-// ---------------------------------------------------------------------------
-// Enumeration
-// ---------------------------------------------------------------------------
 
 // Enumerate looks up each email using a bounded worker pool, applying rate
 // limiting and jitter when rateLimit > 0. Results preserve input order. It is a
@@ -407,10 +399,6 @@ func DerivePosture(domain string, results []EnumResult) TenantPosture {
 	return p
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 // search issues the externalsearch lookup with the given bearer token. It
 // returns the decoded users, the HTTP status, and a non-nil error only on
 // transport/decode failure (never including the token).
@@ -532,10 +520,6 @@ func (e *Enumerator) token() string {
 	defer e.mu.Unlock()
 	return e.accessToken
 }
-
-// ---------------------------------------------------------------------------
-// JSON-mapping structs (unexported — map to the Teams response shapes)
-// ---------------------------------------------------------------------------
 
 type searchUser struct {
 	DisplayName       string `json:"displayName"`

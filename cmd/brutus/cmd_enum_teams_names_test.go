@@ -27,7 +27,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// ---------------------------------------------------------------------------
 // teamsEnumTargetList — name propagation (10T-535, 7/8)
 //
 // Mirrors TestMicrosoft365EnumTargetList_InlineEmails /
@@ -35,7 +34,6 @@ import (
 // address carries no name (a supplied address says nothing about whose it
 // is); a --domain-generated address carries the non-empty First/Last its
 // username was built from.
-// ---------------------------------------------------------------------------
 
 // TestTeamsEnumTargetList_InlineEmails verifies that --emails CSV is parsed,
 // trimmed, and deduplicated, and that every CLI-supplied target carries no
@@ -113,7 +111,6 @@ func TestTeamsEnumGenerate_ReusesSharedGenerator(t *testing.T) {
 		"teamsEnumGenerate must reuse enum.GenerateCandidates (via capResults and Candidate.Target), matching the google/gravatar/github/microsoft365 generate pattern")
 }
 
-// ---------------------------------------------------------------------------
 // THE CASING QUESTION (10T-535, 7/8).
 //
 // teams.EnumerateOne echoes the email it is given verbatim on
@@ -134,7 +131,6 @@ func TestTeamsEnumGenerate_ReusesSharedGenerator(t *testing.T) {
 // back on EnumResult.Email for a mixed-case --domain, and
 // enumNamesByEmail/enumNameFor's lookup (keyed on the exact address) would
 // silently fail to recover the generated name.
-// ---------------------------------------------------------------------------
 
 // TestTeamsEnumTargetList_CaseInsensitiveDedup verifies that dedup keys on
 // the lowercased email while preserving the first-seen casing on the
@@ -244,7 +240,6 @@ func TestTeamsEnumTargetList_GeneratedAddressesRetainOriginalCasingForNameLookup
 	}
 }
 
-// ---------------------------------------------------------------------------
 // THE WRINKLE UNIQUE TO TEAMS (10T-535, 7/8): a generated name is NOT a
 // display name.
 //
@@ -258,7 +253,6 @@ func TestTeamsEnumTargetList_GeneratedAddressesRetainOriginalCasingForNameLookup
 // either direction: a result may have a DisplayName and no generated name (a
 // supplied address), a generated name and no DisplayName (a 403 carries
 // none), both, or neither.
-// ---------------------------------------------------------------------------
 
 // TestOutputTeamsEnumJSONL_GeneratedNameVsDisplayName pins the
 // never-conflate-the-two-names rule across all four combinations, in the
@@ -375,7 +369,6 @@ func TestOutputTeamsEnumJSONL_GeneratedNameVsDisplayName(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // Both outputTeamsEnumJSONL branches must carry the generated name
 // (10T-535, 7/8).
 //
@@ -385,7 +378,6 @@ func TestOutputTeamsEnumJSONL_GeneratedNameVsDisplayName(t *testing.T) {
 // A generated name is a property of the ADDRESS brutus built, not of
 // whether the tenant let brutus see details about it — so it must survive
 // into the blocked branch exactly like the default branch.
-// ---------------------------------------------------------------------------
 
 // TestOutputTeamsEnumJSONL_GeneratedNameInBlockedBranch verifies that the
 // generated First/Last survive into the ExistenceBlocked branch, while

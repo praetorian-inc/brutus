@@ -22,10 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// ---------------------------------------------------------------------------
-// TestHTTPClientContext — Section E: WithHTTPClient / HTTPClientFromContext
-// ---------------------------------------------------------------------------
-
 func TestHTTPClientContext_RoundTrip(t *testing.T) {
 	client := &http.Client{}
 	ctx := WithHTTPClient(context.Background(), client)
@@ -37,10 +33,6 @@ func TestHTTPClientContext_Default(t *testing.T) {
 	got := HTTPClientFromContext(context.Background())
 	assert.Nil(t, got, "HTTPClientFromContext on a plain Background context must return nil")
 }
-
-// ---------------------------------------------------------------------------
-// TestProxyURLContext — Section E: WithProxyURL / ProxyURLFromContext
-// ---------------------------------------------------------------------------
 
 func TestProxyURLContext_RoundTrip(t *testing.T) {
 	const wantURL = "http://proxy.example:8080"

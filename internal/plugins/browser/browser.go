@@ -90,18 +90,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Set visible mode before getting browser (must be before first GetBrowser call)
 	SetBrowserVisible(p.Visible)
 
-	// Get browser instance
 	browser, err := GetBrowser(p.TabCount)
 	if err != nil {
 		result.Error = fmt.Errorf("browser error: %w", err)
 		return result
 	}
 
-	// Acquire a tab
 	tabCtx, release := browser.AcquireTab()
 	defer release()
 
-	// Build URL
 	url := buildURL(target, p.UseHTTPS)
 
 	if p.Verbose {
@@ -234,7 +231,6 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 	// Set visible mode before getting browser (must be before first GetBrowser call)
 	SetBrowserVisible(p.Visible)
 
-	// Get browser instance
 	browser, err := GetBrowser(p.TabCount)
 	if err != nil {
 		return nil, nil, fmt.Errorf("browser error: %w", err)
@@ -244,11 +240,9 @@ func (p *Plugin) AnalyzePage(ctx context.Context, target string) (*claude.PageAn
 		_, _ = fmt.Fprintf(logOutput, "[verbose] Browser started, acquiring tab...\n")
 	}
 
-	// Acquire a tab
 	tabCtx, release := browser.AcquireTab()
 	defer release()
 
-	// Build URL
 	url := buildURL(target, p.UseHTTPS)
 
 	if p.Verbose {

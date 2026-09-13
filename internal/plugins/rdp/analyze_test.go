@@ -145,6 +145,10 @@ func TestRunUtilmanAnalysis_Clean(t *testing.T) {
 		response[i+2] = 100
 		response[i+3] = 255
 	}
+	// Painted screen content (identical in both) so the baseline is a real logon
+	// screen, not a flat "never rendered" frame. Identical frames still => clean.
+	stampScreenContent(baseline, int(w))
+	stampScreenContent(response, int(w))
 
 	ctx := context.Background()
 	result := runUtilmanAnalysis(ctx, baseline, response, w, h, "")
@@ -166,10 +170,6 @@ func TestRgbaToPNG(t *testing.T) {
 	assert.Equal(t, byte(0x89), pngData[0])
 	assert.Equal(t, byte(0x50), pngData[1])
 }
-
-// ---------------------------------------------------------------------------
-// A1: detectChangedRectangle returns bounding box
-// ---------------------------------------------------------------------------
 
 func TestDetectChangedRectangle_ReturnsBox(t *testing.T) {
 	w, h := uint32(100), uint32(100)
@@ -195,11 +195,23 @@ func TestDetectChangedRectangle_ReturnsBox(t *testing.T) {
 	assert.Greater(t, box.changedCount, 0)
 }
 
-// ---------------------------------------------------------------------------
-// A2: classifyRegion — console vs dialog vs unknown discrimination
-// ---------------------------------------------------------------------------
-
 // paintBox fills a rectangular region of an RGBA buffer with the given gray value.
+// stampScreenContent breaks a flat synthetic baseline into a realistic painted logon
+// screen: it writes a short run of light pixels (a logo/clock stand-in) so the frame is
+// NOT a single flat color. A real logon baseline is never uniform; the flat-frame guard
+// in runStickyKeys/UtilmanAnalysis (correctly) rejects a uniform baseline as "never
+// rendered", so these synthetic tests must paint one. The pixels are light (>= 210),
+// adding zero dark pixels, and are identical in baseline and response, so they never
+// register as a change — the console/dialog assertions are unaffected.
+func stampScreenContent(buf []byte, w int) {
+	for x := 10; x < 40; x++ {
+		idx := (5*w + x) * 4
+		if idx+3 < len(buf) {
+			buf[idx], buf[idx+1], buf[idx+2], buf[idx+3] = 210, 210, 210, 255
+		}
+	}
+}
+
 func paintBox(buf []byte, w, x0, y0, x1, y1 int, gray byte) {
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
@@ -247,13 +259,11 @@ func TestClassifyRegion_Unknown(t *testing.T) {
 	assert.Equal(t, regionUnknown, classifyRegion(resp, w, h, box))
 }
 
-// ---------------------------------------------------------------------------
 // A3: decideVerdict — gates backdoor_likely on keepHigh boolean
 // Signature: decideVerdict(verdict string, keepHigh bool) string
 // When keepHigh=false a backdoor_likely is downgraded to indeterminate.
 // All other verdicts pass through unchanged.
 // CARDINAL RULE: backdoor_likely with keepHigh=false → indeterminate, NEVER clean.
-// ---------------------------------------------------------------------------
 
 func TestDecideVerdict(t *testing.T) {
 	tests := []struct {
@@ -289,12 +299,10 @@ func TestDecideVerdict(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // A6: consoleGatePasses — pure predicate unit table
 // Signature: consoleGatePasses(response []byte, width, height uint32, box changedBox, confidence float64) bool
 // Tests cover: FP fragmented shift, full-screen console, windowed console,
 // confidence-floor path, floor boundary, below-floor non-rect, degenerate box.
-// ---------------------------------------------------------------------------
 
 func TestConsoleGatePasses(t *testing.T) {
 	const W, H = uint32(1024), uint32(768)
@@ -410,11 +418,9 @@ func TestConsoleGatePasses(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // A7: TestConsoleGate_EndToEnd — end-to-end frame→verdict gate behavior
 // Drives runUtilmanAnalysis and runStickyKeysAnalysis on 1024×768 RGBA frames.
 // No WASM, no network. Baseline = uniform mid-gray 128.
-// ---------------------------------------------------------------------------
 
 func TestConsoleGate_EndToEnd(t *testing.T) {
 	const W, H = uint32(1024), uint32(768)
@@ -425,6 +431,8 @@ func TestConsoleGate_EndToEnd(t *testing.T) {
 	for i := 0; i < len(baseline); i += 4 {
 		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
 	}
+	// Painted screen content: a real logon baseline, not a flat "never rendered" frame.
+	stampScreenContent(baseline, int(W))
 
 	newResponse := func() []byte {
 		r := make([]byte, totalPx*4)
@@ -531,12 +539,10 @@ func TestConsoleGate_EndToEnd(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // A4: runStickyKeysAnalysis — light/small/centered dialog → clean
 // A light legit dialog (gray 200) adds almost no dark pixels, so the
 // dark-delta discriminator correctly returns "clean", not indeterminate.
 // This is the better outcome vs. the old behavioral approach.
-// ---------------------------------------------------------------------------
 
 func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	w, h := uint32(1000), uint32(1000)
@@ -545,6 +551,8 @@ func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	for i := 0; i < size; i += 4 {
 		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
 	}
+	// Painted screen content: a real logon baseline, not a flat "never rendered" frame.
+	stampScreenContent(baseline, int(w))
 	response := make([]byte, size)
 	copy(response, baseline)
 	// Light small centered dialog (220×220 = 4.84% area, gray 200).
@@ -555,10 +563,6 @@ func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	assert.NotEqual(t, "backdoor_likely", res.OverallVerdict,
 		"a light legit dialog must not be flagged as backdoor_likely")
 }
-
-// ---------------------------------------------------------------------------
-// B: dark-pixel-delta core logic — new tests for the primary discriminator
-// ---------------------------------------------------------------------------
 
 // TestDarkPixelCount verifies the count of pixels below darkBrightnessMax.
 func TestDarkPixelCount(t *testing.T) {
@@ -698,10 +702,6 @@ func TestDarkDeltaVerdict(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// C1: structural guard — runStickyKeysAnalysis must have the vulnerable branch
-// ---------------------------------------------------------------------------
-
 // TestRunStickyKeysAnalysis_HasVulnerableBranch guards that runStickyKeysAnalysis
 // contains a symmetric `visionVerdict == "vulnerable"` branch matching the one
 // already present in runUtilmanAnalysis (analyze.go ~line 456).
@@ -719,10 +719,6 @@ func TestRunStickyKeysAnalysis_HasVulnerableBranch(t *testing.T) {
 		"runStickyKeysAnalysis is missing the visionVerdict == \"vulnerable\" branch; "+
 			"found %d occurrence(s), need >= 2 (one per analysis function)", count)
 }
-
-// ---------------------------------------------------------------------------
-// A5: regionConfidenceAndNote — pure verdict×region → (confidence, note)
-// ---------------------------------------------------------------------------
 
 func TestRegionConfidenceAndNote(t *testing.T) {
 	const base = 0.75

@@ -33,10 +33,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
-// T9: Plugin adapter — httptest-based tests mirroring microsoft365_test.go
-// ---------------------------------------------------------------------------
-
 // forgotPasswordSpec returns a parsed, validated Spec for the forgotpassword
 // oracle pointing at the given base URL. Used by T9 and T12 tests.
 func forgotPasswordSpec(t *testing.T, baseURL string) *Spec {
@@ -278,10 +274,6 @@ func TestName(t *testing.T) {
 	p := New(spec)
 	assert.Equal(t, "forgotpassword", p.Name())
 }
-
-// ---------------------------------------------------------------------------
-// T12: End-to-end test using testdata/forgotpassword.json
-// ---------------------------------------------------------------------------
 
 // TestE2E_ForgotPassword parses the example oracle file, points it at an
 // httptest server, runs EnumerateWithPlugin, and asserts:

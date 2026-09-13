@@ -17,10 +17,10 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"net"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	mysqldriver "github.com/go-sql-driver/mysql"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -52,24 +52,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mysql", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Read TLS mode from context
-	tlsMode := pluginCfg.TLSMode
+	dsn := mysqlDSN(target, username, password, pluginCfg.TLSMode)
 
-	// Determine TLS parameter based on mode
-	var tlsParam string
-	switch tlsMode {
-	case "verify":
-		tlsParam = "tls=true"
-	case "skip-verify":
-		tlsParam = "tls=skip-verify"
-	default: // "disable"
-		tlsParam = "tls=false"
-	}
-
-	// Create DSN (Data Source Name)
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/?%s", username, password, target, tlsParam)
-
-	// Open database connection
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -77,28 +61,41 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = db.Close() }()
 
-	// Set connection timeout
 	db.SetConnMaxLifetime(timeout)
 	db.SetMaxIdleConns(1)
 	db.SetMaxOpenConns(1)
 
-	// Create context with timeout
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Test connection with ping
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }
 
-// MySQL-specific auth failure indicators
+func mysqlDSN(target, username, password, tlsMode string) string {
+	host, port := brutus.ParseTarget(target, "3306")
+	tlsValue := "false"
+	switch tlsMode {
+	case "verify":
+		tlsValue = "true"
+	case "skip-verify":
+		tlsValue = "skip-verify"
+	}
+	cfg := mysqldriver.NewConfig()
+	cfg.User = username
+	cfg.Passwd = password
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(host, port)
+	cfg.TLSConfig = tlsValue
+	return cfg.FormatDSN()
+}
+
 var mysqlAuthIndicators = []string{
 	"Access denied for user",
 	"authentication failed",

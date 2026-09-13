@@ -56,11 +56,16 @@ type StickyKeysResult struct {
 	// SessionTerminated records that the server ended the RDP session mid-scan
 	// (e.g. a pre-auth logon session torn down before the response settled). The
 	// scan observed no trustworthy post-trigger render, so the verdict cannot be a
-	// positive; it also selects the short-budget retry in DetectStickyKeys.
+	// positive; it also selects the short-budget retry in DetectStickyKeysOutcome.
 	SessionTerminated bool
 	// TerminationReason is the server-reported reason behind SessionTerminated,
 	// surfaced in the operator-facing banner instead of being discarded.
 	TerminationReason string
+	// BaselinePNG / ResponsePNG are the captured frames encoded as PNG, or nil
+	// when the check never produced a framebuffer (or encode failed). Set after
+	// finalizeStickyKeysResult so the analysis overwrite cannot drop them.
+	BaselinePNG []byte
+	ResponsePNG []byte
 }
 
 // UtilmanResult holds the outcome of utilman backdoor detection.
@@ -82,11 +87,13 @@ type UtilmanResult struct {
 	// SessionTerminated records that the server ended the RDP session mid-scan
 	// (e.g. a pre-auth logon session torn down before the response settled). The
 	// scan observed no trustworthy post-trigger render, so the verdict cannot be a
-	// positive; it also selects the short-budget retry in DetectUtilman.
+	// positive; it also selects the short-budget retry in DetectUtilmanOutcome.
 	SessionTerminated bool
 	// TerminationReason is the server-reported reason behind SessionTerminated,
 	// surfaced in the operator-facing banner instead of being discarded.
 	TerminationReason string
+	BaselinePNG       []byte
+	ResponsePNG       []byte
 }
 
 // leftShiftScancode is the scancode for Left Shift key (used for sticky keys detection).
@@ -141,6 +148,22 @@ var FastBudget = SettleBudget{
 	noisePixels:       3000,
 	readDeadline:      250 * time.Millisecond,
 	postKeystrokeWait: 700 * time.Millisecond,
+}
+
+// PatientBudget is the extra-patient settle profile used for a single retry of a
+// non-stabilized (indeterminate) careful scan. A host on a slow/high-latency link can
+// keep repainting past CarefulBudget's quiet window, or paint its logon screen in bursts
+// that never go quiet long enough inside the default deadline, so the first careful
+// attempt reads "render did not stabilize". Rather than surface that for a manual rerun,
+// one automatic retry widens the quiet window and per-frame read deadline so a slow paint
+// can settle. It is strictly more patient than CarefulBudget on every axis; the extra time
+// is spent ONLY on hosts that failed to settle, never on a host that already resolved.
+var PatientBudget = SettleBudget{
+	quietWindow:       2500 * time.Millisecond,
+	minPump:           2 * time.Second,
+	noisePixels:       2000,
+	readDeadline:      800 * time.Millisecond,
+	postKeystrokeWait: 2 * time.Second,
 }
 
 // MinViableTimeout is the smallest per-pump-phase timeout that can ever produce

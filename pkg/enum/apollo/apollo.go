@@ -48,10 +48,6 @@ const (
 	maxPages = 500
 )
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
 // Person is one discovered contact for the domain. The enrichment-only fields
 // are empty until EnrichByIDs/RevealEmails runs (consumes credits).
 type Person struct {
@@ -135,10 +131,6 @@ func (e *APIError) Unwrap() error {
 	}
 	return nil
 }
-
-// ---------------------------------------------------------------------------
-// Client
-// ---------------------------------------------------------------------------
 
 // Client holds state for querying the Apollo people search and match APIs.
 type Client struct {
@@ -293,10 +285,6 @@ func (c *Client) RevealEmails(ctx context.Context, result *DomainResult) error {
 
 	return err
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
 
 // searchPage performs a single people-search POST and returns the mapped people
 // plus the reported total_entries.
@@ -479,7 +467,6 @@ func mergeReveal(p, m *Person) {
 	p.Revealed = true
 }
 
-// ---------------------------------------------------------------------------
 // JSON-mapping structs (unexported — map to the Apollo API shapes).
 //
 // NOTE: verified against live API 2026-06-26 (total_entries top-level;
@@ -487,7 +474,6 @@ func mergeReveal(p, m *Person) {
 // paths below are intentionally isolated here so a single edit corrects any
 // mismatch without touching control flow. httptest tests use controlled
 // payloads and pass regardless of live-schema correctness.
-// ---------------------------------------------------------------------------
 
 type apolloSearchRequest struct {
 	OrganizationDomains []string `json:"q_organization_domains_list,omitempty"`

@@ -23,10 +23,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/gravatar"
 )
 
-// ---------------------------------------------------------------------------
-// Gravatar account enumeration output functions
-// ---------------------------------------------------------------------------
-
 // outputGravatarEnumResultLine prints ONE Gravatar enumeration result row.
 // EXISTS rows show the email and an "[+] EXISTS" label; not-found rows render as
 // "[ ] not found". Callers decide which results to print (e.g. EXISTS only,

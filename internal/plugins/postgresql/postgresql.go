@@ -18,7 +18,9 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
-	"fmt"
+	"net"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -87,19 +89,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("postgresql", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Parse target to extract host and port
 	host, port := brutus.ParseTarget(target, "5432")
 
-	// Build PostgreSQL connection string.
-	// Default to dbname=postgres (the system database that always exists),
-	// consistent with how the MSSQL plugin defaults to database=master.
-	// Without this, lib/pq defaults to dbname=<username> which fails when
-	// no database matching the username has been created — PostgreSQL
-	// rejects the connection before authentication even occurs.
-	connStr := fmt.Sprintf("dbname=postgres user=%s password=%s host=%s port=%s sslmode=%s connect_timeout=%d",
-		username, password, host, port, sslMode(pluginCfg.TLSMode), int(timeout.Seconds()))
+	connStr := postgresURL(host, port, username, password, pluginCfg.TLSMode, timeout)
 
-	// Open database connection
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		result.Error = classifyError(err)
@@ -107,18 +100,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = db.Close() }()
 
-	// Create context with timeout
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Test connection with Ping
 	err = db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }
@@ -131,8 +121,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 
 	host, port := brutus.ParseTarget(target, "5432")
 
-	connStr := fmt.Sprintf("dbname=postgres user=postgres password='' host=%s port=%s sslmode=%s connect_timeout=%d",
-		host, port, sslMode(pluginCfg.TLSMode), int(timeout.Seconds()))
+	connStr := postgresURL(host, port, "postgres", "", pluginCfg.TLSMode, timeout)
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -150,6 +139,24 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	result.Success = true
 	result.Banner = "[CRITICAL] PostgreSQL trust authentication enabled - unauthenticated access as 'postgres' superuser"
 	return result
+}
+
+func postgresURL(host, port, username, password, tlsMode string, timeout time.Duration) string {
+	timeoutSec := int(timeout.Seconds())
+	if timeoutSec < 1 {
+		timeoutSec = 1
+	}
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(username, password),
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/postgres",
+	}
+	q := url.Values{}
+	q.Set("sslmode", sslMode(tlsMode))
+	q.Set("connect_timeout", strconv.Itoa(timeoutSec))
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 var classifyError = brutus.NewClassifier(postgresqlAuthIndicators)

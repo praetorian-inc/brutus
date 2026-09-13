@@ -57,6 +57,22 @@ func TestMapServiceToProtocol_ExistingMappings(t *testing.T) {
 		{"https", "https"},
 		{"mysql", "mysql"},
 		{"postgresql", "postgresql"},
+		{"opcua", "opcua"},
+		{"db2", "db2"},
+		{"activemq", "activemq"},
+		{"activemq-openwire", "activemq"},
+		{"sip", "sip"},
+		{"sips", "sip"},
+		{"zookeeper", "zookeeper"},
+		{"nats", "nats"},
+		{"rsync", "rsync"},
+		{"xmpp", "xmpp"},
+		{"firebird", "firebird"},
+		{"mqtt", "mqtt"},
+		{"amqp", "amqp"},
+		{"kafka", "kafka"},
+		{"memcached", "memcached"},
+		{"socks5", "socks5"},
 		{"unknown", ""},
 	}
 
@@ -374,10 +390,6 @@ func TestClassifyStdinLine_Invalid(t *testing.T) {
 		})
 	}
 }
-
-// =============================================================================
-// HasNoAuth / Anonymous Access Detection
-// =============================================================================
 
 func TestHasNoAuth_TopLevelAnonymousAccess(t *testing.T) {
 	nrv := NervaResult{

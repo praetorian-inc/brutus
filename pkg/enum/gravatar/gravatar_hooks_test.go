@@ -36,7 +36,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum"
 )
 
-// ---------------------------------------------------------------------------
 // TestWorker_Label
 // gravatar's pre-migration panic diagnostics were prefixed "gravatar enum"
 // (gravatar.go:152,156), yielding "gravatar enum: panic checking %s: %v" on
@@ -44,7 +43,6 @@ import (
 // reproduces that prefix verbatim via Label, so this exact string must never
 // drift -- changing it is a log-format change for anything that greps stderr
 // or a Result's Error text, not a cosmetic rename.
-// ---------------------------------------------------------------------------
 
 func TestWorker_Label(t *testing.T) {
 	t.Parallel()
@@ -55,7 +53,6 @@ func TestWorker_Label(t *testing.T) {
 	assert.Equal(t, "gravatar enum", c.worker().Label)
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_NewErrorShape
 //
 // gravatar's failure results carry Email, Hash AND Error -- Hash is the one
@@ -65,7 +62,6 @@ func TestWorker_Label(t *testing.T) {
 // assertion that checked only Email and Error would pass even if Hash were
 // missing, defeating the entire point of this test. Full-struct equality
 // fails loudly on a dropped OR an unexpectedly added field.
-// ---------------------------------------------------------------------------
 
 func TestWorker_NewErrorShape(t *testing.T) {
 	t.Parallel()
@@ -79,7 +75,6 @@ func TestWorker_NewErrorShape(t *testing.T) {
 	assert.Equal(t, Result{Email: "a@b.com", Hash: HashEmail("a@b.com"), Error: sentinel}, got)
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_NewErrorShape_HashIsNormalizedNotVerbatimEmail
 //
 // HashEmail lowercases and trims internally, but Result.Email echoes the
@@ -87,7 +82,6 @@ func TestWorker_NewErrorShape(t *testing.T) {
 // Result whose Email is untouched but whose Hash is computed from the
 // normalized form -- an asymmetry worth pinning explicitly, since it is
 // exactly the kind of thing a future "fix" might flatten by accident.
-// ---------------------------------------------------------------------------
 
 func TestWorker_NewErrorShape_HashIsNormalizedNotVerbatimEmail(t *testing.T) {
 	t.Parallel()
@@ -104,14 +98,12 @@ func TestWorker_NewErrorShape_HashIsNormalizedNotVerbatimEmail(t *testing.T) {
 	assert.NotEqual(t, got.Email, got.Hash)
 }
 
-// ---------------------------------------------------------------------------
 // TestWorker_StampNameCopiesFirstLastOnly
 // StampName's documented contract (targetworker.go) is a one-line copy of
 // First/Last from the originating Target. This asserts both halves of that
 // contract: First/Last land correctly, and every other field on an
 // already-populated Result -- including Hash, gravatar's own extra field --
 // is left untouched.
-// ---------------------------------------------------------------------------
 
 func TestWorker_StampNameCopiesFirstLastOnly(t *testing.T) {
 	t.Parallel()

@@ -53,10 +53,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mongodb", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Read TLS mode from context
 	tlsMode := pluginCfg.TLSMode
 
-	// Determine TLS parameter based on mode
 	var tlsParam string
 	switch tlsMode {
 	case "verify":
@@ -67,23 +65,18 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		tlsParam = "tls=false"
 	}
 
-	// Build MongoDB connection string
-	// Format: mongodb://username:password@host/
-	// URL-encode username and password to handle special characters (@, :, /, %, #)
+	// URL-encode username and password to handle special characters (@, :, /, %, #).
 	connStr := fmt.Sprintf("mongodb://%s:%s@%s/?%s",
 		url.QueryEscape(username), url.QueryEscape(password), target, tlsParam)
 
-	// Create client options with timeout
 	clientOpts := options.Client().
 		ApplyURI(connStr).
 		SetConnectTimeout(timeout).
 		SetServerSelectionTimeout(timeout)
 
-	// Create context with timeout
 	connectCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Connect to MongoDB
 	client, err := mongo.Connect(connectCtx, clientOpts)
 	if err != nil {
 		result.Error = classifyError(err)
@@ -93,7 +86,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		_ = client.Disconnect(context.Background())
 	}()
 
-	// Test connection with Ping
 	pingCtx, pingCancel := context.WithTimeout(ctx, timeout)
 	defer pingCancel()
 
@@ -103,7 +95,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

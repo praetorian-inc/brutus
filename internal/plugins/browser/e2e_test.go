@@ -101,7 +101,6 @@ func TestE2E_ValidCredentials(t *testing.T) {
 	}
 
 	for _, tc := range deviceTestCases {
-		tc := tc // capture range variable
 		t.Run(tc.name+"_ValidLogin", func(t *testing.T) {
 			if !isServiceAvailable(tc.port) {
 				t.Skipf("Mock service not running on port %d - run: docker-compose -f testdata/docker-compose.yml up -d", tc.port)
@@ -143,7 +142,6 @@ func TestE2E_InvalidCredentials(t *testing.T) {
 	}
 
 	for _, tc := range deviceTestCases {
-		tc := tc
 		t.Run(tc.name+"_InvalidLogin", func(t *testing.T) {
 			if !isServiceAvailable(tc.port) {
 				t.Skipf("Mock service not running on port %d", tc.port)
@@ -180,7 +178,6 @@ func TestE2E_FormDetection(t *testing.T) {
 	}
 
 	for _, tc := range deviceTestCases {
-		tc := tc
 		t.Run(tc.name+"_FormDetection", func(t *testing.T) {
 			if !isServiceAvailable(tc.port) {
 				t.Skipf("Mock service not running on port %d", tc.port)
@@ -234,7 +231,6 @@ func TestE2E_ErrorMessageDetection(t *testing.T) {
 	}
 
 	for _, tc := range deviceTestCases {
-		tc := tc
 		t.Run(tc.name+"_ErrorDetection", func(t *testing.T) {
 			if !isServiceAvailable(tc.port) {
 				t.Skipf("Mock service not running on port %d", tc.port)
@@ -289,7 +285,6 @@ func TestE2E_SuccessfulLoginVerification(t *testing.T) {
 	}
 
 	for _, tc := range deviceTestCases {
-		tc := tc
 		t.Run(tc.name+"_SuccessVerification", func(t *testing.T) {
 			if !isServiceAvailable(tc.port) {
 				t.Skipf("Mock service not running on port %d", tc.port)

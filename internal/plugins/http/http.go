@@ -87,13 +87,10 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult(p.Name(), target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Build URL
 	url := p.buildURL(target)
 
-	// Read TLS mode from context
 	tlsMode := pluginCfg.TLSMode
 
-	// Helper to create HTTP clients with consistent config (proxy-aware)
 	tlsCfg := brutus.BuildTLSConfig(tlsMode)
 	newClient := func() (*http.Client, error) {
 		c, err := brutus.NewHTTPClientWithProxy(timeout, tlsCfg, pluginCfg.ProxyURL)
@@ -126,20 +123,17 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer client.CloseIdleConnections()
 
-	// Create request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
-	// Set Basic Auth header
-	// Empty username/password is used for banner capture
+	// Empty username/password is used for banner capture.
 	if username != "" || password != "" {
 		req.SetBasicAuth(username, password)
 	}
 
-	// Execute request
 	resp, err := client.Do(req)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -150,22 +144,16 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// Read limited response body for banner
 	bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, MaxBodyRead))
 
-	// Build banner from HTTP response (for LLM analysis)
 	result.Banner = buildHTTPBanner(resp, bodyBytes)
 
-	// Classify response
 	switch {
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
-		// Success - valid credentials
 		result.Success = true
 
 	case resp.StatusCode == http.StatusUnauthorized,
 		resp.StatusCode == http.StatusForbidden:
-		// Auth failure - invalid credentials
-		// Return Success=false, Error=nil
 
 	default:
-		// Unexpected status - treat as error
 		result.Error = fmt.Errorf("connection error: HTTP %d", resp.StatusCode)
 	}
 
@@ -209,7 +197,6 @@ func (p *Plugin) buildURL(target string) string {
 		path = DefaultPath
 	}
 
-	// Handle target that may or may not have port
 	return fmt.Sprintf("%s://%s%s", scheme, target, path)
 }
 

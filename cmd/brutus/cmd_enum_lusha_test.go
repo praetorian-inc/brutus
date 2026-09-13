@@ -29,10 +29,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/lusha"
 )
 
-// ---------------------------------------------------------------------------
-// Test helpers
-// ---------------------------------------------------------------------------
-
 // countingFailWriter is an io.Writer that always returns an error from Write
 // and counts how many times Write was called. Used to test early-exit behavior
 // in JSONL output functions (broken-pipe / stream-closed scenario).
@@ -44,10 +40,6 @@ func (f *countingFailWriter) Write(_ []byte) (int, error) {
 	f.writes++
 	return 0, errors.New("simulated write failure")
 }
-
-// ---------------------------------------------------------------------------
-// T103: outputLushaJSONL + outputLushaHuman
-// ---------------------------------------------------------------------------
 
 func TestOutputLushaJSONL(t *testing.T) {
 	t.Run("contact with email and DNC phone emits one JSON line", func(t *testing.T) {
@@ -176,10 +168,6 @@ func TestOutputLushaHuman(t *testing.T) {
 		assert.Contains(t, out, "No contact data returned")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// T104: validateLushaIdentity (reads package-level flag vars directly)
-// ---------------------------------------------------------------------------
 
 // resetLushaFlags resets all lusha flag vars to zero values between subtests.
 func resetLushaFlags() {
@@ -466,10 +454,6 @@ func TestClassifyLushaError_NetworkWrap(t *testing.T) {
 	assert.Contains(t, result.Error(), "timeout")
 }
 
-// ---------------------------------------------------------------------------
-// T107: outputLushaDomainJSONL + outputLushaDomainHuman
-// ---------------------------------------------------------------------------
-
 func TestOutputLushaDomainJSONL(t *testing.T) {
 	t.Run("one JSON object per contact plus trailing lusha_summary", func(t *testing.T) {
 		r := &lusha.DomainResult{
@@ -727,10 +711,6 @@ func TestOutputLushaDomainHuman(t *testing.T) {
 			"truncated marker artifact '[DNC…' must not appear")
 	})
 }
-
-// ---------------------------------------------------------------------------
-// T105: Command registration
-// ---------------------------------------------------------------------------
 
 func TestEnumLushaRegistered(t *testing.T) {
 	// 1. enumCmd must have a "passive" subcommand.

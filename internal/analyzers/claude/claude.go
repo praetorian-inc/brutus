@@ -60,10 +60,6 @@ type Client struct {
 	Timeout  time.Duration
 }
 
-// =============================================================================
-// Text-based API types (for banner analysis)
-// =============================================================================
-
 type apiRequest struct {
 	Model     string    `json:"model"`
 	MaxTokens int       `json:"max_tokens"`
@@ -83,10 +79,6 @@ type textBlock struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
-
-// =============================================================================
-// Vision API types (for screenshot/image analysis)
-// =============================================================================
 
 type visionRequest struct {
 	Model     string          `json:"model"`
@@ -119,10 +111,6 @@ type responseContent struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
-
-// =============================================================================
-// BannerAnalyzer implementation (text-based)
-// =============================================================================
 
 // Analyze implements the BannerAnalyzer interface for text-based banner analysis.
 func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]string, error) {
@@ -177,10 +165,6 @@ func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]strin
 
 	return brutus.ValidateSuggestions(passwords), nil
 }
-
-// =============================================================================
-// VisionAnalyzer implementation (screenshot-based)
-// =============================================================================
 
 // AnalyzeScreenshot analyzes a page screenshot using Claude Vision.
 func (c *Client) AnalyzeScreenshot(ctx context.Context, screenshot []byte) (*PageAnalysis, error) {
@@ -307,10 +291,6 @@ func (c *Client) ReadTerminalOutput(ctx context.Context, screenshot []byte) (str
 	return text, nil
 }
 
-// =============================================================================
-// Shared helpers
-// =============================================================================
-
 // doVisionRequest sends a vision API request and unmarshals the JSON response into result.
 func (c *Client) doVisionRequest(ctx context.Context, reqBody visionRequest, result interface{}) error {
 	text, err := c.doVisionRequestRaw(ctx, reqBody)
@@ -383,10 +363,6 @@ func (c *Client) getTimeout() time.Duration {
 	}
 	return DefaultTimeout
 }
-
-// =============================================================================
-// Prompts
-// =============================================================================
 
 func buildVisionPrompt() string {
 	return `Analyze this web page screenshot for a security assessment.

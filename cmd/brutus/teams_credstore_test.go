@@ -28,10 +28,6 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/enum/teams"
 )
 
-// ---------------------------------------------------------------------------
-// teamsDefaultTokenPath
-// ---------------------------------------------------------------------------
-
 // TestTeamsDefaultTokenPath verifies that teamsDefaultTokenPath returns a path
 // ending with ".brutus/teams.json" rooted under the current home directory.
 // We redirect $HOME to a temp dir so the real ~/.brutus is never touched.
@@ -51,10 +47,6 @@ func TestTeamsDefaultTokenPath(t *testing.T) {
 	assert.True(t, strings.HasSuffix(got, filepath.Join(".brutus", "teams.json")),
 		`path must end with ".brutus/teams.json", got %q`, got)
 }
-
-// ---------------------------------------------------------------------------
-// saveTeamsTokenFile — permissions and content
-// ---------------------------------------------------------------------------
 
 // TestSaveTeamsTokenFile_PermsAndContent saves a well-known TokenSet and then
 // asserts:
@@ -115,10 +107,6 @@ func TestSaveTeamsTokenFile_PermsAndContent(t *testing.T) {
 		`JSON field "refresh_token" must equal the stored refresh token`)
 }
 
-// ---------------------------------------------------------------------------
-// saveTeamsTokenFile — round-trip through teamsEnumReadTokenFile
-// ---------------------------------------------------------------------------
-
 // TestSaveTeamsTokenFile_RoundTripsThroughReader saves a TokenSet to disk and
 // then loads it back with the existing teamsEnumReadTokenFile parser (the same
 // parser used by "enum teams users --token-file").  This proves that the
@@ -149,10 +137,6 @@ func TestSaveTeamsTokenFile_RoundTripsThroughReader(t *testing.T) {
 		"round-trip refresh token must match what was saved")
 }
 
-// ---------------------------------------------------------------------------
-// saveTeamsTokenFile — creates missing directory
-// ---------------------------------------------------------------------------
-
 // TestSaveTeamsTokenFile_CreatesMissingDir verifies that saveTeamsTokenFile
 // creates any missing parent directories (mode 0700) before writing the file.
 func TestSaveTeamsTokenFile_CreatesMissingDir(t *testing.T) {
@@ -181,10 +165,6 @@ func TestSaveTeamsTokenFile_CreatesMissingDir(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o700), di.Mode().Perm())
 }
-
-// ---------------------------------------------------------------------------
-// End-to-end auto-load path resolution (no cobra command invocation)
-// ---------------------------------------------------------------------------
 
 // TestTeamsAutoLoad_DefaultPathRoundTrip simulates the load path that
 // "enum teams users" would follow when no --token-file flag is provided:
@@ -219,10 +199,6 @@ func TestTeamsAutoLoad_DefaultPathRoundTrip(t *testing.T) {
 	assert.Equal(t, "AAA", gotAccess)
 	assert.Equal(t, "RRR", gotRefresh)
 }
-
-// ---------------------------------------------------------------------------
-// P0-1: error messages must not leak token values
-// ---------------------------------------------------------------------------
 
 // TestSaveTeamsTokenFile_ErrorDoesNotLeakTokens (P0-1) verifies that when
 // saveTeamsTokenFile fails (unwritable path), the returned error message does

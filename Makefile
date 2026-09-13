@@ -112,13 +112,11 @@ lint:
 		GOWORK=off go vet ./...; \
 	fi
 
-# Regenerate the documented CLI surface from the live cobra tree.
-#
-# This is the single command to run after a deliberate rename: it rewrites
-# docs/cli-surface.json, docs/CLI.md and the generated regions of README.md from
-# whatever cobra actually registers. CI runs the same walk in check mode and fails when
-# the committed copies disagree.
+# Regenerate CLI surface docs from the live cobra tree. Asserts TestCLISurface
+# exists first because `go test -run` exits 0 when the pattern matches nothing.
 cli-docs:
+	@GOWORK=off go test ./cmd/brutus -list 'TestCLISurface' | grep -qE '^TestCLISurface$$' \
+	  || { echo "cli-docs: 'go test -list' did not report TestCLISurface in ./cmd/brutus. Either the -update writer was renamed, or the package failed to build -- run 'go build ./cmd/brutus' to tell which. 'go test -run' exits 0 when its pattern matches nothing, so without this check the target would report success having regenerated nothing at all."; exit 1; }
 	GOWORK=off go test ./cmd/brutus -run 'TestCLISurface' -count=1 -update
 
 # Install to GOPATH/bin

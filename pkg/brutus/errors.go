@@ -36,16 +36,12 @@ func ClassifyAuthError(err error, authIndicators []string) error {
 
 	errStr := strings.ToLower(err.Error())
 
-	// Check if error matches any auth failure indicator
 	for _, indicator := range authIndicators {
 		if strings.Contains(errStr, strings.ToLower(indicator)) {
-			// This is an authentication failure (wrong credentials)
-			// Return nil to signal "try next credential"
 			return nil
 		}
 	}
 
-	// All other errors are connection/network problems
 	return fmt.Errorf("connection error: %w", err)
 }
 

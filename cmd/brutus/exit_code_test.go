@@ -21,60 +21,71 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/praetorian-inc/brutus/pkg/brutus"
+	"github.com/praetorian-inc/brutus/pkg/brutus/logon"
 )
 
 // TestScanExitError tests the precedence rules for the scan exit error helper:
-//   - any Indeterminate==true result → errIndeterminate (exit 2, takes precedence)
-//   - all results clean (no Indeterminate) → nil (exit 0, clean scan is success)
-//   - empty results → nil (exit 0)
+//   - any rerun-eligible verdict → errIndeterminate (exit 2, takes precedence)
+//   - every verdict final → nil (exit 0; a clean scan is a successful scan)
+//   - no findings → nil (exit 0)
 func TestScanExitError(t *testing.T) {
 	tests := []struct {
-		name    string
-		results []brutus.Result
-		wantErr error // nil means no error expected
+		name     string
+		findings []logon.Finding
+		wantErr  error // nil means no error expected
 	}{
 		{
-			name: "all clean no indeterminate none successful",
-			results: []brutus.Result{
-				{Success: false, Indeterminate: false},
-				{Success: false, Indeterminate: false},
+			name: "all clean, nothing found",
+			findings: []logon.Finding{
+				{Verdict: logon.VerdictClean},
+				{Verdict: logon.VerdictClean},
 			},
 			wantErr: nil,
 		},
 		{
-			name: "at least one success no indeterminate",
-			results: []brutus.Result{
-				{Success: true, Indeterminate: false},
-				{Success: false, Indeterminate: false},
+			name: "a backdoor found is still a completed scan",
+			findings: []logon.Finding{
+				{Verdict: logon.VerdictBackdoorConfirmed},
+				{Verdict: logon.VerdictClean},
 			},
 			wantErr: nil,
 		},
 		{
-			name: "one indeterminate none successful",
-			results: []brutus.Result{
-				{Success: false, Indeterminate: true},
+			name: "no_backdoor is a completed scan, not a rerun",
+			findings: []logon.Finding{
+				{Verdict: logon.VerdictNoBackdoor},
+				{Verdict: logon.VerdictNoBackdoor},
+			},
+			wantErr: nil,
+		},
+		{
+			name:     "one indeterminate",
+			findings: []logon.Finding{{Verdict: logon.VerdictIndeterminate}},
+			wantErr:  errIndeterminate,
+		},
+		{
+			name:     "canceled is a rerun candidate too",
+			findings: []logon.Finding{{Verdict: logon.VerdictCanceled}},
+			wantErr:  errIndeterminate,
+		},
+		{
+			name: "a positive does not suppress a rerun elsewhere",
+			findings: []logon.Finding{
+				{Verdict: logon.VerdictBackdoorConfirmed},
+				{Verdict: logon.VerdictIndeterminate},
 			},
 			wantErr: errIndeterminate,
 		},
 		{
-			name: "success present but indeterminate takes precedence",
-			results: []brutus.Result{
-				{Success: true, Indeterminate: false},
-				{Success: false, Indeterminate: true},
-			},
-			wantErr: errIndeterminate,
-		},
-		{
-			name:    "empty results",
-			results: []brutus.Result{},
-			wantErr: nil,
+			name:     "no findings",
+			findings: []logon.Finding{},
+			wantErr:  nil,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := scanExitError(tc.results)
+			err := scanExitError(tc.findings)
 			if tc.wantErr == nil {
 				assert.NoError(t, err)
 			} else {
@@ -86,20 +97,17 @@ func TestScanExitError(t *testing.T) {
 	}
 }
 
-// TestScanExitError_UnreachableIsExitZero locks in the cardinal-rule behavior:
-// an unreachable result is terminal & non-retryable (Indeterminate=false), so
-// scanExitError must return nil (exit 0), NOT errIndeterminate (exit 2).
-//
-// This is a characterisation test — it passes immediately because scanExitError
-// already inspects only Indeterminate and unreachable results have
-// Indeterminate=false. If a future change accidentally marks unreachable
-// indeterminate, this test will catch the regression.
-func TestScanExitError_UnreachableIsExitZero(t *testing.T) {
-	// An unreachable result is terminal & non-retryable: Indeterminate=false.
-	results := []brutus.Result{
-		{Success: false, Indeterminate: false, Banner: "[INFO] unreachable (...)", ScanType: "sticky_keys"},
-		{Success: false, Indeterminate: false, Banner: "[INFO] unreachable (...)", ScanType: "utilman"},
+// TestScanExitError_TerminalStatesAreExitZero locks in the cardinal-rule
+// behavior: nla_required and unreachable are terminal and non-retryable, so
+// they must exit 0, not errIndeterminate (exit 2). Rerunning them cannot change
+// the answer, so telling the operator to rerun would be wrong.
+func TestScanExitError_TerminalStatesAreExitZero(t *testing.T) {
+	for _, v := range []logon.Verdict{logon.VerdictNLARequired, logon.VerdictUnreachable} {
+		findings := []logon.Finding{
+			{Check: logon.BackdoorStickyKeys, Verdict: v},
+			{Check: logon.BackdoorUtilman, Verdict: v},
+		}
+		assert.NoError(t, scanExitError(findings),
+			"%s is a completed-scan terminal state; it must not trigger exit 2", v)
 	}
-	assert.NoError(t, scanExitError(results),
-		"unreachable must NOT trigger errIndeterminate (exit 2); it is a completed-scan terminal state")
 }

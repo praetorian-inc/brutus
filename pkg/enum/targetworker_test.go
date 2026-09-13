@@ -66,10 +66,6 @@ func fakeWorker(check func(context.Context, string) fakeResult) TargetWorker[fak
 	}
 }
 
-// ---------------------------------------------------------------------------
-// W1 - TestRun_ReturnsInputOrder
-// ---------------------------------------------------------------------------
-
 func TestRun_ReturnsInputOrder(t *testing.T) {
 	t.Parallel()
 
@@ -97,10 +93,6 @@ func TestRun_ReturnsInputOrder(t *testing.T) {
 			"results[%d].Email must match targets[%d].Email regardless of completion order", i, i)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// W2 - TestRun_EverySlotFilledAndCallbackOncePerTarget
-// ---------------------------------------------------------------------------
 
 func TestRun_EverySlotFilledAndCallbackOncePerTarget(t *testing.T) {
 	t.Parallel()
@@ -142,10 +134,6 @@ func TestRun_EverySlotFilledAndCallbackOncePerTarget(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// W3 - TestRun_StampsOriginatingTargetName
-// ---------------------------------------------------------------------------
-
 func TestRun_StampsOriginatingTargetName(t *testing.T) {
 	t.Parallel()
 
@@ -175,10 +163,6 @@ func TestRun_StampsOriginatingTargetName(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// W4 - TestRun_NamelessTargetStaysNameless
-// ---------------------------------------------------------------------------
-
 func TestRun_NamelessTargetStaysNameless(t *testing.T) {
 	t.Parallel()
 
@@ -193,10 +177,6 @@ func TestRun_NamelessTargetStaysNameless(t *testing.T) {
 	assert.Empty(t, results[0].First, "First must stay empty for a nameless Target")
 	assert.Empty(t, results[0].Last, "Last must stay empty for a nameless Target")
 }
-
-// ---------------------------------------------------------------------------
-// W5 - TestRun_MixedNamedAndUnnamed
-// ---------------------------------------------------------------------------
 
 func TestRun_MixedNamedAndUnnamed(t *testing.T) {
 	t.Parallel()
@@ -228,7 +208,6 @@ func TestRun_MixedNamedAndUnnamed(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // W6 - TestRun_NameSurvivesEveryAbortPath
 //
 // Table of the four paths that reach record() WITHOUT a normal Check return:
@@ -236,7 +215,6 @@ func TestRun_MixedNamedAndUnnamed(t *testing.T) {
 // jitter, and panic recovery. Every one must (a) carry the originating
 // target's name and (b) carry Sentinel == "from-newerror", proving the
 // result came from the NewError hook and not a generic zero value.
-// ---------------------------------------------------------------------------
 
 func TestRun_NameSurvivesEveryAbortPath(t *testing.T) {
 	t.Run("already-canceled context", func(t *testing.T) {
@@ -368,10 +346,6 @@ func TestRun_NameSurvivesEveryAbortPath(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// W7 - TestRun_CanceledContextRecordsEveryTarget
-// ---------------------------------------------------------------------------
-
 func TestRun_CanceledContextRecordsEveryTarget(t *testing.T) {
 	t.Parallel()
 
@@ -408,10 +382,6 @@ func TestRun_CanceledContextRecordsEveryTarget(t *testing.T) {
 	assert.Len(t, cbEmails, len(targets), "onResult must fire exactly once per target on the canceled-context path")
 }
 
-// ---------------------------------------------------------------------------
-// W8 - TestRun_ZeroOrNegativeThreadsDoesNotHang
-// ---------------------------------------------------------------------------
-
 func TestRun_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
 	for _, threads := range []int{0, -1} {
 		t.Run(fmt.Sprintf("threads=%d", threads), func(t *testing.T) {
@@ -446,10 +416,6 @@ func TestRun_ZeroOrNegativeThreadsDoesNotHang(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// W9 - TestRun_BoundsConcurrency
-// ---------------------------------------------------------------------------
-
 func TestRun_BoundsConcurrency(t *testing.T) {
 	t.Parallel()
 
@@ -480,10 +446,6 @@ func TestRun_BoundsConcurrency(t *testing.T) {
 	assert.LessOrEqual(t, peak.Load(), int32(threads), "peak concurrent Check calls must not exceed threads")
 }
 
-// ---------------------------------------------------------------------------
-// W10 - TestRun_RateLimitPaces
-// ---------------------------------------------------------------------------
-
 func TestRun_RateLimitPaces(t *testing.T) {
 	t.Parallel()
 
@@ -508,10 +470,6 @@ func TestRun_RateLimitPaces(t *testing.T) {
 	assert.GreaterOrEqual(t, elapsed, 190*time.Millisecond, "rate limiting must pace requests to roughly the configured rate")
 }
 
-// ---------------------------------------------------------------------------
-// W11 - TestRun_JitterIgnoredWithoutRateLimit
-// ---------------------------------------------------------------------------
-
 func TestRun_JitterIgnoredWithoutRateLimit(t *testing.T) {
 	t.Parallel()
 
@@ -530,10 +488,6 @@ func TestRun_JitterIgnoredWithoutRateLimit(t *testing.T) {
 		"jitter must be ignored entirely when rateLimit is 0 -- jitter lives inside the rate-limiter branch, "+
 			"a 2s jitter here must not slow this run down")
 }
-
-// ---------------------------------------------------------------------------
-// W12 - TestRun_NilCallbackIsSafe
-// ---------------------------------------------------------------------------
 
 func TestRun_NilCallbackIsSafe(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
@@ -570,10 +524,6 @@ func TestRun_NilCallbackIsSafe(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// W13 - TestRun_CallbackIsSerialized
-// ---------------------------------------------------------------------------
-
 func TestRun_CallbackIsSerialized(t *testing.T) {
 	t.Parallel()
 
@@ -607,13 +557,11 @@ func TestRun_CallbackIsSerialized(t *testing.T) {
 	assert.False(t, raced.Load(), "onResult invoked concurrently: callback is not serialized under the results mutex")
 }
 
-// ---------------------------------------------------------------------------
 // W14 - TestRun_PanicInCheckIsIsolated
 //
 // Deliberately NOT t.Parallel(): swaps the package-level os.Stderr, same
 // hazard noted on the "panic in Check" subtest of TestRun_NameSurvivesEvery-
 // AbortPath above.
-// ---------------------------------------------------------------------------
 
 func TestRun_PanicInCheckIsIsolated(t *testing.T) {
 	targets := []Target{
@@ -660,10 +608,6 @@ func TestRun_PanicInCheckIsIsolated(t *testing.T) {
 		"Label must prefix the stderr diagnostic exactly as every real package's Label does")
 }
 
-// ---------------------------------------------------------------------------
-// W15 - TestRun_EmptyTargets
-// ---------------------------------------------------------------------------
-
 func TestRun_EmptyTargets(t *testing.T) {
 	t.Parallel()
 
@@ -683,10 +627,6 @@ func TestRun_EmptyTargets(t *testing.T) {
 	assert.Equal(t, int32(0), checkCalls.Load(), "Check must never be called when there are no targets")
 	assert.Equal(t, int32(0), callbackCalls.Load(), "onResult must never fire when there are no targets")
 }
-
-// ---------------------------------------------------------------------------
-// W16 - TestRun_PanicsOnMissingHooks
-// ---------------------------------------------------------------------------
 
 func TestRun_PanicsOnMissingHooks(t *testing.T) {
 	base := func() TargetWorker[fakeResult] {

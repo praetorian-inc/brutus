@@ -60,7 +60,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("vnc", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	// Connect to VNC server (proxy-aware)
 	conn, err := brutus.DialWithProxy(ctx, "tcp", target, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
@@ -72,21 +71,18 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// the worker (vnc.Client performs blocking reads with no timeout of its own).
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	// Create VNC client configuration
 	cfg := &vnc.ClientConfig{
 		Auth: []vnc.ClientAuth{
 			&vnc.PasswordAuth{Password: password},
 		},
 	}
 
-	// Attempt VNC handshake and authentication
 	_, err = vnc.Client(conn, cfg)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
 	}
 
-	// Success
 	result.Success = true
 	return result
 }

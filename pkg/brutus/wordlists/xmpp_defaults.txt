@@ -1,0 +1,8 @@
+# XMPP Default Credentials
+admin:admin
+user:user
+# --- cautious ---
+admin:password
+# --- aggressive ---
+root:root
+jabber:jabber

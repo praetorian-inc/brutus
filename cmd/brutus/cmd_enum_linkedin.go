@@ -101,7 +101,14 @@ func runEnumLinkedin(cmd *cobra.Command, args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	client := pb.NewClient(apiKey, flagTimeout)
+	proxyURL, err := resolveProxyURL()
+	if err != nil {
+		return err
+	}
+	client, err := pb.NewClient(apiKey, flagTimeout, proxyURL)
+	if err != nil {
+		return err
+	}
 
 	var resultData []byte
 

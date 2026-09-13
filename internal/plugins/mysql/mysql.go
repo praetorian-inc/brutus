@@ -17,10 +17,10 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"net"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	mysqldriver "github.com/go-sql-driver/mysql"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -52,19 +52,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mysql", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	tlsMode := pluginCfg.TLSMode
-
-	var tlsParam string
-	switch tlsMode {
-	case "verify":
-		tlsParam = "tls=true"
-	case "skip-verify":
-		tlsParam = "tls=skip-verify"
-	default: // "disable"
-		tlsParam = "tls=false"
-	}
-
-	dsn := fmt.Sprintf("%s:%s@tcp(%s)/?%s", username, password, target, tlsParam)
+	dsn := mysqlDSN(target, username, password, pluginCfg.TLSMode)
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -90,7 +78,24 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// MySQL-specific auth failure indicators
+func mysqlDSN(target, username, password, tlsMode string) string {
+	host, port := brutus.ParseTarget(target, "3306")
+	tlsValue := "false"
+	switch tlsMode {
+	case "verify":
+		tlsValue = "true"
+	case "skip-verify":
+		tlsValue = "skip-verify"
+	}
+	cfg := mysqldriver.NewConfig()
+	cfg.User = username
+	cfg.Passwd = password
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(host, port)
+	cfg.TLSConfig = tlsValue
+	return cfg.FormatDSN()
+}
+
 var mysqlAuthIndicators = []string{
 	"Access denied for user",
 	"authentication failed",

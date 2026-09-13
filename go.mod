@@ -20,7 +20,7 @@ require (
 	github.com/nats-io/nats.go v1.53.1
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/praetorian-inc/capability-sdk v0.0.0-20260908174325-de5f920e8132
-	github.com/praetorian-inc/nerva v1.69.5
+	github.com/praetorian-inc/nerva v1.69.6
 	github.com/rabbitmq/amqp091-go v1.14.0
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/segmentio/kafka-go v0.4.51

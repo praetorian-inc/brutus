@@ -25,6 +25,45 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTargetAddr(t *testing.T) {
+	tests := []struct {
+		name string
+		nrv  NervaResult
+		want string
+	}{
+		{
+			name: "IPv4 prefers hostname",
+			nrv:  NervaResult{Host: "example.com", IP: "10.0.0.1", Port: 22},
+			want: "example.com:22",
+		},
+		{
+			name: "IPv4 falls back to IP",
+			nrv:  NervaResult{IP: "10.0.0.1", Port: 22},
+			want: "10.0.0.1:22",
+		},
+		{
+			name: "IPv6 is bracketed",
+			nrv:  NervaResult{IP: "2001:db8::1", Port: 22},
+			want: "[2001:db8::1]:22",
+		},
+		{
+			name: "IPv6 loopback",
+			nrv:  NervaResult{IP: "::1", Port: 6379},
+			want: "[::1]:6379",
+		},
+		{
+			name: "hostname wins over IPv6 IP",
+			nrv:  NervaResult{Host: "db.example.com", IP: "2001:db8::1", Port: 3306},
+			want: "db.example.com:3306",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.nrv.TargetAddr())
+		})
+	}
+}
+
 func TestMapServiceToProtocol_WinRM(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -48,19 +48,24 @@ func runWorkers(ctx context.Context, cfg *Config) ([]Result, error) {
 		services = ListPlugins()
 	}
 
+	plugins := make(map[string]Plugin, len(services))
+	for _, svcName := range services {
+		plug, err := GetPlugin(svcName)
+		if err != nil {
+			return nil, fmt.Errorf("resolving service %q: %w", svcName, err)
+		}
+		plugins[svcName] = plug
+	}
+
 	var tasks []enumTask
 	for _, target := range cfg.resolveTargets() {
 		for _, svcName := range services {
-			plug, err := GetPlugin(svcName)
-			if err != nil {
-				return nil, fmt.Errorf("resolving service %q: %w", svcName, err)
-			}
 			tasks = append(tasks, enumTask{
 				email:   target.Email,
 				first:   target.First,
 				last:    target.Last,
 				service: svcName,
-				plugin:  plug,
+				plugin:  plugins[svcName],
 			})
 		}
 	}

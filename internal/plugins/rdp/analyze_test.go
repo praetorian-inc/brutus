@@ -145,6 +145,10 @@ func TestRunUtilmanAnalysis_Clean(t *testing.T) {
 		response[i+2] = 100
 		response[i+3] = 255
 	}
+	// Painted screen content (identical in both) so the baseline is a real logon
+	// screen, not a flat "never rendered" frame. Identical frames still => clean.
+	stampScreenContent(baseline, int(w))
+	stampScreenContent(response, int(w))
 
 	ctx := context.Background()
 	result := runUtilmanAnalysis(ctx, baseline, response, w, h, "")
@@ -192,6 +196,22 @@ func TestDetectChangedRectangle_ReturnsBox(t *testing.T) {
 }
 
 // paintBox fills a rectangular region of an RGBA buffer with the given gray value.
+// stampScreenContent breaks a flat synthetic baseline into a realistic painted logon
+// screen: it writes a short run of light pixels (a logo/clock stand-in) so the frame is
+// NOT a single flat color. A real logon baseline is never uniform; the flat-frame guard
+// in runStickyKeys/UtilmanAnalysis (correctly) rejects a uniform baseline as "never
+// rendered", so these synthetic tests must paint one. The pixels are light (>= 210),
+// adding zero dark pixels, and are identical in baseline and response, so they never
+// register as a change — the console/dialog assertions are unaffected.
+func stampScreenContent(buf []byte, w int) {
+	for x := 10; x < 40; x++ {
+		idx := (5*w + x) * 4
+		if idx+3 < len(buf) {
+			buf[idx], buf[idx+1], buf[idx+2], buf[idx+3] = 210, 210, 210, 255
+		}
+	}
+}
+
 func paintBox(buf []byte, w, x0, y0, x1, y1 int, gray byte) {
 	for y := y0; y < y1; y++ {
 		for x := x0; x < x1; x++ {
@@ -411,6 +431,8 @@ func TestConsoleGate_EndToEnd(t *testing.T) {
 	for i := 0; i < len(baseline); i += 4 {
 		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
 	}
+	// Painted screen content: a real logon baseline, not a flat "never rendered" frame.
+	stampScreenContent(baseline, int(W))
 
 	newResponse := func() []byte {
 		r := make([]byte, totalPx*4)
@@ -529,6 +551,8 @@ func TestRunStickyKeysAnalysis_LightDialog_NoVision_Clean(t *testing.T) {
 	for i := 0; i < size; i += 4 {
 		baseline[i], baseline[i+1], baseline[i+2], baseline[i+3] = 128, 128, 128, 255
 	}
+	// Painted screen content: a real logon baseline, not a flat "never rendered" frame.
+	stampScreenContent(baseline, int(w))
 	response := make([]byte, size)
 	copy(response, baseline)
 	// Light small centered dialog (220×220 = 4.84% area, gray 200).

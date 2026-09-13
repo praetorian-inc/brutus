@@ -16,11 +16,13 @@ package mssql
 
 import (
 	"context"
+	"net/url"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -32,6 +34,34 @@ func getTestConfig() (host, user, pass string) {
 	user = os.Getenv("MSSQL_TEST_USER")
 	pass = os.Getenv("MSSQL_TEST_PASS")
 	return
+}
+
+func TestMssqlURL(t *testing.T) {
+	t.Run("special chars in password", func(t *testing.T) {
+		s := mssqlURL("10.0.0.1:1433", "sa", "p@ss:word", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		pass, ok := u.User.Password()
+		require.True(t, ok)
+		assert.Equal(t, "p@ss:word", pass)
+		assert.Equal(t, "sa", u.User.Username())
+		assert.Equal(t, "10.0.0.1:1433", u.Host)
+		assert.Equal(t, "master", u.Query().Get("database"))
+		assert.Equal(t, "disable", u.Query().Get("encrypt"))
+		assert.Equal(t, "true", u.Query().Get("TrustServerCertificate"))
+	})
+	t.Run("IPv6 default port", func(t *testing.T) {
+		s := mssqlURL("::1", "sa", "x", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "[::1]:1433", u.Host)
+	})
+	t.Run("subsecond timeout floors to 1s", func(t *testing.T) {
+		s := mssqlURL("h", "u", "p", 200*time.Millisecond)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "1", u.Query().Get("connection timeout"))
+	})
 }
 
 func TestPlugin_Name(t *testing.T) {

@@ -107,6 +107,8 @@ func MapServiceToProtocol(service string) string {
 
 		"db2": "db2",
 
+		"opcua": "opcua",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

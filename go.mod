@@ -11,6 +11,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gocql/gocql v1.7.0
+	github.com/gopcua/opcua v0.9.1
 	github.com/gosnmp/gosnmp v1.44.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/jcmturner/gokrb5/v8 v8.4.4

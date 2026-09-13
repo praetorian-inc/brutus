@@ -444,3 +444,71 @@ func TestEnumerateWithPlugin_ErrorPathPreservesName(t *testing.T) {
 	assert.Equal(t, "Frank", results[0].First, "name must be stamped even when the check errored")
 	assert.Equal(t, "Foster", results[0].Last, "name must be stamped even when the check errored")
 }
+
+type panickingEnumPlugin struct{ name string }
+
+func (p *panickingEnumPlugin) Name() string { return p.name }
+func (p *panickingEnumPlugin) Check(context.Context, string, time.Duration) *Result {
+	panic("simulated enum plugin panic")
+}
+
+type nilEnumPlugin struct{ name string }
+
+func (p *nilEnumPlugin) Name() string                                         { return p.name }
+func (p *nilEnumPlugin) Check(context.Context, string, time.Duration) *Result { return nil }
+
+func TestEnumerateWithPlugin_PanicPreservesName(t *testing.T) {
+	results, err := EnumerateWithPlugin(context.Background(), &Config{
+		Targets: []Target{{Email: "boom@example.com", First: "Pat", Last: "Panic"}},
+		Threads: 1,
+		Timeout: time.Second,
+	}, &panickingEnumPlugin{name: "panic-oracle"})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.ErrorContains(t, results[0].Error, "plugin panicked")
+	assert.Equal(t, "Pat", results[0].First)
+	assert.Equal(t, "Panic", results[0].Last)
+	assert.Equal(t, "boom@example.com", results[0].Email)
+}
+
+func TestEnumerateWithPlugin_NilResultPreservesName(t *testing.T) {
+	results, err := EnumerateWithPlugin(context.Background(), &Config{
+		Targets: []Target{{Email: "nil@example.com", First: "Nina", Last: "Nil"}},
+		Threads: 1,
+		Timeout: time.Second,
+	}, &nilEnumPlugin{name: "nil-oracle"})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.ErrorContains(t, results[0].Error, "plugin returned nil result")
+	assert.Equal(t, "Nina", results[0].First)
+	assert.Equal(t, "Nil", results[0].Last)
+	assert.Equal(t, "nil@example.com", results[0].Email)
+}
+
+func TestEnumerateWithPlugin_CanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	results, err := EnumerateWithPlugin(ctx, &Config{
+		Emails:  []string{"a@example.com", "b@example.com"},
+		Threads: 2,
+		Timeout: time.Second,
+	}, &stubPlugin{name: "cancel-oracle", exists: true})
+
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(results), 2)
+}
+
+func TestEnumerateWithPlugin_InvalidProxy(t *testing.T) {
+	_, err := EnumerateWithPlugin(context.Background(), &Config{
+		Emails:   []string{"a@example.com"},
+		Threads:  1,
+		Timeout:  time.Second,
+		ProxyURL: "ftp://127.0.0.1:9",
+	}, &stubPlugin{name: "proxy-oracle"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configuring enum HTTP client")
+}

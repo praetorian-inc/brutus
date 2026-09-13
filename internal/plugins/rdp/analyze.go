@@ -521,13 +521,20 @@ func runStickyKeysAnalysis(ctx context.Context, baseline, response []byte,
 
 	result := StickyKeysResult{Performed: true}
 
-	// A real screen that went flat is not an observation: the surface was torn down
-	// or never painted, so there is nothing to score. Reject it before any heuristic
-	// runs so it can never become a positive (see isUniformFrame). Both frames flat
-	// is NOT this case -- that is a genuine "nothing changed", which scores clean.
-	if isUniformFrame(response) && !isUniformFrame(baseline) {
+	// A flat (single-color) frame never rendered a logon screen: the surface was torn
+	// down or had not painted when captured. If EITHER the baseline or the response is
+	// flat, the dark-delta reference is invalid and no "clean" from it can be trusted:
+	//   - a flat RESPONSE observed nothing after the trigger;
+	//   - a flat (unpainted) BASELINE is maximally dark, so darkDelta measures a
+	//     negative "new dark pixels" for ANY response -- even a real console -- and
+	//     clamps it to a false "clean", silently hiding a backdoor.
+	// Reject to indeterminate before any heuristic runs. A real console is never a flat
+	// frame, so this only ever suppresses a non-observation (cardinal rule); a rerun
+	// with a painted baseline recovers the real verdict (and better recall than a
+	// black-baseline false clean).
+	if isUniformFrame(baseline) || isUniformFrame(response) {
 		result.OverallVerdict = verdictIndeterminate
-		result.HeuristicResult = "response framebuffer is a single flat color (no render observed)"
+		result.HeuristicResult = "framebuffer never rendered a logon screen (flat frame) — rerun"
 		return result
 	}
 
@@ -591,13 +598,20 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 
 	result := UtilmanResult{Performed: true}
 
-	// A real screen that went flat is not an observation: the surface was torn down
-	// or never painted, so there is nothing to score. Reject it before any heuristic
-	// runs so it can never become a positive (see isUniformFrame). Both frames flat
-	// is NOT this case -- that is a genuine "nothing changed", which scores clean.
-	if isUniformFrame(response) && !isUniformFrame(baseline) {
+	// A flat (single-color) frame never rendered a logon screen: the surface was torn
+	// down or had not painted when captured. If EITHER the baseline or the response is
+	// flat, the dark-delta reference is invalid and no "clean" from it can be trusted:
+	//   - a flat RESPONSE observed nothing after the trigger;
+	//   - a flat (unpainted) BASELINE is maximally dark, so darkDelta measures a
+	//     negative "new dark pixels" for ANY response -- even a real console -- and
+	//     clamps it to a false "clean", silently hiding a backdoor.
+	// Reject to indeterminate before any heuristic runs. A real console is never a flat
+	// frame, so this only ever suppresses a non-observation (cardinal rule); a rerun
+	// with a painted baseline recovers the real verdict (and better recall than a
+	// black-baseline false clean).
+	if isUniformFrame(baseline) || isUniformFrame(response) {
 		result.OverallVerdict = verdictIndeterminate
-		result.HeuristicResult = "response framebuffer is a single flat color (no render observed)"
+		result.HeuristicResult = "framebuffer never rendered a logon screen (flat frame) — rerun"
 		return result
 	}
 
@@ -668,8 +682,10 @@ func runUtilmanAnalysis(ctx context.Context, baseline, response []byte,
 // The test is EXACT color equality rather than "mostly dark" on purpose: a real
 // console always carries text, a cursor, or a border, so it can never be uniform,
 // which keeps the guard from suppressing a genuine finding (cardinal rule). Callers
-// gate on a flat RESPONSE against a non-flat BASELINE -- a real screen that went
-// flat. Two flat frames are a genuine "nothing changed" and stay clean.
+// reject a flat frame on EITHER side to indeterminate: a flat response observed
+// nothing, and a flat (unpainted) baseline makes darkDelta clamp every response --
+// even a real console -- to a false "clean". Two flat frames are NOT a genuine
+// "nothing changed" -- nothing ever rendered, so there is no clean to report.
 func isUniformFrame(buf []byte) bool {
 	if len(buf) < 8 {
 		return true // no pixels (or a single pixel) carries no evidence either

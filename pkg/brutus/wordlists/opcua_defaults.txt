@@ -1,0 +1,9 @@
+# OPC UA Default Credentials
+admin:admin
+opcua:opcua
+# --- cautious ---
+root:root
+user:user
+# --- aggressive ---
+admin:password
+operator:operator

@@ -229,6 +229,40 @@ func TestLoadNmapFile_UnknownServiceEmpty(t *testing.T) {
 	assert.Equal(t, "ssh", results[1].Protocol)
 }
 
+func TestLoadNmapFile_IPv6(t *testing.T) {
+	xml := `<?xml version="1.0"?>
+<nmaprun>
+  <host><status state="up"/><address addr="2001:db8::1" addrtype="ipv6"/>
+    <ports><port protocol="tcp" portid="22"><state state="open"/><service name="ssh"/></port></ports>
+  </host>
+</nmaprun>`
+
+	file := writeTempFile(t, "nmap-ipv6.xml", xml)
+	results, err := LoadNmapFile(file)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "2001:db8::1", results[0].IP)
+	assert.Equal(t, 22, results[0].Port)
+	assert.Equal(t, "ssh", results[0].Protocol)
+}
+
+func TestLoadNmapFile_DualStackPrefersFirstIP(t *testing.T) {
+	xml := `<?xml version="1.0"?>
+<nmaprun>
+  <host><status state="up"/>
+    <address addr="10.0.0.1" addrtype="ipv4"/>
+    <address addr="2001:db8::1" addrtype="ipv6"/>
+    <ports><port protocol="tcp" portid="22"><state state="open"/><service name="ssh"/></port></ports>
+  </host>
+</nmaprun>`
+
+	file := writeTempFile(t, "nmap-dual.xml", xml)
+	results, err := LoadNmapFile(file)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "10.0.0.1", results[0].IP)
+}
+
 func TestLoadNmapFile_HostnamePreferred(t *testing.T) {
 	xml := `<?xml version="1.0"?>
 <nmaprun>

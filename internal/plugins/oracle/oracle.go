@@ -18,6 +18,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -94,7 +95,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	userInfo := url.UserPassword(username, password).String()
 
 	for _, service := range defaultServiceNames {
-		connStr := fmt.Sprintf("oracle://%s@%s:%s/%s", userInfo, host, port, service)
+		connStr := fmt.Sprintf("oracle://%s@%s/%s", userInfo, net.JoinHostPort(host, port), service)
 
 		err := tryConnect(ctx, connStr, timeout)
 		if err == nil {

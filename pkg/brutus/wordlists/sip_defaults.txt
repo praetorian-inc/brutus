@@ -1,0 +1,9 @@
+# SIP Default Credentials
+1000:1000
+admin:admin
+# --- cautious ---
+1001:1001
+user:user
+# --- aggressive ---
+admin:password
+cisco:cisco

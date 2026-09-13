@@ -47,7 +47,7 @@ func (nrv *NervaResult) TargetAddr() string {
 	if nrv.Host != "" {
 		host = nrv.Host
 	}
-	return fmt.Sprintf("%s:%d", host, nrv.Port)
+	return net.JoinHostPort(host, strconv.Itoa(nrv.Port))
 }
 
 // MapServiceToProtocol maps nerva service names to brutus protocol names.
@@ -82,6 +82,34 @@ func MapServiceToProtocol(service string) string {
 		"smtp": "smtp",
 		"imap": "imap",
 		"pop3": "pop3",
+		"mqtt": "mqtt",
+
+		"amqp":      "amqp",
+		"kafka":     "kafka",
+		"memcached": "memcached",
+		"socks5":    "socks5",
+
+		"firebird": "firebird",
+
+		"xmpp": "xmpp",
+
+		"rsync": "rsync",
+
+		"nats": "nats",
+
+		"zookeeper": "zookeeper",
+
+		"sip":  "sip",
+		"sips": "sip",
+
+		"activemq":          "activemq",
+		"activemq-openwire": "activemq",
+
+		"db2": "db2",
+
+		"opcua": "opcua",
+
+		"ipmi": "ipmi",
 
 		"snmp": "snmp",
 		"turn": "turn",

@@ -260,6 +260,12 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 					result = plug.Test(ctx, cfg.Target, cred.username, cred.password, cfg.Timeout, pluginCfg)
 				}
 
+				if result == nil {
+					result = NewResult(cfg.Protocol, cfg.Target, cred.username, cred.password)
+					result.Error = fmt.Errorf("plugin returned nil result")
+					break
+				}
+
 				if result.Error == nil {
 					break
 				}

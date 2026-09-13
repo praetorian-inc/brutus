@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -52,7 +53,7 @@ func (c *Checker) CheckUnauth(ctx context.Context, target string, timeout time.D
 		scheme = "https"
 	}
 
-	url := fmt.Sprintf("%s://%s:%s/version", scheme, host, port)
+	url := fmt.Sprintf("%s://%s/version", scheme, net.JoinHostPort(host, port))
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {

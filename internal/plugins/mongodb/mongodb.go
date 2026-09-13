@@ -16,7 +16,7 @@ package mongodb
 
 import (
 	"context"
-	"fmt"
+	"net"
 	"net/url"
 	"time"
 
@@ -53,21 +53,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mongodb", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	tlsMode := pluginCfg.TLSMode
-
-	var tlsParam string
-	switch tlsMode {
-	case "verify":
-		tlsParam = "tls=true"
-	case "skip-verify":
-		tlsParam = "tls=true&tlsInsecure=true"
-	default: // "disable"
-		tlsParam = "tls=false"
-	}
-
-	// URL-encode username and password to handle special characters (@, :, /, %, #).
-	connStr := fmt.Sprintf("mongodb://%s:%s@%s/?%s",
-		url.QueryEscape(username), url.QueryEscape(password), target, tlsParam)
+	connStr := mongoURI(target, username, password, pluginCfg.TLSMode)
 
 	clientOpts := options.Client().
 		ApplyURI(connStr).
@@ -99,7 +85,19 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-// mongodbAuthIndicators defines authentication failure indicators for MongoDB.
+func mongoURI(target, username, password, tlsMode string) string {
+	host, port := brutus.ParseTarget(target, "27017")
+	tlsParam := "tls=false"
+	switch tlsMode {
+	case "verify":
+		tlsParam = "tls=true"
+	case "skip-verify":
+		tlsParam = "tls=true&tlsInsecure=true"
+	}
+	return "mongodb://" + url.QueryEscape(username) + ":" + url.QueryEscape(password) + "@" +
+		net.JoinHostPort(host, port) + "/?" + tlsParam
+}
+
 var mongodbAuthIndicators = []string{
 	"Authentication failed",
 	"auth error",

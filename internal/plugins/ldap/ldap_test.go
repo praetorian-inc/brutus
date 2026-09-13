@@ -91,6 +91,17 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
+func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
+	p := &Plugin{}
+	result := p.Test(context.Background(), "::1", "admin", "password", 200*time.Millisecond, brutus.PluginConfig{})
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.NotContains(t, result.Error.Error(), "too many colons")
+	assert.NotContains(t, result.Error.Error(), "invalid port")
+}
+
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	if ldapTestHost == "" {
 		t.Skip("Integration test - requires LDAP server (set LDAP_TEST_HOST)")

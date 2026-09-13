@@ -20,7 +20,9 @@ import (
 	"testing"
 	"time"
 
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -30,6 +32,55 @@ var (
 	mysqlTestUser = os.Getenv("MYSQL_TEST_USER")
 	mysqlTestPass = os.Getenv("MYSQL_TEST_PASS")
 )
+
+func TestMySQLDSN(t *testing.T) {
+	tests := []struct {
+		name     string
+		target   string
+		user     string
+		pass     string
+		tlsMode  string
+		wantAddr string
+		wantTLS  string
+	}{
+		{
+			name:     "special chars in password",
+			target:   "10.0.0.1:3306",
+			user:     "root",
+			pass:     "p@ss:word/x?",
+			wantAddr: "10.0.0.1:3306",
+			wantTLS:  "false",
+		},
+		{
+			name:     "IPv6",
+			target:   "::1",
+			user:     "root",
+			pass:     "x",
+			wantAddr: "[::1]:3306",
+			wantTLS:  "false",
+		},
+		{
+			name:     "skip-verify",
+			target:   "db.example.com",
+			user:     "app",
+			pass:     "secret",
+			tlsMode:  "skip-verify",
+			wantAddr: "db.example.com:3306",
+			wantTLS:  "skip-verify",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dsn := mysqlDSN(tt.target, tt.user, tt.pass, tt.tlsMode)
+			cfg, err := mysqldriver.ParseDSN(dsn)
+			require.NoError(t, err)
+			assert.Equal(t, tt.user, cfg.User)
+			assert.Equal(t, tt.pass, cfg.Passwd)
+			assert.Equal(t, tt.wantAddr, cfg.Addr)
+			assert.Equal(t, tt.wantTLS, cfg.TLSConfig)
+		})
+	}
+}
 
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}

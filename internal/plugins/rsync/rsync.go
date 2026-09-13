@@ -88,7 +88,7 @@ func handshake(ctx context.Context, target, module, password string,
 	if !strings.HasPrefix(greeting, "@RSYNCD:") {
 		return false, false, fmt.Errorf("unexpected rsync greeting: %s", strings.TrimSpace(greeting))
 	}
-	if _, err := fmt.Fprintf(conn, "@RSYNCD: 31.0\n"); err != nil {
+	if _, err = fmt.Fprintf(conn, "@RSYNCD: 31.0\n"); err != nil {
 		return false, false, err
 	}
 
@@ -96,7 +96,7 @@ func handshake(ctx context.Context, target, module, password string,
 	if mod == "" {
 		mod = "#"
 	}
-	if _, err := fmt.Fprintf(conn, "%s\n", mod); err != nil {
+	if _, err = fmt.Fprintf(conn, "%s\n", mod); err != nil {
 		return false, false, err
 	}
 
@@ -111,7 +111,7 @@ func handshake(ctx context.Context, target, module, password string,
 	case strings.HasPrefix(resp, "@RSYNCD: AUTHREQD"):
 		challenge := strings.TrimSpace(strings.TrimPrefix(resp, "@RSYNCD: AUTHREQD"))
 		sum := md5.Sum([]byte(password + challenge))
-		if _, err := fmt.Fprintf(conn, "%s %s\n", module, hex.EncodeToString(sum[:])); err != nil {
+		if _, err = fmt.Fprintf(conn, "%s %s\n", module, hex.EncodeToString(sum[:])); err != nil {
 			return false, false, err
 		}
 		authResp, err := reader.ReadString('\n')

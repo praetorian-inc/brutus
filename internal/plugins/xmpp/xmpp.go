@@ -61,7 +61,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if tlsCfg := brutus.BuildTLSConfig(pluginCfg.TLSMode); tlsCfg != nil {
 		tlsCfg.ServerName = host
 		tconn := tls.Client(conn, tlsCfg)
-		if err := tconn.HandshakeContext(ctx); err != nil {
+		if err = tconn.HandshakeContext(ctx); err != nil {
 			result.Error = brutus.WrapConnError(err)
 			return result
 		}
@@ -71,12 +71,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	domain := host
 	stream := fmt.Sprintf(`<?xml version='1.0'?><stream:stream to='%s' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>`, domain)
-	if _, err := io.WriteString(conn, stream); err != nil {
+	if _, err = io.WriteString(conn, stream); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	buf, err := readSome(conn)
-	if err != nil {
+	if _, err = readSome(conn); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
@@ -85,11 +84,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	plain = append(plain, 0)
 	plain = append(plain, []byte(password)...)
 	auth := fmt.Sprintf(`<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='PLAIN'>%s</auth>`, base64.StdEncoding.EncodeToString(plain))
-	if _, err := io.WriteString(conn, auth); err != nil {
+	if _, err = io.WriteString(conn, auth); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	buf, err = readSome(conn)
+	buf, err := readSome(conn)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result

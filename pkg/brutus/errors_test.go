@@ -75,3 +75,31 @@ func TestClassifyAuthError_EmptyIndicators(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Contains(t, result.Error(), "connection error")
 }
+
+func TestWrapConnError(t *testing.T) {
+	assert.Nil(t, brutus.WrapConnError(nil))
+
+	orig := errors.New("i/o timeout")
+	wrapped := brutus.WrapConnError(orig)
+	require.NotNil(t, wrapped)
+	assert.Contains(t, wrapped.Error(), "connection error")
+	assert.ErrorIs(t, wrapped, orig)
+}
+
+func TestNewClassifier(t *testing.T) {
+	classify := brutus.NewClassifier([]string{"Access denied"})
+
+	assert.Nil(t, classify(nil))
+	assert.Nil(t, classify(errors.New("Access denied for user 'root'")))
+
+	timeout := errors.New("i/o timeout")
+	wrapped := classify(timeout)
+	require.NotNil(t, wrapped)
+	assert.Contains(t, wrapped.Error(), "connection error")
+	assert.ErrorIs(t, wrapped, timeout)
+
+	empty := brutus.NewClassifier(nil)
+	alwaysWrapped := empty(errors.New("anything"))
+	require.NotNil(t, alwaysWrapped)
+	assert.Contains(t, alwaysWrapped.Error(), "connection error")
+}

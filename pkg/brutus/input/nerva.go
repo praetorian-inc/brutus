@@ -97,6 +97,8 @@ func MapServiceToProtocol(service string) string {
 
 		"nats": "nats",
 
+		"zookeeper": "zookeeper",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

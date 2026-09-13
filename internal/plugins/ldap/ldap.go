@@ -77,10 +77,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	host, port := brutus.ParseTarget(target, "389")
 
-	ldapURL := fmt.Sprintf("ldap://%s:%s", host, port)
+	scheme := "ldap"
 	if port == "636" {
-		ldapURL = fmt.Sprintf("ldaps://%s:%s", host, port)
+		scheme = "ldaps"
 	}
+	ldapURL := fmt.Sprintf("%s://%s", scheme, net.JoinHostPort(host, port))
 
 	tlsMode := pluginCfg.TLSMode
 

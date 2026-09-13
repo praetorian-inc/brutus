@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,7 +105,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	if p.UseHTTPS {
 		scheme = "https"
 	}
-	url := fmt.Sprintf("%s://%s:%d/wsman", scheme, host, port)
+	url := fmt.Sprintf("%s://%s/wsman", scheme, net.JoinHostPort(host, strconv.Itoa(port)))
 
 	// Send a lightweight WS-Management Enumerate request instead of CreateShell.
 	// CreateShell targets the "windows/shell/cmd" (WinRS) resource which requires
@@ -210,7 +211,7 @@ func parseTarget(target string, useHTTPS bool) (host string, port int) {
 	if useHTTPS {
 		defaultPort = 5986
 	}
-	return target, defaultPort
+	return strings.Trim(target, "[]"), defaultPort
 }
 
 // classifyError classifies WinRM errors into auth failures vs connection errors.

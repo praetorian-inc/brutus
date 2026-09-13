@@ -49,7 +49,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("opcua", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	err := connect(ctx, target, username, password, timeout, pluginCfg, false)
+	err := connect(ctx, target, username, password, timeout, false)
 	if err != nil {
 		result.Error = classifyError(err)
 		return result
@@ -62,7 +62,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	result := brutus.NewResult("opcua", target, "(unauthenticated)", "")
 	start := time.Now()
 	defer func() { result.Duration = time.Since(start) }()
-	if err := connect(ctx, target, "", "", timeout, pluginCfg, true); err != nil {
+	if err := connect(ctx, target, "", "", timeout, true); err != nil {
 		return result
 	}
 	result.Success = true
@@ -71,7 +71,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 }
 
 func connect(ctx context.Context, target, username, password string,
-	timeout time.Duration, pluginCfg brutus.PluginConfig, anonymous bool) error {
+	timeout time.Duration, anonymous bool) error {
 	host, port := brutus.ParseTarget(target, defaultPort)
 	endpoint := "opc.tcp://" + net.JoinHostPort(host, port)
 

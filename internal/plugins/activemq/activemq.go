@@ -59,15 +59,15 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	if err := writeFrame(conn, wireFormatInfo()); err != nil {
+	if err = writeFrame(conn, wireFormatInfo()); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	if _, err := readFrame(conn); err != nil {
+	if _, err = readFrame(conn); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	if err := writeFrame(conn, connectionInfo(username, password)); err != nil {
+	if err = writeFrame(conn, connectionInfo(username, password)); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}

@@ -99,10 +99,10 @@ func MapServiceToProtocol(service string) string {
 
 		"zookeeper": "zookeeper",
 
-		"sip": "sip",
+		"sip":  "sip",
 		"sips": "sip",
 
-		"activemq": "activemq",
+		"activemq":          "activemq",
 		"activemq-openwire": "activemq",
 
 		"db2": "db2",

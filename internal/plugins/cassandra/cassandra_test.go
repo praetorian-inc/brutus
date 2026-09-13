@@ -112,6 +112,16 @@ func TestPlugin_Test_ResultStructure(t *testing.T) {
 	assert.Greater(t, result.Duration, time.Duration(0))
 }
 
+func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
+	p := &Plugin{}
+	result := p.Test(context.Background(), "::1", "user", "pass", 200*time.Millisecond, brutus.PluginConfig{})
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.NotContains(t, result.Error.Error(), "too many colons")
+}
+
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	p := &Plugin{}
 	ctx, cancel := context.WithCancel(context.Background())

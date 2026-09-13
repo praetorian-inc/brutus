@@ -95,6 +95,8 @@ func MapServiceToProtocol(service string) string {
 
 		"rsync": "rsync",
 
+		"nats": "nats",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

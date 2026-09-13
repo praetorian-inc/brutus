@@ -173,6 +173,16 @@ func TestCheckUnauth_Unreachable(t *testing.T) {
 	assert.Nil(t, result.Error)
 }
 
+func TestCheckUnauth_UnbracketedIPv6(t *testing.T) {
+	c := &Checker{}
+	result := c.CheckUnauth(context.Background(), "::1", 200*time.Millisecond, brutus.PluginConfig{})
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.Equal(t, "docker", result.Protocol)
+	assert.Equal(t, "::1", result.Target)
+}
+
 func TestCheckUnauth_TLS(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

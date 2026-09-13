@@ -99,6 +99,9 @@ func MapServiceToProtocol(service string) string {
 
 		"zookeeper": "zookeeper",
 
+		"sip": "sip",
+		"sips": "sip",
+
 		"snmp": "snmp",
 		"turn": "turn",
 

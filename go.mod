@@ -3,6 +3,7 @@ module github.com/praetorian-inc/brutus
 go 1.27.0
 
 require (
+	github.com/UNC1739/gordp v0.0.0-20260902103537-9eaa5eeefa94
 	github.com/chromedp/chromedp v0.16.0
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/eclipse/paho.mqtt.golang v1.5.1

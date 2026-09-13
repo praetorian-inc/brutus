@@ -82,6 +82,11 @@ type rdpConfig struct {
 // - Success=false, Error!=nil: Connection/network error
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
+	// The native backend runs the same classification; see backend.go.
+	if selectedBackend() == BackendGordp {
+		return p.testGordp(ctx, target, username, password, timeout, pluginCfg)
+	}
+
 	start := time.Now()
 
 	result := brutus.NewResult("rdp", target, username, password)

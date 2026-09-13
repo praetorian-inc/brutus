@@ -16,6 +16,7 @@ package cassandra
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/gocql/gocql"
@@ -56,7 +57,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("cassandra", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	cluster := gocql.NewCluster(target)
+	host, port := brutus.ParseTarget(target, "9042")
+	cluster := gocql.NewCluster(net.JoinHostPort(host, port))
 	cluster.Authenticator = gocql.PasswordAuthenticator{
 		Username: username,
 		Password: password,

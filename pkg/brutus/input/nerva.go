@@ -47,7 +47,7 @@ func (nrv *NervaResult) TargetAddr() string {
 	if nrv.Host != "" {
 		host = nrv.Host
 	}
-	return fmt.Sprintf("%s:%d", host, nrv.Port)
+	return net.JoinHostPort(host, strconv.Itoa(nrv.Port))
 }
 
 // MapServiceToProtocol maps nerva service names to brutus protocol names.

@@ -17,6 +17,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -62,16 +63,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer func() { result.Duration = time.Since(start) }()
 
 	host, port := brutus.ParseTarget(target, "6379")
-	addr := fmt.Sprintf("%s:%s", host, port)
-
-	client := redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     password,
-		DB:           0,
-		DialTimeout:  timeout,
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-	})
+	client := newRedisClient(net.JoinHostPort(host, port), password, timeout, pluginCfg.ProxyURL)
 	defer func() { _ = client.Close() }()
 
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -94,16 +86,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	defer func() { result.Duration = time.Since(start) }()
 
 	host, port := brutus.ParseTarget(target, "6379")
-	addr := fmt.Sprintf("%s:%s", host, port)
-
-	client := redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     "",
-		DB:           0,
-		DialTimeout:  timeout,
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-	})
+	client := newRedisClient(net.JoinHostPort(host, port), "", timeout, pluginCfg.ProxyURL)
 	defer func() { _ = client.Close() }()
 
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -129,6 +112,20 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 	result.Success = true
 	result.Banner = bannerText
 	return result
+}
+
+func newRedisClient(addr, password string, timeout time.Duration, proxyURL string) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr:         addr,
+		Password:     password,
+		DB:           0,
+		DialTimeout:  timeout,
+		ReadTimeout:  timeout,
+		WriteTimeout: timeout,
+		Dialer: func(ctx context.Context, network, dialAddr string) (net.Conn, error) {
+			return brutus.DialWithProxy(ctx, network, dialAddr, timeout, proxyURL)
+		},
+	})
 }
 
 var classifyError = brutus.NewClassifier(redisAuthIndicators)

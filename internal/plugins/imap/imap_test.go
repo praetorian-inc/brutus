@@ -21,6 +21,7 @@ package imap
 
 import (
 	"context"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -184,6 +185,40 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	// Connection may fail or succeed depending on implementation
 	// Just verify we get a valid result structure
 	assert.Greater(t, result.Duration, time.Duration(0))
+}
+
+func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
+	p := &Plugin{}
+	result := p.Test(context.Background(), "::1", "user", "pass", 200*time.Millisecond, brutus.PluginConfig{})
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
+	require.Error(t, result.Error)
+	assert.NotContains(t, result.Error.Error(), "too many colons")
+}
+
+func TestPlugin_Test_LoginDeadline(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = ln.Close() }()
+
+	go func() {
+		conn, accErr := ln.Accept()
+		if accErr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		time.Sleep(5 * time.Second)
+	}()
+
+	p := &Plugin{}
+	start := time.Now()
+	result := p.Test(context.Background(), ln.Addr().String(), "user", "pass", 300*time.Millisecond, brutus.PluginConfig{})
+	elapsed := time.Since(start)
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.Less(t, elapsed, 2*time.Second, "login must be bounded by the plugin timeout")
 }
 
 func TestInit(t *testing.T) {

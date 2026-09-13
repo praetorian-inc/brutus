@@ -16,7 +16,7 @@ package imap
 
 import (
 	"context"
-	"fmt"
+	"net"
 	"time"
 
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -59,7 +59,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer func() { result.Duration = time.Since(start) }()
 
 	host, port := brutus.ParseTarget(target, "143")
-	addr := fmt.Sprintf("%s:%s", host, port)
+	addr := net.JoinHostPort(host, port)
 
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -86,10 +86,19 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	loginCtx, loginCancel := context.WithTimeout(ctx, timeout)
 	defer loginCancel()
 
-	loginCmd := client.Login(username, password)
-	err := loginCmd.Wait()
+	// go-imap overwrites conn deadlines (30s greeting timer), so a silent
+	// server would hang Login().Wait() past the plugin timeout. Close the
+	// client when loginCtx fires to unblock Wait.
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- client.Login(username, password).Wait()
+	}()
 
-	if loginCtx.Err() != nil {
+	var err error
+	select {
+	case err = <-errCh:
+	case <-loginCtx.Done():
+		_ = client.Close()
 		result.Error = classifyError(loginCtx.Err())
 		return result
 	}

@@ -68,6 +68,13 @@ func TestParseTarget_IPv6WithPort(t *testing.T) {
 	assert.Equal(t, 1161, port)
 }
 
+func TestParseTarget_UnbracketedIPv6(t *testing.T) {
+	host, port, err := parseTarget("2001:db8::1")
+	assert.NoError(t, err)
+	assert.Equal(t, "2001:db8::1", host)
+	assert.Equal(t, 161, port)
+}
+
 func TestParseTarget_InvalidPort(t *testing.T) {
 	_, _, err := parseTarget("192.168.1.1:abc")
 	assert.Error(t, err)

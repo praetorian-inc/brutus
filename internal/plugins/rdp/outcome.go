@@ -85,6 +85,9 @@ func DetectStickyKeysOutcome(ctx context.Context, target string, connectTimeout,
 	result = retryStickyKeysOnTermination(fast, result, func() *StickyKeysResult {
 		return plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
 	})
+	result = retryStickyKeysOnUnstable(fast, result, func() *StickyKeysResult {
+		return plugin.RunStickyKeysCheck(ctx, target, "", connectTimeout, patientTimeout(timeout), noVision, PatientBudget, false)
+	})
 	return stickyOutcome(result)
 }
 
@@ -98,5 +101,21 @@ func DetectUtilmanOutcome(ctx context.Context, target string, connectTimeout, ti
 	result = retryUtilmanOnTermination(fast, result, func() *UtilmanResult {
 		return plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, timeout, noVision, FastBudget, true)
 	})
+	result = retryUtilmanOnUnstable(fast, result, func() *UtilmanResult {
+		return plugin.RunUtilmanCheck(ctx, target, "", connectTimeout, patientTimeout(timeout), noVision, PatientBudget, false)
+	})
 	return utilmanOutcome(result)
+}
+
+// patientTimeout widens a per-phase settle deadline for the single more-patient retry of
+// a non-stabilized scan. Doubling gives a slow-painting logon screen room to reach the
+// wider PatientBudget quiet window; it is bounded so an already-generous --scan-timeout
+// cannot balloon a stuck host's cost without limit.
+func patientTimeout(d time.Duration) time.Duration {
+	const maxPatient = 45 * time.Second
+	patient := d * 2
+	if patient > maxPatient {
+		return maxPatient
+	}
+	return patient
 }

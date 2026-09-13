@@ -399,3 +399,42 @@ func retryAfterTermination(verdict string, performed bool) bool {
 		return true
 	}
 }
+
+// retryStickyKeysOnUnstable re-runs a non-stabilized (indeterminate) scan once on the
+// MORE patient settle profile. A render that did not settle within CarefulBudget is not
+// an observation -- the operator would otherwise have to rerun it by hand -- so one
+// automatic, more-patient retry spends the extra time ONLY on the hosts that need it.
+// It never touches a host that already settled (clean or a positive), so it cannot lose
+// a finding (cardinal rule). Terminated sessions are handled by the termination retry
+// (a SHORTER profile, to beat a re-teardown), so this deliberately skips them. rerun is
+// invoked at most once. fast mode never retries (never-clean triage owns that path).
+func retryStickyKeysOnUnstable(fast bool, first *StickyKeysResult, rerun func() *StickyKeysResult) *StickyKeysResult {
+	if fast || first == nil || first.SessionTerminated {
+		return first
+	}
+	if !retryWhenUnstable(first.OverallVerdict, first.Performed, first.Stabilized) {
+		return first
+	}
+	return rerun()
+}
+
+// retryUtilmanOnUnstable is retryStickyKeysOnUnstable for the utilman check. See it for
+// the rationale; the wiring is identical so both checks share one retry decision.
+func retryUtilmanOnUnstable(fast bool, first *UtilmanResult, rerun func() *UtilmanResult) *UtilmanResult {
+	if fast || first == nil || first.SessionTerminated {
+		return first
+	}
+	if !retryWhenUnstable(first.OverallVerdict, first.Performed, first.Stabilized) {
+		return first
+	}
+	return rerun()
+}
+
+// retryWhenUnstable reports whether a (non-terminated) result is worth a more-patient
+// rerun: only a scan that performed but did not stabilize AND landed on indeterminate.
+// A stabilized verdict -- clean or a positive -- is a real observation and is never
+// re-run (the retry could only lose it). A never-performed scan (connect/wasm failure)
+// has no render to settle, so a patient retry buys nothing.
+func retryWhenUnstable(verdict string, performed, stabilized bool) bool {
+	return performed && !stabilized && verdict == verdictIndeterminate
+}

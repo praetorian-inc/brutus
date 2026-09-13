@@ -16,7 +16,7 @@ package neo4j
 
 import (
 	"context"
-	"fmt"
+	"net"
 	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -58,7 +58,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("neo4j", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	uri := fmt.Sprintf("bolt://%s", target)
+	host, port := brutus.ParseTarget(target, "7687")
+	uri := "bolt://" + net.JoinHostPort(host, port)
 	auth := neo4j.BasicAuth(username, password, "")
 	tlsMode := pluginCfg.TLSMode
 
@@ -69,7 +70,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		result.Error = classifyError(err)
 		return result
 	}
-	defer func() { _ = driver.Close(ctx) }()
+	defer func() { _ = driver.Close(context.Background()) }()
 
 	verifyCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

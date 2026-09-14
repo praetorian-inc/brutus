@@ -72,15 +72,57 @@ func TestMySQLDSN(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dsn := mysqlDSN(tt.target, tt.user, tt.pass, tt.tlsMode)
+			dsn, err := mysqlDSN(tt.target, tt.user, tt.pass, tt.tlsMode, "", time.Second)
+			require.NoError(t, err)
 			cfg, err := mysqldriver.ParseDSN(dsn)
 			require.NoError(t, err)
 			assert.Equal(t, tt.user, cfg.User)
 			assert.Equal(t, tt.pass, cfg.Passwd)
+			assert.Equal(t, "tcp", cfg.Net)
 			assert.Equal(t, tt.wantAddr, cfg.Addr)
 			assert.Equal(t, tt.wantTLS, cfg.TLSConfig)
 		})
 	}
+}
+
+func TestMySQLDSN_Proxy(t *testing.T) {
+	proxyA := "socks5://127.0.0.1:1080"
+	proxyB := "socks5h://127.0.0.1:1081"
+
+	dsnA, err := mysqlDSN("10.0.0.1:3306", "root", "x", "", proxyA, time.Second)
+	require.NoError(t, err)
+	cfgA, err := mysqldriver.ParseDSN(dsnA)
+	require.NoError(t, err)
+	assert.Equal(t, "10.0.0.1:3306", cfgA.Addr)
+	assert.True(t, len(cfgA.Net) > 0 && cfgA.Net != "tcp")
+	assert.Equal(t, proxyNetName(proxyA), cfgA.Net)
+
+	dsnA2, err := mysqlDSN("10.0.0.1:3306", "root", "x", "", proxyA, time.Second)
+	require.NoError(t, err)
+	cfgA2, err := mysqldriver.ParseDSN(dsnA2)
+	require.NoError(t, err)
+	assert.Equal(t, cfgA.Net, cfgA2.Net)
+
+	dsnB, err := mysqlDSN("10.0.0.1:3306", "root", "x", "", proxyB, time.Second)
+	require.NoError(t, err)
+	cfgB, err := mysqldriver.ParseDSN(dsnB)
+	require.NoError(t, err)
+	assert.Equal(t, proxyNetName(proxyB), cfgB.Net)
+	assert.NotEqual(t, cfgA.Net, cfgB.Net)
+
+	_, err = mysqlDSN("10.0.0.1:3306", "root", "x", "", "ftp://127.0.0.1:9", time.Second)
+	require.Error(t, err)
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	p := &Plugin{}
+	result := p.Test(context.Background(), "127.0.0.1:3306", "root", "x", time.Second, brutus.PluginConfig{
+		ProxyURL: "ftp://127.0.0.1:9",
+	})
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
 func TestPlugin_Name(t *testing.T) {

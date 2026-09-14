@@ -29,6 +29,10 @@ var vncAuthIndicators = []string{
 	"authentication failure",
 	"invalid password",
 	"auth failed",
+	"password check failed",
+	"security handshake failed",
+	"too many authentication",
+	"access denied",
 }
 
 func init() {

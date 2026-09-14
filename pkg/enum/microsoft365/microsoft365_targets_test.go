@@ -62,7 +62,8 @@ func newTargetsMockServer(t *testing.T) *httptest.Server {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(credTypeResponse{IfExistsResult: IfExistsResultExists})
+		code := IfExistsResultExists
+		_ = json.NewEncoder(w).Encode(credTypeResponse{IfExistsResult: &code})
 	}))
 }
 

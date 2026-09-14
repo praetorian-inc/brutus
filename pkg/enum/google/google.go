@@ -239,6 +239,12 @@ func (e *Enumerator) checkAccountChooser(ctx context.Context, email string) (fed
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Drain so the connection can be reused; existence is determined by
+	// headers/status, not the body.
+	if _, err := enum.ReadResponseBody(resp, 0); err != nil {
+		return false, "", fmt.Errorf("reading AccountChooser response: %w", err)
+	}
+
 	location := resp.Header.Get("Location")
 
 	// A SAML redirect header is present only for valid accounts on SSO domains.
@@ -249,6 +255,13 @@ func (e *Enumerator) checkAccountChooser(ctx context.Context, email string) (fed
 	// A Location that redirects to a non-Google host is an IdP redirect.
 	if location != "" && !strings.Contains(location, "accounts.google.com") && !strings.Contains(location, "google.com/ServiceLogin") {
 		return true, idpHost(location), nil
+	}
+
+	// 302 back to ServiceLogin (and 2xx without a SAML/IdP signal) is the
+	// normal negative path. 429, 5xx, block pages, and other non-2xx are
+	// not "does not exist".
+	if resp.StatusCode != http.StatusFound && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
+		return false, "", fmt.Errorf("AccountChooser unexpected status: %d", resp.StatusCode)
 	}
 
 	return false, "", nil
@@ -272,10 +285,22 @@ func (e *Enumerator) checkGXLU(ctx context.Context, email string) (bool, error) 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Drain so the connection can be reused; existence is determined by
+	// the GMAIL_AT cookie / status, not the body.
+	if _, err := enum.ReadResponseBody(resp, 0); err != nil {
+		return false, fmt.Errorf("reading GXLU response: %w", err)
+	}
+
 	for _, cookie := range resp.Cookies() {
 		if cookie.Name == "GMAIL_AT" {
 			return true, nil
 		}
+	}
+
+	// 2xx without GMAIL_AT is the normal negative path. 429, 5xx, block
+	// pages, and other non-2xx are not "does not exist".
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return false, fmt.Errorf("GXLU unexpected status: %d", resp.StatusCode)
 	}
 
 	return false, nil

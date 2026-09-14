@@ -20,6 +20,7 @@ package google
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -178,6 +179,61 @@ func TestCheckAccount_NotFound(t *testing.T) {
 
 // TestCheckAccount_TransportError (optional)
 // Point base URLs at a closed port → transport error → Exists=false, Error!=nil.
+
+func TestCheckAccount_UnexpectedHTTPStatus(t *testing.T) {
+	t.Parallel()
+
+	statuses := []int{
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+		http.StatusBadGateway,
+		http.StatusServiceUnavailable,
+		http.StatusForbidden,
+	}
+
+	for _, status := range statuses {
+		status := status
+		t.Run(fmt.Sprintf("AccountChooser_%d", status), func(t *testing.T) {
+			t.Parallel()
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte("throttled"))
+			}))
+			t.Cleanup(srv.Close)
+
+			e := newTestEnumerator(t, srv)
+			res := e.CheckAccount(context.Background(), "user@example.com")
+
+			assert.False(t, res.Exists, "throttle/outage must not be reported as does-not-exist")
+			require.Error(t, res.Error)
+			assert.Contains(t, res.Error.Error(), "unexpected status")
+			assert.Contains(t, res.Error.Error(), fmt.Sprintf("%d", status))
+		})
+
+		t.Run(fmt.Sprintf("GXLU_%d", status), func(t *testing.T) {
+			t.Parallel()
+			mux := http.NewServeMux()
+			mux.HandleFunc("/AccountChooser", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", "https://accounts.google.com/ServiceLogin")
+				w.WriteHeader(http.StatusFound)
+			})
+			mux.HandleFunc("/mail/gxlu", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte("throttled"))
+			})
+			srv := httptest.NewServer(mux)
+			t.Cleanup(srv.Close)
+
+			e := newTestEnumerator(t, srv)
+			res := e.CheckAccount(context.Background(), "user@example.com")
+
+			assert.False(t, res.Exists, "throttle/outage must not be reported as does-not-exist")
+			require.Error(t, res.Error)
+			assert.Contains(t, res.Error.Error(), "unexpected status")
+			assert.Contains(t, res.Error.Error(), fmt.Sprintf("%d", status))
+		})
+	}
+}
 
 func TestCheckAccount_TransportError(t *testing.T) {
 	t.Parallel()

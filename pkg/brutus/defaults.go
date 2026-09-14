@@ -129,25 +129,3 @@ func parseLines(lines []string) []Credential {
 	}
 	return creds
 }
-
-// parseWordlist parses a wordlist file into Credential pairs.
-// Lines starting with # are comments. Format is username:password per line.
-// A line with just "community_string" (no colon) is treated as password-only.
-//
-// Deprecated: Use parseWordlistTiered for mode-aware loading.
-func parseWordlist(content string) []Credential {
-	var creds []Credential
-	for _, line := range strings.Split(content, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		username, password, found := strings.Cut(line, ":")
-		if !found {
-			creds = append(creds, Credential{Password: line})
-		} else {
-			creds = append(creds, Credential{Username: username, Password: password})
-		}
-	}
-	return creds
-}

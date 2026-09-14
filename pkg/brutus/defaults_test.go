@@ -210,48 +210,6 @@ func TestValidate_NoDefaults_FailsWithoutCreds(t *testing.T) {
 	}
 }
 
-func TestParseWordlist_LineWithoutColon_TreatedAsPasswordOnly(t *testing.T) {
-	// Test for SNMP community strings (password-only lines without colons)
-	input := "public\nprivate\nadmin:password\nguest"
-	creds := parseWordlist(input)
-
-	if len(creds) != 4 {
-		t.Fatalf("expected 4 credentials, got %d", len(creds))
-	}
-
-	// First credential: "public" (no colon, should be password-only)
-	if creds[0].Username != "" {
-		t.Errorf("creds[0] expected empty username for password-only line, got %q", creds[0].Username)
-	}
-	if creds[0].Password != "public" {
-		t.Errorf("creds[0] expected password %q, got %q", "public", creds[0].Password)
-	}
-
-	// Second credential: "private" (no colon, should be password-only)
-	if creds[1].Username != "" {
-		t.Errorf("creds[1] expected empty username for password-only line, got %q", creds[1].Username)
-	}
-	if creds[1].Password != "private" {
-		t.Errorf("creds[1] expected password %q, got %q", "private", creds[1].Password)
-	}
-
-	// Third credential: "admin:password" (has colon, normal username:password)
-	if creds[2].Username != "admin" {
-		t.Errorf("creds[2] expected username %q, got %q", "admin", creds[2].Username)
-	}
-	if creds[2].Password != "password" {
-		t.Errorf("creds[2] expected password %q, got %q", "password", creds[2].Password)
-	}
-
-	// Fourth credential: "guest" (no colon, should be password-only)
-	if creds[3].Username != "" {
-		t.Errorf("creds[3] expected empty username for password-only line, got %q", creds[3].Username)
-	}
-	if creds[3].Password != "guest" {
-		t.Errorf("creds[3] expected password %q, got %q", "guest", creds[3].Password)
-	}
-}
-
 // --- Tiered loading tests ---
 
 func TestParseWordlistTiered_WithMarkers(t *testing.T) {

@@ -185,7 +185,7 @@ func (c *Checker) EnumerateTargetsWith(ctx context.Context, targets []enum.Targe
 // CheckAccount tests if an email account exists on Microsoft 365 via the
 // GetCredentialType API. A missing IfExistsResult on HTTP 200 is an error, not
 // existence. Only code 0 for a managed (non-federated) tenant is Exists=true;
-// codes 5/6 are a weaker "exists elsewhere" qualifier, and federated tenants
+// codes 5/6 also indicate the account exists, and federated tenants
 // are marked unreliable rather than confirmed existing.
 //
 // If ctx carries a shared enum HTTP client (via enum.WithHTTPClient — set for a
@@ -260,10 +260,8 @@ func (c *Checker) CheckAccount(ctx context.Context, email string) *Result {
 	}
 
 	switch result.IfExistsResult {
-	case IfExistsResultExists:
+	case IfExistsResultExists, IfExistsResultDifferentTenant, IfExistsResultDomainHint:
 		result.Exists = true
-	case IfExistsResultDifferentTenant, IfExistsResultDomainHint:
-		result.Note = "exists elsewhere"
 	}
 
 	return result

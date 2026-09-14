@@ -132,9 +132,8 @@ func TestCheckAccount_DifferentTenant(t *testing.T) {
 	result := c.CheckAccount(context.Background(), "difftenant@example.com")
 
 	require.NoError(t, result.Error)
-	assert.False(t, result.Exists)
+	assert.True(t, result.Exists)
 	assert.Equal(t, IfExistsResultDifferentTenant, result.IfExistsResult)
-	assert.Equal(t, "exists elsewhere", result.Note)
 }
 
 func TestCheckAccount_DomainHint(t *testing.T) {
@@ -147,9 +146,8 @@ func TestCheckAccount_DomainHint(t *testing.T) {
 	result := c.CheckAccount(context.Background(), "domainhint@example.com")
 
 	require.NoError(t, result.Error)
-	assert.False(t, result.Exists)
+	assert.True(t, result.Exists)
 	assert.Equal(t, IfExistsResultDomainHint, result.IfExistsResult)
-	assert.Equal(t, "exists elsewhere", result.Note)
 }
 
 func TestCheckAccount_UnknownResult(t *testing.T) {
@@ -458,8 +456,7 @@ func TestEnumerateWith_Callback(t *testing.T) {
 	for _, email := range []string{"difftenant@example.com", "domainhint@example.com"} {
 		r := byEmail[email]
 		assert.NoError(t, r.Error, "email %q must not have an error", email)
-		assert.False(t, r.Exists, "email %q must not be a confident Exists", email)
-		assert.Equal(t, "exists elsewhere", r.Note)
+		assert.True(t, r.Exists, "email %q must be Exists", email)
 	}
 
 	fed := byEmail["federated@example.com"]

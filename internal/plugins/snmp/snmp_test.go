@@ -10,6 +10,7 @@ package snmp
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -80,19 +81,47 @@ func TestParseTarget_InvalidPort(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestClassifyError(t *testing.T) {
+	tests := []struct {
+		name     string
+		errStr   string
+		wantAuth bool
+	}{
+		{name: "request timeout is auth failure", errStr: "Request timeout (after 0 retries)", wantAuth: true},
+		{name: "no valid response is auth failure", errStr: "no valid response from agent", wantAuth: true},
+		{name: "i/o timeout is connection error", errStr: "i/o timeout", wantAuth: false},
+		{name: "connection refused is connection error", errStr: "connection refused", wantAuth: false},
+		{name: "host unreachable is connection error", errStr: "no route to host", wantAuth: false},
+		{name: "parse error is connection error", errStr: "unable to decode SNMP packet", wantAuth: false},
+		{name: "unmarshal error is connection error", errStr: "unmarshal error", wantAuth: false},
+		{name: "deadline exceeded is connection error", errStr: "context deadline exceeded", wantAuth: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := classifyError(errors.New(tt.errStr))
+			if tt.wantAuth {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Contains(t, result.Error(), "connection error")
+			}
+		})
+	}
+}
+
 func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
 
-	// Test against non-existent port (should timeout quickly)
 	result := p.Test(ctx, "localhost:9999", "", "public", 1*time.Second, brutus.PluginConfig{})
 
 	assert.Equal(t, "snmp", result.Protocol)
 	assert.Equal(t, "localhost:9999", result.Target)
 	assert.Equal(t, "public", result.Password)
 	assert.False(t, result.Success)
-	// Timeout on non-responsive port = auth failure (nil error), not connection error
-	// This is UDP behavior
+	if result.Error != nil {
+		assert.Contains(t, result.Error.Error(), "connection error")
+	}
 }
 
 // Integration test helpers

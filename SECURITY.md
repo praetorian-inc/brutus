@@ -79,7 +79,7 @@ Brutus is designed to minimize credential exposure:
 
 - Passwords are never logged by default
 - Results can be filtered to exclude passwords in output
-- Memory is cleared after credential testing
+- Credentials may remain in memory until garbage collection (see Memory Security)
 
 ### Network Considerations
 
@@ -100,9 +100,9 @@ Brutus does not encrypt:
 
 ### TLS Certificate Validation
 
-By default, Brutus validates TLS certificates. The `--insecure` flag disables this for testing purposes.
+By default, TLS is disabled unless the protocol requires it. There is no `--insecure` flag. Pass `--verify` to opt in to strict certificate verification.
 
-**Recommendation:** Only use `--insecure` in controlled test environments.
+**Recommendation:** Use `--verify` when connecting over TLS and certificate validation is expected.
 
 ### Memory Security
 

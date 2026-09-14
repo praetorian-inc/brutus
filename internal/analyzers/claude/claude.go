@@ -34,6 +34,7 @@ const (
 	DefaultEndpoint = "https://api.anthropic.com/v1/messages"
 	// DefaultTimeout is the default request timeout
 	DefaultTimeout = 30 * time.Second
+	maxErrorBody   = 4 * 1024
 )
 
 func init() {
@@ -147,8 +148,7 @@ func (c *Client) Analyze(ctx context.Context, banner brutus.BannerInfo) ([]strin
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("claude api error (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("claude api error (status %d): %s", resp.StatusCode, readErrorBody(resp.Body))
 	}
 
 	var apiResp apiResponse
@@ -327,8 +327,7 @@ func (c *Client) doVisionRequestRaw(ctx context.Context, reqBody visionRequest) 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("claude api error (status %d): %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("claude api error (status %d): %s", resp.StatusCode, readErrorBody(resp.Body))
 	}
 
 	var apiResp visionResponse
@@ -362,6 +361,15 @@ func (c *Client) getTimeout() time.Duration {
 		return c.Timeout
 	}
 	return DefaultTimeout
+}
+
+func readErrorBody(r io.Reader) string {
+	body, _ := io.ReadAll(io.LimitReader(r, maxErrorBody))
+	s := string(body)
+	if len(body) >= maxErrorBody {
+		return s + "..."
+	}
+	return s
 }
 
 func buildVisionPrompt() string {

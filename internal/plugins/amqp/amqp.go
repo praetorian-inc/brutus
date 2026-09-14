@@ -67,7 +67,12 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		Locale:          "en_US",
 		TLSClientConfig: brutus.BuildTLSConfig(pluginCfg.TLSMode),
 		Dial: func(network, a string) (net.Conn, error) {
-			return brutus.DialWithProxy(ctx, network, a, timeout, pluginCfg.ProxyURL)
+			conn, err := brutus.DialWithProxy(ctx, network, a, timeout, pluginCfg.ProxyURL)
+			if err != nil {
+				return nil, err
+			}
+			_ = conn.SetDeadline(time.Now().Add(timeout))
+			return conn, nil
 		},
 	}
 

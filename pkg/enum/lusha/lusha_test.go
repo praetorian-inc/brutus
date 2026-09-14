@@ -37,6 +37,26 @@ func newTestClient(baseURL string) *Client {
 	return c
 }
 
+func TestNewClient_NonPositiveTimeout(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		want    time.Duration
+	}{
+		{"zero falls back to defaultTimeout", 0, defaultTimeout},
+		{"negative falls back to defaultTimeout", -time.Second, defaultTimeout},
+		{"positive timeout is preserved", 5 * time.Second, 5 * time.Second},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := NewClient("testkey", tc.timeout, "")
+			require.NoError(t, err)
+			require.NotNil(t, c)
+			assert.Equal(t, tc.want, c.httpClient.Timeout)
+		})
+	}
+}
+
 func TestToContact(t *testing.T) {
 	// v3 batch response: results array with top-level emails/phones on each result
 	// (no contactMethods wrapper). Verified against live API 2026-06-26.
@@ -805,6 +825,123 @@ func TestSearchDomain_Pagination(t *testing.T) {
 		assert.LessOrEqual(t, len(result.Contacts), 5,
 			"limit=5 must produce at most 5 contacts")
 		assert.Equal(t, 3, result.Total)
+	})
+}
+
+func TestSearchDomain_PartialResultOnError(t *testing.T) {
+	searchCallCount := 0
+	page0Search := map[string]interface{}{
+		"requestId":    "page0-req",
+		"currentPage":  0,
+		"totalResults": 3,
+		"data": []map[string]interface{}{
+			{"contactId": "p0c1"},
+			{"contactId": "p0c2"},
+		},
+		"billing": map[string]interface{}{"creditsCharged": 1, "resultsReturned": 2},
+	}
+	page0Enrich := map[string]interface{}{
+		"requestId": "page0-req",
+		"contacts": []map[string]interface{}{
+			{
+				"id":        "p0c1",
+				"isSuccess": true,
+				"data": map[string]interface{}{
+					"fullName":       "Alice P",
+					"emailAddresses": []interface{}{},
+					"phoneNumbers":   []interface{}{},
+					"departments":    []string{},
+					"seniority":      []interface{}{},
+				},
+			},
+			{
+				"id":        "p0c2",
+				"isSuccess": true,
+				"data": map[string]interface{}{
+					"fullName":       "Bob P",
+					"emailAddresses": []interface{}{},
+					"phoneNumbers":   []interface{}{},
+					"departments":    []string{},
+					"seniority":      []interface{}{},
+				},
+			},
+		},
+		"creditsCharged": 2,
+	}
+
+	t.Run("later search page error keeps contacts and credits", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case prospectSearchPath:
+				if searchCallCount == 0 {
+					w.Header().Set("Content-Type", "application/json")
+					require.NoError(t, json.NewEncoder(w).Encode(page0Search))
+				} else {
+					w.WriteHeader(http.StatusTooManyRequests)
+					_, _ = w.Write([]byte(`{"message":"rate limit exceeded"}`))
+				}
+				searchCallCount++
+			case prospectEnrichPath:
+				w.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(w).Encode(page0Enrich))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer srv.Close()
+
+		c := newTestClient(srv.URL)
+		result, err := c.SearchDomain(context.Background(), "example.com", 0)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, ErrRateLimited))
+		require.NotNil(t, result, "partial result must be non-nil on mid-pagination error")
+		assert.Equal(t, 3, result.Total)
+		require.Len(t, result.Contacts, 2, "contacts from earlier successful pages must survive")
+		assert.Equal(t, "Alice P", result.Contacts[0].Name)
+		assert.Equal(t, "Bob P", result.Contacts[1].Name)
+		assert.Equal(t, 3, result.CreditsCharged, "search+enrich credits from earlier pages must survive")
+	})
+
+	t.Run("later enrich error keeps earlier contacts and this page's search credits", func(t *testing.T) {
+		searchN := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case prospectSearchPath:
+				w.Header().Set("Content-Type", "application/json")
+				if searchN == 0 {
+					require.NoError(t, json.NewEncoder(w).Encode(page0Search))
+				} else {
+					require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+						"requestId":    "page1-req",
+						"currentPage":  1,
+						"totalResults": 3,
+						"data":         []map[string]interface{}{{"contactId": "p1c1"}},
+						"billing":      map[string]interface{}{"creditsCharged": 1, "resultsReturned": 1},
+					}))
+				}
+				searchN++
+			case prospectEnrichPath:
+				if searchN <= 1 {
+					w.Header().Set("Content-Type", "application/json")
+					require.NoError(t, json.NewEncoder(w).Encode(page0Enrich))
+					return
+				}
+				w.WriteHeader(http.StatusPaymentRequired)
+				_, _ = w.Write([]byte(`{"message":"insufficient credits"}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		defer srv.Close()
+
+		c := newTestClient(srv.URL)
+		result, err := c.SearchDomain(context.Background(), "example.com", 0)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, ErrNoCredits))
+		require.NotNil(t, result)
+		require.Len(t, result.Contacts, 2)
+		// page0 search(1) + page0 enrich(2) + page1 search(1) = 4; page1 enrich failed
+		assert.Equal(t, 4, result.CreditsCharged)
 	})
 }
 

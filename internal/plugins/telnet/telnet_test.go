@@ -87,6 +87,21 @@ func TestClassifyTelnetResponse(t *testing.T) {
 			wantNil:  true,
 		},
 		{
+			name:     "success - > prompt",
+			response: "router>",
+			wantNil:  true,
+		},
+		{
+			name:     "success - prompt after motd containing failed",
+			response: "failed to mount /data\nuser@host:~$ ",
+			wantNil:  true,
+		},
+		{
+			name:     "auth failure - motd hashes then incorrect",
+			response: "################################\nLogin incorrect\n",
+			wantNil:  true,
+		},
+		{
 			name:     "connection error - EOF",
 			response: "",
 			wantNil:  false,
@@ -169,8 +184,14 @@ func TestIsSuccessIndicator(t *testing.T) {
 		{"simple # prompt", "# ", true},
 		{"$ at end of line", "Last login: Mon Jan 14 12:00:00 2026\n$ ", true},
 		{"# at end of line", "Last login: Mon Jan 14 12:00:00 2026\n# ", true},
+		{"> prompt", "router>", true},
+		{"windows prompt", "C:\\>", true},
+		{"failed in motd then prompt", "failed to mount /data\nuser@host:~$ ", true},
 		{"no prompt", "Welcome to server\n", false},
 		{"$ in middle", "Cost is $100\n", false},
+		{"MOTD hash comment", "# Welcome to the gateway\n", false},
+		{"MOTD hash banner", "################################\n", false},
+		{"MOTD hash box line", "# Welcome to the server #\n", false},
 		{"empty", "", false},
 	}
 

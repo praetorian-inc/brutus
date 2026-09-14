@@ -23,6 +23,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -858,32 +859,126 @@ func (e *Enumerator) deleteRepo(ctx context.Context, owner, repo string) error {
 // apiRequest issues an authenticated GitHub REST API request. payload, when
 // non-nil, is JSON-encoded as the request body. The Authorization header carries
 // the bearer token (never logged) and Accept requests the v3 media type.
+//
+// HTTP 429 and secondary-rate-limit HTTP 403 (Retry-After header, or a body
+// mentioning "secondary rate limit" / "abuse") are retried a bounded number of
+// times. Retry-After (seconds) is honored when present; otherwise a capped
+// exponential backoff is used. Context cancellation aborts the wait.
 func (e *Enumerator) apiRequest(ctx context.Context, method, path string, payload any) (*http.Response, error) {
-	var body io.Reader
+	var payloadBytes []byte
 	if payload != nil {
-		buf, err := json.Marshal(payload)
+		var err error
+		payloadBytes, err = json.Marshal(payload)
 		if err != nil {
 			return nil, fmt.Errorf("github reveal: encoding request body: %w", err)
 		}
-		body = bytes.NewReader(buf)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, e.apiBaseURL+path, body)
-	if err != nil {
-		return nil, fmt.Errorf("github reveal: creating %s %s request: %w", method, path, err)
-	}
-	req.Header.Set("Authorization", "Bearer "+e.token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
+	for attempt := 0; ; attempt++ {
+		var body io.Reader
+		if payloadBytes != nil {
+			body = bytes.NewReader(payloadBytes)
+		}
 
-	// Use apiClient (no-follow): this request carries the PAT, so redirects must
-	// not be followed to avoid leaking the token across hosts (PAT-leak
-	// protection). The existence flow uses httpClient, which follows redirects.
-	resp, err := e.apiClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("github reveal: %s %s failed: %w", method, path, err)
+		req, err := http.NewRequestWithContext(ctx, method, e.apiBaseURL+path, body)
+		if err != nil {
+			return nil, fmt.Errorf("github reveal: creating %s %s request: %w", method, path, err)
+		}
+		req.Header.Set("Authorization", "Bearer "+e.token)
+		req.Header.Set("Accept", "application/vnd.github+json")
+		if payloadBytes != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+
+		// Use apiClient (no-follow): this request carries the PAT, so redirects must
+		// not be followed to avoid leaking the token across hosts (PAT-leak
+		// protection). The existence flow uses httpClient, which follows redirects.
+		resp, err := e.apiClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github reveal: %s %s failed: %w", method, path, err)
+		}
+
+		if !isAPIRateLimited(resp) || attempt >= apiRateLimitRetries {
+			return resp, nil
+		}
+
+		wait := rateLimitWait(resp, attempt)
+		_ = resp.Body.Close()
+		if err := e.sleep(ctx, wait); err != nil {
+			return nil, err
+		}
 	}
-	return resp, nil
+}
+
+// isAPIRateLimited reports whether resp is a GitHub primary 429 or a secondary
+// rate-limit 403 (Retry-After present, or body/message mentioning a secondary
+// rate limit or abuse). A plain 403 forbidden is not a rate limit.
+func isAPIRateLimited(resp *http.Response) bool {
+	switch resp.StatusCode {
+	case http.StatusTooManyRequests:
+		return true
+	case http.StatusForbidden:
+		if resp.Header.Get("Retry-After") != "" {
+			return true
+		}
+		return secondaryRateLimitBody(resp)
+	default:
+		return false
+	}
+}
+
+// secondaryRateLimitBody peeks at resp's body for a secondary-rate-limit or
+// abuse-detection message. The body is restored so callers can still read it.
+func secondaryRateLimitBody(resp *http.Response) bool {
+	if resp.Body == nil {
+		return false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	text := string(body)
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(body, &payload) == nil && payload.Message != "" {
+		text = payload.Message
+	}
+	lower := strings.ToLower(text)
+	return strings.Contains(lower, "secondary rate limit") || strings.Contains(lower, "abuse")
+}
+
+// rateLimitWait returns how long to wait before retrying a rate-limited
+// response. Retry-After (integer seconds) wins when present; otherwise the
+// wait is rateLimitBackoff << attempt, capped at apiRateLimitBackoffCap.
+func rateLimitWait(resp *http.Response, attempt int) time.Duration {
+	if d, ok := parseRetryAfter(resp); ok {
+		return d
+	}
+	if attempt < 0 {
+		attempt = 0
+	}
+	if attempt >= 30 {
+		return apiRateLimitBackoffCap
+	}
+	d := rateLimitBackoff * time.Duration(1<<attempt)
+	if d > apiRateLimitBackoffCap || d <= 0 {
+		return apiRateLimitBackoffCap
+	}
+	return d
+}
+
+// parseRetryAfter reads the Retry-After header as integer seconds.
+func parseRetryAfter(resp *http.Response) (time.Duration, bool) {
+	raw := strings.TrimSpace(resp.Header.Get("Retry-After"))
+	if raw == "" {
+		return 0, false
+	}
+	secs, err := strconv.Atoi(raw)
+	if err != nil || secs < 0 {
+		return 0, false
+	}
+	return time.Duration(secs) * time.Second, true
 }

@@ -95,6 +95,7 @@ func TestWorker_StampNameCopiesFirstLastOnly(t *testing.T) {
 		IfExistsResult: 1,
 		Federated:      true,
 		FederationURL:  "https://unchanged.example.com",
+		Note:           "unchanged-note",
 		Error:          errors.New("unchanged-error"),
 		Duration:       5 * time.Second,
 	}
@@ -109,6 +110,7 @@ func TestWorker_StampNameCopiesFirstLastOnly(t *testing.T) {
 	assert.Equal(t, before.IfExistsResult, res.IfExistsResult, "StampName must not touch IfExistsResult")
 	assert.Equal(t, before.Federated, res.Federated, "StampName must not touch Federated")
 	assert.Equal(t, before.FederationURL, res.FederationURL, "StampName must not touch FederationURL")
+	assert.Equal(t, before.Note, res.Note, "StampName must not touch Note")
 	assert.Equal(t, before.Error, res.Error, "StampName must not touch Error")
 	assert.Equal(t, before.Duration, res.Duration, "StampName must not touch Duration")
 }

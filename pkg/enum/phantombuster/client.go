@@ -96,7 +96,7 @@ type LaunchResult struct {
 // configured. Returns the container ID for polling.
 func (c *Client) Launch(ctx context.Context, agentID string) (*LaunchResult, error) {
 	body := map[string]string{"id": agentID}
-	respBody, err := c.doJSON(ctx, http.MethodPost, launchPath, body)
+	respBody, err := c.doJSON(ctx, http.MethodPost, launchPath, body, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (c *Client) PollUntilDone(ctx context.Context, agentID, containerID string,
 
 	delay := c.pollInit
 	for {
-		respBody, err := c.doJSON(ctx, http.MethodGet, path, nil)
+		respBody, err := c.doJSON(ctx, http.MethodGet, path, nil, maxResponseBytes)
 		if err != nil {
 			return nil, fmt.Errorf("polling agent status: %w", err)
 		}
@@ -162,7 +162,7 @@ func (c *Client) PollUntilDone(ctx context.Context, agentID, containerID string,
 			onProgress(status)
 		}
 
-		if status.ContainerStatus != StatusRunning {
+		if status.ContainerStatus == StatusNotRunning {
 			if status.ExitCode != 0 {
 				return &status, fmt.Errorf("%w: %s (exit code %d)", ErrAgentFailed, status.ExitMessage, status.ExitCode)
 			}
@@ -193,7 +193,7 @@ type AgentInfo struct {
 // FetchAgentInfo retrieves the agent's metadata including S3 folder paths.
 func (c *Client) FetchAgentInfo(ctx context.Context, agentID string) (*AgentInfo, error) {
 	path := fetchPath + "?id=" + agentID
-	respBody, err := c.doJSON(ctx, http.MethodGet, path, nil)
+	respBody, err := c.doJSON(ctx, http.MethodGet, path, nil, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func (c *Client) RunAndFetch(ctx context.Context, agentID, resultFile string, on
 // JSON-encodes the body (if non-nil), sets the API key header, issues the
 // request, reads the response via a bounded reader, and maps non-2xx to
 // typed errors. The key is NEVER logged (P0-1).
-func (c *Client) doJSON(ctx context.Context, method, path string, body any) ([]byte, error) {
+func (c *Client) doJSON(ctx context.Context, method, path string, body any, maxBytes int64) ([]byte, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
@@ -295,7 +295,7 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body any) ([]b
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBody, err := enum.ReadResponseBody(resp, 0)
+	respBody, err := enum.ReadResponseBody(resp, maxBytes)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
 	}

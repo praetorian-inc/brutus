@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -157,6 +158,57 @@ func TestPollUntilDone_TransitionsToComplete(t *testing.T) {
 	}
 	if progressCalls < 3 {
 		t.Errorf("expected at least 3 progress callbacks, got %d", progressCalls)
+	}
+}
+
+func TestPollUntilDone_EmptyStatusContinuesPolling(t *testing.T) {
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/agent-123/output.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		n := calls.Add(1)
+		if n == 1 {
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"exitCode":0}}`)
+			return
+		}
+		if n == 2 {
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"containerStatus":"unknown","exitCode":0}}`)
+			return
+		}
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"containerStatus":"not running","exitCode":0,"exitMessage":"finished"}}`)
+	})
+
+	c := newTestClient(t, mux)
+	status, err := c.PollUntilDone(context.Background(), "agent-123", "container-abc", nil)
+	if err != nil {
+		t.Fatalf("PollUntilDone: %v", err)
+	}
+	if status.ExitMessage != "finished" {
+		t.Errorf("expected exitMessage finished, got %q", status.ExitMessage)
+	}
+	if calls.Load() < 3 {
+		t.Errorf("expected empty/unknown status to keep polling, got %d calls", calls.Load())
+	}
+}
+
+func TestPollUntilDone_LargeResultObject(t *testing.T) {
+	big := strings.Repeat("x", 1<<20+256)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/agent/agent-123/output.json", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"containerStatus":"not running","exitCode":0,"exitMessage":"finished","resultObject":"%s"}}`, big)
+	})
+
+	c := newTestClient(t, mux)
+	status, err := c.PollUntilDone(context.Background(), "agent-123", "container-abc", nil)
+	if err != nil {
+		t.Fatalf("PollUntilDone: %v", err)
+	}
+	if status.ExitMessage != "finished" {
+		t.Errorf("expected exitMessage finished, got %q", status.ExitMessage)
+	}
+	if len(status.ResultObject) < 1<<20 {
+		t.Errorf("expected resultObject over 1 MB, got %d bytes", len(status.ResultObject))
 	}
 }
 

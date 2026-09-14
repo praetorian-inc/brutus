@@ -509,6 +509,71 @@ func TestSearch_RateLimited_StillFatal(t *testing.T) {
 	assert.Nil(t, result, "no partial result must be returned for a fatal error")
 }
 
+func TestRedactKey(t *testing.T) {
+	const key = "hunter-secret-key-DO-NOT-LEAK"
+	rawURL := "https://api.hunter.io/v2/domain-search?api_key=" + key + "&domain=example.com"
+	uerr := &url.Error{Op: "Get", URL: rawURL, Err: errors.New("connection refused")}
+
+	got := redactKey(uerr, key)
+	require.Error(t, got)
+	assert.NotContains(t, got.Error(), key)
+	assert.Contains(t, got.Error(), "REDACTED")
+	var urlErr *url.Error
+	assert.False(t, errors.As(got, &urlErr), "must not return raw *url.Error")
+}
+
+func TestRedactKey_EncodedKey(t *testing.T) {
+	const key = "secret/key+value"
+	enc := url.QueryEscape(key)
+	require.NotEqual(t, key, enc)
+	uerr := &url.Error{
+		Op:  "Get",
+		URL: "https://api.hunter.io/v2/domain-search?api_key=" + enc + "&domain=example.com",
+		Err: errors.New("connection refused"),
+	}
+
+	got := redactKey(uerr, key)
+	require.Error(t, got)
+	assert.NotContains(t, got.Error(), key)
+	assert.NotContains(t, got.Error(), enc)
+	assert.Contains(t, got.Error(), "REDACTED")
+}
+
+func TestFetchPage_TransportErrorRedactsAPIKey(t *testing.T) {
+	const key = "hunter-secret-key-DO-NOT-LEAK"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("server should not be reached after Close")
+	}))
+	c := newTestClient(srv.URL)
+	c.apiKey = key
+	srv.Close()
+
+	_, err := c.fetchPage(context.Background(), "example.com", 0, 10)
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), key)
+	var urlErr *url.Error
+	assert.False(t, errors.As(err, &urlErr), "must not return raw *url.Error")
+}
+
+func TestSearch_MaxPagesCap(t *testing.T) {
+	var n atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n.Add(1)
+		emails := []apiEmail{{Value: fmt.Sprintf("u%d@e.com", n.Load()), Confidence: 50}}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(makeResponse("example.com", "Corp", emails, 1_000_000, 1, int(n.Load()-1)))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = 1
+
+	result, err := c.Search(context.Background(), "example.com", 0)
+	require.NoError(t, err)
+	assert.Equal(t, int32(maxPages), n.Load())
+	assert.Len(t, result.People, maxPages)
+}
+
 func TestSearch_ContextCancellation(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		offset := 0

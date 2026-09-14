@@ -70,6 +70,8 @@ func TestResolveHunterAPIKey(t *testing.T) {
 	}
 }
 
+const hunterTestSentinelKey = "SECRETKEY-DO-NOT-LEAK-abc123"
+
 func TestClassifyHunterError(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -92,9 +94,9 @@ func TestClassifyHunterError(t *testing.T) {
 			wantContain: "legal reasons",
 		},
 		{
-			name:        "generic error is wrapped",
-			err:         &hunter.APIError{StatusCode: 500, Details: "server error"},
-			wantContain: "hunter domain search failed",
+			name:        "500 → generic HTTP status code only",
+			err:         &hunter.APIError{StatusCode: 500, Details: hunterTestSentinelKey},
+			wantContain: "HTTP 500",
 		},
 	}
 
@@ -102,9 +104,10 @@ func TestClassifyHunterError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := classifyHunterError(tc.err)
 			require.Error(t, result)
-			assert.Contains(t, result.Error(), tc.wantContain)
-			// Key must never appear in error messages (P0-1 security requirement).
-			assert.NotContains(t, result.Error(), "api_key")
+			msg := result.Error()
+			assert.Contains(t, msg, tc.wantContain)
+			assert.NotContains(t, msg, "api_key")
+			assert.NotContains(t, msg, hunterTestSentinelKey)
 		})
 	}
 }

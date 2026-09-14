@@ -51,7 +51,11 @@ and no account lockout risk.
 Detection is based on KDC error codes:
   PREAUTH_REQUIRED  → user exists (standard account)
   AS-REP success    → user exists, no preauth required (AS-REP roastable)
-  PRINCIPAL_UNKNOWN → user does not exist`,
+  PRINCIPAL_UNKNOWN → user does not exist
+
+A conservative --rate-limit/--jitter default is applied when those flags are
+left at 0; unlimited probing risks KDC throttling and Smart-Lockout / anomaly
+alerts.`,
 	Example: `  # Enumerate specific users
   brutus enum active kerberos --dc 10.0.0.1 --domain CORP.LOCAL -u administrator,guest,krbtgt
 
@@ -123,9 +127,11 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 	g, ctx := errgroup.WithContext(ctx)
 	sem := semaphore.NewWeighted(int64(flagThreads))
 
+	rateLimit, jitter := oraclePacing()
+
 	var limiter *rate.Limiter
-	if flagRateLimit > 0 {
-		limiter = rate.NewLimiter(rate.Limit(flagRateLimit), 1)
+	if rateLimit > 0 {
+		limiter = rate.NewLimiter(rate.Limit(rateLimit), 1)
 	}
 
 	type kerbResult struct {
@@ -147,8 +153,8 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			if flagJitter > 0 {
-				time.Sleep(time.Duration(flagJitter.Nanoseconds() * int64(1+rand.Float64())))
+			if jitter > 0 {
+				time.Sleep(jitter + time.Duration(rand.Int63n(int64(jitter))))
 			}
 
 			result := kerberos.EnumUser(ctx, flagKerbDC, flagEnumDomain, username, flagTimeout)

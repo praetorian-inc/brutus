@@ -15,6 +15,9 @@
 package main
 
 import (
+	"bytes"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +26,10 @@ import (
 
 func TestResolveAPIKey(t *testing.T) {
 	const testEnvVar = "BRUTUS_TEST_API_KEY"
+
+	origQuiet := flagQuiet
+	flagQuiet = true
+	t.Cleanup(func() { flagQuiet = origQuiet })
 
 	t.Run("flag wins over env", func(t *testing.T) {
 		t.Setenv(testEnvVar, "env-value")
@@ -51,4 +58,55 @@ func TestResolveAPIKey(t *testing.T) {
 		assert.Equal(t, "hunter.io API key required: set HUNTER_API_KEY or pass --api-key", err.Error())
 		assert.Empty(t, key)
 	})
+}
+
+func TestResolveAPIKey_FlagWarns(t *testing.T) {
+	origQuiet := flagQuiet
+	flagQuiet = false
+	t.Cleanup(func() { flagQuiet = origQuiet })
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	origStderr := os.Stderr
+	os.Stderr = w
+	t.Cleanup(func() { os.Stderr = origStderr })
+
+	key, err := resolveAPIKey("super-secret", "BRUTUS_TEST_API_KEY", "testprovider")
+	require.NoError(t, err)
+	assert.Equal(t, "super-secret", key)
+
+	require.NoError(t, w.Close())
+	var buf bytes.Buffer
+	_, copyErr := io.Copy(&buf, r)
+	require.NoError(t, copyErr)
+	got := buf.String()
+
+	assert.Contains(t, got, "--api-key is visible in the process list and shell history")
+	assert.Contains(t, got, "BRUTUS_TEST_API_KEY")
+	assert.NotContains(t, got, "super-secret")
+}
+
+func TestResolveAPIKey_EnvDoesNotWarn(t *testing.T) {
+	const testEnvVar = "BRUTUS_TEST_API_KEY"
+	t.Setenv(testEnvVar, "env-secret")
+
+	origQuiet := flagQuiet
+	flagQuiet = false
+	t.Cleanup(func() { flagQuiet = origQuiet })
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	origStderr := os.Stderr
+	os.Stderr = w
+	t.Cleanup(func() { os.Stderr = origStderr })
+
+	key, err := resolveAPIKey("", testEnvVar, "testprovider")
+	require.NoError(t, err)
+	assert.Equal(t, "env-secret", key)
+
+	require.NoError(t, w.Close())
+	var buf bytes.Buffer
+	_, copyErr := io.Copy(&buf, r)
+	require.NoError(t, copyErr)
+	assert.NotContains(t, buf.String(), "visible in the process list")
 }

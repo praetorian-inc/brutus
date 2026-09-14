@@ -174,6 +174,7 @@ func runEnumLinkedin(cmd *cobra.Command, args []string) error {
 
 func resolvePhantomBusterKey(flagValue string) (string, error) {
 	if flagValue != "" {
+		warnFlagSecret("--api-key", "PHANTOMBUSTER_KEY")
 		return flagValue, nil
 	}
 	if key := os.Getenv("PHANTOMBUSTER_KEY"); key != "" {

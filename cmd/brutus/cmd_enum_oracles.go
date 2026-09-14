@@ -54,6 +54,10 @@ oracle WORKED or NOT. --known-valid is required, and enumeration runs only
 against the oracles that confirm it (including the Microsoft Teams oracle when
 applicable).
 
+A conservative --rate-limit/--jitter default is applied when those flags are
+left at 0; unlimited probing risks provider throttling and tenant sign-in /
+Smart-Lockout / anomaly alerts.
+
 Modes:
   Oracle check only:  brutus enum active oracles --known-valid admin@example.com
   Enumerate emails:   brutus enum active oracles -e user@example.com --known-valid admin@example.com
@@ -319,13 +323,16 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 				dim(useColor, SymbolInfo), flagOraclesKnownValid)
 		}
 
+		rateLimit, jitter := oraclePacing()
 		validCfg := &enum.Config{
-			Emails:   []string{flagOraclesKnownValid},
-			Services: svcList,
-			Threads:  flagThreads,
-			Timeout:  flagTimeout,
-			Verbose:  flagVerbose,
-			ProxyURL: proxyURL,
+			Emails:    []string{flagOraclesKnownValid},
+			Services:  svcList,
+			Threads:   flagThreads,
+			Timeout:   flagTimeout,
+			RateLimit: rateLimit,
+			Jitter:    jitter,
+			Verbose:   flagVerbose,
+			ProxyURL:  proxyURL,
 		}
 		validResults, validErr := enum.EnumerateWithContext(ctx, validCfg)
 		if validErr != nil {
@@ -400,13 +407,14 @@ func runEnumOracles(cmd *cobra.Command, args []string) error {
 			dim(useColor, SymbolInfo), len(emails), len(svcNames), strings.Join(svcNames, ", "))
 	}
 
+	rateLimit, jitter := oraclePacing()
 	cfg := &enum.Config{
 		Emails:    emails,
 		Services:  services,
 		Threads:   flagThreads,
 		Timeout:   flagTimeout,
-		RateLimit: flagRateLimit,
-		Jitter:    flagJitter,
+		RateLimit: rateLimit,
+		Jitter:    jitter,
 		Verbose:   flagVerbose,
 		ProxyURL:  proxyURL,
 	}
@@ -503,13 +511,16 @@ func runEnumDiscover(cmd *cobra.Command, args []string) error {
 				dim(useColor, SymbolInfo), len(services), flagOraclesKnownValid)
 		}
 
+		rateLimit, jitter := oraclePacing()
 		cfg := &enum.Config{
-			Emails:   []string{flagOraclesKnownValid},
-			Services: services,
-			Threads:  flagThreads,
-			Timeout:  flagTimeout,
-			Verbose:  flagVerbose,
-			ProxyURL: proxyURL,
+			Emails:    []string{flagOraclesKnownValid},
+			Services:  services,
+			Threads:   flagThreads,
+			Timeout:   flagTimeout,
+			RateLimit: rateLimit,
+			Jitter:    jitter,
+			Verbose:   flagVerbose,
+			ProxyURL:  proxyURL,
 		}
 		var enumErr error
 		results, enumErr = enum.EnumerateWithContext(ctx, cfg)

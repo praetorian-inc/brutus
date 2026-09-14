@@ -38,9 +38,9 @@ type BrowserConfig struct {
 
 // RouteHTTP detects HTTP auth type and routes to appropriate AI credential research.
 // Returns the resolved protocol ("browser" for form-based, original for basic auth) and any AI-researched credentials.
-func RouteHTTP(target, protocol string, timeout time.Duration, tlsMode string, llmConfig *brutus.LLMConfig) (string, []brutus.Credential) {
+func RouteHTTP(ctx context.Context, target, protocol string, timeout time.Duration, tlsMode, proxyURL string, llmConfig *brutus.LLMConfig) (string, []brutus.Credential) {
 	useHTTPS := protocol == "https"
-	authType, banner := brutus.DetectHTTPAuthType(target, useHTTPS, timeout, tlsMode)
+	authType, banner := brutus.DetectHTTPAuthType(ctx, target, useHTTPS, timeout, tlsMode, proxyURL)
 	if authType == "basic" {
 		if llmConfig != nil && llmConfig.Enabled {
 			creds := ResearchCredentialsWithLLM(target, banner, llmConfig)

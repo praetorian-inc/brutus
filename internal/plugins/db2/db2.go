@@ -59,23 +59,23 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer func() { _ = conn.Close() }()
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
-	if err := writeDSS(conn, buildEXCSAT()); err != nil {
+	if err = writeDSS(conn, buildEXCSAT()); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	if _, err := readDSS(conn); err != nil {
+	if _, err = readDSS(conn); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	if err := writeDSS(conn, buildACCSEC()); err != nil {
+	if err = writeDSS(conn, buildACCSEC()); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	if _, err := readDSS(conn); err != nil {
+	if _, err = readDSS(conn); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
-	if err := writeDSS(conn, buildSECCHK(username, password)); err != nil {
+	if err = writeDSS(conn, buildSECCHK(username, password)); err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}

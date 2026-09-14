@@ -226,6 +226,40 @@ func TestEnumUser_ContextCancellation(t *testing.T) {
 	assert.Error(t, result.Error)
 }
 
+func TestApplyKDCError(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		code       int32
+		exists     bool
+		annotation string
+		wantErr    bool
+	}{
+		{"unknown principal", errorcode.KDC_ERR_C_PRINCIPAL_UNKNOWN, false, "", false},
+		{"preauth required", errorcode.KDC_ERR_PREAUTH_REQUIRED, true, "", false},
+		{"preauth failed", errorcode.KDC_ERR_PREAUTH_FAILED, true, "", false},
+		{"client revoked", errorcode.KDC_ERR_CLIENT_REVOKED, true, "disabled/locked/revoked", false},
+		{"name expired", errorcode.KDC_ERR_NAME_EXP, true, "disabled/locked/revoked", false},
+		{"key expired", errorcode.KDC_ERR_KEY_EXPIRED, true, "disabled/locked/revoked", false},
+		{"client not yet", errorcode.KDC_ERR_CLIENT_NOTYET, true, "disabled/locked/revoked", false},
+		{"unrecognized", errorcode.KDC_ERR_BAD_PVNO, false, "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := &Result{}
+			applyKDCError(r, tt.code)
+			assert.Equal(t, tt.exists, r.Exists)
+			assert.Equal(t, tt.annotation, r.Annotation)
+			if tt.wantErr {
+				assert.Error(t, r.Error)
+			} else {
+				assert.NoError(t, r.Error)
+			}
+		})
+	}
+}
+
 func TestBuildASReq(t *testing.T) {
 	t.Parallel()
 	data, err := buildASReq("testuser", "test.local")

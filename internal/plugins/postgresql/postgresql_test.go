@@ -16,6 +16,7 @@ package postgresql
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"os"
 	"testing"
@@ -118,9 +119,19 @@ func TestPlugin_Test_ErrorClassification(t *testing.T) {
 			wantAuth: true,
 		},
 		{
+			name:     "database does not exist",
+			errStr:   "database \"postgres\" does not exist",
+			wantAuth: true,
+		},
+		{
 			name:     "no pg_hba.conf entry",
 			errStr:   "no pg_hba.conf entry for host \"127.0.0.1\"",
 			wantAuth: true,
+		},
+		{
+			name:     "bare does not exist is not auth",
+			errStr:   "relation \"foo\" does not exist",
+			wantAuth: false,
 		},
 		{
 			name:     "connection error",
@@ -283,6 +294,44 @@ func TestPlugin_Test_MissingPort(t *testing.T) {
 	// Connection may fail or succeed depending on implementation
 	// Just verify we get a valid result structure
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
+}
+
+func TestScrubError(t *testing.T) {
+	const password = "s3cret-pass"
+	dsn := postgresURL("h", "5432", "u", password, "disable", time.Second)
+
+	t.Run("redacts dsn and password", func(t *testing.T) {
+		err := errors.New("failed using " + dsn + " password=" + password)
+		got := scrubError(err, dsn, password)
+		require.NotNil(t, got)
+		assert.NotContains(t, got.Error(), password)
+		assert.NotContains(t, got.Error(), dsn)
+		assert.Contains(t, got.Error(), "REDACTED")
+	})
+
+	t.Run("unchanged when nothing to redact", func(t *testing.T) {
+		err := errors.New("connection refused")
+		got := scrubError(err, dsn, password)
+		assert.Equal(t, err, got)
+	})
+
+	t.Run("auth classification still works after scrub", func(t *testing.T) {
+		err := errors.New("password authentication failed for user \"u\"")
+		assert.Nil(t, classifyError(scrubError(err, dsn, password)))
+	})
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	p := &Plugin{}
+	result := p.Test(context.Background(), "127.0.0.1:5432", "postgres", "s3cret-pass", time.Second, brutus.PluginConfig{
+		ProxyURL: "http://127.0.0.1:1",
+	})
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "connection error")
+	assert.NotContains(t, result.Error.Error(), "s3cret-pass")
 }
 
 func TestInit(t *testing.T) {

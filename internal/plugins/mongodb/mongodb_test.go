@@ -27,27 +27,27 @@ import (
 )
 
 func TestMongoURI(t *testing.T) {
-	t.Run("special chars", func(t *testing.T) {
-		s := mongoURI("10.0.0.1:27017", "user", "p@ss:word", "")
+	t.Run("no credentials in URI", func(t *testing.T) {
+		s := mongoURI("10.0.0.1:27017", "")
 		u, err := url.Parse(s)
 		require.NoError(t, err)
-		pass, ok := u.User.Password()
-		require.True(t, ok)
-		assert.Equal(t, "p@ss:word", pass)
+		assert.Nil(t, u.User)
 		assert.Equal(t, "10.0.0.1:27017", u.Host)
 	})
 	t.Run("IPv6 default port", func(t *testing.T) {
-		s := mongoURI("::1", "user", "x", "")
+		s := mongoURI("::1", "")
 		u, err := url.Parse(s)
 		require.NoError(t, err)
 		assert.Equal(t, "[::1]:27017", u.Host)
+		assert.Nil(t, u.User)
 	})
 	t.Run("skip-verify", func(t *testing.T) {
-		s := mongoURI("db.example.com", "u", "p", "skip-verify")
+		s := mongoURI("db.example.com", "skip-verify")
 		u, err := url.Parse(s)
 		require.NoError(t, err)
 		assert.Equal(t, "true", u.Query().Get("tls"))
 		assert.Equal(t, "true", u.Query().Get("tlsInsecure"))
+		assert.Nil(t, u.User)
 	})
 }
 
@@ -143,6 +143,20 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	p := &Plugin{}
+	ctx := context.Background()
+
+	result := p.Test(ctx, "localhost:27017", "user", "secret-password", time.Second, brutus.PluginConfig{
+		ProxyURL: "ftp://127.0.0.1:9",
+	})
+
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "connection error")
+	assert.NotContains(t, result.Error.Error(), "secret-password")
 }
 
 // mockError is a simple error implementation for testing error classification

@@ -59,7 +59,11 @@ and --limit caps generation to the first N (most-likely) candidates. --domain
 may be combined with -e/-E.
 
 This enumeration is unauthenticated: no token, credential store, or sign-in is
-required.`,
+required.
+
+A conservative --rate-limit/--jitter default is applied when those flags are
+left at 0; unlimited probing risks provider throttling and tenant sign-in /
+Smart-Lockout / anomaly alerts.`,
 	Example: `  # Enumerate a couple of emails
   brutus enum active microsoft365 -e alice@example.com,bob@example.com
 
@@ -173,7 +177,8 @@ func runEnumMicrosoft365(cmd *cobra.Command, args []string) error {
 		progress.Update(processed, fmt.Sprintf("%d found", found))
 	}
 
-	results := checker.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
+	rateLimit, jitter := oraclePacing()
+	results := checker.EnumerateWith(ctx, emails, flagThreads, rateLimit, jitter, onResult)
 	progress.Stop()
 
 	if !flagJSON {

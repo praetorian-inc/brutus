@@ -41,7 +41,7 @@ func TestDetectHTTPAuthType_ClosesIdleConnections(t *testing.T) {
 
 	target := server.URL[7:] // Remove "http://" prefix
 	for i := 0; i < 50; i++ {
-		DetectHTTPAuthType(target, false, 5*time.Second, "skip")
+		DetectHTTPAuthType(context.Background(), target, false, 5*time.Second, "skip", "")
 	}
 
 	runtime.GC()
@@ -94,11 +94,55 @@ func TestDetectHTTPAuthType_BasicAuth(t *testing.T) {
 			defer server.Close()
 
 			target := server.URL[7:] // Remove "http://" prefix
-			authType, _ := DetectHTTPAuthType(target, false, 5*time.Second, "skip")
+			authType, _ := DetectHTTPAuthType(context.Background(), target, false, 5*time.Second, "skip", "")
 
 			require.Equal(t, tt.expectedAuth, authType)
 		})
 	}
+}
+
+func TestDetectHTTPAuthType_CanceledContext(t *testing.T) {
+	started := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-r.Context().Done()
+	}))
+	t.Cleanup(server.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-started
+		cancel()
+	}()
+
+	target := strings.TrimPrefix(server.URL, "http://")
+	authType, banner := DetectHTTPAuthType(ctx, target, false, 5*time.Second, "skip", "")
+
+	assert.Equal(t, "", authType)
+	assert.Equal(t, "", banner)
+}
+
+func TestDetectHTTPAuthType_UsesProxy(t *testing.T) {
+	var hitProxy bool
+	proxySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitProxy = true
+		w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(proxySrv.Close)
+
+	proxyURL := "http://" + proxySrv.Listener.Addr().String()
+	authType, _ := DetectHTTPAuthType(context.Background(), "target.example", false, 5*time.Second, "skip", proxyURL)
+
+	require.Equal(t, "basic", authType)
+	assert.True(t, hitProxy)
+}
+
+func TestDetectHTTPAuthType_InvalidProxy(t *testing.T) {
+	authType, banner := DetectHTTPAuthType(context.Background(), "example.com", false, 5*time.Second, "skip", "ftp://bad:1080")
+
+	assert.Equal(t, "", authType)
+	assert.Equal(t, "", banner)
 }
 
 func TestHTTPBasicAuthProbe_Run(t *testing.T) {

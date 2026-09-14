@@ -16,7 +16,6 @@ package smtp
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/smtp"
@@ -87,22 +86,20 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = client.Close() }()
 
-	tlsMode := pluginCfg.TLSMode
-	if tlsMode != "disable" {
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			var tlsConfig *tls.Config
-			switch tlsMode {
-			case "verify":
-				tlsConfig = &tls.Config{InsecureSkipVerify: false, ServerName: host}
-			default: // "skip-verify"
-				tlsConfig = &tls.Config{InsecureSkipVerify: true, ServerName: host}
-			}
-			if tlsErr := client.StartTLS(tlsConfig); tlsErr != nil {
-				// STARTTLS failure is a connection error, not auth failure
-				result.Error = fmt.Errorf("connection error: STARTTLS failed: %w", tlsErr)
-				return result
-			}
+	ok, _ := client.Extension("STARTTLS")
+	if ok {
+		tlsConfig := brutus.BuildTLSConfig(pluginCfg.TLSMode)
+		if tlsConfig == nil {
+			tlsConfig = brutus.BuildTLSConfig("skip-verify")
 		}
+		tlsConfig.ServerName = host
+		if tlsErr := client.StartTLS(tlsConfig); tlsErr != nil {
+			result.Error = brutus.WrapConnError(fmt.Errorf("STARTTLS failed: %w", tlsErr))
+			return result
+		}
+	} else if pluginCfg.TLSMode == "verify" {
+		result.Error = brutus.WrapConnError(fmt.Errorf("verified TLS required but STARTTLS is unavailable"))
+		return result
 	}
 
 	auth := smtp.PlainAuth("", username, password, host)

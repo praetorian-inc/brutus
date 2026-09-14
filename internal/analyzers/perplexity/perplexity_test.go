@@ -8,10 +8,37 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
+
+func TestClient_ResearchCredentials_ErrorBodyTruncated(t *testing.T) {
+	huge := strings.Repeat("A", 100_000)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(huge))
+	}))
+	defer server.Close()
+
+	client := &Client{APIKey: "test-key", Endpoint: server.URL}
+	_, err := client.ResearchCredentials(context.Background(), "router", "TP-Link", "Archer C7")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	msg := err.Error()
+	prefix := "perplexity api error (status 500)"
+	if !strings.Contains(msg, prefix) {
+		t.Errorf("error %q missing %q", msg, prefix)
+	}
+	if len(msg) > maxErrorBody+len(prefix)+10 {
+		t.Errorf("error length %d exceeds bound", len(msg))
+	}
+	if !strings.HasSuffix(msg, "...") {
+		t.Errorf("truncated error %q should end with ellipsis", msg)
+	}
+}
 
 func TestClient_ResearchCredentials_Success(t *testing.T) {
 	// Mock Perplexity API response

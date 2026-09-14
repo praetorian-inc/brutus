@@ -111,9 +111,9 @@ func outputEnumHuman(results []enum.Result, useColor bool) {
 		case r.Error != nil:
 			errorCount++
 			if flagVerbose {
-				fmt.Printf("  %s%s ERROR%s  %-40s %-16s %v\n",
+				fmt.Printf("  %s%s ERROR%s  %-40s %-16s %s\n",
 					colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
-					r.Email, r.Service, r.Error)
+					r.Email, r.Service, sanitizeTerminal(r.Error.Error()))
 			}
 		case r.Exists:
 			existsCount++
@@ -188,10 +188,10 @@ func outputOracleCheckHuman(label, knownValid string, results []enum.Result, tea
 		r := &results[i]
 		switch {
 		case r.Error != nil:
-			fmt.Printf("  %-16s %s%s not working%s (error: %v)\n",
+			fmt.Printf("  %-16s %s%s not working%s (error: %s)\n",
 				r.Service,
 				colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
-				r.Error)
+				sanitizeTerminal(r.Error.Error()))
 		case r.Exists:
 			fmt.Printf("  %-16s %s%s working%s\n",
 				r.Service,
@@ -245,10 +245,10 @@ func outputOracleValidationHuman(results []enum.Result, useColor bool) {
 		r := &results[i]
 		switch {
 		case r.Error != nil:
-			fmt.Printf("  %-16s %s%s not working%s (error: %v)\n",
+			fmt.Printf("  %-16s %s%s not working%s (error: %s)\n",
 				r.Service,
 				colorIf(useColor, ColorRed), SymbolError, colorIf(useColor, ColorReset),
-				r.Error)
+				sanitizeTerminal(r.Error.Error()))
 		case r.Exists:
 			fmt.Printf("  %-16s %s%s working%s\n",
 				r.Service,

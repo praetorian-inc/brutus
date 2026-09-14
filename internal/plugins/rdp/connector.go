@@ -133,10 +133,7 @@ func (p *Plugin) runConnectorForSession(ctx context.Context, inst *wasmInstance,
 		case stateNeedTLSUpgrade:
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
 			inst.freeInWasm(callCtx, outLenSlot, 4)
-			tlsConf := &tls.Config{
-				InsecureSkipVerify: true, //nolint:gosec // RDP servers use self-signed certs
-			}
-			tlsConn := tls.Client(inst.conn, tlsConf)
+			tlsConn := tls.Client(inst.conn, rdpTLSConfig(inst.tlsMode, inst.serverName))
 			if tlsErr := tlsConn.HandshakeContext(ctx); tlsErr != nil {
 				return 0, banner, fmt.Errorf("connection error: tls upgrade: %w", tlsErr)
 			}

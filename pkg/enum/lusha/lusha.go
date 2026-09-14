@@ -56,6 +56,9 @@ const (
 	// prospectMaxPages bounds collect-all (limit<=0) so a huge org cannot spin
 	// indefinitely; 40 pages * 50 = up to 2000 contacts.
 	prospectMaxPages = 40
+	// defaultTimeout is the per-request HTTP budget when NewClient is given a
+	// non-positive timeout (http.Client Timeout:0 means no deadline).
+	defaultTimeout = 10 * time.Second
 	// headerAPIKey is the Lusha auth header name. UNVERIFIED against a live key
 	// (discovery §3 / architecture §11) — isolated here for a single-edit fix.
 	headerAPIKey = "api_key"
@@ -172,8 +175,12 @@ type Client struct {
 }
 
 // NewClient builds a Lusha client. timeout is the per-request HTTP budget.
-// There is no page size: one identity in, one contact out.
+// timeout <= 0 falls back to defaultTimeout. There is no page size: one identity
+// in, one contact out.
 func NewClient(apiKey string, timeout time.Duration, proxyURL string) (*Client, error) {
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
 	httpClient, err := enum.NewEnumHTTPClientWithProxy(timeout, proxyURL)
 	if err != nil {
 		return nil, err
@@ -215,7 +222,7 @@ func (c *Client) SearchDomain(ctx context.Context, domain string, limit int) (*D
 
 	for page := 0; page < prospectMaxPages; page++ {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return result, err
 		}
 
 		// The search page size MUST stay constant across pages: the API offset is
@@ -234,7 +241,7 @@ func (c *Client) SearchDomain(ctx context.Context, domain string, limit int) (*D
 
 		search, err := c.searchProspectPage(ctx, domain, page, prospectPageSize)
 		if err != nil {
-			return nil, err
+			return result, err
 		}
 		result.CreditsCharged += search.Billing.CreditsCharged
 		if page == 0 {
@@ -257,7 +264,7 @@ func (c *Client) SearchDomain(ctx context.Context, domain string, limit int) (*D
 
 		enriched, credits, err := c.enrichProspectPage(ctx, search.RequestID, ids)
 		if err != nil {
-			return nil, err
+			return result, err
 		}
 		result.CreditsCharged += credits
 		result.Contacts = append(result.Contacts, enriched...)

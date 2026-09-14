@@ -70,6 +70,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	}
 	defer func() { _ = conn.Close() }()
 
+	// Bound SMB negotiate/session-setup and IPC$ mount: DialWithProxy only
+	// covers the TCP dial, so without this a server that stalls the handshake
+	// hangs the worker.
+	_ = conn.SetDeadline(time.Now().Add(timeout))
+
 	domain, user := parseDomainUsername(username)
 
 	d := &smb2.Dialer{

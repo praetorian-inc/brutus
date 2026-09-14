@@ -97,14 +97,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	response, err := readResponse(reader, timeout)
+	postPassword, err := readResponse(reader, timeout)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
 	}
 
-	result.Error = classifyTelnetResponse(response)
-	if result.Error == nil && isSuccessIndicator(response) {
+	result.Error = classifyTelnetResponse(postPassword)
+	if result.Error == nil && isSuccessIndicator(postPassword) {
 		result.Success = true
 	}
 
@@ -183,13 +183,13 @@ func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
 	return string(buffer), nil
 }
 
-// classifyTelnetResponse classifies Telnet authentication responses.
+// classifyTelnetResponse classifies the post-password Telnet response.
 //
 // Auth failure indicators (return nil):
 // - "incorrect", "failed", "denied", "invalid" (via shared telnetAuthIndicators)
 //
 // Success indicators (return nil):
-// - Shell prompts ($ or #)
+// - Shell prompts ($, #, or >) at end of line
 //
 // All other errors are connection problems (return wrapped error).
 func classifyTelnetResponse(response string) error {
@@ -231,25 +231,44 @@ func isPasswordPrompt(text string) bool {
 		strings.Contains(lower, "pass:")
 }
 
-// isSuccessIndicator checks if the response indicates successful authentication.
-// Success is indicated by shell prompts ($ or #).
+// isSuccessIndicator checks if the post-password response indicates successful
+// authentication. Success is a $, #, or > prompt at the end of a line,
+// optionally preceded by typical prompt context (user@host, path, brackets).
 func isSuccessIndicator(response string) bool {
-	trimmed := strings.TrimSpace(response)
-	if trimmed == "" {
+	for _, line := range strings.Split(response, "\n") {
+		if isPromptLine(line) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPromptLine(line string) bool {
+	line = strings.TrimRight(line, "\r\t ")
+	if idx := strings.LastIndex(line, "\x1b"); idx >= 0 {
+		line = strings.TrimRight(line[:idx], "\r\t ")
+	}
+	if line == "" {
 		return false
 	}
 
-	// Strip trailing ANSI escape sequences (e.g., \x1b[6n)
-	// that some terminals send after the shell prompt
-	if idx := strings.LastIndex(trimmed, "\x1b"); idx >= 0 {
-		trimmed = strings.TrimSpace(trimmed[:idx])
-	}
-	if trimmed == "" {
+	last := line[len(line)-1]
+	if last != '$' && last != '#' && last != '>' {
 		return false
 	}
+	if last == '#' && strings.Count(line, "#") > 1 {
+		return false
+	}
+	if len(line) == 1 {
+		return true
+	}
 
-	lastChar := trimmed[len(trimmed)-1]
-	return lastChar == '$' || lastChar == '#'
+	prev := line[len(line)-2]
+	switch prev {
+	case ' ', '\t', ':', '~', '/', '\\', ']', '.', '-', '_', '@':
+		return true
+	}
+	return (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z') || (prev >= '0' && prev <= '9')
 }
 
 // containsAuthFailureIndicator checks if the response contains any auth failure indicator.

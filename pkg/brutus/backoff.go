@@ -46,8 +46,8 @@ func newBackoffController(base, maxDelay time.Duration, verbose bool) *backoffCo
 
 // recordError increments the consecutive error counter.
 func (b *backoffController) recordError() {
-	prev := b.consecutiveErrors.Add(1)
-	if prev == b.threshold && b.verbose {
+	count := b.consecutiveErrors.Add(1)
+	if count == b.threshold && b.verbose {
 		fmt.Fprintf(os.Stderr, "[adaptive] Connection errors detected, enabling backoff\n")
 	}
 }

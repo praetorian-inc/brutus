@@ -144,10 +144,7 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 		limiter = rate.NewLimiter(rate.Limit(cfg.RateLimit), 1)
 	}
 
-	var bc *backoffController
-	if cfg.MaxRetries > 0 {
-		bc = newBackoffController(500*time.Millisecond, 30*time.Second, cfg.Verbose)
-	}
+	bc := newBackoffController(500*time.Millisecond, 30*time.Second, cfg.Verbose)
 
 	var (
 		results       []Result
@@ -196,13 +193,13 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 				if err := limiter.Wait(ctx); err != nil {
 					return nil
 				}
-				if cfg.Jitter > 0 {
-					jitterDuration := time.Duration(rand.Int63n(int64(cfg.Jitter)))
-					select {
-					case <-time.After(jitterDuration):
-					case <-ctx.Done():
-						return nil
-					}
+			}
+			if cfg.Jitter > 0 {
+				jitterDuration := time.Duration(rand.Int63n(int64(cfg.Jitter)))
+				select {
+				case <-time.After(jitterDuration):
+				case <-ctx.Done():
+					return nil
 				}
 			}
 
@@ -236,12 +233,12 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 
 			var result *Result
 			maxAttempts := 1
-			if bc != nil {
+			if cfg.MaxRetries > 0 {
 				maxAttempts = cfg.MaxRetries + 1
 			}
 
 			for attempt := 0; attempt < maxAttempts; attempt++ {
-				if attempt > 0 {
+				if attempt > 0 && bc != nil {
 					delay := bc.retryDelay(attempt - 1)
 					select {
 					case <-time.After(delay):
@@ -254,6 +251,17 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 					if kp, ok := plug.(KeyPlugin); ok {
 						result = kp.TestKey(ctx, cfg.Target, cred.username, cred.key, cfg.Timeout, pluginCfg)
 					} else {
+						collected := Result{
+							Protocol: cfg.Protocol,
+							Target:   cfg.Target,
+							Username: cred.username,
+							Password: cred.password,
+							Success:  false,
+							Error:    fmt.Errorf("protocol %q does not support key-based authentication", cfg.Protocol),
+						}
+						mu.Lock()
+						results = append(results, collected)
+						mu.Unlock()
 						return nil
 					}
 				} else {
@@ -327,12 +335,9 @@ func executeWorkerPool(ctx context.Context, cfg *Config, plug Plugin, credential
 	return results, nil
 }
 
-// runWorkersDefault executes credential testing using a bounded worker pool.
-// Uses errgroup for concurrency control and context cancellation for early stopping.
-func runWorkersDefault(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error) {
+func buildCredentials(cfg *Config) []credential {
 	var credentials []credential
 
-	// Pre-paired credentials are used as-is (no Cartesian product).
 	for _, c := range cfg.Credentials {
 		credentials = append(credentials, credential{
 			username: c.Username,
@@ -341,21 +346,21 @@ func runWorkersDefault(ctx context.Context, cfg *Config, plug Plugin) ([]Result,
 		})
 	}
 
-	// Add password-based credentials (Cartesian product)
 	if len(cfg.Passwords) > 0 {
 		credentials = append(credentials, generateCredentials(cfg.Usernames, cfg.Passwords)...)
 	}
 
-	// Add key-based credentials (Cartesian product, if supported by plugin)
 	if len(cfg.Keys) > 0 {
 		credentials = append(credentials, generateKeyCredentials(cfg.Usernames, cfg.Keys)...)
 	}
 
-	// Reorder credentials for spray ordering: try each password across all users
-	// before moving to the next password. This avoids account lockout.
-	credentials = reorderForSpray(credentials)
+	return reorderForSpray(credentials)
+}
 
-	return executeWorkerPool(ctx, cfg, plug, credentials, nil)
+// runWorkersDefault executes credential testing using a bounded worker pool.
+// Uses errgroup for concurrency control and context cancellation for early stopping.
+func runWorkersDefault(ctx context.Context, cfg *Config, plug Plugin) ([]Result, error) {
+	return executeWorkerPool(ctx, cfg, plug, buildCredentials(cfg), nil)
 }
 
 // runWorkersWithLLM executes credential testing with LLM-based banner analysis
@@ -378,18 +383,13 @@ func runWorkersWithLLM(ctx context.Context, cfg *Config, plug Plugin) ([]Result,
 		return runWorkersDefault(ctx, cfg, plug)
 	}
 
-	llmCreds := []credential{}
-	for _, username := range cfg.Usernames {
-		for _, password := range suggestions {
-			llmCreds = append(llmCreds, credential{
-				username:     username,
-				password:     password,
-				llmSuggested: true,
-			})
-		}
+	llmCreds := generateCredentials(cfg.Usernames, suggestions)
+	for i := range llmCreds {
+		llmCreds[i].llmSuggested = true
 	}
+	llmCreds = reorderForSpray(llmCreds)
 
-	defaultCreds := generateCredentials(cfg.Usernames, cfg.Passwords)
+	defaultCreds := buildCredentials(cfg)
 
 	allCreds := make([]credential, 0, len(llmCreds)+len(defaultCreds))
 	allCreds = append(allCreds, llmCreds...)
@@ -411,6 +411,12 @@ func captureBanner(ctx context.Context, cfg *Config, plug Plugin) BannerInfo {
 	}
 	// Empty username is acceptable for banner capture (some protocols don't need it).
 	result := plug.Test(ctx, cfg.Target, username, "", cfg.Timeout, pluginConfigFromConfig(cfg))
+	if result == nil {
+		return BannerInfo{
+			Protocol: cfg.Protocol,
+			Target:   cfg.Target,
+		}
+	}
 
 	return BannerInfo{
 		Protocol: cfg.Protocol,

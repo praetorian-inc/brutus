@@ -84,16 +84,31 @@ func TestEnumerateOne_ExistenceNo_EmptyArray(t *testing.T) {
 	assert.NoError(t, res.Error)
 }
 
-func TestEnumerateOne_ExistenceNo_NonArrayBody(t *testing.T) {
-	// A JSON object (non-array) body — must NOT be ExistenceYes and must NOT panic.
-	srv := searchServerReturning(http.StatusOK, `{"message":"not found"}`)
-	defer srv.Close()
+func TestEnumerateOne_ExistenceUnknown_NonArrayBody(t *testing.T) {
+	const token = "test-access-token-sentinel"
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "error object", body: `{"message":"not found"}`},
+		{name: "html throttle page", body: `<html><body>throttled</body></html>`},
+		{name: "malformed json", body: `not-valid-json{{`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := searchServerReturning(http.StatusOK, tc.body)
+			defer srv.Close()
 
-	e := newTestEnumerator(t, srv, nil, false)
-	res := e.EnumerateOne(context.Background(), "object@contoso.com")
+			e := newTestEnumerator(t, srv, nil, false)
+			res := e.EnumerateOne(context.Background(), "object@contoso.com")
 
-	assert.NotEqual(t, ExistenceYes, res.Exists,
-		"a non-array 200 body must not produce ExistenceYes")
+			assert.Equal(t, ExistenceUnknown, res.Exists,
+				"a non-array 200 body must be ExistenceUnknown, not a genuine negative")
+			require.Error(t, res.Error)
+			assert.NotContains(t, res.Error.Error(), token,
+				"error must not contain the access token")
+		})
+	}
 }
 
 func TestEnumerateOne_Blocked(t *testing.T) {
@@ -171,6 +186,26 @@ func TestEnumerateOne_UnauthorizedNoRefresh(t *testing.T) {
 //	result must be ExistenceUnknown and test must complete quickly
 //
 
+func TestEnumerateOne_UnauthorizedRefreshFails(t *testing.T) {
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	const token = "test-access-token-sentinel"
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("refresh token expired")
+	})
+
+	res := e.EnumerateOne(context.Background(), "expired@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error, "refresh failure must be attached so the operator learns the credential expired")
+	assert.Contains(t, strings.ToLower(res.Error.Error()), "refresh",
+		"error should mention the refresh failure")
+	assert.NotContains(t, res.Error.Error(), token,
+		"error must not contain the access token")
+}
+
 func TestEnumerateOne_UnauthorizedLoopGuard(t *testing.T) {
 	var refreshCount atomic.Int32
 
@@ -209,15 +244,6 @@ func TestEnumerateOne_ServerError500(t *testing.T) {
 		"error should mention the unexpected status code")
 }
 
-// Test 8: Malformed JSON on 200 -> ExistenceUnknown — actually per production
-//
-//	code: json.Unmarshal errors return nil (silent decode failure means ExistenceNo).
-//	The comment in search() says "A non-array (or otherwise non-matching) body
-//	decodes to a zero-length slice, which the caller treats as 'not found'."
-//	So malformed JSON produces ExistenceNo (not ExistenceUnknown) and no Error.
-//	This test pins that actual behavior and verifies no token leaks.
-//
-
 func TestEnumerateOne_MalformedJSON(t *testing.T) {
 	srv := searchServerReturning(http.StatusOK, `not-valid-json{{`)
 	defer srv.Close()
@@ -227,15 +253,11 @@ func TestEnumerateOne_MalformedJSON(t *testing.T) {
 
 	res := e.EnumerateOne(context.Background(), "malformed@contoso.com")
 
-	// Per production code: malformed JSON returns zero-slice which → ExistenceNo.
-	// Verified: search() calls json.Unmarshal and on error returns nil (no error),
-	// 200 status. EnumerateOne sees len(users)==0 → ExistenceNo.
-	assert.Equal(t, ExistenceNo, res.Exists,
-		"malformed JSON on 200 should produce ExistenceNo (production decode path)")
-	if res.Error != nil {
-		assert.NotContains(t, res.Error.Error(), token,
-			"error must not contain the access token")
-	}
+	assert.Equal(t, ExistenceUnknown, res.Exists,
+		"malformed JSON on 200 must be ExistenceUnknown, not a genuine negative")
+	require.Error(t, res.Error)
+	assert.NotContains(t, res.Error.Error(), token,
+		"error must not contain the access token")
 }
 
 func TestEnumerateOne_PresenceSuccess(t *testing.T) {

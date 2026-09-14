@@ -281,6 +281,8 @@ func (e *Enumerator) EnumerateOne(ctx context.Context, email string) EnumResult 
 			token, refreshErr := e.refreshOnce(ctx)
 			if refreshErr == nil {
 				users, status, err = e.search(ctx, email, token)
+			} else {
+				err = errors.New("token refresh failed (credential expired)")
 			}
 		}
 	}
@@ -429,9 +431,7 @@ func (e *Enumerator) search(ctx context.Context, email, token string) ([]searchU
 
 	var users []searchUser
 	if err := json.Unmarshal(body, &users); err != nil {
-		// A non-array (or otherwise non-matching) body decodes to a zero-length
-		// slice, which the caller treats as "not found".
-		return nil, resp.StatusCode, nil
+		return nil, resp.StatusCode, fmt.Errorf("decoding search response: %w", err)
 	}
 	return users, resp.StatusCode, nil
 }

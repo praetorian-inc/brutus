@@ -35,6 +35,16 @@ func newTestClient(baseURL string) *Client {
 	return c
 }
 
+func TestNewClient_NonPositiveTimeout(t *testing.T) {
+	c, err := NewClient("testkey", 0, 10, "")
+	require.NoError(t, err)
+	assert.Equal(t, defaultTimeout, c.httpClient.Timeout)
+
+	c, err = NewClient("testkey", -time.Second, 10, "")
+	require.NoError(t, err)
+	assert.Equal(t, defaultTimeout, c.httpClient.Timeout)
+}
+
 func TestToRecord(t *testing.T) {
 	src := &apiEntry{
 		ID:           "abc123",
@@ -732,7 +742,9 @@ func TestSearchWithOptions_Sources(t *testing.T) {
 	}
 	pageSize := 2
 	var lastQuery string
+	var requestCount atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
 		var req searchRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 		lastQuery = req.Query
@@ -761,10 +773,51 @@ func TestSearchWithOptions_Sources(t *testing.T) {
 		assert.Equal(t, "Adobe", rec.Database)
 	}
 	assert.Equal(t, `domain:e.com (database_name:"Adobe")`, lastQuery, "grouped query pushed to API")
+	assert.Equal(t, int32(3), requestCount.Load(), "stop once scanned >= unfiltered Total (pages of 2+2+1)")
 
 	res2, err := c.SearchWithOptions(context.Background(), SearchOptions{Domain: "e.com", Sources: []string{"Adobe"}, Limit: 1})
 	require.NoError(t, err)
 	assert.Len(t, res2.Records, 1, "limit bounds matching records")
+}
+
+func TestSearchWithOptions_StopsAtUnfilteredTotal(t *testing.T) {
+	// API Total is the unfiltered domain total. With a source filter, matching
+	// records are a subset, so comparing len(records) to Total would never
+	// terminate and the loop would keep paging until an empty page.
+	all := []apiEntry{
+		{ID: "a", Email: []string{"a@e.com"}, Database: "Adobe"},
+		{ID: "b", Email: []string{"b@e.com"}, Database: "Naz.API"},
+		{ID: "c", Email: []string{"c@e.com"}, Database: "LinkedIn"},
+	}
+	pageSize := 10
+	var requestCount atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		var req searchRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		start := (req.Page - 1) * pageSize
+		resp := searchResponse{Balance: 100, Total: len(all), Took: "1ms"}
+		if start < len(all) {
+			end := start + pageSize
+			if end > len(all) {
+				end = len(all)
+			}
+			resp.Entries = all[start:end]
+		}
+		b, _ := json.Marshal(resp)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(b)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL)
+	c.pageSize = pageSize
+
+	res, err := c.SearchWithOptions(context.Background(), SearchOptions{Domain: "e.com", Sources: []string{"Adobe"}})
+	require.NoError(t, err)
+	require.Len(t, res.Records, 1)
+	assert.Equal(t, "Adobe", res.Records[0].Database)
+	assert.Equal(t, int32(1), requestCount.Load(), "must stop once scanned >= unfiltered Total")
 }
 
 func TestRefine_DetailedFields(t *testing.T) {

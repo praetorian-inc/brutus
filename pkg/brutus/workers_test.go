@@ -17,6 +17,7 @@ package brutus
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -248,5 +249,136 @@ func (m *mockHTTPPlugin) Test(ctx context.Context, target, username, password st
 		Password: password,
 		Success:  false,
 		Banner:   "HTTP/1.1 401 Unauthorized",
+	}
+}
+
+func TestExecuteWorkerPool_KeyPluginUnsupported(t *testing.T) {
+	mock := &passwordOnlyPlugin{}
+
+	cfg := &Config{
+		Target:   "test:22",
+		Protocol: "password-only",
+		Credentials: []Credential{
+			{Username: "user", Key: []byte("fake-key")},
+		},
+		Threads: 1,
+		Timeout: 1 * time.Second,
+		Plugin:  mock,
+	}
+
+	results, err := Brute(cfg)
+	assert.NoError(t, err)
+	assert.Len(t, results, 1)
+	assert.False(t, results[0].Success)
+	assert.ErrorContains(t, results[0].Error, `protocol "password-only" does not support key-based authentication`)
+	assert.Equal(t, "password-only", results[0].Protocol)
+	assert.Equal(t, "user", results[0].Username)
+	assert.Equal(t, int64(0), atomic.LoadInt64(&mock.testCalled))
+}
+
+type passwordOnlyPlugin struct {
+	testCalled int64
+}
+
+func (p *passwordOnlyPlugin) Name() string { return "password-only" }
+
+func (p *passwordOnlyPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	atomic.AddInt64(&p.testCalled, 1)
+	return &Result{
+		Protocol: "password-only",
+		Target:   target,
+		Username: username,
+		Password: password,
+		Success:  true,
+	}
+}
+
+func TestCaptureBanner_NilResult(t *testing.T) {
+	cfg := &Config{
+		Target:    "example.com:80",
+		Protocol:  "http",
+		Usernames: []string{"admin"},
+		Timeout:   1 * time.Second,
+	}
+
+	banner := captureBanner(context.Background(), cfg, &nilPlugin{})
+	assert.Equal(t, "http", banner.Protocol)
+	assert.Equal(t, "example.com:80", banner.Target)
+	assert.Empty(t, banner.Banner)
+}
+
+func TestRunWorkersWithLLM_IncludesPrePairedAndSpray(t *testing.T) {
+	RegisterAnalyzer("mock-llm-parity", func(cfg *LLMConfig) BannerAnalyzer {
+		return &mockSuggestionAnalyzer{suggestions: []string{"llmpass"}}
+	})
+	defer ResetAnalyzers()
+
+	mock := &orderTrackingHTTPPlugin{}
+
+	cfg := &Config{
+		Target:    "example.com:80",
+		Protocol:  "http",
+		Usernames: []string{"user1", "user2"},
+		Passwords: []string{"pass1", "pass2"},
+		Credentials: []Credential{
+			{Username: "paired", Password: "pairedpass"},
+		},
+		Threads: 1,
+		Timeout: 1 * time.Second,
+		Plugin:  mock,
+		LLMConfig: &LLMConfig{
+			Enabled:  true,
+			Provider: "mock-llm-parity",
+		},
+	}
+
+	results, err := Brute(cfg)
+	assert.NoError(t, err)
+
+	got := make([]string, len(results))
+	for i, r := range results {
+		got[i] = r.Username + ":" + r.Password
+	}
+
+	assert.Equal(t, []string{
+		"user1:llmpass",
+		"user2:llmpass",
+		"paired:pairedpass",
+		"user1:pass1",
+		"user2:pass1",
+		"user1:pass2",
+		"user2:pass2",
+	}, got)
+
+	assert.True(t, results[0].LLMSuggested)
+	assert.True(t, results[1].LLMSuggested)
+	assert.False(t, results[2].LLMSuggested)
+}
+
+type mockSuggestionAnalyzer struct {
+	suggestions []string
+}
+
+func (m *mockSuggestionAnalyzer) Analyze(ctx context.Context, banner BannerInfo) ([]string, error) {
+	return m.suggestions, nil
+}
+
+type orderTrackingHTTPPlugin struct {
+	mu    sync.Mutex
+	order []string
+}
+
+func (m *orderTrackingHTTPPlugin) Name() string { return "http" }
+
+func (m *orderTrackingHTTPPlugin) Test(ctx context.Context, target, username, password string, timeout time.Duration, pluginCfg PluginConfig) *Result {
+	m.mu.Lock()
+	m.order = append(m.order, username+":"+password)
+	m.mu.Unlock()
+	return &Result{
+		Protocol: "http",
+		Target:   target,
+		Username: username,
+		Password: password,
+		Success:  false,
 	}
 }

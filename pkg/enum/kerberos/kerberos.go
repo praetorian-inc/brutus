@@ -37,12 +37,13 @@ import (
 
 // Result represents the result of a Kerberos user enumeration attempt.
 type Result struct {
-	Username  string
-	Realm     string
-	Exists    bool
-	NoPreAuth bool
-	Error     error
-	Duration  time.Duration
+	Username   string
+	Realm      string
+	Exists     bool
+	NoPreAuth  bool
+	Annotation string
+	Error      error
+	Duration   time.Duration
 }
 
 // EnumUser attempts to enumerate whether a username exists in the Kerberos realm
@@ -51,6 +52,7 @@ type Result struct {
 // Returns:
 // - KDC_ERR_C_PRINCIPAL_UNKNOWN (6) → user does not exist
 // - KDC_ERR_PREAUTH_REQUIRED (25) → user exists
+// - KDC_ERR_CLIENT_REVOKED (18) and similar → user exists (disabled/locked/revoked)
 // - AS-REP success → user exists AND has "Do not require Kerberos preauthentication" set
 func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time.Duration) *Result {
 	start := time.Now()
@@ -91,18 +93,25 @@ func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time
 		return result
 	}
 
-	switch krbErr.ErrorCode {
-	case errorcode.KDC_ERR_C_PRINCIPAL_UNKNOWN:
-		result.Exists = false
-	case errorcode.KDC_ERR_PREAUTH_REQUIRED:
-		result.Exists = true
-		result.NoPreAuth = false
-	default:
-		result.Error = fmt.Errorf("KDC error: %s", errorcode.Lookup(krbErr.ErrorCode))
-	}
+	applyKDCError(result, krbErr.ErrorCode)
 
 	result.Duration = time.Since(start)
 	return result
+}
+
+func applyKDCError(result *Result, code int32) {
+	switch code {
+	case errorcode.KDC_ERR_C_PRINCIPAL_UNKNOWN:
+		result.Exists = false
+	case errorcode.KDC_ERR_PREAUTH_REQUIRED, errorcode.KDC_ERR_PREAUTH_FAILED:
+		result.Exists = true
+		result.NoPreAuth = false
+	case errorcode.KDC_ERR_CLIENT_REVOKED, errorcode.KDC_ERR_NAME_EXP, errorcode.KDC_ERR_KEY_EXPIRED, errorcode.KDC_ERR_CLIENT_NOTYET:
+		result.Exists = true
+		result.Annotation = "disabled/locked/revoked"
+	default:
+		result.Error = fmt.Errorf("KDC error: %s", errorcode.Lookup(code))
+	}
 }
 
 // buildASReq constructs a Kerberos AS-REQ message without pre-authentication data.

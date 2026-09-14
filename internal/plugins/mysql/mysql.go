@@ -125,7 +125,7 @@ func proxyNetName(proxyURL string) string {
 
 func registerProxyDial(proxyURL string, timeout time.Duration) (string, error) {
 	v, _ := proxyDials.LoadOrStore(proxyURL, &proxyDialReg{})
-	reg := v.(*proxyDialReg)
+	reg, _ := v.(*proxyDialReg)
 	reg.once.Do(func() {
 		if _, err := brutus.NewProxyDialFunc(proxyURL, timeout); err != nil {
 			reg.err = err

@@ -94,7 +94,7 @@ func TestMySQLDSN_Proxy(t *testing.T) {
 	cfgA, err := mysqldriver.ParseDSN(dsnA)
 	require.NoError(t, err)
 	assert.Equal(t, "10.0.0.1:3306", cfgA.Addr)
-	assert.True(t, len(cfgA.Net) > 0 && cfgA.Net != "tcp")
+	assert.True(t, cfgA.Net != "" && cfgA.Net != "tcp")
 	assert.Equal(t, proxyNetName(proxyA), cfgA.Net)
 
 	dsnA2, err := mysqlDSN("10.0.0.1:3306", "root", "x", "", proxyA, time.Second)

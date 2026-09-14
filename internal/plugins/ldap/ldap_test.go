@@ -181,6 +181,10 @@ func TestClassifyError_ConnectionError(t *testing.T) {
 			name:   "Timeout",
 			errMsg: "i/o timeout",
 		},
+		{
+			name:   "Insufficient access rights is not auth failure",
+			errMsg: "LDAP Result Code 50 \"Insufficient Access Rights\"",
+		},
 	}
 
 	for _, tt := range tests {

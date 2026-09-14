@@ -138,7 +138,10 @@ func resolveHunterAPIKey(flagValue string) (string, error) {
 	return resolveAPIKey(flagValue, "HUNTER_API_KEY", "hunter.io")
 }
 
-// classifyHunterError converts hunter sentinel errors into actionable, key-free messages.
+// classifyHunterError converts hunter sentinel errors into actionable, key-free
+// messages. It inspects only the status code via errors.As and never
+// %w-wraps the *APIError (whose Error() embeds Details), so nothing
+// vendor-supplied can leak (P0-1 security requirement).
 func classifyHunterError(err error) error {
 	switch {
 	case errors.Is(err, hunter.ErrUnauthorized):
@@ -147,7 +150,12 @@ func classifyHunterError(err error) error {
 		return fmt.Errorf("hunter: rate limit exceeded — wait and retry, or lower --limit")
 	case errors.Is(err, hunter.ErrLegalReasons):
 		return fmt.Errorf("hunter: results unavailable for legal reasons (HTTP 451)")
-	default:
-		return fmt.Errorf("hunter domain search failed: %w", err)
 	}
+
+	var apiErr *hunter.APIError
+	if errors.As(err, &apiErr) {
+		return fmt.Errorf("hunter domain search failed (HTTP %d)", apiErr.StatusCode)
+	}
+
+	return fmt.Errorf("hunter domain search failed: %w", err)
 }

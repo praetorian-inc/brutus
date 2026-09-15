@@ -16,8 +16,11 @@ package mysql
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net"
+	"sync"
 	"time"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
@@ -52,7 +55,11 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mysql", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	dsn := mysqlDSN(target, username, password, pluginCfg.TLSMode)
+	dsn, err := mysqlDSN(target, username, password, pluginCfg.TLSMode, pluginCfg.ProxyURL, timeout)
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -78,7 +85,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-func mysqlDSN(target, username, password, tlsMode string) string {
+func mysqlDSN(target, username, password, tlsMode, proxyURL string, timeout time.Duration) (string, error) {
 	host, port := brutus.ParseTarget(target, "3306")
 	tlsValue := "false"
 	switch tlsMode {
@@ -93,7 +100,59 @@ func mysqlDSN(target, username, password, tlsMode string) string {
 	cfg.Net = "tcp"
 	cfg.Addr = net.JoinHostPort(host, port)
 	cfg.TLSConfig = tlsValue
-	return cfg.FormatDSN()
+	if proxyURL != "" {
+		netName, err := registerProxyDial(proxyURL, timeout)
+		if err != nil {
+			return "", err
+		}
+		cfg.Net = netName
+	}
+	return cfg.FormatDSN(), nil
+}
+
+type proxyDialReg struct {
+	once    sync.Once
+	netName string
+	err     error
+}
+
+var proxyDials sync.Map // proxyURL -> *proxyDialReg
+
+func proxyNetName(proxyURL string) string {
+	sum := sha256.Sum256([]byte(proxyURL))
+	return "brutus-socks-" + hex.EncodeToString(sum[:8])
+}
+
+func registerProxyDial(proxyURL string, timeout time.Duration) (string, error) {
+	v, _ := proxyDials.LoadOrStore(proxyURL, &proxyDialReg{})
+	reg, _ := v.(*proxyDialReg)
+	reg.once.Do(func() {
+		if _, err := brutus.NewProxyDialFunc(proxyURL, timeout); err != nil {
+			reg.err = err
+			return
+		}
+		netName := proxyNetName(proxyURL)
+		mysqldriver.RegisterDialContext(netName, func(ctx context.Context, addr string) (net.Conn, error) {
+			d := timeout
+			if deadline, ok := ctx.Deadline(); ok {
+				if remaining := time.Until(deadline); remaining > 0 {
+					d = remaining
+				} else if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+			}
+			dialFunc, err := brutus.NewProxyDialFunc(proxyURL, d)
+			if err != nil {
+				return nil, err
+			}
+			return dialFunc(ctx, "tcp", addr)
+		})
+		reg.netName = netName
+	})
+	if reg.err != nil {
+		return "", reg.err
+	}
+	return reg.netName, nil
 }
 
 var mysqlAuthIndicators = []string{

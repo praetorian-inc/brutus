@@ -765,3 +765,66 @@ func TestEnumLushaRegistered(t *testing.T) {
 	assert.True(t, alias.Hidden, "back-compat lusha alias must be Hidden")
 	assert.NotEmpty(t, alias.Deprecated, "back-compat lusha alias must be Deprecated")
 }
+
+// TestLushaRosterHasPartial covers the guard that decides whether a roster
+// returned alongside an error still carries results worth surfacing (contacts
+// recovered before the failure, or credits already charged).
+func TestLushaRosterHasPartial(t *testing.T) {
+	tests := []struct {
+		name string
+		in   *lusha.DomainResult
+		want bool
+	}{
+		{"nil roster", nil, false},
+		{"empty roster", &lusha.DomainResult{Domain: "x.com"}, false},
+		{"contacts recovered", &lusha.DomainResult{Contacts: []lusha.Contact{{Name: "A"}}}, true},
+		{"only credits charged", &lusha.DomainResult{CreditsCharged: 2}, true},
+		{"contacts and credits", &lusha.DomainResult{Contacts: []lusha.Contact{{Name: "A"}}, CreditsCharged: 2}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, lushaRosterHasPartial(tc.in))
+		})
+	}
+}
+
+// TestEmitLushaRoster verifies the shared roster renderer routes to the same
+// output functions the success path uses, honoring the JSON/JSONL flag, so a
+// salvaged partial roster renders identically to a clean run.
+func TestEmitLushaRoster(t *testing.T) {
+	r := &lusha.DomainResult{
+		Domain:         "fox.com",
+		Total:          2,
+		Contacts:       []lusha.Contact{{Name: "Bruna White"}},
+		CreditsCharged: 3,
+	}
+
+	t.Run("JSON mode writes JSONL to jsonWriter only", func(t *testing.T) {
+		orig := flagJSON
+		flagJSON = true
+		defer func() { flagJSON = orig }()
+
+		var human, jsonBuf bytes.Buffer
+		emitLushaRoster(&human, &jsonBuf, r, false)
+
+		assert.Empty(t, human.String(), "human writer must stay empty in JSON mode")
+		out := jsonBuf.String()
+		assert.Contains(t, out, `"lusha_summary"`, "JSONL must include the summary envelope")
+		assert.Contains(t, out, `"credits_charged":3`, "salvaged credits must appear in JSONL")
+		assert.Contains(t, out, "Bruna White", "salvaged contact must appear in JSONL")
+	})
+
+	t.Run("human mode writes table to humanOut only", func(t *testing.T) {
+		orig := flagJSON
+		flagJSON = false
+		defer func() { flagJSON = orig }()
+
+		var human, jsonBuf bytes.Buffer
+		emitLushaRoster(&human, &jsonBuf, r, false)
+
+		assert.Empty(t, jsonBuf.String(), "json writer must stay empty in human mode")
+		out := human.String()
+		assert.Contains(t, out, "credits charged: 3", "salvaged credits must appear in human output")
+		assert.Contains(t, out, "Bruna White", "salvaged contact must appear in human output")
+	})
+}

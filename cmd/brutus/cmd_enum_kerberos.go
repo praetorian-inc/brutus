@@ -19,7 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"os/signal"
 	"strings"
@@ -51,6 +51,7 @@ and no account lockout risk.
 Detection is based on KDC error codes:
   PREAUTH_REQUIRED  → user exists (standard account)
   AS-REP success    → user exists, no preauth required (AS-REP roastable)
+  CLIENT_REVOKED    → user exists (disabled/locked/revoked)
   PRINCIPAL_UNKNOWN → user does not exist
 
 A conservative --rate-limit/--jitter default is applied when those flags are
@@ -154,7 +155,14 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 			}
 
 			if jitter > 0 {
-				time.Sleep(jitter + time.Duration(rand.Int63n(int64(jitter))))
+				delay := time.Duration(rand.Int64N(int64(jitter)))
+				timer := time.NewTimer(delay)
+				select {
+				case <-timer.C:
+				case <-ctx.Done():
+					timer.Stop()
+					return ctx.Err()
+				}
 			}
 
 			result := kerberos.EnumUser(ctx, flagKerbDC, flagEnumDomain, username, flagTimeout)
@@ -203,6 +211,10 @@ func outputKerberosJSONL(w io.Writer, results []*kerberos.Result) {
 			out["no_preauth"] = r.NoPreAuth
 		}
 
+		if r.Annotation != "" {
+			out["annotation"] = r.Annotation
+		}
+
 		if r.Error != nil {
 			out["error"] = r.Error.Error()
 		}
@@ -229,9 +241,12 @@ func outputKerberosHuman(results []*kerberos.Result, useColor bool) {
 			errors++
 		case r.Exists:
 			symbol = SymbolSuccess
-			if r.NoPreAuth {
+			switch {
+			case r.Annotation != "":
+				status = fmt.Sprintf("EXISTS    %-20s (%s, %s)", r.Username, r.Annotation, r.Duration)
+			case r.NoPreAuth:
 				status = fmt.Sprintf("EXISTS    %-20s (no preauth — AS-REP roastable, %s)", r.Username, r.Duration)
-			} else {
+			default:
 				status = fmt.Sprintf("EXISTS    %-20s (preauth required, %s)", r.Username, r.Duration)
 			}
 			color = ColorGreen

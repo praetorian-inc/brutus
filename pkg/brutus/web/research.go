@@ -47,7 +47,8 @@ type BrowserConfig struct {
 func RouteHTTP(ctx context.Context, target, protocol string, timeout time.Duration, tlsMode, proxyURL string, llmConfig *brutus.LLMConfig) (string, []brutus.Credential) {
 	useHTTPS := protocol == "https"
 	authType, banner := brutus.DetectHTTPAuthType(ctx, target, useHTTPS, timeout, tlsMode, proxyURL)
-	if authType == "basic" {
+	switch authType {
+	case "basic":
 		if llmConfig != nil && llmConfig.Enabled {
 			creds := ResearchCredentialsWithLLM(target, banner, llmConfig)
 			if len(creds) > 0 {
@@ -55,7 +56,7 @@ func RouteHTTP(ctx context.Context, target, protocol string, timeout time.Durati
 			}
 		}
 		return protocol, nil
-	} else if authType == "form" {
+	case "form":
 		return "browser", nil
 	}
 	// authType == "" (detection error/unknown): keep the original protocol so a

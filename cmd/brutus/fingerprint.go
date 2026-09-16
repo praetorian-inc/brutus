@@ -98,7 +98,7 @@ func fingerprintSingleTarget(target string, base *runConfig) (*fingerprintedServ
 // them, and returns the discovered services. This is the shared implementation
 // for phases 1 & 2 of both runFromFingerprint and runLogonFingerprint.
 //
-// The returned context is the signal-aware run context (cancelled on Ctrl-C /
+// The returned context is the signal-aware run context (canceled on Ctrl-C /
 // SIGTERM); callers should thread it into downstream operations so an
 // interrupt during those operations is honored. It stays valid until the
 // returned CancelFunc is called.

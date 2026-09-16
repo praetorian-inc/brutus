@@ -87,7 +87,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer func() { _ = client.Close() }()
 
 	ok, _ := client.Extension("STARTTLS")
-	if ok {
+	if ok && pluginCfg.TLSMode != "disable" {
 		tlsConfig := brutus.BuildTLSConfig(pluginCfg.TLSMode)
 		if tlsConfig == nil {
 			tlsConfig = brutus.BuildTLSConfig("skip-verify")

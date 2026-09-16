@@ -280,6 +280,13 @@ func TestPlugin_STARTTLS(t *testing.T) {
 			wantSTARTTLS:      false,
 			wantAuth:          true,
 		},
+		{
+			name:              "disable does not attempt STARTTLS even when advertised",
+			tlsMode:           "disable",
+			advertiseSTARTTLS: true,
+			wantSTARTTLS:      false,
+			wantAuth:          true,
+		},
 	}
 
 	for _, tt := range tests {

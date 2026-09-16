@@ -17,6 +17,7 @@ package teams
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -82,6 +83,92 @@ func TestEnumerateOne_ExistenceNo_EmptyArray(t *testing.T) {
 
 	assert.Equal(t, ExistenceNo, res.Exists)
 	assert.NoError(t, res.Error)
+}
+
+func TestEnumerateOne_ExistenceUnknown_NullBody(t *testing.T) {
+	// A `200 null` response unmarshals into a nil slice without error, which is
+	// indistinguishable from an empty array at the len()==0 check and would be
+	// reported as a genuine negative. A null body is not a real "does not exist"
+	// answer, so it must be indeterminate (ExistenceUnknown), never ExistenceNo.
+	const token = "test-access-token-sentinel"
+	for _, body := range []string{"null", "  null\n"} {
+		srv := searchServerReturning(http.StatusOK, body)
+		e := newTestEnumerator(t, srv, nil, false)
+		res := e.EnumerateOne(context.Background(), "nulluser@contoso.com")
+		srv.Close()
+
+		assert.NotEqual(t, ExistenceNo, res.Exists,
+			"a 200 null body must not be treated as a genuine negative")
+		assert.Equal(t, ExistenceUnknown, res.Exists,
+			"a 200 null body must be indeterminate")
+		require.Error(t, res.Error)
+		assert.NotContains(t, res.Error.Error(), token,
+			"error must not contain the access token")
+	}
+}
+
+func TestEnumerateOne_RefreshCanceled_PreservesCancellation(t *testing.T) {
+	// A token refresh that fails due to context cancellation must preserve the
+	// cancellation identity so callers can detect it, rather than being masked as
+	// a generic "credential expired".
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("refresh transport: %w", context.Canceled)
+	})
+
+	res := e.EnumerateOne(context.Background(), "canceled@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error)
+	assert.True(t, errors.Is(res.Error, context.Canceled),
+		"a context-cancelled refresh must surface as errors.Is(err, context.Canceled)")
+	assert.NotContains(t, strings.ToLower(res.Error.Error()), "expired",
+		"a cancellation must not be mislabeled as an expired credential")
+}
+
+func TestEnumerateOne_RefreshDeadlineExceeded_PreservesCancellation(t *testing.T) {
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("refresh transport: %w", context.DeadlineExceeded)
+	})
+
+	res := e.EnumerateOne(context.Background(), "timeout@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error)
+	assert.True(t, errors.Is(res.Error, context.DeadlineExceeded),
+		"a timed-out refresh must surface as errors.Is(err, context.DeadlineExceeded)")
+}
+
+func TestEnumerateOne_RefreshNetworkFailure_NeutralMessage(t *testing.T) {
+	// A generic (non-cancellation) refresh failure may be a transient network or
+	// server error, not necessarily an expired credential. The error must be
+	// neutral and must not assert "credential expired".
+	const token = "test-access-token-sentinel"
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", errors.New("dial tcp: connection refused")
+	})
+
+	res := e.EnumerateOne(context.Background(), "netfail@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error)
+	assert.Contains(t, strings.ToLower(res.Error.Error()), "refresh",
+		"error should mention the refresh failure")
+	assert.NotContains(t, strings.ToLower(res.Error.Error()), "expired",
+		"a transient refresh failure must not be asserted as an expired credential")
+	assert.NotContains(t, res.Error.Error(), token,
+		"error must not contain the access token")
 }
 
 func TestEnumerateOne_ExistenceUnknown_NonArrayBody(t *testing.T) {

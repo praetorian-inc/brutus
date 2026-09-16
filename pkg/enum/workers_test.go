@@ -137,7 +137,7 @@ func TestRunTasks_JitterCancelRecordsResult(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	time.AfterFunc(10*time.Millisecond, cancel)
+	defer cancel()
 
 	p := &countingPlugin{name: "jitter-oracle"}
 	results, err := EnumerateWithPlugin(ctx, &Config{
@@ -146,6 +146,12 @@ func TestRunTasks_JitterCancelRecordsResult(t *testing.T) {
 		Timeout:   time.Second,
 		RateLimit: 1000,
 		Jitter:    2 * time.Second,
+		// Cancel the context on the worker goroutine at the exact moment it
+		// reaches the jitter wait. By the time the select runs, ctx is already
+		// done, so its case wins deterministically instead of racing the jitter
+		// timer. This removes the ~0.5% flake (jitter < the old 10ms cancel
+		// delay) while still exercising the cancel-during-jitter path.
+		beforeJitterWait: cancel,
 	}, p)
 
 	require.NoError(t, err)

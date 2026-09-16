@@ -147,6 +147,12 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 				}
 				if cfg.Jitter > 0 {
 					jitter := time.Duration(rand.Int63n(int64(cfg.Jitter)))
+					// Test seam: lets a test cancel ctx at this precise point so
+					// the cancel-during-jitter branch below is taken
+					// deterministically. Nil in production.
+					if cfg.beforeJitterWait != nil {
+						cfg.beforeJitterWait()
+					}
 					select {
 					case <-time.After(jitter):
 					case <-ctx.Done():

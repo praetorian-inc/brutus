@@ -58,6 +58,13 @@ type Config struct {
 	Jitter    time.Duration // random delay variance for rate limiting
 	Verbose   bool          // verbose logging to stderr
 	ProxyURL  string        // proxy URL for HTTP enum sources (empty = direct)
+
+	// beforeJitterWait, when non-nil, is invoked on the worker goroutine
+	// immediately before it waits out the jitter delay. It is an unexported
+	// test seam: it lets a test cancel the context at that exact point so the
+	// cancel-during-jitter path is exercised deterministically instead of
+	// racing a real timer. Production leaves it nil, so behavior is unchanged.
+	beforeJitterWait func()
 }
 
 // httpClientCtxKey is the context key under which the shared per-run enum HTTP

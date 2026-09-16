@@ -102,7 +102,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	url := buildURL(target, p.UseHTTPS)
 
 	if p.Verbose {
-		_, _ = fmt.Fprintf(logOutput, "[verbose] Testing %s:%s...\n", username, password)
+		_, _ = fmt.Fprintf(logOutput, "[verbose] Testing %s...\n", username)
 	}
 
 	// AI verify mode: capture screenshots and use heuristic + Claude Vision

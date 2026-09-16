@@ -15,6 +15,7 @@
 package teams
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -279,8 +280,22 @@ func (e *Enumerator) EnumerateOne(ctx context.Context, email string) EnumResult 
 		// per Enumerator across goroutines.
 		if e.refreshFn != nil {
 			token, refreshErr := e.refreshOnce(ctx)
-			if refreshErr == nil {
+			switch {
+			case refreshErr == nil:
 				users, status, err = e.search(ctx, email, token)
+			case errors.Is(refreshErr, context.Canceled):
+				// Preserve cancellation identity so callers can detect it via
+				// errors.Is. Wrap the sentinel directly rather than refreshErr to
+				// keep any token material out of the error string.
+				err = fmt.Errorf("token refresh canceled: %w", context.Canceled)
+			case errors.Is(refreshErr, context.DeadlineExceeded):
+				err = fmt.Errorf("token refresh timed out: %w", context.DeadlineExceeded)
+			default:
+				// A refresh failure may be transient (network/server) rather than an
+				// expired credential. Report a neutral, redacted message and do not
+				// assert the credential expired or echo the underlying error, which
+				// could carry token material.
+				err = errors.New("token refresh failed")
 			}
 		}
 	}
@@ -427,11 +442,18 @@ func (e *Enumerator) search(ctx context.Context, email, token string) ([]searchU
 		return nil, resp.StatusCode, nil
 	}
 
+	// A literal top-level `null` unmarshals into a nil slice with no error, which
+	// is indistinguishable from an empty array (`[]`) at the caller's len()==0
+	// check and would be reported as a genuine "user does not exist". A 200 null
+	// is not a real negative, so reject it as indeterminate rather than decoding
+	// it to a nil slice. An empty array remains a valid negative.
+	if bytes.Equal(bytes.TrimSpace(body), []byte("null")) {
+		return nil, resp.StatusCode, errors.New("search response body was null")
+	}
+
 	var users []searchUser
 	if err := json.Unmarshal(body, &users); err != nil {
-		// A non-array (or otherwise non-matching) body decodes to a zero-length
-		// slice, which the caller treats as "not found".
-		return nil, resp.StatusCode, nil
+		return nil, resp.StatusCode, fmt.Errorf("decoding search response: %w", err)
 	}
 	return users, resp.StatusCode, nil
 }

@@ -119,9 +119,20 @@ func TestPlugin_Test_ErrorClassification(t *testing.T) {
 			wantAuth: true,
 		},
 		{
-			name:     "database does not exist",
+			// "database X does not exist" is returned AFTER successful
+			// authentication, so it must NOT be classified as invalid
+			// credentials (doing so silently discards valid credentials).
+			name:     "database does not exist is post-auth, not invalid creds",
 			errStr:   "database \"postgres\" does not exist",
-			wantAuth: true,
+			wantAuth: false,
+		},
+		{
+			// "permission denied for database X" is an authorization error
+			// that only occurs AFTER successful authentication. Classifying
+			// it as invalid credentials would silently discard VALID creds.
+			name:     "permission denied is post-auth, not invalid creds",
+			errStr:   "pq: permission denied for database \"postgres\"",
+			wantAuth: false,
 		},
 		{
 			name:     "no pg_hba.conf entry",

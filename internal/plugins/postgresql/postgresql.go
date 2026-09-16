@@ -43,10 +43,18 @@ var registerSkipVerifyTLS = sync.OnceFunc(func() {
 	_ = pq.RegisterTLSConfig(skipVerifyTLSKey, &tls.Config{InsecureSkipVerify: true}) //nolint:gosec // user explicitly chose skip-verify
 })
 
+// postgresqlAuthIndicators lists error fragments that mean the credentials
+// themselves were rejected (authentication failure). Matching one causes the
+// error to be classified as invalid credentials.
+//
+// Post-authentication errors are deliberately excluded so that VALID
+// credentials are never silently discarded:
+//   - `database "X" does not exist` and `permission denied for database "X"`
+//     are only returned AFTER the server accepts the credentials, so they are
+//     treated as connection errors rather than invalid credentials.
 var postgresqlAuthIndicators = []string{
 	"password authentication failed",
-	`role "`,     // 'role "username" does not exist'
-	`database "`, // 'database "name" does not exist'
+	`role "`, // 'role "username" does not exist'
 	"no pg_hba.conf entry",
 }
 

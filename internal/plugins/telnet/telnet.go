@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"regexp"
 	"strings"
 	"time"
 
@@ -34,6 +36,16 @@ var telnetAuthIndicators = []string{
 	"denied",
 	"invalid",
 }
+
+// ansiCSIPattern matches ANSI CSI escape sequences (e.g. "\x1b[32m", "\x1b[0m",
+// "\x1b[6n") so they can be stripped without disturbing surrounding text.
+var ansiCSIPattern = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
+
+// responseSettleWindow bounds how long readResponse waits for additional bytes
+// after the stream has last produced data. Reading continues until the stream is
+// idle for this window (or EOF/overall deadline), so a prompt or failure message
+// arriving after a banner is still captured rather than truncated.
+const responseSettleWindow = 250 * time.Millisecond
 
 func init() {
 	brutus.Register("telnet", func() brutus.Plugin {
@@ -97,7 +109,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 
-	postPassword, err := readResponse(reader, timeout)
+	postPassword, err := readResponse(conn, reader, timeout)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
@@ -143,39 +155,58 @@ func waitForPrompt(reader *bufio.Reader, isPrompt func(string) bool, timeout tim
 	return string(buffer), fmt.Errorf("timeout waiting for prompt")
 }
 
-// readResponse reads the response after sending password.
-func readResponse(reader *bufio.Reader, timeout time.Duration) (string, error) {
+// readResponse reads the post-password response.
+//
+// It reads until the stream is idle for responseSettleWindow, the peer closes
+// the connection, the overall timeout elapses, or the buffer fills. It does not
+// bail out the instant a success prompt or failure keyword appears: a banner may
+// contain "failed" before the real prompt, and a stray prompt may be followed by
+// "Login incorrect". Capturing the settled response lets classifyTelnetResponse
+// and isSuccessIndicator judge the final relevant line.
+func readResponse(conn net.Conn, reader *bufio.Reader, timeout time.Duration) (string, error) {
 	buffer := make([]byte, 0, 4096)
-	deadline := time.Now().Add(timeout)
+	overall := time.Now().Add(timeout)
 
-	for time.Now().Before(deadline) {
+	for {
+		remaining := time.Until(overall)
+		if remaining <= 0 {
+			break
+		}
+
+		window := responseSettleWindow
+		if window > remaining {
+			window = remaining
+		}
+		_ = conn.SetReadDeadline(time.Now().Add(window))
+
 		b, err := reader.ReadByte()
 		if err != nil {
-			if len(buffer) > 0 {
-				return string(buffer), nil
-			}
-			if err == io.EOF {
+			var netErr net.Error
+			switch {
+			case errors.Is(err, io.EOF):
+				if len(buffer) > 0 {
+					return string(buffer), nil
+				}
 				return "", fmt.Errorf("unexpected EOF")
+			case errors.As(err, &netErr) && netErr.Timeout():
+				// Idle for the settle window: if we have data the response has
+				// settled; otherwise keep waiting until the overall deadline.
+				if len(buffer) > 0 {
+					return string(buffer), nil
+				}
+				continue
+			default:
+				if len(buffer) > 0 {
+					return string(buffer), nil
+				}
+				return "", err
 			}
-			return "", err
 		}
 
 		buffer = append(buffer, b)
 
-		line := string(buffer)
-		if isSuccessIndicator(line) || containsAuthFailureIndicator(line) {
-			// Read a bit more to get full response
-			time.Sleep(100 * time.Millisecond)
-			for reader.Buffered() > 0 {
-				if b, err := reader.ReadByte(); err == nil {
-					buffer = append(buffer, b)
-				}
-			}
-			return string(buffer), nil
-		}
-
 		// Prevent buffer overflow
-		if len(buffer) > 4096 {
+		if len(buffer) >= 4096 {
 			break
 		}
 	}
@@ -232,22 +263,29 @@ func isPasswordPrompt(text string) bool {
 }
 
 // isSuccessIndicator checks if the post-password response indicates successful
-// authentication. Success is a $, #, or > prompt at the end of a line,
-// optionally preceded by typical prompt context (user@host, path, brackets).
+// authentication. Success is a $, #, or > shell prompt at the end of a line.
+//
+// The verdict follows the final relevant line: an auth-failure indicator (e.g.
+// "Login incorrect") appearing on or after a prompt-like line overrides that
+// prompt, so a stray prompt earlier in the response (such as "router>\nLogin
+// incorrect") is not misread as success.
 func isSuccessIndicator(response string) bool {
+	success := false
 	for _, line := range strings.Split(response, "\n") {
+		if containsAuthFailureIndicator(line) {
+			success = false
+			continue
+		}
 		if isPromptLine(line) {
-			return true
+			success = true
 		}
 	}
-	return false
+	return success
 }
 
 func isPromptLine(line string) bool {
-	line = strings.TrimRight(line, "\r\t ")
-	if idx := strings.LastIndex(line, "\x1b"); idx >= 0 {
-		line = strings.TrimRight(line[:idx], "\r\t ")
-	}
+	line = ansiCSIPattern.ReplaceAllString(line, "")
+	line = strings.TrimRight(line, "\r\n\t ")
 	if line == "" {
 		return false
 	}
@@ -256,19 +294,12 @@ func isPromptLine(line string) bool {
 	if last != '$' && last != '#' && last != '>' {
 		return false
 	}
+	// Reject '#' banner/box lines (multiple '#'), which are MOTD decoration
+	// rather than a shell prompt.
 	if last == '#' && strings.Count(line, "#") > 1 {
 		return false
 	}
-	if len(line) == 1 {
-		return true
-	}
-
-	prev := line[len(line)-2]
-	switch prev {
-	case ' ', '\t', ':', '~', '/', '\\', ']', '.', '-', '_', '@':
-		return true
-	}
-	return (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z') || (prev >= '0' && prev <= '9')
+	return true
 }
 
 // containsAuthFailureIndicator checks if the response contains any auth failure indicator.

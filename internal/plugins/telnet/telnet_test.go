@@ -15,11 +15,103 @@
 package telnet
 
 import (
+	"bufio"
 	"errors"
+	"io"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// scriptChunk is a piece of data a scriptedConn delivers once the elapsed time
+// since the connection was created reaches availableAt.
+type scriptChunk struct {
+	availableAt time.Duration
+	data        string
+}
+
+// scriptedConn is a minimal net.Conn test double that delivers scripted chunks
+// on a timeline and honors read deadlines, so readResponse's settle behavior can
+// be exercised deterministically.
+type scriptedConn struct {
+	chunks       []scriptChunk
+	idx          int
+	start        time.Time
+	readDeadline time.Time
+}
+
+func newScriptedConn(chunks []scriptChunk) *scriptedConn {
+	return &scriptedConn{chunks: chunks, start: time.Now()}
+}
+
+func (c *scriptedConn) Read(p []byte) (int, error) {
+	if c.idx >= len(c.chunks) {
+		// No more data: block until the read deadline, then report a timeout so
+		// the caller can treat the stream as settled.
+		if !c.readDeadline.IsZero() {
+			if d := time.Until(c.readDeadline); d > 0 {
+				time.Sleep(d)
+			}
+			return 0, timeoutError{}
+		}
+		return 0, io.EOF
+	}
+
+	chunk := c.chunks[c.idx]
+	availableAt := c.start.Add(chunk.availableAt)
+	if now := time.Now(); now.Before(availableAt) {
+		if !c.readDeadline.IsZero() && c.readDeadline.Before(availableAt) {
+			if d := time.Until(c.readDeadline); d > 0 {
+				time.Sleep(d)
+			}
+			return 0, timeoutError{}
+		}
+		time.Sleep(time.Until(availableAt))
+	}
+
+	n := copy(p, chunk.data)
+	c.idx++
+	return n, nil
+}
+
+func (c *scriptedConn) Write(b []byte) (int, error) { return len(b), nil }
+func (c *scriptedConn) Close() error                { return nil }
+func (c *scriptedConn) LocalAddr() net.Addr         { return nil }
+func (c *scriptedConn) RemoteAddr() net.Addr        { return nil }
+func (c *scriptedConn) SetDeadline(t time.Time) error {
+	c.readDeadline = t
+	return nil
+}
+func (c *scriptedConn) SetReadDeadline(t time.Time) error {
+	c.readDeadline = t
+	return nil
+}
+func (c *scriptedConn) SetWriteDeadline(t time.Time) error { return nil }
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string   { return "i/o timeout" }
+func (timeoutError) Timeout() bool   { return true }
+func (timeoutError) Temporary() bool { return true }
+
+func TestReadResponse_CapturesPromptArrivingAfterMOTDFailure(t *testing.T) {
+	// A banner containing "failed" arrives first, and the real shell prompt
+	// arrives more than 100ms later. readResponse must keep reading through the
+	// settle window rather than bailing on the failure keyword mid-banner.
+	conn := newScriptedConn([]scriptChunk{
+		{availableAt: 0, data: "failed to mount /data\r\n"},
+		{availableAt: 150 * time.Millisecond, data: "user@host:~$ "},
+	})
+
+	resp, err := readResponse(conn, bufio.NewReader(conn), 3*time.Second)
+
+	require.NoError(t, err)
+	assert.Contains(t, resp, "user@host:~$")
+	assert.True(t, isSuccessIndicator(resp), "late-arriving prompt should be captured and classified as success")
+}
 
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}
@@ -84,6 +176,26 @@ func TestClassifyTelnetResponse(t *testing.T) {
 		{
 			name:     "success - simple # prompt",
 			response: "# ",
+			wantNil:  true,
+		},
+		{
+			name:     "success - > prompt",
+			response: "router>",
+			wantNil:  true,
+		},
+		{
+			name:     "success - prompt after motd containing failed",
+			response: "failed to mount /data\nuser@host:~$ ",
+			wantNil:  true,
+		},
+		{
+			name:     "auth failure - motd hashes then incorrect",
+			response: "################################\nLogin incorrect\n",
+			wantNil:  true,
+		},
+		{
+			name:     "auth failure - prompt then Login incorrect",
+			response: "router>\nLogin incorrect\n",
 			wantNil:  true,
 		},
 		{
@@ -169,8 +281,19 @@ func TestIsSuccessIndicator(t *testing.T) {
 		{"simple # prompt", "# ", true},
 		{"$ at end of line", "Last login: Mon Jan 14 12:00:00 2026\n$ ", true},
 		{"# at end of line", "Last login: Mon Jan 14 12:00:00 2026\n# ", true},
+		{"> prompt", "router>", true},
+		{"windows prompt", "C:\\>", true},
+		{"failed in motd then prompt", "failed to mount /data\nuser@host:~$ ", true},
+		{"prompt then Login incorrect", "router>\nLogin incorrect\n", false},
+		{"cisco config prompt", "Router(config)#", true},
+		{"cisco config-if prompt trailing space", "Router(config-if)# ", true},
+		{"ansi colored prompt", "\x1b[32muser@host:~\x1b[0m$ ", true},
+		{"prompt with trailing ansi cursor query", "user@host:~$ \x1b[6n", true},
 		{"no prompt", "Welcome to server\n", false},
 		{"$ in middle", "Cost is $100\n", false},
+		{"MOTD hash comment", "# Welcome to the gateway\n", false},
+		{"MOTD hash banner", "################################\n", false},
+		{"MOTD hash box line", "# Welcome to the server #\n", false},
 		{"empty", "", false},
 	}
 

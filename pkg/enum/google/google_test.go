@@ -235,6 +235,132 @@ func TestCheckAccount_UnexpectedHTTPStatus(t *testing.T) {
 	}
 }
 
+// writeTruncatedAndClose hijacks the connection and writes a raw HTTP
+// response whose Content-Length is larger than the bytes actually sent, then
+// closes the connection. This forces the client's body read to fail with an
+// unexpected EOF while leaving the response status line and headers (SAML
+// header / Set-Cookie) intact, simulating a truncated/malformed body.
+func writeTruncatedAndClose(w http.ResponseWriter, raw string) {
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		return
+	}
+	conn, _, err := hj.Hijack()
+	if err != nil {
+		return
+	}
+	defer func() { _ = conn.Close() }()
+	_, _ = conn.Write([]byte(raw))
+}
+
+// TestCheckAccount_ThrottleWithExistenceHeaders_IsError verifies that a
+// throttle/error status (429) is treated as an error even when the response
+// ALSO carries an existence-looking signal (a SAML header for AccountChooser
+// or a GMAIL_AT cookie for GXLU). The error status must take precedence over
+// the existence signal, so a throttled response is never reported as an
+// existing account.
+func TestCheckAccount_ThrottleWithExistenceHeaders_IsError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AccountChooser_429_with_SAML_header", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Existence-looking header AND a throttle status.
+			w.Header().Set("Google-Accounts-SAML", "v1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte("rate limited"))
+		}))
+		t.Cleanup(srv.Close)
+
+		e := newTestEnumerator(t, srv)
+		res := e.CheckAccount(context.Background(), "saml@example.com")
+
+		assert.False(t, res.Exists,
+			"429 must not be reported as an existing account even with a SAML header")
+		require.Error(t, res.Error)
+		assert.Contains(t, res.Error.Error(), "unexpected status")
+		assert.Contains(t, res.Error.Error(), "429")
+	})
+
+	t.Run("GXLU_429_with_GMAIL_AT_cookie", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		// AccountChooser: clean not-found so the flow falls through to GXLU.
+		mux.HandleFunc("/AccountChooser", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Location", "https://accounts.google.com/ServiceLogin")
+			w.WriteHeader(http.StatusFound)
+		})
+		// GXLU: existence cookie AND a throttle status.
+		mux.HandleFunc("/mail/gxlu", func(w http.ResponseWriter, r *http.Request) {
+			http.SetCookie(w, &http.Cookie{Name: "GMAIL_AT", Value: "tok123"})
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte("rate limited"))
+		})
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+
+		e := newTestEnumerator(t, srv)
+		res := e.CheckAccount(context.Background(), "gmail@example.com")
+
+		assert.False(t, res.Exists,
+			"429 must not be reported as an existing account even with a GMAIL_AT cookie")
+		require.Error(t, res.Error)
+		assert.Contains(t, res.Error.Error(), "unexpected status")
+		assert.Contains(t, res.Error.Error(), "429")
+	})
+}
+
+// TestCheckAccount_ExistenceHeaderSurvivesBodyReadError verifies that a
+// definitive header-based existence signal (SAML header / GMAIL_AT cookie) is
+// honored even when the response body cannot be fully read. Existence is
+// determined by headers/status, not the body, so a body-read error must not
+// turn a valid existence signal into a false-negative error.
+func TestCheckAccount_ExistenceHeaderSurvivesBodyReadError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AccountChooser_SAML_header_truncated_body", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeTruncatedAndClose(w,
+				"HTTP/1.1 200 OK\r\nGoogle-Accounts-SAML: v1\r\nContent-Length: 4096\r\nConnection: close\r\n\r\nshort")
+		}))
+		t.Cleanup(srv.Close)
+
+		e := newTestEnumerator(t, srv)
+		res := e.CheckAccount(context.Background(), "saml@example.com")
+
+		require.NoError(t, res.Error,
+			"SAML header must confirm existence despite a truncated/unreadable body")
+		assert.True(t, res.Exists)
+		assert.Equal(t, MethodWorkspaceSSO, res.Method)
+	})
+
+	t.Run("GXLU_GMAIL_AT_cookie_truncated_body", func(t *testing.T) {
+		t.Parallel()
+		mux := http.NewServeMux()
+		// AccountChooser: clean not-found so the flow falls through to GXLU.
+		mux.HandleFunc("/AccountChooser", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Location", "https://accounts.google.com/ServiceLogin")
+			w.WriteHeader(http.StatusFound)
+		})
+		// GXLU: GMAIL_AT cookie with a truncated body.
+		mux.HandleFunc("/mail/gxlu", func(w http.ResponseWriter, r *http.Request) {
+			writeTruncatedAndClose(w,
+				"HTTP/1.1 200 OK\r\nSet-Cookie: GMAIL_AT=tok123\r\nContent-Length: 4096\r\nConnection: close\r\n\r\nshort")
+		})
+		srv := httptest.NewServer(mux)
+		t.Cleanup(srv.Close)
+
+		e := newTestEnumerator(t, srv)
+		res := e.CheckAccount(context.Background(), "gmail@example.com")
+
+		require.NoError(t, res.Error,
+			"GMAIL_AT cookie must confirm existence despite a truncated/unreadable body")
+		assert.True(t, res.Exists)
+		assert.Equal(t, MethodGmail, res.Method)
+	})
+}
+
 func TestCheckAccount_TransportError(t *testing.T) {
 	t.Parallel()
 

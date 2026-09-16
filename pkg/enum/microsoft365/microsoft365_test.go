@@ -38,6 +38,8 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
+func intPtr(v int) *int { return &v }
+
 func newMockServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,24 +67,24 @@ func newMockServer(t *testing.T) *httptest.Server {
 		var resp credTypeResponse
 		switch req2.Username {
 		case "exists@example.com":
-			resp = credTypeResponse{IfExistsResult: 0}
+			resp = credTypeResponse{IfExistsResult: intPtr(0)}
 		case "notexists@example.com":
-			resp = credTypeResponse{IfExistsResult: 1}
+			resp = credTypeResponse{IfExistsResult: intPtr(1)}
 		case "difftenant@example.com":
-			resp = credTypeResponse{IfExistsResult: 5}
+			resp = credTypeResponse{IfExistsResult: intPtr(5)}
 		case "domainhint@example.com":
-			resp = credTypeResponse{IfExistsResult: 6}
+			resp = credTypeResponse{IfExistsResult: intPtr(6)}
 		case "unknown@example.com":
-			resp = credTypeResponse{IfExistsResult: 99}
+			resp = credTypeResponse{IfExistsResult: intPtr(99)}
 		case "throttled@example.com":
-			resp = credTypeResponse{IfExistsResult: 0, ThrottleStatus: 1}
+			resp = credTypeResponse{IfExistsResult: intPtr(0), ThrottleStatus: 1}
 		case "federated@example.com":
 			resp = credTypeResponse{
-				IfExistsResult:        0,
+				IfExistsResult:        intPtr(0),
 				FederationRedirectUrl: "https://adfs.example.com/adfs/ls/",
 			}
 		default:
-			resp = credTypeResponse{IfExistsResult: 1}
+			resp = credTypeResponse{IfExistsResult: intPtr(1)}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -186,9 +188,72 @@ func TestCheckAccount_Federated(t *testing.T) {
 	result := c.CheckAccount(context.Background(), "federated@example.com")
 
 	require.NoError(t, result.Error)
-	assert.True(t, result.Exists)
+	assert.False(t, result.Exists)
 	assert.True(t, result.Federated)
 	assert.Equal(t, "https://adfs.example.com/adfs/ls/", result.FederationURL)
+	assert.Equal(t, "unreliable (federated)", result.Note)
+	assert.Equal(t, IfExistsResultExists, result.IfExistsResult)
+}
+
+func TestCheckAccount_MissingIfExistsResult(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ThrottleStatus":0}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
+	result := c.CheckAccount(context.Background(), "test@example.com")
+
+	require.Error(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "IfExistsResult")
+	assert.False(t, result.Exists)
+}
+
+func TestCheckAccount_FederatedFlag(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(credTypeResponse{
+			IfExistsResult: intPtr(IfExistsResultExists),
+			Federated:      true,
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
+	result := c.CheckAccount(context.Background(), "federated@example.com")
+
+	require.NoError(t, result.Error)
+	assert.False(t, result.Exists)
+	assert.True(t, result.Federated)
+	assert.Equal(t, "unreliable (federated)", result.Note)
+	assert.Equal(t, IfExistsResultExists, result.IfExistsResult)
+}
+
+func TestCheckAccount_FederationURL(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(credTypeResponse{
+			IfExistsResult: intPtr(IfExistsResultExists),
+			FederationURL:  "https://idp.example.com/adfs/ls/",
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	c, err := NewChecker(srv.URL, "", 5*time.Second)
+	require.NoError(t, err)
+	result := c.CheckAccount(context.Background(), "federated@example.com")
+
+	require.NoError(t, result.Error)
+	assert.False(t, result.Exists)
+	assert.True(t, result.Federated)
+	assert.Equal(t, "https://idp.example.com/adfs/ls/", result.FederationURL)
+	assert.Equal(t, "unreliable (federated)", result.Note)
 }
 
 func TestCheckAccount_ServerError(t *testing.T) {
@@ -273,7 +338,7 @@ func TestCheckAccount_UsesHTTPClientFromContext(t *testing.T) {
 	c, err := NewChecker(failing.URL, "", 5*time.Second)
 	require.NoError(t, err)
 
-	body, err := json.Marshal(credTypeResponse{IfExistsResult: IfExistsResultExists})
+	body, err := json.Marshal(credTypeResponse{IfExistsResult: intPtr(IfExistsResultExists)})
 	require.NoError(t, err)
 	contextClient := &http.Client{
 		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
@@ -384,11 +449,21 @@ func TestEnumerateWith_Callback(t *testing.T) {
 		byEmail[r.Email] = r
 	}
 
-	for _, email := range []string{"exists@example.com", "difftenant@example.com", "domainhint@example.com", "federated@example.com"} {
+	exists := byEmail["exists@example.com"]
+	assert.NoError(t, exists.Error)
+	assert.True(t, exists.Exists)
+
+	for _, email := range []string{"difftenant@example.com", "domainhint@example.com"} {
 		r := byEmail[email]
 		assert.NoError(t, r.Error, "email %q must not have an error", email)
-		assert.True(t, r.Exists, "email %q must be Exists=true", email)
+		assert.True(t, r.Exists, "email %q must be Exists", email)
 	}
+
+	fed := byEmail["federated@example.com"]
+	assert.NoError(t, fed.Error)
+	assert.False(t, fed.Exists)
+	assert.True(t, fed.Federated)
+	assert.Equal(t, "unreliable (federated)", fed.Note)
 
 	for _, email := range []string{"notexists@example.com", "unknown@example.com"} {
 		r := byEmail[email]

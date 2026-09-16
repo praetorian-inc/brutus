@@ -17,6 +17,7 @@ package teams
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -84,16 +85,117 @@ func TestEnumerateOne_ExistenceNo_EmptyArray(t *testing.T) {
 	assert.NoError(t, res.Error)
 }
 
-func TestEnumerateOne_ExistenceNo_NonArrayBody(t *testing.T) {
-	// A JSON object (non-array) body — must NOT be ExistenceYes and must NOT panic.
-	srv := searchServerReturning(http.StatusOK, `{"message":"not found"}`)
+func TestEnumerateOne_ExistenceUnknown_NullBody(t *testing.T) {
+	// A `200 null` response unmarshals into a nil slice without error, which is
+	// indistinguishable from an empty array at the len()==0 check and would be
+	// reported as a genuine negative. A null body is not a real "does not exist"
+	// answer, so it must be indeterminate (ExistenceUnknown), never ExistenceNo.
+	const token = "test-access-token-sentinel"
+	for _, body := range []string{"null", "  null\n"} {
+		srv := searchServerReturning(http.StatusOK, body)
+		e := newTestEnumerator(t, srv, nil, false)
+		res := e.EnumerateOne(context.Background(), "nulluser@contoso.com")
+		srv.Close()
+
+		assert.NotEqual(t, ExistenceNo, res.Exists,
+			"a 200 null body must not be treated as a genuine negative")
+		assert.Equal(t, ExistenceUnknown, res.Exists,
+			"a 200 null body must be indeterminate")
+		require.Error(t, res.Error)
+		assert.NotContains(t, res.Error.Error(), token,
+			"error must not contain the access token")
+	}
+}
+
+func TestEnumerateOne_RefreshCanceled_PreservesCancellation(t *testing.T) {
+	// A token refresh that fails due to context cancellation must preserve the
+	// cancellation identity so callers can detect it, rather than being masked as
+	// a generic "credential expired".
+	srv := searchServerReturning(http.StatusUnauthorized, "")
 	defer srv.Close()
 
 	e := newTestEnumerator(t, srv, nil, false)
-	res := e.EnumerateOne(context.Background(), "object@contoso.com")
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("refresh transport: %w", context.Canceled)
+	})
 
-	assert.NotEqual(t, ExistenceYes, res.Exists,
-		"a non-array 200 body must not produce ExistenceYes")
+	res := e.EnumerateOne(context.Background(), "canceled@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error)
+	assert.True(t, errors.Is(res.Error, context.Canceled),
+		"a context-canceled refresh must surface as errors.Is(err, context.Canceled)")
+	assert.NotContains(t, strings.ToLower(res.Error.Error()), "expired",
+		"a cancellation must not be mislabeled as an expired credential")
+}
+
+func TestEnumerateOne_RefreshDeadlineExceeded_PreservesCancellation(t *testing.T) {
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("refresh transport: %w", context.DeadlineExceeded)
+	})
+
+	res := e.EnumerateOne(context.Background(), "timeout@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error)
+	assert.True(t, errors.Is(res.Error, context.DeadlineExceeded),
+		"a timed-out refresh must surface as errors.Is(err, context.DeadlineExceeded)")
+}
+
+func TestEnumerateOne_RefreshNetworkFailure_NeutralMessage(t *testing.T) {
+	// A generic (non-cancellation) refresh failure may be a transient network or
+	// server error, not necessarily an expired credential. The error must be
+	// neutral and must not assert "credential expired".
+	const token = "test-access-token-sentinel"
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", errors.New("dial tcp: connection refused")
+	})
+
+	res := e.EnumerateOne(context.Background(), "netfail@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error)
+	assert.Contains(t, strings.ToLower(res.Error.Error()), "refresh",
+		"error should mention the refresh failure")
+	assert.NotContains(t, strings.ToLower(res.Error.Error()), "expired",
+		"a transient refresh failure must not be asserted as an expired credential")
+	assert.NotContains(t, res.Error.Error(), token,
+		"error must not contain the access token")
+}
+
+func TestEnumerateOne_ExistenceUnknown_NonArrayBody(t *testing.T) {
+	const token = "test-access-token-sentinel"
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "error object", body: `{"message":"not found"}`},
+		{name: "html throttle page", body: `<html><body>throttled</body></html>`},
+		{name: "malformed json", body: `not-valid-json{{`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := searchServerReturning(http.StatusOK, tc.body)
+			defer srv.Close()
+
+			e := newTestEnumerator(t, srv, nil, false)
+			res := e.EnumerateOne(context.Background(), "object@contoso.com")
+
+			assert.Equal(t, ExistenceUnknown, res.Exists,
+				"a non-array 200 body must be ExistenceUnknown, not a genuine negative")
+			require.Error(t, res.Error)
+			assert.NotContains(t, res.Error.Error(), token,
+				"error must not contain the access token")
+		})
+	}
 }
 
 func TestEnumerateOne_Blocked(t *testing.T) {
@@ -171,6 +273,26 @@ func TestEnumerateOne_UnauthorizedNoRefresh(t *testing.T) {
 //	result must be ExistenceUnknown and test must complete quickly
 //
 
+func TestEnumerateOne_UnauthorizedRefreshFails(t *testing.T) {
+	srv := searchServerReturning(http.StatusUnauthorized, "")
+	defer srv.Close()
+
+	e := newTestEnumerator(t, srv, nil, false)
+	const token = "test-access-token-sentinel"
+	e.SetRefreshFunc(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("refresh token expired")
+	})
+
+	res := e.EnumerateOne(context.Background(), "expired@contoso.com")
+
+	assert.Equal(t, ExistenceUnknown, res.Exists)
+	require.Error(t, res.Error, "refresh failure must be attached so the operator learns the credential expired")
+	assert.Contains(t, strings.ToLower(res.Error.Error()), "refresh",
+		"error should mention the refresh failure")
+	assert.NotContains(t, res.Error.Error(), token,
+		"error must not contain the access token")
+}
+
 func TestEnumerateOne_UnauthorizedLoopGuard(t *testing.T) {
 	var refreshCount atomic.Int32
 
@@ -209,15 +331,6 @@ func TestEnumerateOne_ServerError500(t *testing.T) {
 		"error should mention the unexpected status code")
 }
 
-// Test 8: Malformed JSON on 200 -> ExistenceUnknown — actually per production
-//
-//	code: json.Unmarshal errors return nil (silent decode failure means ExistenceNo).
-//	The comment in search() says "A non-array (or otherwise non-matching) body
-//	decodes to a zero-length slice, which the caller treats as 'not found'."
-//	So malformed JSON produces ExistenceNo (not ExistenceUnknown) and no Error.
-//	This test pins that actual behavior and verifies no token leaks.
-//
-
 func TestEnumerateOne_MalformedJSON(t *testing.T) {
 	srv := searchServerReturning(http.StatusOK, `not-valid-json{{`)
 	defer srv.Close()
@@ -227,15 +340,11 @@ func TestEnumerateOne_MalformedJSON(t *testing.T) {
 
 	res := e.EnumerateOne(context.Background(), "malformed@contoso.com")
 
-	// Per production code: malformed JSON returns zero-slice which → ExistenceNo.
-	// Verified: search() calls json.Unmarshal and on error returns nil (no error),
-	// 200 status. EnumerateOne sees len(users)==0 → ExistenceNo.
-	assert.Equal(t, ExistenceNo, res.Exists,
-		"malformed JSON on 200 should produce ExistenceNo (production decode path)")
-	if res.Error != nil {
-		assert.NotContains(t, res.Error.Error(), token,
-			"error must not contain the access token")
-	}
+	assert.Equal(t, ExistenceUnknown, res.Exists,
+		"malformed JSON on 200 must be ExistenceUnknown, not a genuine negative")
+	require.Error(t, res.Error)
+	assert.NotContains(t, res.Error.Error(), token,
+		"error must not contain the access token")
 }
 
 func TestEnumerateOne_PresenceSuccess(t *testing.T) {

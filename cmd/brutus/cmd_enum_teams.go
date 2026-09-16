@@ -143,7 +143,11 @@ Scope is corporate accounts only — personal/Live accounts are not supported.
 
 Teams presence (availability and device type) is fetched by default for users
 that exist; presence failures are non-fatal. Pass --no-presence to skip the
-presence lookups (fewer requests).`,
+presence lookups (fewer requests).
+
+A conservative --rate-limit/--jitter default is applied when those flags are
+left at 0; unlimited probing risks provider throttling and tenant sign-in /
+Smart-Lockout / anomaly alerts.`,
 	Example: `  # Device-code auth inline, then enumerate a few emails
   brutus enum active teams users -e alice@contoso.com,bob@contoso.com
 
@@ -468,7 +472,8 @@ func runEnumTeamsUsers(cmd *cobra.Command, args []string) error {
 		progress.Update(processed, fmt.Sprintf("%d found · %d blocked", found, blocked))
 	}
 
-	results := enumerator.EnumerateWith(ctx, emails, flagThreads, flagRateLimit, flagJitter, onResult)
+	rateLimit, jitter := oraclePacing()
+	results := enumerator.EnumerateWith(ctx, emails, flagThreads, rateLimit, jitter, onResult)
 	progress.Stop()
 
 	posture := teams.DerivePosture(teamsEnumDomain(emails), results)

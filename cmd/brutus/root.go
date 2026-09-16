@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 
@@ -206,7 +207,7 @@ func runSingleTargetMode(target, protocol string, baseConfig *runConfig, jsonOut
 	// AI mode for single target with HTTP protocol
 	var aiCreds []brutus.Credential
 	if baseConfig.aiMode && (protocol == "http" || protocol == "https") {
-		protocol, aiCreds = web.RouteHTTP(target, protocol, baseConfig.timeout, baseConfig.tlsMode, baseConfig.llmConfig)
+		protocol, aiCreds = web.RouteHTTP(context.Background(), target, protocol, baseConfig.timeout, baseConfig.tlsMode, baseConfig.proxyURL, baseConfig.llmConfig)
 	}
 
 	// Print target info

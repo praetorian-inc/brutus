@@ -134,9 +134,11 @@ func initEngine() (*wasmEngine, error) {
 // wasmInstance represents a per-Test() WASM module instance.
 // Each instance has isolated linear memory (inherently thread-safe).
 type wasmInstance struct {
-	mod  api.Module
-	conn net.Conn
-	tls  *tls.Conn
+	mod        api.Module
+	conn       net.Conn
+	tls        *tls.Conn
+	tlsMode    string
+	serverName string
 }
 
 // newInstance creates a fresh WASM instance from the pre-compiled module.
@@ -285,10 +287,7 @@ func hostTlsUpgrade(ctx context.Context, m api.Module, fd uint32) int32 {
 		return -1
 	}
 
-	tlsConf := &tls.Config{
-		InsecureSkipVerify: true, // RDP servers use self-signed certs
-	}
-	inst.tls = tls.Client(inst.conn, tlsConf)
+	inst.tls = tls.Client(inst.conn, rdpTLSConfig(inst.tlsMode, inst.serverName))
 	if err := inst.tls.HandshakeContext(ctx); err != nil {
 		inst.tls = nil
 		return -1

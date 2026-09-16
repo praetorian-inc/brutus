@@ -17,6 +17,8 @@ package main
 import (
 	"bytes"
 	"errors"
+	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -55,6 +57,10 @@ func TestResolvePhantomBusterKey(t *testing.T) {
 		},
 	}
 
+	origQuiet := flagQuiet
+	flagQuiet = true
+	t.Cleanup(func() { flagQuiet = origQuiet })
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("PHANTOMBUSTER_KEY", tc.envValue)
@@ -69,6 +75,32 @@ func TestResolvePhantomBusterKey(t *testing.T) {
 			assert.Equal(t, tc.wantKey, key)
 		})
 	}
+}
+
+func TestResolvePhantomBusterKey_FlagWarns(t *testing.T) {
+	origQuiet := flagQuiet
+	flagQuiet = false
+	t.Cleanup(func() { flagQuiet = origQuiet })
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	origStderr := os.Stderr
+	os.Stderr = w
+	t.Cleanup(func() { os.Stderr = origStderr })
+
+	key, err := resolvePhantomBusterKey("pb-secret")
+	require.NoError(t, err)
+	assert.Equal(t, "pb-secret", key)
+
+	require.NoError(t, w.Close())
+	var buf bytes.Buffer
+	_, copyErr := io.Copy(&buf, r)
+	require.NoError(t, copyErr)
+	got := buf.String()
+
+	assert.Contains(t, got, "--api-key is visible in the process list and shell history")
+	assert.Contains(t, got, "PHANTOMBUSTER_KEY")
+	assert.NotContains(t, got, "pb-secret")
 }
 
 func TestClassifyPhantomBusterError(t *testing.T) {

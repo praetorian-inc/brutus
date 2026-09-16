@@ -44,9 +44,11 @@ type credTypeRequest struct {
 }
 
 type credTypeResponse struct {
-	IfExistsResult        int    `json:"IfExistsResult"`
+	IfExistsResult        *int   `json:"IfExistsResult"`
 	ThrottleStatus        int    `json:"ThrottleStatus"`
+	Federated             bool   `json:"Federated,omitempty"`
 	FederationRedirectUrl string `json:"FederationRedirectUrl,omitempty"`
+	FederationURL         string `json:"FederationURL,omitempty"`
 }
 
 // Result is the outcome of checking a single email against the
@@ -63,6 +65,7 @@ type Result struct {
 	IfExistsResult int
 	Federated      bool
 	FederationURL  string
+	Note           string
 	Error          error
 	Duration       time.Duration
 }
@@ -180,8 +183,10 @@ func (c *Checker) EnumerateTargetsWith(ctx context.Context, targets []enum.Targe
 }
 
 // CheckAccount tests if an email account exists on Microsoft 365 via the
-// GetCredentialType API. It handles IfExistsResult codes 0/1/5/6, throttle
-// detection, and federation redirect URL extraction.
+// GetCredentialType API. A missing IfExistsResult on HTTP 200 is an error, not
+// existence. Only code 0 for a managed (non-federated) tenant is Exists=true;
+// codes 5/6 also indicate the account exists, and federated tenants
+// are marked unreliable rather than confirmed existing.
 //
 // If ctx carries a shared enum HTTP client (via enum.WithHTTPClient — set for a
 // run to honor --proxy and connection pooling), that client is used; otherwise
@@ -237,16 +242,26 @@ func (c *Checker) CheckAccount(ctx context.Context, email string) *Result {
 		return result
 	}
 
-	result.IfExistsResult = credResp.IfExistsResult
+	if credResp.IfExistsResult == nil {
+		result.Error = fmt.Errorf("missing IfExistsResult in response")
+		return result
+	}
+	result.IfExistsResult = *credResp.IfExistsResult
 
-	switch credResp.IfExistsResult {
-	case IfExistsResultExists, IfExistsResultDifferentTenant, IfExistsResultDomainHint:
-		result.Exists = true
+	federationURL := credResp.FederationRedirectUrl
+	if federationURL == "" {
+		federationURL = credResp.FederationURL
+	}
+	if credResp.Federated || federationURL != "" {
+		result.Federated = true
+		result.FederationURL = federationURL
+		result.Note = "unreliable (federated)"
+		return result
 	}
 
-	if credResp.FederationRedirectUrl != "" {
-		result.Federated = true
-		result.FederationURL = credResp.FederationRedirectUrl
+	switch result.IfExistsResult {
+	case IfExistsResultExists, IfExistsResultDifferentTenant, IfExistsResultDomainHint:
+		result.Exists = true
 	}
 
 	return result

@@ -28,6 +28,13 @@ const (
 	SysDescrOID = "1.3.6.1.2.1.1.1.0"
 )
 
+var snmpAuthIndicators = []string{
+	"request timeout",
+	"no valid response",
+}
+
+var classifyError = brutus.NewClassifier(snmpAuthIndicators)
+
 func init() {
 	brutus.Register("snmp", func() brutus.Plugin {
 		return &Plugin{}
@@ -49,10 +56,8 @@ func (p *Plugin) Name() string {
 //
 // Returns Result with:
 // - Success=true, Error=nil: Valid community string (received response)
-// - Success=false, Error=nil: Invalid community string (no response/timeout)
-// - Success=false, Error!=nil: Connection/network error (unreachable, etc.)
-//
-// Note: SNMP uses UDP, so timeout = invalid community string is expected behavior.
+// - Success=false, Error=nil: Invalid community string (no SNMP response)
+// - Success=false, Error!=nil: Connection/network error (unreachable, parse, I/O timeout, etc.)
 func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	timeout time.Duration, pluginCfg brutus.PluginConfig) *brutus.Result {
 	start := time.Now()
@@ -91,10 +96,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 			result.Error = brutus.WrapConnError(ctx.Err())
 			return result
 		}
-
-		// Timeout or no response = invalid community string for UDP
-		// This is NOT a connection error - it's authentication failure
-		result.Error = nil
+		result.Error = classifyError(err)
 		return result
 	}
 

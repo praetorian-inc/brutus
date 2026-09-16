@@ -48,6 +48,7 @@ const planLimitMarker = "results are limited to"
 const (
 	defaultBaseURL  = "https://api.hunter.io/v2/domain-search"
 	defaultPageSize = 100
+	maxPages        = 500
 )
 
 // Person is one discovered contact for the domain.
@@ -123,7 +124,7 @@ func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL stri
 	}
 	httpClient, err := enum.NewEnumHTTPClientWithProxy(timeout, proxyURL)
 	if err != nil {
-		return nil, err
+		return nil, redactKey(err, apiKey)
 	}
 	return &Client{
 		apiKey:     apiKey,
@@ -141,7 +142,7 @@ func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainR
 	offset := 0
 	result := &DomainResult{Domain: domain}
 
-	for {
+	for pageNum := 1; ; pageNum++ {
 		perPage := c.pageSize
 		if limit > 0 {
 			if remaining := limit - len(result.People); remaining < perPage {
@@ -156,7 +157,7 @@ func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainR
 				result.Truncated = true
 				break
 			}
-			return nil, err
+			return nil, redactKey(err, c.apiKey)
 		}
 
 		if offset == 0 {
@@ -187,10 +188,13 @@ func (c *Client) Search(ctx context.Context, domain string, limit int) (*DomainR
 		if result.Total > 0 && offset >= result.Total {
 			break
 		}
+		if pageNum >= maxPages {
+			break
+		}
 
 		// Honor context cancellation before issuing the next request.
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, redactKey(err, c.apiKey)
 		}
 	}
 
@@ -214,19 +218,19 @@ func (c *Client) fetchPage(ctx context.Context, domain string, offset, perPage i
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
 	if err != nil {
-		return nil, fmt.Errorf("building hunter request: %w", err)
+		return nil, redactKey(fmt.Errorf("building hunter request: %w", err), c.apiKey)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("hunter request failed: %w", err)
+		return nil, redactKey(fmt.Errorf("hunter request failed: %w", err), c.apiKey)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Bounded read — reuses enum.ReadResponseBody (P0-3 security requirement).
 	body, err := enum.ReadResponseBody(resp, 0)
 	if err != nil {
-		return nil, fmt.Errorf("reading hunter response: %w", err)
+		return nil, redactKey(fmt.Errorf("reading hunter response: %w", err), c.apiKey)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -241,9 +245,23 @@ func (c *Client) fetchPage(ctx context.Context, domain string, offset, perPage i
 
 	var page apiResponse
 	if err := json.Unmarshal(body, &page); err != nil {
-		return nil, fmt.Errorf("decoding hunter response: %w", err)
+		return nil, redactKey(fmt.Errorf("decoding hunter response: %w", err), c.apiKey)
 	}
 	return &page, nil
+}
+
+func redactKey(err error, key string) error {
+	if err == nil || key == "" {
+		return err
+	}
+	msg := strings.ReplaceAll(err.Error(), key, "REDACTED")
+	if enc := url.QueryEscape(key); enc != key {
+		msg = strings.ReplaceAll(msg, enc, "REDACTED")
+	}
+	if msg == err.Error() {
+		return err
+	}
+	return errors.New(msg)
 }
 
 // toPerson converts the API email struct to the public Person type.

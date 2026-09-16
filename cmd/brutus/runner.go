@@ -60,7 +60,7 @@ func runFromTargetsFile(targets []string, base *runConfig, jsonOut bool) ([]brut
 		// Detect HTTP auth type for web subcommand (form-based → browser protocol).
 		var aiCreds []brutus.Credential
 		if base.web != nil && (protocol == "http" || protocol == "https") {
-			protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
+			protocol, aiCreds = web.RouteHTTP(context.Background(), target, protocol, base.timeout, base.tlsMode, base.proxyURL, base.llmConfig)
 		}
 
 		if !jsonOut && !base.quiet {
@@ -205,7 +205,7 @@ func processNervaResult(nrv *brutusinput.NervaResult, base *runConfig, jsonOut b
 
 	var aiCreds []brutus.Credential
 	if base.web != nil && (protocol == "http" || protocol == "https") {
-		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
+		protocol, aiCreds = web.RouteHTTP(context.Background(), target, protocol, base.timeout, base.tlsMode, base.proxyURL, base.llmConfig)
 	}
 
 	results, success := runSingleTarget(target, protocol, targetTLSMode, base, aiCreds, false)
@@ -239,7 +239,7 @@ func processURITarget(parsed *brutusinput.ParsedStdinLine, base *runConfig, json
 
 	var aiCreds []brutus.Credential
 	if base.web != nil && (protocol == "http" || protocol == "https") {
-		protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
+		protocol, aiCreds = web.RouteHTTP(context.Background(), target, protocol, base.timeout, base.tlsMode, base.proxyURL, base.llmConfig)
 	}
 
 	if !jsonOut && !base.quiet {

@@ -113,37 +113,50 @@ func runTasks(ctx context.Context, cfg *Config, tasks []enumTask) ([]Result, err
 
 	for _, task := range tasks {
 		g.Go(func() error {
+			recordErr := func(err error) {
+				mu.Lock()
+				results = append(results, Result{
+					Service: task.service,
+					Email:   task.email,
+					First:   task.first,
+					Last:    task.last,
+					Error:   err,
+				})
+				mu.Unlock()
+			}
+
 			defer func() {
 				if r := recover(); r != nil {
 					fmt.Fprintf(os.Stderr, "enum: panic checking %s on %s: %v\n%s\n",
 						task.email, task.service, r, debug.Stack())
-					mu.Lock()
-					results = append(results, Result{
-						Service: task.service,
-						Email:   task.email,
-						First:   task.first,
-						Last:    task.last,
-						Error:   fmt.Errorf("plugin panicked: %v", r),
-					})
-					mu.Unlock()
+					recordErr(fmt.Errorf("plugin panicked: %v", r))
 				}
 			}()
 
 			select {
 			case <-ctx.Done():
+				recordErr(ctx.Err())
 				return nil
 			default:
 			}
 
 			if limiter != nil {
 				if err := limiter.Wait(ctx); err != nil {
+					recordErr(err)
 					return nil
 				}
 				if cfg.Jitter > 0 {
 					jitter := time.Duration(rand.Int63n(int64(cfg.Jitter)))
+					// Test seam: lets a test cancel ctx at this precise point so
+					// the cancel-during-jitter branch below is taken
+					// deterministically. Nil in production.
+					if cfg.beforeJitterWait != nil {
+						cfg.beforeJitterWait()
+					}
 					select {
 					case <-time.After(jitter):
 					case <-ctx.Done():
+						recordErr(ctx.Err())
 						return nil
 					}
 				}

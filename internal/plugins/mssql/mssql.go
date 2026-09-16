@@ -22,10 +22,18 @@ import (
 	"strconv"
 	"time"
 
-	_ "github.com/denisenkom/go-mssqldb"
+	mssql "github.com/denisenkom/go-mssqldb"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
+
+type proxyDialer struct {
+	dial brutus.ProxyDialFunc
+}
+
+func (d proxyDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	return d.dial(ctx, network, addr)
+}
 
 // mssqlAuthIndicators contains strings that indicate authentication failures.
 var mssqlAuthIndicators = []string{
@@ -59,12 +67,29 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mssql", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	connStr := mssqlURL(target, username, password, timeout)
+	connStr := mssqlURL(target, username, password, pluginCfg.TLSMode, timeout)
 
-	db, err := sql.Open("sqlserver", connStr)
-	if err != nil {
-		result.Error = brutus.WrapConnError(err)
-		return result
+	var db *sql.DB
+	if pluginCfg.ProxyURL != "" {
+		dialFunc, err := brutus.NewProxyDialFunc(pluginCfg.ProxyURL, timeout)
+		if err != nil {
+			result.Error = brutus.WrapConnError(err)
+			return result
+		}
+		connector, err := mssql.NewConnector(connStr)
+		if err != nil {
+			result.Error = brutus.WrapConnError(err)
+			return result
+		}
+		connector.Dialer = proxyDialer{dial: dialFunc}
+		db = sql.OpenDB(connector)
+	} else {
+		var err error
+		db, err = sql.Open("sqlserver", connStr)
+		if err != nil {
+			result.Error = brutus.WrapConnError(err)
+			return result
+		}
 	}
 	defer func() { _ = db.Close() }()
 
@@ -75,7 +100,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	err = db.PingContext(pingCtx)
+	err := db.PingContext(pingCtx)
 	if err != nil {
 		result.Error = brutus.ClassifyAuthError(err, mssqlAuthIndicators)
 		return result
@@ -85,7 +110,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-func mssqlURL(target, username, password string, timeout time.Duration) string {
+func mssqlURL(target, username, password, tlsMode string, timeout time.Duration) string {
 	host, port := brutus.ParseTarget(target, "1433")
 	timeoutSec := int(timeout.Seconds())
 	if timeoutSec < 1 {
@@ -99,8 +124,18 @@ func mssqlURL(target, username, password string, timeout time.Duration) string {
 	q := url.Values{}
 	q.Set("database", "master")
 	q.Set("connection timeout", strconv.Itoa(timeoutSec))
-	q.Set("encrypt", "disable")
-	q.Set("TrustServerCertificate", "true")
+	encrypt := "disable"
+	trust := "true"
+	switch tlsMode {
+	case "verify":
+		encrypt = "true"
+		trust = "false"
+	case "skip-verify":
+		encrypt = "true"
+		trust = "true"
+	}
+	q.Set("encrypt", encrypt)
+	q.Set("TrustServerCertificate", trust)
 	u.RawQuery = q.Encode()
 	return u.String()
 }

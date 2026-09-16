@@ -47,6 +47,7 @@ const (
 	headerAPIKey    = "Dehashed-Api-Key"
 	defaultPageSize = 100
 	maxResults      = 10000
+	defaultTimeout  = 10 * time.Second
 )
 
 // Record is one breach-exposed identity entry for the domain. It carries the
@@ -196,8 +197,12 @@ type Client struct {
 }
 
 // NewClient builds a DeHashed client. timeout is the per-request HTTP budget.
+// timeout <= 0 falls back to defaultTimeout (10s).
 // pageSize <= 0 falls back to defaultPageSize (100, the API maximum).
 func NewClient(apiKey string, timeout time.Duration, pageSize int, proxyURL string) (*Client, error) {
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
 	if pageSize <= 0 {
 		pageSize = defaultPageSize
 	}
@@ -240,6 +245,7 @@ func (c *Client) SearchWithOptions(ctx context.Context, opts SearchOptions) (*Do
 	query := buildQuery(opts.Domain, opts.Sources)
 	filterSources := len(opts.Sources) > 0
 	limit := opts.Limit
+	scanned := 0
 
 	for page := 1; ; page++ {
 		if err := ctx.Err(); err != nil {
@@ -261,15 +267,18 @@ func (c *Client) SearchWithOptions(ctx context.Context, opts SearchOptions) (*Do
 			result.Balance = resp.Balance
 		}
 
+		scanned += len(resp.Entries)
+
 		for i := range resp.Entries {
 			result.Records = append(result.Records, toRecord(&resp.Entries[i]))
 		}
 
-		// Client-side source backstop: filter accumulated records so both the
-		// termination counts below and the returned set reflect only matching
-		// records. filterBySource is idempotent, so re-filtering across pages is
-		// safe. Skipped entirely when no sources are requested (byte-for-byte
-		// identical to the original single-query behavior).
+		// Client-side source backstop: filter accumulated records so the
+		// returned set (and Limit) reflect only matching records. filterBySource
+		// is idempotent, so re-filtering across pages is safe. Skipped entirely
+		// when no sources are requested (byte-for-byte identical to the original
+		// single-query behavior). Termination on known total uses scanned
+		// (pre-filter) against the API's unfiltered Total.
 		if filterSources {
 			result.Records = filterBySource(result.Records, opts.Sources)
 		}
@@ -282,7 +291,7 @@ func (c *Client) SearchWithOptions(ctx context.Context, opts SearchOptions) (*Do
 			result.Records = result.Records[:limit]
 			break
 		}
-		if result.Total > 0 && len(result.Records) >= result.Total {
+		if result.Total > 0 && scanned >= result.Total {
 			break
 		}
 		if page*c.pageSize >= maxResults {

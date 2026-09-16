@@ -17,7 +17,6 @@ package mongodb
 import (
 	"context"
 	"net"
-	"net/url"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -53,12 +52,26 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	result := brutus.NewResult("mongodb", target, username, password)
 	defer func() { result.Duration = time.Since(start) }()
 
-	connStr := mongoURI(target, username, password, pluginCfg.TLSMode)
+	connStr := mongoURI(target, pluginCfg.TLSMode)
 
 	clientOpts := options.Client().
 		ApplyURI(connStr).
+		SetAuth(options.Credential{
+			Username:    username,
+			Password:    password,
+			PasswordSet: true,
+		}).
 		SetConnectTimeout(timeout).
 		SetServerSelectionTimeout(timeout)
+
+	if pluginCfg.ProxyURL != "" {
+		dialFunc, dialErr := brutus.NewProxyDialFunc(pluginCfg.ProxyURL, timeout)
+		if dialErr != nil {
+			result.Error = brutus.WrapConnError(dialErr)
+			return result
+		}
+		clientOpts.SetDialer(proxyDialer(dialFunc))
+	}
 
 	connectCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -85,7 +98,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	return result
 }
 
-func mongoURI(target, username, password, tlsMode string) string {
+func mongoURI(target, tlsMode string) string {
 	host, port := brutus.ParseTarget(target, "27017")
 	tlsParam := "tls=false"
 	switch tlsMode {
@@ -94,8 +107,13 @@ func mongoURI(target, username, password, tlsMode string) string {
 	case "skip-verify":
 		tlsParam = "tls=true&tlsInsecure=true"
 	}
-	return "mongodb://" + url.QueryEscape(username) + ":" + url.QueryEscape(password) + "@" +
-		net.JoinHostPort(host, port) + "/?" + tlsParam
+	return "mongodb://" + net.JoinHostPort(host, port) + "/?" + tlsParam
+}
+
+type proxyDialer brutus.ProxyDialFunc
+
+func (d proxyDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	return d(ctx, network, address)
 }
 
 var mongodbAuthIndicators = []string{

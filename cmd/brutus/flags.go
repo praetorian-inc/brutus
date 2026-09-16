@@ -111,7 +111,10 @@ var flagVersion bool
 func registerSharedFlags(cmd *cobra.Command) {
 	pf := cmd.PersistentFlags()
 
-	// Performance
+	// Performance. Shared --rate-limit/--jitter default to 0 (unlimited) for
+	// creds. Account-existence oracles substitute conservative non-zero values
+	// via oraclePacing: unlimited probing risks provider throttling and tenant
+	// sign-in / Smart-Lockout / anomaly alerts.
 	pf.IntVarP(&flagThreads, "threads", "t", 10, "Number of concurrent threads")
 	pf.DurationVar(&flagTimeout, "timeout", 10*time.Second, "Per-target timeout")
 	pf.Float64Var(&flagRateLimit, "rate-limit", 0, "Max requests per second (0 = unlimited)")
@@ -218,11 +221,51 @@ func resolveProxyURL() (string, error) {
 	return brutus.BuildProxyURL(flagProxy, flagProxyUser)
 }
 
+// Conservative account-existence-oracle pacing. Shared --rate-limit/--jitter
+// default to 0 (unlimited) for credential brute-force; oracles substitute these
+// when the operator left them at 0. Unlimited oracle traffic risks provider
+// throttling and tenant sign-in / Smart-Lockout / anomaly alerts.
+const (
+	defaultOracleRateLimit = 1.0
+	defaultOracleJitter    = 500 * time.Millisecond
+)
+
+// oraclePacing returns the rate limit (requests/sec) and jitter used by
+// account-existence oracles (Microsoft 365, Teams, Google, Kerberos). The
+// shared flags stay at 0 for creds; a 0 value here is replaced by the
+// corresponding conservative default.
+func oraclePacing() (rateLimit float64, jitter time.Duration) {
+	rateLimit = flagRateLimit
+	if rateLimit == 0 {
+		rateLimit = defaultOracleRateLimit
+	}
+	jitter = flagJitter
+	if jitter == 0 {
+		jitter = defaultOracleJitter
+	}
+	return rateLimit, jitter
+}
+
+// warnFlagSecret emits the stderr warning used when a secret is supplied via a
+// CLI flag (visible in ps/proc/shell history) rather than an environment
+// variable. The secret itself is never logged. Suppressed under --quiet.
+func warnFlagSecret(flagName, envVar string) {
+	if flagQuiet {
+		return
+	}
+	fmt.Fprintf(os.Stderr,
+		"%s %s is visible in the process list and shell history; prefer the %s env var\n",
+		dim(isColorEnabled(flagNoColor), SymbolInfo), flagName, envVar)
+}
+
 // resolveAPIKey returns flagValue if non-empty, otherwise the value of the
 // environment variable envVar. It errors when neither is set. provider is the
 // human-facing name used in the error message (e.g. "apollo", "hunter.io").
+// When the flag is used it warns (to stderr) that the key is visible in the
+// process list and shell history.
 func resolveAPIKey(flagValue, envVar, provider string) (string, error) {
 	if flagValue != "" {
+		warnFlagSecret("--api-key", envVar)
 		return flagValue, nil
 	}
 	if key := os.Getenv(envVar); key != "" {

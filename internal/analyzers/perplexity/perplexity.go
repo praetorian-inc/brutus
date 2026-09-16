@@ -22,6 +22,7 @@ const (
 	DefaultEndpoint = "https://api.perplexity.ai/chat/completions"
 	DefaultModel    = "sonar" // Current Perplexity model (replaces deprecated llama-3.1-sonar-small-128k-online)
 	DefaultTimeout  = 30 * time.Second
+	maxErrorBody    = 4 * 1024
 )
 
 func init() {
@@ -155,8 +156,7 @@ func (c *Client) ResearchCredentials(ctx context.Context, appType, vendor, model
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("perplexity api error (status %d): %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("perplexity api error (status %d): %s", resp.StatusCode, readErrorBody(resp.Body))
 	}
 
 	var apiResp apiResponse
@@ -242,6 +242,15 @@ func (c *Client) getTimeout() time.Duration {
 		return c.Timeout
 	}
 	return DefaultTimeout
+}
+
+func readErrorBody(r io.Reader) string {
+	body, _ := io.ReadAll(io.LimitReader(r, maxErrorBody))
+	s := string(body)
+	if len(body) >= maxErrorBody {
+		return s + "..."
+	}
+	return s
 }
 
 // buildSearchQuery creates the search query for credential research

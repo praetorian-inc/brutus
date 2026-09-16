@@ -161,6 +161,26 @@ func TestPlugin_Test_ResultFields(t *testing.T) {
 	assert.Greater(t, result.Duration, time.Duration(0), "Duration should be set")
 }
 
+func TestRdpTLSConfig(t *testing.T) {
+	tests := []struct {
+		mode     string
+		wantSkip bool
+	}{
+		{mode: "verify", wantSkip: false},
+		{mode: "skip-verify", wantSkip: true},
+		{mode: "disable", wantSkip: true},
+		{mode: "", wantSkip: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.mode, func(t *testing.T) {
+			cfg := rdpTLSConfig(tt.mode, "rdp.example.com")
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.wantSkip, cfg.InsecureSkipVerify)
+			assert.Equal(t, "rdp.example.com", cfg.ServerName)
+		})
+	}
+}
+
 func TestClassifyError(t *testing.T) {
 	tests := []struct {
 		name      string

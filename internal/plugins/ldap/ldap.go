@@ -32,7 +32,6 @@ var ldapAuthIndicators = []string{
 	"invalid credentials",
 	"result code 49",
 	"result code 32", // noSuchObject - invalid DN
-	"result code 50", // insufficientAccessRights
 }
 
 func init() {
@@ -86,17 +85,13 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	tlsMode := pluginCfg.TLSMode
 
 	// For LDAP, even "disable" needs TLS config for LDAPS (port 636).
-	var tlsConfig *tls.Config
-	switch tlsMode {
-	case "verify":
-		tlsConfig = &tls.Config{
-			InsecureSkipVerify: false,
-		}
-	default: // "skip-verify" or "disable" - both allow self-signed for LDAPS
+	tlsConfig := brutus.BuildTLSConfig(tlsMode)
+	if tlsConfig == nil {
 		tlsConfig = &tls.Config{
 			InsecureSkipVerify: true,
 		}
 	}
+	tlsConfig.ServerName = host
 
 	// Build dial options: use proxy-aware dialer when configured, else standard dialer.
 	if pluginCfg.ProxyURL != "" {
@@ -115,7 +110,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		// ldap.NewConn only records the isTLS flag, it does not handshake.
 		isTLS := port == "636"
 		if isTLS {
-			tlsConfig.ServerName = host
 			tlsConn := tls.Client(conn, tlsConfig)
 			if hsErr := tlsConn.HandshakeContext(ctx); hsErr != nil {
 				_ = conn.Close()

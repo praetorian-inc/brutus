@@ -39,7 +39,7 @@ func getTestConfig() (host, user, pass string) {
 
 func TestMssqlURL(t *testing.T) {
 	t.Run("special chars in password", func(t *testing.T) {
-		s := mssqlURL("10.0.0.1:1433", "sa", "p@ss:word", time.Second)
+		s := mssqlURL("10.0.0.1:1433", "sa", "p@ss:word", "", time.Second)
 		u, err := url.Parse(s)
 		require.NoError(t, err)
 		pass, ok := u.User.Password()
@@ -52,16 +52,37 @@ func TestMssqlURL(t *testing.T) {
 		assert.Equal(t, "true", u.Query().Get("TrustServerCertificate"))
 	})
 	t.Run("IPv6 default port", func(t *testing.T) {
-		s := mssqlURL("::1", "sa", "x", time.Second)
+		s := mssqlURL("::1", "sa", "x", "", time.Second)
 		u, err := url.Parse(s)
 		require.NoError(t, err)
 		assert.Equal(t, "[::1]:1433", u.Host)
 	})
 	t.Run("subsecond timeout floors to 1s", func(t *testing.T) {
-		s := mssqlURL("h", "u", "p", 200*time.Millisecond)
+		s := mssqlURL("h", "u", "p", "", 200*time.Millisecond)
 		u, err := url.Parse(s)
 		require.NoError(t, err)
 		assert.Equal(t, "1", u.Query().Get("connection timeout"))
+	})
+	t.Run("verify encrypts and checks cert", func(t *testing.T) {
+		s := mssqlURL("h", "u", "p", "verify", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "true", u.Query().Get("encrypt"))
+		assert.Equal(t, "false", u.Query().Get("TrustServerCertificate"))
+	})
+	t.Run("skip-verify encrypts without cert check", func(t *testing.T) {
+		s := mssqlURL("h", "u", "p", "skip-verify", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "true", u.Query().Get("encrypt"))
+		assert.Equal(t, "true", u.Query().Get("TrustServerCertificate"))
+	})
+	t.Run("disable leaves encrypt off", func(t *testing.T) {
+		s := mssqlURL("h", "u", "p", "disable", time.Second)
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		assert.Equal(t, "disable", u.Query().Get("encrypt"))
+		assert.Equal(t, "true", u.Query().Get("TrustServerCertificate"))
 	})
 }
 
@@ -203,6 +224,21 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.False(t, result.Success, "Expected context cancellation failure")
 	assert.NotNil(t, result.Error, "Context cancellation should have non-nil error")
+	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	p := &Plugin{}
+	ctx := context.Background()
+	timeout := 2 * time.Second
+
+	result := p.Test(ctx, "localhost:1433", "sa", "password", timeout, brutus.PluginConfig{
+		ProxyURL: "ftp://127.0.0.1:9",
+	})
+
+	assert.NotNil(t, result)
+	assert.False(t, result.Success)
+	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 

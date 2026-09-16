@@ -93,20 +93,23 @@ func SchemeFromTLSMode(tlsMode string) string {
 // DetectHTTPAuthType probes an HTTP target to determine the authentication type.
 // Returns auth type ("basic", "form", or "" on error) and the banner text
 // containing response headers and body for LLM analysis.
-func DetectHTTPAuthType(target string, useHTTPS bool, timeout time.Duration, tlsMode string) (authType, banner string) {
+func DetectHTTPAuthType(ctx context.Context, target string, useHTTPS bool, timeout time.Duration, tlsMode, proxyURL string) (authType, banner string) {
 	scheme := "http"
 	if useHTTPS {
 		scheme = "https"
 	}
 	url := fmt.Sprintf("%s://%s/", scheme, target)
 
-	client := NewHTTPClient(timeout, BuildTLSConfig(tlsMode))
+	client, err := NewHTTPClientWithProxy(timeout, BuildTLSConfig(tlsMode), proxyURL)
+	if err != nil {
+		return "", ""
+	}
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	defer client.CloseIdleConnections()
 
-	req, err := http.NewRequest("GET", url, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
 		return "", ""
 	}

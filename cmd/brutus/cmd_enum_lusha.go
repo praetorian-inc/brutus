@@ -208,18 +208,44 @@ func runEnumLushaRoster(ctx context.Context, client *lusha.Client, jsonWriter io
 
 	roster, err := client.SearchDomain(ctx, flagLushaDomain, flagLushaLimit)
 	if err != nil {
+		// SearchDomain returns any roster it recovered before the failure (a
+		// mid-pagination search/enrich error). Surface those salvaged contacts
+		// and the credits already charged in the operator's selected format —
+		// the same way the success path does — BEFORE returning the error, so
+		// the operator sees (and can act on) the results they already paid for.
+		if lushaRosterHasPartial(roster) {
+			logVerbose(flagVerbose, "Lusha roster (partial, recovered before error): %d contacts, %d credits charged",
+				len(roster.Contacts), roster.CreditsCharged)
+			emitLushaRoster(os.Stdout, jsonWriter, roster, useColor)
+		}
 		return classifyLushaError(err)
 	}
 
 	logVerbose(flagVerbose, "Lusha roster: %d contacts, %d credits charged",
 		len(roster.Contacts), roster.CreditsCharged)
 
-	if flagJSON {
-		outputLushaDomainJSONL(jsonWriter, roster)
-	} else {
-		outputLushaDomainHuman(os.Stdout, roster, useColor)
-	}
+	emitLushaRoster(os.Stdout, jsonWriter, roster, useColor)
 	return nil
+}
+
+// lushaRosterHasPartial reports whether a roster returned alongside an error
+// still carries salvageable results — contacts recovered before a
+// mid-pagination failure, or credits already charged. Pure function over the
+// value — trivially testable.
+func lushaRosterHasPartial(r *lusha.DomainResult) bool {
+	return r != nil && (len(r.Contacts) > 0 || r.CreditsCharged > 0)
+}
+
+// emitLushaRoster renders a roster in the operator-selected format: JSONL to
+// jsonWriter when --json / JSONL output is active, else a human table to
+// humanOut. Shared by the clean-success path and the partial-results-on-error
+// path so salvaged contacts/credits render identically to a full run.
+func emitLushaRoster(humanOut, jsonWriter io.Writer, r *lusha.DomainResult, useColor bool) {
+	if flagJSON {
+		outputLushaDomainJSONL(jsonWriter, r)
+	} else {
+		outputLushaDomainHuman(humanOut, r, useColor)
+	}
 }
 
 // validateLushaIdentity enforces a valid identity selection. Roster mode (ONLY

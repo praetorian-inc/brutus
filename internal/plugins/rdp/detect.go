@@ -51,6 +51,11 @@ func (p *Plugin) RunStickyKeysCheck(ctx context.Context, target, proxyURL string
 		return &StickyKeysResult{Performed: false, SkipReason: fmt.Sprintf("wasm instance: %v", err)}
 	}
 	defer func() { _ = inst.close(ctx) }()
+	// No plugin config (thus no operator TLS mode) reaches this detection path,
+	// so tlsMode falls back to the rdpTLSConfig default (skip-verify). serverName
+	// must still be set so the TLS upgrade sends SNI, matching Test() in rdp.go;
+	// gateways/load-balancers that require SNI otherwise fail the handshake.
+	inst.serverName = host
 
 	stickyResult, err := p.runStickyKeysDetection(ctx, inst, addr, noVision, timeout, budget, fast)
 	if err != nil {
@@ -82,6 +87,11 @@ func (p *Plugin) RunUtilmanCheck(ctx context.Context, target, proxyURL string, c
 		return &UtilmanResult{Performed: false, SkipReason: fmt.Sprintf("wasm instance: %v", err)}
 	}
 	defer func() { _ = inst.close(ctx) }()
+	// No plugin config (thus no operator TLS mode) reaches this detection path,
+	// so tlsMode falls back to the rdpTLSConfig default (skip-verify). serverName
+	// must still be set so the TLS upgrade sends SNI, matching Test() in rdp.go;
+	// gateways/load-balancers that require SNI otherwise fail the handshake.
+	inst.serverName = host
 
 	utilmanResult, err := p.runUtilmanDetection(ctx, inst, addr, noVision, timeout, budget, fast)
 	if err != nil {

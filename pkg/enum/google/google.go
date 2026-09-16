@@ -239,6 +239,22 @@ func (e *Enumerator) checkAccountChooser(ctx context.Context, email string) (fed
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// (a) Definitive error statuses first: 302 back to ServiceLogin and 2xx are
+	// the normal paths; 429, 5xx, block pages, and other non-2xx are throttle/
+	// outage errors, not "does not exist". Validate the status BEFORE
+	// interpreting any existence signal so a throttled response that also
+	// carries a SAML/IdP header is never reported as an existing account.
+	if resp.StatusCode != http.StatusFound && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
+		return false, "", fmt.Errorf("AccountChooser unexpected status: %d", resp.StatusCode)
+	}
+
+	// Drain so the connection can be reused; existence is determined by
+	// headers/status, not the body, so a body-read error is ignored here (a
+	// truncated/malformed body must not mask a valid SAML/IdP redirect).
+	_, _ = enum.ReadResponseBody(resp, 0)
+
+	// (b) Header-based existence signals are definitive and independent of the
+	// body.
 	location := resp.Header.Get("Location")
 
 	// A SAML redirect header is present only for valid accounts on SSO domains.
@@ -272,6 +288,22 @@ func (e *Enumerator) checkGXLU(ctx context.Context, email string) (bool, error) 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// (a) Definitive error statuses first: 2xx without GMAIL_AT is the normal
+	// negative path; 429, 5xx, block pages, and other non-2xx are throttle/
+	// outage errors, not "does not exist". Validate the status BEFORE
+	// interpreting the GMAIL_AT cookie so a throttled response that also carries
+	// the cookie is never reported as an existing account.
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return false, fmt.Errorf("GXLU unexpected status: %d", resp.StatusCode)
+	}
+
+	// Drain so the connection can be reused; existence is determined by the
+	// GMAIL_AT cookie / status, not the body, so a body-read error is ignored
+	// here (a truncated/malformed body must not mask a valid GMAIL_AT cookie).
+	_, _ = enum.ReadResponseBody(resp, 0)
+
+	// (b) Cookie-based existence signal (Set-Cookie header, independent of the
+	// body).
 	for _, cookie := range resp.Cookies() {
 		if cookie.Name == "GMAIL_AT" {
 			return true, nil

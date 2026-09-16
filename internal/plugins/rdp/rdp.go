@@ -113,6 +113,8 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return result
 	}
 	defer func() { _ = inst.close(ctx) }()
+	inst.tlsMode = pluginCfg.TLSMode
+	inst.serverName = host
 
 	// Prepare connector config
 	cfg := rdpConfig{
@@ -292,11 +294,7 @@ func (p *Plugin) runConnector(ctx context.Context, inst *wasmInstance, config []
 			inst.freeInWasm(callCtx, outPtrSlot, 4)
 			inst.freeInWasm(callCtx, outLenSlot, 4)
 
-			// Perform TLS upgrade on the connection
-			tlsConf := &tls.Config{
-				InsecureSkipVerify: true, //nolint:gosec // RDP servers use self-signed certs
-			}
-			tlsConn := tls.Client(inst.conn, tlsConf)
+			tlsConn := tls.Client(inst.conn, rdpTLSConfig(inst.tlsMode, inst.serverName))
 			if tlsErr := tlsConn.HandshakeContext(ctx); tlsErr != nil {
 				return banner, fmt.Errorf("connection error: tls upgrade: %w", tlsErr)
 			}
@@ -352,3 +350,12 @@ func parseDomainUsername(username string) (domain, user string) {
 }
 
 var classifyError = brutus.NewClassifier(rdpAuthIndicators)
+
+func rdpTLSConfig(tlsMode, serverName string) *tls.Config {
+	cfg := brutus.BuildTLSConfig(tlsMode)
+	if cfg == nil {
+		cfg = brutus.BuildTLSConfig("skip-verify")
+	}
+	cfg.ServerName = serverName
+	return cfg
+}

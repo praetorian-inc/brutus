@@ -66,6 +66,11 @@ func NewInteractiveSession(ctx context.Context, target string, timeout time.Dura
 		_ = conn.Close()
 		return nil, fmt.Errorf("wasm instance: %w", err)
 	}
+	// No plugin config (thus no operator TLS mode) reaches the interactive path,
+	// so tlsMode falls back to the rdpTLSConfig default (skip-verify). serverName
+	// must still be set so the TLS upgrade sends SNI, matching Test() in rdp.go;
+	// gateways/load-balancers that require SNI otherwise fail the handshake.
+	inst.serverName = host
 
 	p := &Plugin{}
 

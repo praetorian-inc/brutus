@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
@@ -129,6 +130,51 @@ func TestClient_AnalyzeScreenshot_WithFormHints(t *testing.T) {
 
 	if analysis.FormHints.UsernameSelector != "#username" {
 		t.Errorf("UsernameSelector = %q, want %q", analysis.FormHints.UsernameSelector, "#username")
+	}
+}
+
+func TestClient_Analyze_ErrorBodyTruncated(t *testing.T) {
+	huge := strings.Repeat("A", 100_000)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(huge))
+	}))
+	defer server.Close()
+
+	client := &Client{APIKey: "test-key", Endpoint: server.URL}
+	_, err := client.Analyze(context.Background(), brutus.BannerInfo{Protocol: "ssh", Banner: "OpenSSH"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	assertTruncatedAPIError(t, err.Error(), "claude api error (status 500)")
+}
+
+func TestClient_AnalyzeScreenshot_ErrorBodyTruncated(t *testing.T) {
+	huge := strings.Repeat("B", 100_000)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(huge))
+	}))
+	defer server.Close()
+
+	client := &Client{APIKey: "test-key", Endpoint: server.URL}
+	_, err := client.AnalyzeScreenshot(context.Background(), []byte{0x89, 0x50, 0x4E, 0x47})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	assertTruncatedAPIError(t, err.Error(), "claude api error (status 502)")
+}
+
+func assertTruncatedAPIError(t *testing.T, msg, prefix string) {
+	t.Helper()
+	if !strings.Contains(msg, prefix) {
+		t.Errorf("error %q missing %q", msg, prefix)
+	}
+	if len(msg) > maxErrorBody+len(prefix)+10 {
+		t.Errorf("error length %d exceeds bound", len(msg))
+	}
+	if !strings.HasSuffix(msg, "...") {
+		t.Errorf("truncated error %q should end with ellipsis", msg)
 	}
 }
 

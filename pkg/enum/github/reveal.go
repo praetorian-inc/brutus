@@ -23,6 +23,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -679,6 +680,13 @@ func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, branch, email 
 		case http.StatusCreated, http.StatusOK:
 			return nil
 		case http.StatusTooManyRequests:
+			// Layered retry: apiRequest already retries rate-limit responses
+			// (apiRateLimitRetries, exponential backoff), so this outer loop only
+			// engages when a 429 survives that inner budget — i.e. sustained rate
+			// limiting. It is retained (rather than folded into apiRequest) because
+			// it re-derives a fresh file name via e.newName() on each attempt,
+			// matching the 409 path below, and its independent budget is pinned by
+			// TestPushCommit_IndependentRetryBudgets.
 			if rateLimits >= maxRateLimitRetries {
 				return fmt.Errorf("github reveal: pushing commit rate limited (HTTP 429) after %d retries", rateLimits)
 			}
@@ -858,32 +866,137 @@ func (e *Enumerator) deleteRepo(ctx context.Context, owner, repo string) error {
 // apiRequest issues an authenticated GitHub REST API request. payload, when
 // non-nil, is JSON-encoded as the request body. The Authorization header carries
 // the bearer token (never logged) and Accept requests the v3 media type.
+//
+// Rate-limit responses (see isAPIRateLimited: HTTP 429, and HTTP 403 carrying
+// Retry-After, X-RateLimit-Remaining: 0, or a primary/secondary rate-limit
+// body) are retried a bounded number of times. Retry-After (seconds) is honored
+// when present; otherwise a capped exponential backoff is used. Context
+// cancellation aborts the wait.
 func (e *Enumerator) apiRequest(ctx context.Context, method, path string, payload any) (*http.Response, error) {
-	var body io.Reader
+	var payloadBytes []byte
 	if payload != nil {
-		buf, err := json.Marshal(payload)
+		var err error
+		payloadBytes, err = json.Marshal(payload)
 		if err != nil {
 			return nil, fmt.Errorf("github reveal: encoding request body: %w", err)
 		}
-		body = bytes.NewReader(buf)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, e.apiBaseURL+path, body)
-	if err != nil {
-		return nil, fmt.Errorf("github reveal: creating %s %s request: %w", method, path, err)
-	}
-	req.Header.Set("Authorization", "Bearer "+e.token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
+	for attempt := 0; ; attempt++ {
+		var body io.Reader
+		if payloadBytes != nil {
+			body = bytes.NewReader(payloadBytes)
+		}
 
-	// Use apiClient (no-follow): this request carries the PAT, so redirects must
-	// not be followed to avoid leaking the token across hosts (PAT-leak
-	// protection). The existence flow uses httpClient, which follows redirects.
-	resp, err := e.apiClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("github reveal: %s %s failed: %w", method, path, err)
+		req, err := http.NewRequestWithContext(ctx, method, e.apiBaseURL+path, body)
+		if err != nil {
+			return nil, fmt.Errorf("github reveal: creating %s %s request: %w", method, path, err)
+		}
+		req.Header.Set("Authorization", "Bearer "+e.token)
+		req.Header.Set("Accept", "application/vnd.github+json")
+		if payloadBytes != nil {
+			req.Header.Set("Content-Type", "application/json")
+		}
+
+		// Use apiClient (no-follow): this request carries the PAT, so redirects must
+		// not be followed to avoid leaking the token across hosts (PAT-leak
+		// protection). The existence flow uses httpClient, which follows redirects.
+		resp, err := e.apiClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("github reveal: %s %s failed: %w", method, path, err)
+		}
+
+		if !isAPIRateLimited(resp) || attempt >= apiRateLimitRetries {
+			return resp, nil
+		}
+
+		wait := rateLimitWait(resp, attempt)
+		_ = resp.Body.Close()
+		if err := e.sleep(ctx, wait); err != nil {
+			return nil, err
+		}
 	}
-	return resp, nil
+}
+
+// isAPIRateLimited reports whether resp is a GitHub rate-limit response that
+// should be retried rather than aborted. This covers:
+//   - HTTP 429 (primary or secondary limit), always;
+//   - HTTP 403 carrying a Retry-After header (secondary limit);
+//   - HTTP 403 with X-RateLimit-Remaining: 0 (primary limit exhausted); and
+//   - HTTP 403 whose body mentions a secondary rate limit, abuse detection, or
+//     "API rate limit exceeded" (primary limit).
+//
+// A plain 403 forbidden (quota remaining, no rate-limit body) is a genuine
+// authorization failure and is NOT treated as a rate limit.
+func isAPIRateLimited(resp *http.Response) bool {
+	switch resp.StatusCode {
+	case http.StatusTooManyRequests:
+		return true
+	case http.StatusForbidden:
+		if resp.Header.Get("Retry-After") != "" || resp.Header.Get("X-RateLimit-Remaining") == "0" {
+			return true
+		}
+		return rateLimitBody(resp)
+	default:
+		return false
+	}
+}
+
+// rateLimitBody peeks at resp's body for a primary ("API rate limit exceeded"),
+// secondary ("secondary rate limit"), or abuse-detection message. The body is
+// restored so callers can still read it.
+func rateLimitBody(resp *http.Response) bool {
+	if resp.Body == nil {
+		return false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	_ = resp.Body.Close()
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	text := string(body)
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(body, &payload) == nil && payload.Message != "" {
+		text = payload.Message
+	}
+	lower := strings.ToLower(text)
+	return strings.Contains(lower, "secondary rate limit") ||
+		strings.Contains(lower, "abuse") ||
+		strings.Contains(lower, "api rate limit exceeded")
+}
+
+// rateLimitWait returns how long to wait before retrying a rate-limited
+// response. Retry-After (integer seconds) wins when present; otherwise the
+// wait is rateLimitBackoff << attempt, capped at apiRateLimitBackoffCap.
+func rateLimitWait(resp *http.Response, attempt int) time.Duration {
+	if d, ok := parseRetryAfter(resp); ok {
+		return d
+	}
+	if attempt < 0 {
+		attempt = 0
+	}
+	if attempt >= 30 {
+		return apiRateLimitBackoffCap
+	}
+	d := rateLimitBackoff * time.Duration(1<<attempt)
+	if d > apiRateLimitBackoffCap || d <= 0 {
+		return apiRateLimitBackoffCap
+	}
+	return d
+}
+
+// parseRetryAfter reads the Retry-After header as integer seconds.
+func parseRetryAfter(resp *http.Response) (time.Duration, bool) {
+	raw := strings.TrimSpace(resp.Header.Get("Retry-After"))
+	if raw == "" {
+		return 0, false
+	}
+	secs, err := strconv.Atoi(raw)
+	if err != nil || secs < 0 {
+		return 0, false
+	}
+	return time.Duration(secs) * time.Second, true
 }

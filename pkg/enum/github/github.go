@@ -81,6 +81,10 @@ const (
 	joinPath            = "/join"
 	maxRateLimitRetries = 5
 	rateLimitBackoff    = 2 * time.Second
+	// apiRateLimitRetries bounds how many times apiRequest retries HTTP 429
+	// and secondary-rate-limit HTTP 403 before returning the last response.
+	apiRateLimitRetries    = 3
+	apiRateLimitBackoffCap = 30 * time.Second
 	// A reused reveal repo (SetRevealRepo) can have several runs pushing to the
 	// same branch at once, and GitHub answers the losing writer with HTTP 409
 	// rather than serializing it. A throwaway repo cannot hit this — it is

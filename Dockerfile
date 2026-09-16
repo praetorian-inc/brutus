@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.27-alpine AS builder
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -o brutus ./cmd/brutus
 
 # Final stage
-FROM alpine:3.19
+FROM alpine:3.21
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata

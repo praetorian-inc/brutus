@@ -18,9 +18,11 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"errors"
 	"net"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,11 +43,19 @@ var registerSkipVerifyTLS = sync.OnceFunc(func() {
 	_ = pq.RegisterTLSConfig(skipVerifyTLSKey, &tls.Config{InsecureSkipVerify: true}) //nolint:gosec // user explicitly chose skip-verify
 })
 
+// postgresqlAuthIndicators lists error fragments that mean the credentials
+// themselves were rejected (authentication failure). Matching one causes the
+// error to be classified as invalid credentials.
+//
+// Post-authentication errors are deliberately excluded so that VALID
+// credentials are never silently discarded:
+//   - `database "X" does not exist` and `permission denied for database "X"`
+//     are only returned AFTER the server accepts the credentials, so they are
+//     treated as connection errors rather than invalid credentials.
 var postgresqlAuthIndicators = []string{
 	"password authentication failed",
-	"role \"", // More specific: 'role "username" does not exist'
-	"does not exist",
-	"no pg_hba.conf entry", // Server config rejects connection for this user/host
+	`role "`, // 'role "username" does not exist'
+	"no pg_hba.conf entry",
 }
 
 func init() {
@@ -93,9 +103,9 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	connStr := postgresURL(host, port, username, password, pluginCfg.TLSMode, timeout)
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := openPostgres(connStr, pluginCfg.ProxyURL, timeout)
 	if err != nil {
-		result.Error = classifyError(err)
+		result.Error = classifyError(scrubError(err, connStr, password))
 		return result
 	}
 	defer func() { _ = db.Close() }()
@@ -105,7 +115,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	err = db.PingContext(pingCtx)
 	if err != nil {
-		result.Error = classifyError(err)
+		result.Error = classifyError(scrubError(err, connStr, password))
 		return result
 	}
 
@@ -123,7 +133,7 @@ func (p *Plugin) CheckUnauth(ctx context.Context, target string, timeout time.Du
 
 	connStr := postgresURL(host, port, "postgres", "", pluginCfg.TLSMode, timeout)
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := openPostgres(connStr, pluginCfg.ProxyURL, timeout)
 	if err != nil {
 		return result
 	}
@@ -157,6 +167,65 @@ func postgresURL(host, port, username, password, tlsMode string, timeout time.Du
 	q.Set("connect_timeout", strconv.Itoa(timeoutSec))
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+func openPostgres(dsn, proxyURL string, timeout time.Duration) (*sql.DB, error) {
+	if proxyURL == "" {
+		return sql.Open("postgres", dsn)
+	}
+
+	dialFunc, err := brutus.NewProxyDialFunc(proxyURL, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	connector, err := pq.NewConnector(dsn)
+	if err != nil {
+		return nil, err
+	}
+	connector.Dialer(pqProxyDialer{dial: dialFunc})
+	return sql.OpenDB(connector), nil
+}
+
+type pqProxyDialer struct {
+	dial brutus.ProxyDialFunc
+}
+
+func (d pqProxyDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	return d.dial(ctx, network, address)
+}
+
+func (d pqProxyDialer) Dial(network, address string) (net.Conn, error) {
+	return d.dial(context.Background(), network, address)
+}
+
+func (d pqProxyDialer) DialTimeout(network, address string, timeout time.Duration) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return d.dial(ctx, network, address)
+}
+
+var (
+	_ pq.Dialer        = pqProxyDialer{}
+	_ pq.DialerContext = pqProxyDialer{}
+)
+
+func scrubError(err error, dsn, password string) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	orig := msg
+	if dsn != "" {
+		msg = strings.ReplaceAll(msg, dsn, "REDACTED")
+	}
+	if password != "" {
+		msg = strings.ReplaceAll(msg, password, "REDACTED")
+	}
+	if msg == orig {
+		return err
+	}
+	return errors.New(msg)
 }
 
 var classifyError = brutus.NewClassifier(postgresqlAuthIndicators)

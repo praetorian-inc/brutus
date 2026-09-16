@@ -124,7 +124,7 @@ func TestEnumerateOne_RefreshCanceled_PreservesCancellation(t *testing.T) {
 	assert.Equal(t, ExistenceUnknown, res.Exists)
 	require.Error(t, res.Error)
 	assert.True(t, errors.Is(res.Error, context.Canceled),
-		"a context-cancelled refresh must surface as errors.Is(err, context.Canceled)")
+		"a context-canceled refresh must surface as errors.Is(err, context.Canceled)")
 	assert.NotContains(t, strings.ToLower(res.Error.Error()), "expired",
 		"a cancellation must not be mislabeled as an expired credential")
 }

@@ -52,7 +52,10 @@ type Result struct {
 // Returns:
 // - KDC_ERR_C_PRINCIPAL_UNKNOWN (6) → user does not exist
 // - KDC_ERR_PREAUTH_REQUIRED (25) → user exists
-// - KDC_ERR_CLIENT_REVOKED (18) and similar → user exists (disabled/locked/revoked)
+// - KDC_ERR_CLIENT_REVOKED (18) → user exists (disabled/locked/revoked)
+// - KDC_ERR_NAME_EXP (1) → user exists (account expired)
+// - KDC_ERR_KEY_EXPIRED (23) → user exists (password/key expired)
+// - KDC_ERR_CLIENT_NOTYET (21) → user exists (account not yet valid)
 // - AS-REP success → user exists AND has "Do not require Kerberos preauthentication" set
 func EnumUser(ctx context.Context, kdcAddr, realm, username string, timeout time.Duration) *Result {
 	start := time.Now()
@@ -106,9 +109,18 @@ func applyKDCError(result *Result, code int32) {
 	case errorcode.KDC_ERR_PREAUTH_REQUIRED, errorcode.KDC_ERR_PREAUTH_FAILED:
 		result.Exists = true
 		result.NoPreAuth = false
-	case errorcode.KDC_ERR_CLIENT_REVOKED, errorcode.KDC_ERR_NAME_EXP, errorcode.KDC_ERR_KEY_EXPIRED, errorcode.KDC_ERR_CLIENT_NOTYET:
+	case errorcode.KDC_ERR_CLIENT_REVOKED:
 		result.Exists = true
 		result.Annotation = "disabled/locked/revoked"
+	case errorcode.KDC_ERR_NAME_EXP:
+		result.Exists = true
+		result.Annotation = "account expired"
+	case errorcode.KDC_ERR_KEY_EXPIRED:
+		result.Exists = true
+		result.Annotation = "password/key expired"
+	case errorcode.KDC_ERR_CLIENT_NOTYET:
+		result.Exists = true
+		result.Annotation = "account not yet valid"
 	default:
 		result.Error = fmt.Errorf("KDC error: %s", errorcode.Lookup(code))
 	}

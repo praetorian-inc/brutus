@@ -150,7 +150,7 @@ func runEnumKerberos(cmd *cobra.Command, args []string) error {
 
 			if flagJitter > 0 {
 				base := flagJitter
-				delay := base + time.Duration(rand.Int64N(int64(base)))
+				delay := time.Duration(rand.Int64N(int64(base)))
 				timer := time.NewTimer(delay)
 				select {
 				case <-timer.C:

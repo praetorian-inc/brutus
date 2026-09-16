@@ -239,9 +239,9 @@ func TestApplyKDCError(t *testing.T) {
 		{"preauth required", errorcode.KDC_ERR_PREAUTH_REQUIRED, true, "", false},
 		{"preauth failed", errorcode.KDC_ERR_PREAUTH_FAILED, true, "", false},
 		{"client revoked", errorcode.KDC_ERR_CLIENT_REVOKED, true, "disabled/locked/revoked", false},
-		{"name expired", errorcode.KDC_ERR_NAME_EXP, true, "disabled/locked/revoked", false},
-		{"key expired", errorcode.KDC_ERR_KEY_EXPIRED, true, "disabled/locked/revoked", false},
-		{"client not yet", errorcode.KDC_ERR_CLIENT_NOTYET, true, "disabled/locked/revoked", false},
+		{"name expired", errorcode.KDC_ERR_NAME_EXP, true, "account expired", false},
+		{"key expired", errorcode.KDC_ERR_KEY_EXPIRED, true, "password/key expired", false},
+		{"client not yet", errorcode.KDC_ERR_CLIENT_NOTYET, true, "account not yet valid", false},
 		{"unrecognized", errorcode.KDC_ERR_BAD_PVNO, false, "", true},
 	}
 	for _, tt := range tests {

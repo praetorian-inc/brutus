@@ -680,6 +680,13 @@ func (e *Enumerator) pushCommit(ctx context.Context, owner, repo, branch, email 
 		case http.StatusCreated, http.StatusOK:
 			return nil
 		case http.StatusTooManyRequests:
+			// Layered retry: apiRequest already retries rate-limit responses
+			// (apiRateLimitRetries, exponential backoff), so this outer loop only
+			// engages when a 429 survives that inner budget — i.e. sustained rate
+			// limiting. It is retained (rather than folded into apiRequest) because
+			// it re-derives a fresh file name via e.newName() on each attempt,
+			// matching the 409 path below, and its independent budget is pinned by
+			// TestPushCommit_IndependentRetryBudgets.
 			if rateLimits >= maxRateLimitRetries {
 				return fmt.Errorf("github reveal: pushing commit rate limited (HTTP 429) after %d retries", rateLimits)
 			}
@@ -860,10 +867,11 @@ func (e *Enumerator) deleteRepo(ctx context.Context, owner, repo string) error {
 // non-nil, is JSON-encoded as the request body. The Authorization header carries
 // the bearer token (never logged) and Accept requests the v3 media type.
 //
-// HTTP 429 and secondary-rate-limit HTTP 403 (Retry-After header, or a body
-// mentioning "secondary rate limit" / "abuse") are retried a bounded number of
-// times. Retry-After (seconds) is honored when present; otherwise a capped
-// exponential backoff is used. Context cancellation aborts the wait.
+// Rate-limit responses (see isAPIRateLimited: HTTP 429, and HTTP 403 carrying
+// Retry-After, X-RateLimit-Remaining: 0, or a primary/secondary rate-limit
+// body) are retried a bounded number of times. Retry-After (seconds) is honored
+// when present; otherwise a capped exponential backoff is used. Context
+// cancellation aborts the wait.
 func (e *Enumerator) apiRequest(ctx context.Context, method, path string, payload any) (*http.Response, error) {
 	var payloadBytes []byte
 	if payload != nil {
@@ -910,26 +918,34 @@ func (e *Enumerator) apiRequest(ctx context.Context, method, path string, payloa
 	}
 }
 
-// isAPIRateLimited reports whether resp is a GitHub primary 429 or a secondary
-// rate-limit 403 (Retry-After present, or body/message mentioning a secondary
-// rate limit or abuse). A plain 403 forbidden is not a rate limit.
+// isAPIRateLimited reports whether resp is a GitHub rate-limit response that
+// should be retried rather than aborted. This covers:
+//   - HTTP 429 (primary or secondary limit), always;
+//   - HTTP 403 carrying a Retry-After header (secondary limit);
+//   - HTTP 403 with X-RateLimit-Remaining: 0 (primary limit exhausted); and
+//   - HTTP 403 whose body mentions a secondary rate limit, abuse detection, or
+//     "API rate limit exceeded" (primary limit).
+//
+// A plain 403 forbidden (quota remaining, no rate-limit body) is a genuine
+// authorization failure and is NOT treated as a rate limit.
 func isAPIRateLimited(resp *http.Response) bool {
 	switch resp.StatusCode {
 	case http.StatusTooManyRequests:
 		return true
 	case http.StatusForbidden:
-		if resp.Header.Get("Retry-After") != "" {
+		if resp.Header.Get("Retry-After") != "" || resp.Header.Get("X-RateLimit-Remaining") == "0" {
 			return true
 		}
-		return secondaryRateLimitBody(resp)
+		return rateLimitBody(resp)
 	default:
 		return false
 	}
 }
 
-// secondaryRateLimitBody peeks at resp's body for a secondary-rate-limit or
-// abuse-detection message. The body is restored so callers can still read it.
-func secondaryRateLimitBody(resp *http.Response) bool {
+// rateLimitBody peeks at resp's body for a primary ("API rate limit exceeded"),
+// secondary ("secondary rate limit"), or abuse-detection message. The body is
+// restored so callers can still read it.
+func rateLimitBody(resp *http.Response) bool {
 	if resp.Body == nil {
 		return false
 	}
@@ -947,7 +963,9 @@ func secondaryRateLimitBody(resp *http.Response) bool {
 		text = payload.Message
 	}
 	lower := strings.ToLower(text)
-	return strings.Contains(lower, "secondary rate limit") || strings.Contains(lower, "abuse")
+	return strings.Contains(lower, "secondary rate limit") ||
+		strings.Contains(lower, "abuse") ||
+		strings.Contains(lower, "api rate limit exceeded")
 }
 
 // rateLimitWait returns how long to wait before retrying a rate-limited

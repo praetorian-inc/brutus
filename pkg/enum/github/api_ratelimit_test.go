@@ -58,6 +58,45 @@ func TestIsAPIRateLimited(t *testing.T) {
 			want:   true,
 		},
 		{
+			// Primary rate limit: GitHub returns 403 with the remaining quota
+			// exhausted and an "API rate limit exceeded" body. This must be
+			// retried, not treated as a hard abort (regression: previously only
+			// secondary limits were detected).
+			name:   "403 primary rate limit exceeded",
+			status: http.StatusForbidden,
+			header: http.Header{"X-RateLimit-Remaining": []string{"0"}},
+			body:   `{"message":"API rate limit exceeded for user ID 12345."}`,
+			want:   true,
+		},
+		{
+			name:   "403 primary rate limit remaining zero, no body",
+			status: http.StatusForbidden,
+			header: http.Header{"X-RateLimit-Remaining": []string{"0"}},
+			want:   true,
+		},
+		{
+			name:   "403 primary rate limit message, no header",
+			status: http.StatusForbidden,
+			body:   `{"message":"API rate limit exceeded for user ID 12345."}`,
+			want:   true,
+		},
+		{
+			name:   "429 primary rate limit remaining zero",
+			status: http.StatusTooManyRequests,
+			header: http.Header{"X-RateLimit-Remaining": []string{"0"}},
+			body:   `{"message":"API rate limit exceeded for user ID 12345."}`,
+			want:   true,
+		},
+		{
+			// A plain 403 with quota still remaining is a real authorization
+			// failure, not a rate limit, and must NOT be retried.
+			name:   "403 forbidden with quota remaining",
+			status: http.StatusForbidden,
+			header: http.Header{"X-RateLimit-Remaining": []string{"4999"}},
+			body:   `{"message":"Resource not accessible by integration"}`,
+			want:   false,
+		},
+		{
 			name:   "403 forbidden",
 			status: http.StatusForbidden,
 			body:   `{"message":"Resource not accessible by integration"}`,
@@ -70,13 +109,20 @@ func TestIsAPIRateLimited(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			// Copy header values through Add so keys are canonicalized exactly
+			// as a real *http.Response carries them (e.g. "X-RateLimit-Remaining"
+			// -> "X-Ratelimit-Remaining"); a raw map literal is not canonical and
+			// would not be found by Header.Get.
+			header := make(http.Header)
+			for k, vs := range tt.header {
+				for _, v := range vs {
+					header.Add(k, v)
+				}
+			}
 			resp := &http.Response{
 				StatusCode: tt.status,
-				Header:     tt.header,
+				Header:     header,
 				Body:       io.NopCloser(strings.NewReader(tt.body)),
-			}
-			if resp.Header == nil {
-				resp.Header = make(http.Header)
 			}
 			assert.Equal(t, tt.want, isAPIRateLimited(resp))
 		})

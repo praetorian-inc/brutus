@@ -312,7 +312,7 @@ func interactionExitError(r *logon.InteractionResult) error {
 // runLogonFingerprint fingerprints targets with Nerva and runs logon-screen
 // detection on any discovered RDP services.
 func runLogonFingerprint(targets []string, base *runConfig) []logon.Finding {
-	stop, services, ok := fingerprintTargets(targets, base)
+	_, stop, services, ok := fingerprintTargets(targets, base)
 	if !ok {
 		return nil
 	}

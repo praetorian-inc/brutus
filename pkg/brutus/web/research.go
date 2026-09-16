@@ -38,6 +38,12 @@ type BrowserConfig struct {
 
 // RouteHTTP detects HTTP auth type and routes to appropriate AI credential research.
 // Returns the resolved protocol ("browser" for form-based, original for basic auth) and any AI-researched credentials.
+//
+// Fail-closed: only an explicit "form" detection switches the target to the
+// "browser" protocol (headless Chrome, which does not honor the operator's
+// SOCKS/HTTP proxy). When DetectHTTPAuthType fails (timeout, DNS failure, bad
+// proxy) it returns an empty authType; in that case the original protocol is
+// preserved rather than silently routing to browser and leaking the real IP.
 func RouteHTTP(ctx context.Context, target, protocol string, timeout time.Duration, tlsMode, proxyURL string, llmConfig *brutus.LLMConfig) (string, []brutus.Credential) {
 	useHTTPS := protocol == "https"
 	authType, banner := brutus.DetectHTTPAuthType(ctx, target, useHTTPS, timeout, tlsMode, proxyURL)
@@ -49,8 +55,12 @@ func RouteHTTP(ctx context.Context, target, protocol string, timeout time.Durati
 			}
 		}
 		return protocol, nil
+	} else if authType == "form" {
+		return "browser", nil
 	}
-	return "browser", nil
+	// authType == "" (detection error/unknown): keep the original protocol so a
+	// failed probe does not bypass proxy routing via the browser plugin.
+	return protocol, nil
 }
 
 // ResearchBrowserCredentials uses Claude Vision + Perplexity for browser-based credential research.

@@ -97,7 +97,12 @@ func fingerprintSingleTarget(target string, base *runConfig) (*fingerprintedServ
 // fingerprintTargets parses host:port strings into Nerva targets, fingerprints
 // them, and returns the discovered services. This is the shared implementation
 // for phases 1 & 2 of both runFromFingerprint and runLogonFingerprint.
-func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, []nervaplugins.Service, bool) {
+//
+// The returned context is the signal-aware run context (canceled on Ctrl-C /
+// SIGTERM); callers should thread it into downstream operations so an
+// interrupt during those operations is honored. It stays valid until the
+// returned CancelFunc is called.
+func fingerprintTargets(targets []string, base *runConfig) (context.Context, context.CancelFunc, []nervaplugins.Service, bool) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	var nervaTargets []nervaplugins.Target
@@ -112,7 +117,7 @@ func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, 
 	if len(nervaTargets) == 0 {
 		errMsg(base.useColor, "no valid targets after parsing")
 		stop()
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	if !base.quiet {
@@ -124,7 +129,7 @@ func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, 
 	if err != nil {
 		errMsg(base.useColor, "fingerprinting failed: %v", err)
 		stop()
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	logVerbose(base.verbose, "Nerva discovered %d service(s) from %d target(s)", len(services), len(nervaTargets))
@@ -132,10 +137,10 @@ func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, 
 	if len(services) == 0 {
 		warnMsg(base.useColor, "Nerva could not fingerprint any of the %d target(s)", len(nervaTargets))
 		stop()
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
-	return stop, services, true
+	return ctx, stop, services, true
 }
 
 // runFromFingerprint fingerprints the given host:port targets using Nerva's
@@ -144,7 +149,7 @@ func fingerprintTargets(targets []string, base *runConfig) (context.CancelFunc, 
 // are silently skipped (with a verbose log). The per-target brute-force
 // loop mirrors runFromStdin.
 func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brutus.Result, bool) {
-	stop, services, ok := fingerprintTargets(targets, base)
+	ctx, stop, services, ok := fingerprintTargets(targets, base)
 	if !ok {
 		return nil, false
 	}
@@ -182,7 +187,7 @@ func runFromFingerprint(targets []string, base *runConfig, jsonOut bool) ([]brut
 		// Detect HTTP auth type for web subcommand (form-based → browser protocol).
 		var aiCreds []brutus.Credential
 		if base.web != nil && (protocol == "http" || protocol == "https") {
-			protocol, aiCreds = web.RouteHTTP(target, protocol, base.timeout, base.tlsMode, base.llmConfig)
+			protocol, aiCreds = web.RouteHTTP(ctx, target, protocol, base.timeout, base.tlsMode, base.proxyURL, base.llmConfig)
 		}
 
 		if !jsonOut && !base.quiet {

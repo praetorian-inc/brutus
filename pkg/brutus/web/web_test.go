@@ -15,7 +15,12 @@
 package web
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -94,4 +99,32 @@ func TestConfigureAICredentials_PreservesOrder(t *testing.T) {
 		assert.Equal(t, c.Password, result[i].Password)
 	}
 	assert.Equal(t, "admin", result[3].Username)
+}
+
+// TestRouteHTTP_FailsClosedOnDetectionError verifies the security fix: when
+// DetectHTTPAuthType cannot probe the target (unreachable host / error, which
+// returns an empty authType), RouteHTTP must preserve the original protocol
+// rather than routing to the proxy-bypassing "browser" plugin.
+func TestRouteHTTP_FailsClosedOnDetectionError(t *testing.T) {
+	// 127.0.0.1:1 refuses connections, so DetectHTTPAuthType returns "".
+	protocol, creds := RouteHTTP(context.Background(), "127.0.0.1:1", "http", 500*time.Millisecond, "", "", nil)
+
+	assert.Equal(t, "http", protocol, "detection error must keep the original protocol, not switch to browser")
+	assert.Nil(t, creds)
+}
+
+// TestRouteHTTP_RoutesFormToBrowser verifies that a positive form detection
+// (HTTP 200 with no WWW-Authenticate header) still routes to the browser plugin.
+func TestRouteHTTP_RoutesFormToBrowser(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<html><form></form></html>"))
+	}))
+	defer srv.Close()
+
+	target := strings.TrimPrefix(srv.URL, "http://")
+	protocol, creds := RouteHTTP(context.Background(), target, "http", 2*time.Second, "", "", nil)
+
+	assert.Equal(t, "browser", protocol, "an explicit form detection should route to the browser plugin")
+	assert.Nil(t, creds)
 }

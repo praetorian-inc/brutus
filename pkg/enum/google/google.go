@@ -105,6 +105,16 @@ func NewEnumerator(proxyURL string, timeout time.Duration) (*Enumerator, error) 
 	}, nil
 }
 
+// client returns the per-run enum HTTP client when ctx carries one (set via
+// enum.WithHTTPClient for --proxy and connection pooling), otherwise the
+// Enumerator's own client.
+func (e *Enumerator) client(ctx context.Context) *http.Client {
+	if c := enum.HTTPClientFromContext(ctx); c != nil {
+		return c
+	}
+	return e.httpClient
+}
+
 // Enumerate looks up each email using a bounded worker pool, applying rate
 // limiting and jitter when rateLimit > 0. Results preserve input order. It is a
 // thin wrapper around EnumerateWith with no per-result callback.
@@ -228,7 +238,7 @@ func (e *Enumerator) checkAccountChooser(ctx context.Context, email string) (fed
 
 	// Clone the proxied client so redirects are not followed (keeping the proxy
 	// transport); we need to inspect the 302 Location header.
-	client := *e.httpClient
+	client := *e.client(ctx)
 	client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -282,7 +292,7 @@ func (e *Enumerator) checkGXLU(ctx context.Context, email string) (bool, error) 
 		return false, fmt.Errorf("creating GXLU request: %w", err)
 	}
 
-	resp, err := e.httpClient.Do(req)
+	resp, err := e.client(ctx).Do(req)
 	if err != nil {
 		return false, fmt.Errorf("GXLU request failed: %w", err)
 	}

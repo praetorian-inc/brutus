@@ -303,6 +303,60 @@ func TestPlugin_Test_CustomPath(t *testing.T) {
 	assert.True(t, result.Success)
 }
 
+func TestPlugin_Test_ServerError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	target := strings.TrimPrefix(server.URL, "http://")
+	result := (&Plugin{Path: "/", UseHTTPS: false}).Test(
+		context.Background(), target, "admin", "password", 5*time.Second, brutus.PluginConfig{})
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
+	require.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "HTTP 500")
+}
+
+func TestPlugin_Test_HTTPSSkipVerify(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "admin" || pass != "secret" {
+			w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	target := strings.TrimPrefix(server.URL, "https://")
+	p := &Plugin{Path: "/", UseHTTPS: true}
+	cfg := brutus.PluginConfig{TLSMode: "skip-verify"}
+
+	ok := p.Test(context.Background(), target, "admin", "secret", 5*time.Second, cfg)
+	require.NotNil(t, ok)
+	assert.True(t, ok.Success)
+
+	bad := (&Plugin{Path: "/", UseHTTPS: true}).Test(
+		context.Background(), target, "admin", "wrong", 5*time.Second, cfg)
+	require.NotNil(t, bad)
+	assert.False(t, bad.Success)
+	assert.Nil(t, bad.Error, "401 on HTTPS basic auth must classify as auth failure")
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	result := (&Plugin{Path: "/", UseHTTPS: false}).Test(
+		context.Background(), "127.0.0.1:9", "u", "p", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+
+	require.NotNil(t, result)
+	assert.False(t, result.Success)
+	require.NotNil(t, result.Error)
+	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
 func TestExtractAppIdentifiers(t *testing.T) {
 	tests := []struct {
 		name     string

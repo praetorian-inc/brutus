@@ -118,6 +118,13 @@ func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
+func TestPlugin_Test_ConnectionRefused(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:1", "user", "pass", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_ResultStructure(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()

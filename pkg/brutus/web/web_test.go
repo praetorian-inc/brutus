@@ -128,3 +128,31 @@ func TestRouteHTTP_RoutesFormToBrowser(t *testing.T) {
 	assert.Equal(t, "browser", protocol, "an explicit form detection should route to the browser plugin")
 	assert.Nil(t, creds)
 }
+
+func TestRouteHTTP_BasicAuthKeepsProtocol(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	target := strings.TrimPrefix(srv.URL, "http://")
+	protocol, creds := RouteHTTP(context.Background(), target, "http", 2*time.Second, "", "", nil)
+
+	assert.Equal(t, "http", protocol, "basic auth must keep the original protocol, not switch to browser")
+	assert.Nil(t, creds, "nil LLM config must not invent credentials")
+}
+
+func TestResearchBrowserCredentials_DisabledLLM(t *testing.T) {
+	creds, plug, err := ResearchBrowserCredentials(context.Background(), "example.com", BrowserConfig{})
+	assert.NoError(t, err)
+	assert.Nil(t, creds)
+	assert.Nil(t, plug)
+
+	creds, plug, err = ResearchBrowserCredentials(context.Background(), "example.com", BrowserConfig{
+		LLMConfig: &brutus.LLMConfig{Enabled: false},
+	})
+	assert.NoError(t, err)
+	assert.Nil(t, creds)
+	assert.Nil(t, plug)
+}

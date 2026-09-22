@@ -253,6 +253,14 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
+func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := (&Plugin{}).Test(ctx, "127.0.0.1:1", "", "x", time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+}
+
 func TestPlugin_Test_MissingPort(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()

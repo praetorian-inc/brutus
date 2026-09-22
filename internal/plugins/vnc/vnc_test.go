@@ -153,6 +153,14 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.NotNil(t, result.Error)
 }
 
+func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := (&Plugin{}).Test(ctx, "127.0.0.1:1", "", "password", time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+}
+
 // TestPlugin_Test_StalledHandshakeDoesNotHang is a regression test proving
 // that a server which accepts the TCP connection but never speaks (no VNC
 // protocol banner) does not hang Test() forever. Without SetDeadline on the

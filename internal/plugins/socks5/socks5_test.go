@@ -46,3 +46,24 @@ func TestPlugin_Test_ValidAndInvalid(t *testing.T) {
 	assert.True(t, r.Success)
 	assert.Nil(t, r.Error)
 }
+
+func TestPlugin_Test_InvalidCredentials(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = ln.Close() }()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		buf := make([]byte, 64)
+		_, _ = io.ReadFull(conn, buf[:3])
+		_, _ = conn.Write([]byte{0x05, 0x02})
+		_, _ = conn.Read(buf)
+		_, _ = conn.Write([]byte{0x01, 0x01}) // username/password rejected
+	}()
+	r := (&Plugin{}).Test(context.Background(), ln.Addr().String(), "user", "wrong", 3*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error, "SOCKS5 auth rejection must classify as auth failure")
+}

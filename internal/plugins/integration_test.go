@@ -48,6 +48,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/neo4j"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/pop3"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/postgresql"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/redis"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smtp"
@@ -121,6 +122,14 @@ func TestAllProtocols(t *testing.T) {
 			hostEnv:  "LDAP_TEST_HOST",
 			userEnv:  "LDAP_TEST_USER",
 			passEnv:  "LDAP_TEST_PASS",
+		},
+		{
+			name:     "RDP",
+			protocol: "rdp",
+			hostEnv:  "RDP_TEST_HOST",
+			userEnv:  "RDP_TEST_USER",
+			passEnv:  "RDP_TEST_PASS",
+			timeout:  30 * time.Second,
 		},
 		// ==================== Databases ====================
 		{

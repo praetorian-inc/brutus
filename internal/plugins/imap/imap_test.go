@@ -118,6 +118,14 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	assert.Greater(t, result.Duration, time.Duration(0))
 }
 
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:143", "u", "p", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()

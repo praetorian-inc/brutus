@@ -74,6 +74,13 @@ func TestPlugin_Name(t *testing.T) {
 	assert.Equal(t, "ssh", p.Name())
 }
 
+func TestPlugin_Test_ConnectionRefused(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:1", "root", "pass", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestClassifyError(t *testing.T) {
 	err := errors.New("dial tcp 10.0.0.1:22: connection refused")
 	result := brutus.WrapConnError(err)

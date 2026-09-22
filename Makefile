@@ -100,6 +100,7 @@ test-integration:
 	SMTP_TEST_HOST=localhost:3025 SMTP_TEST_USER=testuser SMTP_TEST_PASS=testpass \
 	IMAP_TEST_HOST=localhost:3143 IMAP_TEST_USER=testuser IMAP_TEST_PASS=testpass \
 	POP3_TEST_HOST=localhost:3110 POP3_TEST_USER=testuser POP3_TEST_PASS=testpass \
+	AMQP_TEST_HOST=localhost:5672 AMQP_TEST_USER=amqpuser AMQP_TEST_PASS=amqppass \
 	SNMP_TEST_HOST=localhost:161 SNMP_TEST_COMMUNITY=public \
 	go test -tags=integration -coverprofile=coverage.out ./...
 

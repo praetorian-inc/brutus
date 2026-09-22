@@ -34,6 +34,7 @@ import (
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 
 	// Import all plugins to register them
+	_ "github.com/praetorian-inc/brutus/internal/plugins/amqp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/cassandra"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/couchdb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/elasticsearch"
@@ -218,6 +219,13 @@ func TestAllProtocols(t *testing.T) {
 			hostEnv:  "POP3_TEST_HOST",
 			userEnv:  "POP3_TEST_USER",
 			passEnv:  "POP3_TEST_PASS",
+		},
+		{
+			name:     "AMQP",
+			protocol: "amqp",
+			hostEnv:  "AMQP_TEST_HOST",
+			userEnv:  "AMQP_TEST_USER",
+			passEnv:  "AMQP_TEST_PASS",
 		},
 	}
 

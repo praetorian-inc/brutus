@@ -193,3 +193,11 @@ services:
       - "161:161/udp"
     environment:
       - SNMP_COMMUNITY=public
+
+  rabbitmq:
+    image: rabbitmq:3.13-alpine
+    ports:
+      - "5672:5672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=amqpuser
+      - RABBITMQ_DEFAULT_PASS=amqppass

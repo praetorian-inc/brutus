@@ -91,6 +91,14 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:5984", "admin", "password", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	if couchdbTestHost == "" {
 		t.Skip("Integration test - requires CouchDB server (set COUCHDB_TEST_HOST)")

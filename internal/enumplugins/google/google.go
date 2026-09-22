@@ -59,11 +59,15 @@ func (p *Plugin) Check(ctx context.Context, email string, timeout time.Duration)
 
 	res := enumerator.CheckAccount(ctx, email)
 	result.Exists = res.Exists
+	result.Error = res.Error
+	result.Duration = time.Since(start)
+	if res.Error != nil {
+		return result
+	}
 	if res.Exists {
 		result.Confidence = enum.ConfidenceHigh
 	} else {
 		result.Confidence = enum.ConfidenceMedium
 	}
-	result.Duration = time.Since(start)
 	return result
 }

@@ -46,6 +46,7 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mssql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mysql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/neo4j"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/oracle"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/pop3"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/postgresql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/redis"
@@ -143,6 +144,14 @@ func TestAllProtocols(t *testing.T) {
 			hostEnv:  "MSSQL_TEST_HOST",
 			userEnv:  "MSSQL_TEST_USER",
 			passEnv:  "MSSQL_TEST_PASS",
+			timeout:  30 * time.Second,
+		},
+		{
+			name:     "Oracle",
+			protocol: "oracle",
+			hostEnv:  "ORACLE_TEST_HOST",
+			userEnv:  "ORACLE_TEST_USER",
+			passEnv:  "ORACLE_TEST_PASS",
 			timeout:  30 * time.Second,
 		},
 		{

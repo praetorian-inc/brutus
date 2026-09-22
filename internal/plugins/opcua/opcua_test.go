@@ -21,6 +21,12 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	assert.Contains(t, r.Error.Error(), "connection error")
 }
 
+func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
+	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Empty(t, r.Banner)
+}
+
 func TestClassifyError(t *testing.T) {
 	assert.Nil(t, classifyError(errors.New("BadUserAccessDenied")))
 	assert.NotNil(t, classifyError(errors.New("connection refused")))

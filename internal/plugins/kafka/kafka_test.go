@@ -34,6 +34,10 @@ func TestClassifyError(t *testing.T) {
 		{name: "sasl failed", err: kafkago.SASLAuthenticationFailed, wantNil: true},
 		{name: "wrapped sasl failed", err: fmt.Errorf("authenticate: %w", kafkago.SASLAuthenticationFailed), wantNil: true},
 		{name: "string sasl", err: errors.New("SASL authentication failed"), wantNil: true},
+		{name: "authentication failed", err: errors.New("authentication failed"), wantNil: true},
+		{name: "illegal sasl", err: errors.New("illegal SASL state"), wantNil: true},
+		{name: "invalid credentials", err: errors.New("invalid credentials"), wantNil: true},
+		{name: "unauthorized", err: errors.New("unauthorized"), wantNil: true},
 		{name: "network exception", err: kafkago.NetworkException, wantNil: false},
 		{name: "listener not found", err: kafkago.ListenerNotFound, wantNil: false},
 		{name: "connection refused", err: errors.New("connection refused"), wantNil: false},
@@ -69,4 +73,27 @@ func TestPlugin_Test_TLSHandshakeTimeout(t *testing.T) {
 	assert.False(t, r.Success)
 	require.NotNil(t, r.Error)
 	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "::1", "u", "p", 200*time.Millisecond, brutus.PluginConfig{})
+	assert.NotNil(t, r)
+	if r.Error != nil {
+		assert.NotContains(t, r.Error.Error(), "too many colons")
+	}
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:9092", "u", "p", time.Second, brutus.PluginConfig{
+		ProxyURL: "http://127.0.0.1:1",
+	})
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
+func TestInit(t *testing.T) {
+	p, err := brutus.GetPlugin("kafka")
+	require.NoError(t, err)
+	assert.Equal(t, "kafka", p.Name())
 }

@@ -311,3 +311,67 @@ func TestPlugin_STARTTLS(t *testing.T) {
 		})
 	}
 }
+
+func TestPlugin_Test_MockValidCredentials(t *testing.T) {
+	addr, cleanup := mockSMTPAuth(t, true)
+	defer cleanup()
+
+	r := (&Plugin{}).Test(context.Background(), addr, "user", "pass", 5*time.Second, brutus.PluginConfig{TLSMode: "disable"})
+	assert.True(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func TestPlugin_Test_MockInvalidCredentials(t *testing.T) {
+	addr, cleanup := mockSMTPAuth(t, false)
+	defer cleanup()
+
+	r := (&Plugin{}).Test(context.Background(), addr, "user", "wrong", 5*time.Second, brutus.PluginConfig{TLSMode: "disable"})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error, "535 must classify as auth failure")
+}
+
+func mockSMTPAuth(t *testing.T, accept bool) (addr string, cleanup func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, acceptErr := ln.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		reader := bufio.NewReader(conn)
+		_, _ = fmt.Fprint(conn, "220 localhost ESMTP\r\n")
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil {
+				return
+			}
+			cmd := strings.ToUpper(strings.TrimSpace(line))
+			switch {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				_, _ = fmt.Fprint(conn, "250-localhost\r\n250 AUTH PLAIN LOGIN\r\n")
+			case strings.HasPrefix(cmd, "AUTH"):
+				if accept {
+					_, _ = fmt.Fprint(conn, "235 2.7.0 Authentication successful\r\n")
+				} else {
+					_, _ = fmt.Fprint(conn, "535 5.7.8 Authentication failed\r\n")
+				}
+			case strings.HasPrefix(cmd, "QUIT"):
+				_, _ = fmt.Fprint(conn, "221 Bye\r\n")
+				return
+			default:
+				_, _ = fmt.Fprint(conn, "502 Not implemented\r\n")
+			}
+		}
+	}()
+
+	cleanup = func() {
+		_ = ln.Close()
+		<-done
+	}
+	return ln.Addr().String(), cleanup
+}

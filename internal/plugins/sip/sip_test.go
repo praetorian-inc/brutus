@@ -44,10 +44,10 @@ func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
 }
 
 func TestDigestResponse(t *testing.T) {
-	got := digestResponse("user", "pass", "REGISTER", "sip:host", map[string]string{"realm": "r", "nonce": "n"})
+	got := digestResponse("user", "pass", "sip:host", map[string]string{"realm": "r", "nonce": "n"})
 	assert.Len(t, got, 32)
-	assert.Equal(t, digestResponse("user", "pass", "REGISTER", "sip:host", map[string]string{"realm": "r", "nonce": "n"}), got)
-	assert.NotEqual(t, got, digestResponse("user", "wrong", "REGISTER", "sip:host", map[string]string{"realm": "r", "nonce": "n"}))
+	assert.Equal(t, digestResponse("user", "pass", "sip:host", map[string]string{"realm": "r", "nonce": "n"}), got)
+	assert.NotEqual(t, got, digestResponse("user", "wrong", "sip:host", map[string]string{"realm": "r", "nonce": "n"}))
 }
 
 func TestParseAuth(t *testing.T) {

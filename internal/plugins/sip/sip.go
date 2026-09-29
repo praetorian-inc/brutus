@@ -85,7 +85,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		www = headers["proxy-authenticate"]
 	}
 	auth := parseAuth(www)
-	resp := digestResponse(username, password, "REGISTER", "sip:"+host, auth)
+	resp := digestResponse(username, password, "sip:"+host, auth)
 	authHdr := fmt.Sprintf(`Digest username=%q, realm=%q, nonce=%q, uri=%q, response=%q, algorithm=MD5`,
 		username, auth["realm"], auth["nonce"], "sip:"+host, resp)
 	if auth["opaque"] != "" {
@@ -182,9 +182,9 @@ func parseAuth(h string) map[string]string {
 	return out
 }
 
-func digestResponse(user, pass, method, uri string, auth map[string]string) string {
+func digestResponse(user, pass, uri string, auth map[string]string) string {
 	ha1 := md5hex(user + ":" + auth["realm"] + ":" + pass)
-	ha2 := md5hex(method + ":" + uri)
+	ha2 := md5hex("REGISTER:" + uri)
 	return md5hex(ha1 + ":" + auth["nonce"] + ":" + ha2)
 }
 

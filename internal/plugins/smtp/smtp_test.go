@@ -96,6 +96,14 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:25", "u", "p", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example", TLSMode: "disable"})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	if smtpTestHost == "" {
 		t.Skip("Integration test - requires SMTP server (set SMTP_TEST_HOST)")

@@ -134,6 +134,14 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.NotNil(t, result.Error)
 }
 
+func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := (&Plugin{}).Test(ctx, "127.0.0.1:1", "neo4j", "pass", time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+}
+
 func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
 	p := &Plugin{}
 	result := p.Test(context.Background(), "::1", "neo4j", "password", 200*time.Millisecond, brutus.PluginConfig{})

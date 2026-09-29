@@ -107,6 +107,17 @@ func TestRunCreds_NoFilterWhenProtocolExplicit(t *testing.T) {
 	assert.Nil(t, config.protocolFilter)
 }
 
+func TestCredsAliases(t *testing.T) {
+	for _, name := range []string{"creds", "services", "defaults", "credentials"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "creds", cmd.Use)
+		})
+	}
+}
+
 // TestRunWeb_SetsProtocolFilter tests that runWeb always installs the web
 // protocol filter.
 func TestRunWeb_SetsProtocolFilter(t *testing.T) {
@@ -119,6 +130,17 @@ func TestRunWeb_SetsProtocolFilter(t *testing.T) {
 	assert.False(t, config.protocolFilter("ssh"))
 	assert.False(t, config.protocolFilter("mysql"))
 	assert.False(t, config.protocolFilter("rdp"))
+}
+
+func TestWebAliases(t *testing.T) {
+	for _, name := range []string{"web", "http", "panels"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "web", cmd.Use)
+		})
+	}
 }
 
 // TestRunWeb_HTTPSFlagSetsOverride tests that --https sets protocolOverride

@@ -237,6 +237,12 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
+func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
+	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Empty(t, r.Banner)
+}
+
 func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()

@@ -269,6 +269,15 @@ jobs:
         env:
           SNMP_COMMUNITY: public
 
+      # RabbitMQ (AMQP with default vhost auth)
+      rabbitmq:
+        image: rabbitmq:3.13-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: amqpuser
+          RABBITMQ_DEFAULT_PASS: amqppass
+        ports:
+          - 5672:5672
+
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -312,6 +321,8 @@ jobs:
           wait_tcp SMTP 3025 60
           wait_tcp IMAP 3143 60
           wait_tcp POP3 3110 60
+
+          wait_tcp RabbitMQ 5672 90
 
           echo "Waiting for SNMP..."
           sudo apt-get update && sudo apt-get install -y snmp > /dev/null 2>&1 || true
@@ -389,6 +400,9 @@ jobs:
           POP3_TEST_HOST: localhost:3110
           POP3_TEST_USER: testuser
           POP3_TEST_PASS: testpass
+          AMQP_TEST_HOST: localhost:5672
+          AMQP_TEST_USER: amqpuser
+          AMQP_TEST_PASS: amqppass
           # SNMP
           SNMP_TEST_HOST: localhost:161
           SNMP_TEST_COMMUNITY: public

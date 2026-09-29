@@ -58,6 +58,11 @@ func TestValidateTargetSources(t *testing.T) {
 	err = validateTargetSources(true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "stdin")
+	flagNmapFile, flagMasscanFile = "a.xml", "b.json"
+	err = validateTargetSources(false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--nmap-file")
+	assert.Contains(t, err.Error(), "--masscan-file")
 }
 
 func TestDetectStdinMode(t *testing.T) {

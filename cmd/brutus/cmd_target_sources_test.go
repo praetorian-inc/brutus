@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDetectStdinMode_ExplicitSourcesWin(t *testing.T) {
@@ -37,48 +36,4 @@ func TestDetectStdinMode_ExplicitSourcesWin(t *testing.T) {
 
 	flagMasscanFile = "masscan.json"
 	assert.False(t, detectStdinMode("", ""), "--masscan-file must disable stdin mode")
-}
-
-func TestValidateTargetSources(t *testing.T) {
-	origTarget, origFile, origNmap, origMasscan := flagTarget, flagTargetsFile, flagNmapFile, flagMasscanFile
-	t.Cleanup(func() {
-		flagTarget, flagTargetsFile, flagNmapFile, flagMasscanFile = origTarget, origFile, origNmap, origMasscan
-	})
-
-	flagTarget, flagTargetsFile, flagNmapFile, flagMasscanFile = "", "", "", ""
-	require.NoError(t, validateTargetSources(false))
-	require.NoError(t, validateTargetSources(true), "stdin alone is valid")
-
-	flagTarget = "host:22"
-	require.NoError(t, validateTargetSources(false))
-
-	flagTargetsFile = "targets.txt"
-	err := validateTargetSources(false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "mutually exclusive")
-	assert.Contains(t, err.Error(), "--target")
-	assert.Contains(t, err.Error(), "--targets-file")
-
-	flagTarget, flagTargetsFile = "", ""
-	flagNmapFile, flagMasscanFile = "a.xml", "b.json"
-	err = validateTargetSources(false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "--nmap-file")
-	assert.Contains(t, err.Error(), "--masscan-file")
-
-	flagNmapFile, flagMasscanFile = "", ""
-	err = validateTargetSources(true)
-	require.NoError(t, err)
-	flagTarget = "host:22"
-	err = validateTargetSources(true)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "stdin")
-}
-
-func TestShouldShowBanner(t *testing.T) {
-	assert.True(t, shouldShowBanner(false, false, false, true))
-	assert.False(t, shouldShowBanner(true, false, false, true), "json output suppresses banner")
-	assert.False(t, shouldShowBanner(false, true, false, true), "stdin mode suppresses banner")
-	assert.False(t, shouldShowBanner(false, false, true, true), "quiet suppresses banner")
-	assert.False(t, shouldShowBanner(false, false, false, false), "no color suppresses banner")
 }

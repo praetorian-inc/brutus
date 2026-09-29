@@ -85,15 +85,6 @@ func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
 	}
 }
 
-func TestPlugin_Test_InvalidProxy(t *testing.T) {
-	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:2181", "u", "p", time.Second, brutus.PluginConfig{
-		ProxyURL: "http://127.0.0.1:1",
-	})
-	assert.False(t, r.Success)
-	require.NotNil(t, r.Error)
-	assert.Contains(t, r.Error.Error(), "connection error")
-}
-
 func TestInit(t *testing.T) {
 	p, err := brutus.GetPlugin("zookeeper")
 	require.NoError(t, err)
@@ -110,11 +101,6 @@ func TestPlugin_CheckUnauth_Open(t *testing.T) {
 func TestPlugin_CheckUnauth_NotImok(t *testing.T) {
 	addr := mockRuok(t, "thisisnotzk")
 	r := (&Plugin{}).CheckUnauth(context.Background(), addr, 2*time.Second, brutus.PluginConfig{})
-	assert.False(t, r.Success)
-}
-
-func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
-	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 500*time.Millisecond, brutus.PluginConfig{})
 	assert.False(t, r.Success)
 }
 

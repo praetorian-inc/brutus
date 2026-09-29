@@ -15,12 +15,9 @@
 package main
 
 import (
-	"io"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -29,10 +26,12 @@ func TestHasSecurityFinding(t *testing.T) {
 	assert.True(t, hasSecurityFinding("[CRITICAL] Redis accessible without authentication"))
 	assert.True(t, hasSecurityFinding("[HIGH] Sticky keys backdoor enabled"))
 	assert.True(t, hasSecurityFinding("[INFO] Sticky keys set, Utilman not"))
+	assert.True(t, hasSecurityFinding("[CRITICAL] open redis"))
 	assert.False(t, hasSecurityFinding("[INFO] banner grabbed"))
 	assert.False(t, hasSecurityFinding("[MEDIUM] weak cipher"))
 	assert.False(t, hasSecurityFinding(""))
 	assert.False(t, hasSecurityFinding("login successful"))
+	assert.False(t, hasSecurityFinding("SSH-2.0-OpenSSH_8.9"))
 }
 
 func TestEmitSecurityFindings_Uncolored(t *testing.T) {
@@ -74,18 +73,4 @@ func TestSplitLines_SkipsEmpty(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, splitLines("a\n\nb\n"))
 	assert.Nil(t, splitLines(""))
 	assert.Equal(t, []string{"only"}, splitLines("only"))
-}
-
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
-	fn()
-	require.NoError(t, w.Close())
-	os.Stdout = old
-	b, err := io.ReadAll(r)
-	require.NoError(t, err)
-	return string(b)
 }

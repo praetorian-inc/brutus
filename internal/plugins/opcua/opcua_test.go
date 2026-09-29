@@ -28,6 +28,7 @@ func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
 	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 500*time.Millisecond, brutus.PluginConfig{})
 	assert.False(t, r.Success)
 	assert.Empty(t, r.Banner)
+	assert.Equal(t, "(unauthenticated)", r.Username)
 }
 
 func TestClassifyError(t *testing.T) {
@@ -56,12 +57,6 @@ func TestClassifyError(t *testing.T) {
 			assert.Contains(t, got.Error(), "connection error")
 		})
 	}
-}
-
-func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
-	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 2*time.Second, brutus.PluginConfig{})
-	assert.False(t, r.Success)
-	assert.Equal(t, "(unauthenticated)", r.Username)
 }
 
 func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {

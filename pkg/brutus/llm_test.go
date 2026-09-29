@@ -265,7 +265,7 @@ type pairAnalyzer struct {
 	err   error
 }
 
-func (a pairAnalyzer) AnalyzeCredentials(ctx context.Context, banner BannerInfo) ([]Credential, error) {
+func (a *pairAnalyzer) AnalyzeCredentials(ctx context.Context, banner BannerInfo) ([]Credential, error) {
 	return a.creds, a.err
 }
 
@@ -307,7 +307,7 @@ func TestResearchCredentials_BannerAnalyzeError(t *testing.T) {
 
 func TestResearchCredentials_CredentialAnalyzerPreferred(t *testing.T) {
 	RegisterAnalyzer("test-pairs", func(cfg *LLMConfig) BannerAnalyzer {
-		return pairAnalyzer{
+		return &pairAnalyzer{
 			bannerOnlyAnalyzer: bannerOnlyAnalyzer{passwords: []string{"ignored"}},
 			creds:              []Credential{{Username: "tp-link", Password: "admin"}},
 		}
@@ -322,7 +322,7 @@ func TestResearchCredentials_CredentialAnalyzerPreferred(t *testing.T) {
 
 func TestResearchCredentials_CredentialAnalyzerError(t *testing.T) {
 	RegisterAnalyzer("test-pairs-err", func(cfg *LLMConfig) BannerAnalyzer {
-		return pairAnalyzer{err: context.Canceled}
+		return &pairAnalyzer{err: context.Canceled}
 	})
 	got := ResearchCredentials(context.Background(), "t", "b", &LLMConfig{
 		Enabled: true, Provider: "test-pairs-err",

@@ -18,8 +18,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -130,18 +128,4 @@ func TestOutputKerberosHuman(t *testing.T) {
 	assert.Contains(t, out, "Exists:      2")
 	assert.Contains(t, out, "Not found:   1")
 	assert.Contains(t, out, "Errors:      1")
-}
-
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
-	fn()
-	require.NoError(t, w.Close())
-	os.Stdout = old
-	b, err := io.ReadAll(r)
-	require.NoError(t, err)
-	return string(b)
 }

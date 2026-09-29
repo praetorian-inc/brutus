@@ -76,15 +76,6 @@ func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
 	}
 }
 
-func TestPlugin_Test_InvalidProxy(t *testing.T) {
-	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:61616", "admin", "admin", time.Second, brutus.PluginConfig{
-		ProxyURL: "http://127.0.0.1:1",
-	})
-	assert.False(t, r.Success)
-	require.NotNil(t, r.Error)
-	assert.Contains(t, r.Error.Error(), "connection error")
-}
-
 func TestInit(t *testing.T) {
 	p, err := brutus.GetPlugin("activemq")
 	require.NoError(t, err)

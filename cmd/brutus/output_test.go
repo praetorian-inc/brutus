@@ -18,8 +18,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,14 +27,6 @@ import (
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
-
-func TestHasSecurityFinding(t *testing.T) {
-	assert.True(t, hasSecurityFinding("[CRITICAL] open redis"))
-	assert.True(t, hasSecurityFinding("[HIGH] sticky keys"))
-	assert.True(t, hasSecurityFinding("[INFO] Sticky keys backdoor"))
-	assert.False(t, hasSecurityFinding(""))
-	assert.False(t, hasSecurityFinding("SSH-2.0-OpenSSH_8.9"))
-}
 
 func TestSplitLines(t *testing.T) {
 	assert.Empty(t, splitLines(""))
@@ -101,18 +91,4 @@ func TestOutputHuman_SkipsUnauthCredentials(t *testing.T) {
 	assert.Contains(t, out, "Security Findings")
 	assert.Contains(t, out, "[CRITICAL] Redis open")
 	assert.Contains(t, out, "1 valid")
-}
-
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	old := os.Stdout
-	os.Stdout = w
-	fn()
-	require.NoError(t, w.Close())
-	os.Stdout = old
-	b, err := io.ReadAll(r)
-	require.NoError(t, err)
-	return string(b)
 }

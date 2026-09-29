@@ -142,17 +142,3 @@ func TestRouteHTTP_BasicAuthKeepsProtocol(t *testing.T) {
 	assert.Equal(t, "http", protocol, "basic auth must keep the original protocol, not switch to browser")
 	assert.Nil(t, creds, "nil LLM config must not invent credentials")
 }
-
-func TestResearchBrowserCredentials_DisabledLLM(t *testing.T) {
-	creds, plug, err := ResearchBrowserCredentials(context.Background(), "example.com", BrowserConfig{})
-	assert.NoError(t, err)
-	assert.Nil(t, creds)
-	assert.Nil(t, plug)
-
-	creds, plug, err = ResearchBrowserCredentials(context.Background(), "example.com", BrowserConfig{
-		LLMConfig: &brutus.LLMConfig{Enabled: false},
-	})
-	assert.NoError(t, err)
-	assert.Nil(t, creds)
-	assert.Nil(t, plug)
-}

@@ -252,3 +252,38 @@ func TestPlugin_InvalidPassword(t *testing.T) {
 	assert.Equal(t, "USER admin", commands[0])
 	assert.Equal(t, "PASS wrongpass", commands[1])
 }
+
+func TestPlugin_ConnectionRefused(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:1", "u", "p", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
+func TestPlugin_EmptyGreeting(t *testing.T) {
+	addr, cleanup := mockPOP3Server(t, func(conn net.Conn, reader *bufio.Reader) {
+		_ = conn
+		_ = reader
+	})
+	defer cleanup()
+
+	r := (&Plugin{}).Test(context.Background(), addr, "u", "p", 2*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+}
+
+func TestPlugin_UnexpectedPASSResponse(t *testing.T) {
+	addr, cleanup := mockPOP3Server(t, func(conn net.Conn, reader *bufio.Reader) {
+		pop3Send(conn, "+OK POP3 server ready\r\n")
+		_, _ = pop3Recv(reader) // USER
+		pop3Send(conn, "+OK\r\n")
+		_, _ = pop3Recv(reader) // PASS
+		pop3Send(conn, "500 Syntax error\r\n")
+	})
+	defer cleanup()
+
+	r := (&Plugin{}).Test(context.Background(), addr, "admin", "hunter2", 5*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "unexpected POP3 response")
+}

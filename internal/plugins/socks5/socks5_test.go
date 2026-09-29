@@ -81,11 +81,11 @@ func TestPlugin_Test_AuthRejected(t *testing.T) {
 		_, _ = io.ReadFull(conn, buf[:3])
 		_, _ = conn.Write([]byte{0x05, 0x02})
 		_, _ = conn.Read(buf)
-		_, _ = conn.Write([]byte{0x01, 0x01})
+		_, _ = conn.Write([]byte{0x01, 0x01}) // username/password rejected
 	}()
 	r := (&Plugin{}).Test(context.Background(), ln.Addr().String(), "user", "wrong", 3*time.Second, brutus.PluginConfig{})
 	assert.False(t, r.Success)
-	assert.Nil(t, r.Error)
+	assert.Nil(t, r.Error, "SOCKS5 auth rejection must classify as auth failure")
 }
 
 func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {

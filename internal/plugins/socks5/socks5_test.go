@@ -46,3 +46,52 @@ func TestPlugin_Test_ValidAndInvalid(t *testing.T) {
 	assert.True(t, r.Success)
 	assert.Nil(t, r.Error)
 }
+
+func TestPlugin_Test_MethodRejected(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = ln.Close() }()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		buf := make([]byte, 3)
+		_, _ = io.ReadFull(conn, buf)
+		_, _ = conn.Write([]byte{0x05, 0xFF})
+	}()
+	r := (&Plugin{}).Test(context.Background(), ln.Addr().String(), "user", "pass", 3*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_AuthRejected(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = ln.Close() }()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		buf := make([]byte, 64)
+		_, _ = io.ReadFull(conn, buf[:3])
+		_, _ = conn.Write([]byte{0x05, 0x02})
+		_, _ = conn.Read(buf)
+		_, _ = conn.Write([]byte{0x01, 0x01})
+	}()
+	r := (&Plugin{}).Test(context.Background(), ln.Addr().String(), "user", "wrong", 3*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "::1", "u", "p", 200*time.Millisecond, brutus.PluginConfig{})
+	assert.NotNil(t, r)
+	if r.Error != nil {
+		assert.NotContains(t, r.Error.Error(), "too many colons")
+	}
+}

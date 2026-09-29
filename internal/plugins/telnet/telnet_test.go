@@ -16,7 +16,9 @@ package telnet
 
 import (
 	"bufio"
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"testing"
@@ -24,6 +26,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
 // scriptChunk is a piece of data a scriptedConn delivers once the elapsed time
@@ -116,6 +120,58 @@ func TestReadResponse_CapturesPromptArrivingAfterMOTDFailure(t *testing.T) {
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}
 	assert.Equal(t, "telnet", p.Name())
+}
+
+func TestPlugin_Test_ValidCredentials(t *testing.T) {
+	addr := mockTelnet(t, true)
+	r := (&Plugin{}).Test(context.Background(), addr, "user", "pass", 3*time.Second, brutus.PluginConfig{})
+	assert.True(t, r.Success)
+	assert.Nil(t, r.Error)
+	assert.Contains(t, r.Banner, "login:")
+}
+
+func TestPlugin_Test_InvalidCredentials(t *testing.T) {
+	addr := mockTelnet(t, false)
+	r := (&Plugin{}).Test(context.Background(), addr, "user", "wrong", 3*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error, "Login incorrect must classify as auth failure")
+}
+
+func TestPlugin_Test_ConnectionRefused(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:1", "user", "pass", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
+func mockTelnet(t *testing.T, accept bool) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+		r := bufio.NewReader(conn)
+		_, _ = io.WriteString(conn, "Ubuntu 22.04\r\nlogin: ")
+		if _, err := r.ReadString('\n'); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, "Password: ")
+		if _, err := r.ReadString('\n'); err != nil {
+			return
+		}
+		if accept {
+			_, _ = fmt.Fprintf(conn, "Welcome\r\nuser@host$ ")
+		} else {
+			_, _ = io.WriteString(conn, "Login incorrect\r\n")
+		}
+	}()
+	return ln.Addr().String()
 }
 
 func TestClassifyError(t *testing.T) {

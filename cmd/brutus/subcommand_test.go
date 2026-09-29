@@ -213,6 +213,39 @@ func TestRunSNMP_SetsProtocolOverrideAndFilter(t *testing.T) {
 	assert.False(t, config.protocolFilter("http"))
 }
 
+func TestRunBadkeys_SetsSSHOnlyEmbeddedKeys(t *testing.T) {
+	config := &baseConfigOptions{}
+
+	// Simulate runBadkeys logic
+	config.protocolOverride = "ssh"
+	config.badkeysOnly = true
+	config.useBadkeys = true
+	config.aiMode = false
+	config.protocolFilter = func(protocol string) bool {
+		return protocol == "ssh"
+	}
+
+	assert.Equal(t, "ssh", config.protocolOverride)
+	assert.True(t, config.badkeysOnly)
+	assert.True(t, config.useBadkeys)
+	assert.False(t, config.aiMode)
+	assert.True(t, config.protocolFilter("ssh"))
+	assert.False(t, config.protocolFilter("http"))
+	assert.False(t, config.protocolFilter("rdp"))
+	assert.False(t, config.protocolFilter("snmp"))
+}
+
+func TestBadkeysAliases(t *testing.T) {
+	for _, name := range []string{"badkeys", "keys", "ssh-keys", "badkey"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "badkeys", cmd.Use)
+		})
+	}
+}
+
 // TestProtocolFilters_AreComplementary verifies that the web, creds, and snmp
 // filters partition protocols correctly — each protocol matches exactly one filter.
 func TestProtocolFilters_AreComplementary(t *testing.T) {

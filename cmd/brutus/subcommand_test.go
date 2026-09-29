@@ -268,6 +268,17 @@ func TestBadkeysAliases(t *testing.T) {
 	}
 }
 
+func TestSNMPAliases(t *testing.T) {
+	for _, name := range []string{"snmp", "community"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "snmp", cmd.Use)
+		})
+	}
+}
+
 // TestProtocolFilters_AreComplementary verifies that the web, creds, and snmp
 // filters partition protocols correctly — each protocol matches exactly one filter.
 func TestProtocolFilters_AreComplementary(t *testing.T) {

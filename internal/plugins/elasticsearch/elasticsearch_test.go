@@ -128,6 +128,14 @@ func mockElasticRoot(t *testing.T) string {
 	return strings.TrimPrefix(srv.URL, "http://")
 }
 
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:9200", "elastic", "password", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	if elasticsearchTestHost == "" {
 		t.Skip("Integration test - requires Elasticsearch server (set ELASTICSEARCH_TEST_HOST)")

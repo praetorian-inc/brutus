@@ -16,7 +16,10 @@ package influxdb
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,4 +123,36 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_MockValidCredentials(t *testing.T) {
+	addr := mockInfluxSignin(t, http.StatusNoContent)
+	r := (&Plugin{}).Test(context.Background(), addr, "admin", "secret", 2*time.Second, brutus.PluginConfig{})
+	assert.True(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func TestPlugin_Test_MockInvalidCredentials(t *testing.T) {
+	addr := mockInfluxSignin(t, http.StatusNoContent)
+	r := (&Plugin{}).Test(context.Background(), addr, "admin", "wrong", 2*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func mockInfluxSignin(t *testing.T, okCode int) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v2/signin" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "admin" || pass != "secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(okCode)
+	}))
+	t.Cleanup(srv.Close)
+	return strings.TrimPrefix(srv.URL, "http://")
 }

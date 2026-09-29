@@ -249,3 +249,85 @@ func TestResearchCredentials_UnknownProvider(t *testing.T) {
 		t.Errorf("expected nil for unknown provider, got %v", result)
 	}
 }
+
+type bannerOnlyAnalyzer struct {
+	passwords []string
+	err       error
+}
+
+func (a bannerOnlyAnalyzer) Analyze(ctx context.Context, banner BannerInfo) ([]string, error) {
+	return a.passwords, a.err
+}
+
+type pairAnalyzer struct {
+	bannerOnlyAnalyzer
+	creds []Credential
+	err   error
+}
+
+func (a pairAnalyzer) AnalyzeCredentials(ctx context.Context, banner BannerInfo) ([]Credential, error) {
+	return a.creds, a.err
+}
+
+func TestResearchCredentials_BannerFallbackPairsAdminAndRoot(t *testing.T) {
+	RegisterAnalyzer("test-banner-only", func(cfg *LLMConfig) BannerAnalyzer {
+		return bannerOnlyAnalyzer{passwords: []string{"secret", "toor"}}
+	})
+	got := ResearchCredentials(context.Background(), "10.0.0.1:80", "Apache", &LLMConfig{
+		Enabled:  true,
+		Provider: "test-banner-only",
+	})
+	want := []Credential{
+		{Username: "admin", Password: "secret"},
+		{Username: "root", Password: "secret"},
+		{Username: "admin", Password: "toor"},
+		{Username: "root", Password: "toor"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i].Username != want[i].Username || got[i].Password != want[i].Password {
+			t.Errorf("creds[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestResearchCredentials_BannerAnalyzeError(t *testing.T) {
+	RegisterAnalyzer("test-banner-err", func(cfg *LLMConfig) BannerAnalyzer {
+		return bannerOnlyAnalyzer{err: context.DeadlineExceeded}
+	})
+	got := ResearchCredentials(context.Background(), "t", "b", &LLMConfig{
+		Enabled: true, Provider: "test-banner-err",
+	})
+	if got != nil {
+		t.Errorf("expected nil on analyze error, got %v", got)
+	}
+}
+
+func TestResearchCredentials_CredentialAnalyzerPreferred(t *testing.T) {
+	RegisterAnalyzer("test-pairs", func(cfg *LLMConfig) BannerAnalyzer {
+		return pairAnalyzer{
+			bannerOnlyAnalyzer: bannerOnlyAnalyzer{passwords: []string{"ignored"}},
+			creds:              []Credential{{Username: "tp-link", Password: "admin"}},
+		}
+	})
+	got := ResearchCredentials(context.Background(), "router", "TP-Link", &LLMConfig{
+		Enabled: true, Provider: "test-pairs",
+	})
+	if len(got) != 1 || got[0].Username != "tp-link" || got[0].Password != "admin" {
+		t.Errorf("got %v, want vendor-specific pair from CredentialAnalyzer", got)
+	}
+}
+
+func TestResearchCredentials_CredentialAnalyzerError(t *testing.T) {
+	RegisterAnalyzer("test-pairs-err", func(cfg *LLMConfig) BannerAnalyzer {
+		return pairAnalyzer{err: context.Canceled}
+	})
+	got := ResearchCredentials(context.Background(), "t", "b", &LLMConfig{
+		Enabled: true, Provider: "test-pairs-err",
+	})
+	if got != nil {
+		t.Errorf("expected nil on AnalyzeCredentials error, got %v", got)
+	}
+}

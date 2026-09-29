@@ -283,64 +283,43 @@ jobs:
       - name: Wait for services
         run: |
           echo "Waiting for services to be ready..."
+          set -euo pipefail
 
-          # Network Services
-          echo "Waiting for SSH..."
-          timeout 60 bash -c 'until nc -z localhost 2222; do sleep 1; done' || true
-          echo "Waiting for FTP..."
-          timeout 60 bash -c 'until nc -z localhost 21; do sleep 1; done' || true
-          echo "Waiting for Telnet..."
-          timeout 60 bash -c 'until nc -z localhost 23; do sleep 1; done' || true
-          echo "Waiting for VNC..."
-          timeout 60 bash -c 'until nc -z localhost 5901; do sleep 1; done' || true
+          wait_tcp() {
+            local name="$1" port="$2" seconds="${3:-60}"
+            echo "Waiting for ${name} on :${port}..."
+            timeout "${seconds}" bash -c "until nc -z localhost ${port}; do sleep 1; done"
+          }
 
-          # Enterprise
-          echo "Waiting for SMB..."
-          timeout 60 bash -c 'until nc -z localhost 445; do sleep 1; done' || true
-          echo "Waiting for LDAP..."
-          timeout 60 bash -c 'until nc -z localhost 389; do sleep 1; done' || true
+          wait_tcp SSH 2222 60
+          wait_tcp SSH-key 2223 60
+          wait_tcp FTP 21 60
+          wait_tcp Telnet 23 60
+          wait_tcp VNC 5901 60
+          wait_tcp SMB 445 60
+          wait_tcp LDAP 389 60
+          wait_tcp MySQL 3306 60
+          wait_tcp PostgreSQL 5432 60
+          wait_tcp MSSQL 1433 120
+          wait_tcp Oracle 1521 300
+          wait_tcp MongoDB 27017 60
+          wait_tcp Redis 6379 60
+          wait_tcp Neo4j 7687 90
+          wait_tcp Cassandra 9042 120
+          wait_tcp CouchDB 5984 60
+          wait_tcp Elasticsearch 9200 120
+          wait_tcp InfluxDB 8086 60
+          wait_tcp SMTP 3025 60
+          wait_tcp IMAP 3143 60
+          wait_tcp POP3 3110 60
 
-          # Databases
-          echo "Waiting for MySQL..."
-          timeout 60 bash -c 'until nc -z localhost 3306; do sleep 1; done' || true
-          echo "Waiting for PostgreSQL..."
-          timeout 60 bash -c 'until nc -z localhost 5432; do sleep 1; done' || true
-          echo "Waiting for MSSQL..."
-          timeout 120 bash -c 'until nc -z localhost 1433; do sleep 1; done' || true
-          echo "Waiting for Oracle..."
-          timeout 300 bash -c 'until nc -z localhost 1521; do sleep 2; done' || true
-          echo "Waiting for MongoDB..."
-          timeout 60 bash -c 'until nc -z localhost 27017; do sleep 1; done' || true
-          echo "Waiting for Redis..."
-          timeout 60 bash -c 'until nc -z localhost 6379; do sleep 1; done' || true
-          echo "Waiting for Neo4j..."
-          timeout 90 bash -c 'until nc -z localhost 7687; do sleep 1; done' || true
-          echo "Waiting for Cassandra..."
-          timeout 120 bash -c 'until nc -z localhost 9042; do sleep 1; done' || true
-          echo "Waiting for CouchDB..."
-          timeout 60 bash -c 'until nc -z localhost 5984; do sleep 1; done' || true
-          echo "Waiting for Elasticsearch..."
-          timeout 120 bash -c 'until nc -z localhost 9200; do sleep 1; done' || true
-          echo "Waiting for InfluxDB..."
-          timeout 60 bash -c 'until nc -z localhost 8086; do sleep 1; done' || true
-
-          # Communications
-          echo "Waiting for SMTP..."
-          timeout 60 bash -c 'until nc -z localhost 3025; do sleep 1; done' || true
-          echo "Waiting for IMAP..."
-          timeout 60 bash -c 'until nc -z localhost 3143; do sleep 1; done' || true
-          echo "Waiting for POP3..."
-          timeout 60 bash -c 'until nc -z localhost 3110; do sleep 1; done' || true
-
-          # SNMP (UDP)
           echo "Waiting for SNMP..."
           sudo apt-get update && sudo apt-get install -y snmp > /dev/null 2>&1 || true
-          timeout 30 bash -c 'until snmpget -v2c -c public localhost:161 1.3.6.1.2.1.1.1.0 2>/dev/null; do sleep 1; done' || true
+          timeout 30 bash -c 'until snmpget -v2c -c public localhost:161 1.3.6.1.2.1.1.1.0 2>/dev/null; do sleep 1; done'
 
-          # Extra time for slow services to fully initialize
           echo "Allowing extra initialization time..."
           sleep 30
-          echo "All services should be ready"
+          echo "All services ready"
 
       - name: Run integration tests
         run: CGO_ENABLED=0 go test -tags=integration -v -timeout 20m ./...

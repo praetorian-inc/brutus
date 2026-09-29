@@ -13,7 +13,9 @@ services:
   # ==================== Network Services ====================
 
   ssh:
-    image: linuxserver/openssh-server:latest
+    # Pinned to the same digest as CI. linuxserver 10.3 (ls230) broke
+    # Vagrant-key auth used by TestPlugin_TestKey_*.
+    image: linuxserver/openssh-server:10.2_p1-r0-ls229@sha256:67d4c3a1402179a6579aa217a38b52ced557eb8a0c17a8e32fe986a4549fdee4
     ports:
       - "2222:2222"
     environment:
@@ -22,6 +24,17 @@ services:
       - PASSWORD_ACCESS=true
       - USER_NAME=testuser
       - USER_PASSWORD=testpass
+
+  ssh-key:
+    image: linuxserver/openssh-server:10.2_p1-r0-ls229@sha256:67d4c3a1402179a6579aa217a38b52ced557eb8a0c17a8e32fe986a4549fdee4
+    ports:
+      - "2223:2222"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PASSWORD_ACCESS=false
+      - USER_NAME=vagrant
+      - PUBLIC_KEY=ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key
 
   ftp:
     image: fauria/vsftpd
@@ -113,6 +126,17 @@ services:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=MssqlPass123!
 
+  oracle:
+    image: gvenzl/oracle-xe:21-slim
+    ports:
+      - "1521:1521"
+    environment:
+      - ORACLE_PASSWORD=oraclepass
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
   mongodb:
     image: mongo:7
     ports:

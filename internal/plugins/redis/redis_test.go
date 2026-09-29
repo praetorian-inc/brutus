@@ -15,12 +15,19 @@
 package redis
 
 import (
+	"bufio"
 	"context"
+	"fmt"
+	"io"
+	"net"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -296,6 +303,115 @@ func TestInit(t *testing.T) {
 	p := &Plugin{}
 	assert.NotNil(t, p)
 	assert.Equal(t, "redis", p.Name())
+}
+
+func TestPlugin_CheckUnauth_Open(t *testing.T) {
+	addr := mockRedis(t, false)
+	r := (&Plugin{}).CheckUnauth(context.Background(), addr, 2*time.Second, brutus.PluginConfig{})
+	assert.True(t, r.Success)
+	assert.Contains(t, r.Banner, "CRITICAL")
+	assert.Contains(t, r.Banner, "7.2.0")
+}
+
+func TestPlugin_CheckUnauth_RequiresAuth(t *testing.T) {
+	addr := mockRedis(t, true)
+	r := (&Plugin{}).CheckUnauth(context.Background(), addr, 2*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+}
+
+func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
+	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+}
+
+func mockRedis(t *testing.T, requireAuth bool) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go serveRedis(conn, requireAuth)
+		}
+	}()
+	return ln.Addr().String()
+}
+
+func serveRedis(conn net.Conn, requireAuth bool) {
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+	r := bufio.NewReader(conn)
+	for {
+		cmd, err := readRedisCommand(r)
+		if err != nil {
+			return
+		}
+		switch cmd {
+		case "HELLO":
+			_, _ = io.WriteString(conn, "-ERR unknown command 'HELLO'\r\n")
+		case "PING":
+			if requireAuth {
+				_, _ = io.WriteString(conn, "-NOAUTH Authentication required.\r\n")
+				continue
+			}
+			_, _ = io.WriteString(conn, "+PONG\r\n")
+		case "INFO":
+			if requireAuth {
+				_, _ = io.WriteString(conn, "-NOAUTH Authentication required.\r\n")
+				continue
+			}
+			payload := "redis_version:7.2.0\r\n"
+			_, _ = fmt.Fprintf(conn, "$%d\r\n%s\r\n", len(payload), payload)
+		default:
+			if requireAuth {
+				_, _ = io.WriteString(conn, "-NOAUTH Authentication required.\r\n")
+			} else {
+				_, _ = io.WriteString(conn, "+OK\r\n")
+			}
+		}
+	}
+}
+
+func readRedisCommand(r *bufio.Reader) (string, error) {
+	line, err := r.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "*") {
+		return strings.ToUpper(strings.TrimSpace(line)), nil
+	}
+	n, err := strconv.Atoi(line[1:])
+	if err != nil || n < 1 {
+		return "", fmt.Errorf("bad RESP array")
+	}
+	var name string
+	for i := 0; i < n; i++ {
+		lenLine, err := r.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		lenLine = strings.TrimSpace(lenLine)
+		if !strings.HasPrefix(lenLine, "$") {
+			return "", fmt.Errorf("bad RESP bulk")
+		}
+		size, err := strconv.Atoi(lenLine[1:])
+		if err != nil {
+			return "", err
+		}
+		buf := make([]byte, size+2)
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return "", err
+		}
+		if i == 0 {
+			name = strings.ToUpper(string(buf[:size]))
+		}
+	}
+	return name, nil
 }
 
 // mockError is a simple error implementation for testing error classification

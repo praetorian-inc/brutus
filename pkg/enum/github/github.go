@@ -260,6 +260,16 @@ func NewEnumerator(proxyURL string, timeout time.Duration, token string, rotatin
 	}, nil
 }
 
+// client returns the per-run enum HTTP client when ctx carries one (set via
+// enum.WithHTTPClient for --proxy and connection pooling), otherwise the
+// Enumerator's own existence client.
+func (e *Enumerator) client(ctx context.Context) *http.Client {
+	if c := enum.HTTPClientFromContext(ctx); c != nil {
+		return c
+	}
+	return e.httpClient
+}
+
 // parseCSRFToken walks the join page HTML and returns the value of the hidden
 // input nested inside the <auto-check src="/email_validity_checks"> element.
 func parseCSRFToken(r io.Reader) (string, error) {

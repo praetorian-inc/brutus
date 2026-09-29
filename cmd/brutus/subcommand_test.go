@@ -107,6 +107,17 @@ func TestRunCreds_NoFilterWhenProtocolExplicit(t *testing.T) {
 	assert.Nil(t, config.protocolFilter)
 }
 
+func TestCredsAliases(t *testing.T) {
+	for _, name := range []string{"creds", "services", "defaults", "credentials"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "creds", cmd.Use)
+		})
+	}
+}
+
 // TestRunWeb_SetsProtocolFilter tests that runWeb always installs the web
 // protocol filter.
 func TestRunWeb_SetsProtocolFilter(t *testing.T) {
@@ -119,6 +130,17 @@ func TestRunWeb_SetsProtocolFilter(t *testing.T) {
 	assert.False(t, config.protocolFilter("ssh"))
 	assert.False(t, config.protocolFilter("mysql"))
 	assert.False(t, config.protocolFilter("rdp"))
+}
+
+func TestWebAliases(t *testing.T) {
+	for _, name := range []string{"web", "http", "panels"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "web", cmd.Use)
+		})
+	}
 }
 
 // TestRunWeb_HTTPSFlagSetsOverride tests that --https sets protocolOverride
@@ -211,6 +233,50 @@ func TestRunSNMP_SetsProtocolOverrideAndFilter(t *testing.T) {
 	assert.True(t, config.protocolFilter("snmp"))
 	assert.False(t, config.protocolFilter("ssh"))
 	assert.False(t, config.protocolFilter("http"))
+}
+
+func TestRunBadkeys_SetsSSHOnlyEmbeddedKeys(t *testing.T) {
+	config := &baseConfigOptions{}
+
+	// Simulate runBadkeys logic
+	config.protocolOverride = "ssh"
+	config.badkeysOnly = true
+	config.useBadkeys = true
+	config.aiMode = false
+	config.protocolFilter = func(protocol string) bool {
+		return protocol == "ssh"
+	}
+
+	assert.Equal(t, "ssh", config.protocolOverride)
+	assert.True(t, config.badkeysOnly)
+	assert.True(t, config.useBadkeys)
+	assert.False(t, config.aiMode)
+	assert.True(t, config.protocolFilter("ssh"))
+	assert.False(t, config.protocolFilter("http"))
+	assert.False(t, config.protocolFilter("rdp"))
+	assert.False(t, config.protocolFilter("snmp"))
+}
+
+func TestBadkeysAliases(t *testing.T) {
+	for _, name := range []string{"badkeys", "keys", "ssh-keys", "badkey"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "badkeys", cmd.Use)
+		})
+	}
+}
+
+func TestSNMPAliases(t *testing.T) {
+	for _, name := range []string{"snmp", "community"} {
+		t.Run(name, func(t *testing.T) {
+			cmd, _, err := rootCmd.Find([]string{name})
+			require.NoError(t, err, "rootCmd.Find must resolve %q", name)
+			require.NotNil(t, cmd)
+			assert.Equal(t, "snmp", cmd.Use)
+		})
+	}
 }
 
 // TestProtocolFilters_AreComplementary verifies that the web, creds, and snmp

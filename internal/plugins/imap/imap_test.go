@@ -20,9 +20,13 @@
 package imap
 
 import (
+	"bufio"
 	"context"
+	"fmt"
+	"io"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -219,6 +223,63 @@ func TestPlugin_Test_LoginDeadline(t *testing.T) {
 	require.NotNil(t, result)
 	assert.False(t, result.Success)
 	assert.Less(t, elapsed, 2*time.Second, "login must be bounded by the plugin timeout")
+}
+
+func TestPlugin_Test_MockValidCredentials(t *testing.T) {
+	addr := mockIMAP(t, true)
+	r := (&Plugin{}).Test(context.Background(), addr, "user", "pass", 3*time.Second, brutus.PluginConfig{})
+	assert.True(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func TestPlugin_Test_MockInvalidCredentials(t *testing.T) {
+	addr := mockIMAP(t, false)
+	r := (&Plugin{}).Test(context.Background(), addr, "user", "wrong", 3*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error, "authentication failed must classify as auth failure")
+}
+
+func mockIMAP(t *testing.T, accept bool) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+		r := bufio.NewReader(conn)
+		_, _ = io.WriteString(conn, "* OK IMAP4rev1 ready\r\n")
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			fields := strings.Fields(line)
+			if len(fields) < 2 {
+				continue
+			}
+			tag, cmd := fields[0], strings.ToUpper(fields[1])
+			switch cmd {
+			case "CAPABILITY":
+				_, _ = io.WriteString(conn, "* CAPABILITY IMAP4rev1 AUTH=PLAIN\r\n")
+				_, _ = fmt.Fprintf(conn, "%s OK CAPABILITY completed\r\n", tag)
+			case "LOGIN":
+				if accept {
+					_, _ = fmt.Fprintf(conn, "%s OK LOGIN completed\r\n", tag)
+				} else {
+					_, _ = fmt.Fprintf(conn, "%s NO authentication failed\r\n", tag)
+				}
+				return
+			default:
+				_, _ = fmt.Fprintf(conn, "%s BAD unknown\r\n", tag)
+			}
+		}
+	}()
+	return ln.Addr().String()
 }
 
 func TestInit(t *testing.T) {

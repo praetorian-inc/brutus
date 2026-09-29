@@ -25,6 +25,14 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	assert.Contains(t, r.Error.Error(), "connection error")
 }
 
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:9092", "u", "p", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestClassifyError(t *testing.T) {
 	tests := []struct {
 		name    string

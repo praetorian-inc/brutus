@@ -19,11 +19,14 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jcmturner/gokrb5/v8/iana"
 	"github.com/jcmturner/gokrb5/v8/iana/errorcode"
+	"github.com/jcmturner/gokrb5/v8/iana/msgtype"
 	"github.com/jcmturner/gokrb5/v8/iana/nametype"
 	"github.com/jcmturner/gokrb5/v8/messages"
 	"github.com/jcmturner/gokrb5/v8/types"
@@ -35,10 +38,11 @@ import (
 // It listens on a random TCP port, parses incoming AS-REQ messages,
 // and returns KRB-ERROR responses based on a configurable user map.
 type mockKDC struct {
-	listener net.Listener
-	users    map[string]bool // username -> exists (responds with PREAUTH_REQUIRED)
-	wg       sync.WaitGroup
-	done     chan struct{}
+	listener  net.Listener
+	users     map[string]bool // username -> exists (PREAUTH_REQUIRED)
+	roastable map[string]bool // username -> AS-REP (no preauth)
+	wg        sync.WaitGroup
+	done      chan struct{}
 }
 
 // newMockKDC starts a mock KDC on a random local port.
@@ -106,21 +110,30 @@ func (m *mockKDC) handleConn(conn net.Conn) {
 	}
 	realm := asReq.ReqBody.Realm
 
-	var code int32
-	if m.users[username] {
-		code = errorcode.KDC_ERR_PREAUTH_REQUIRED
+	var respBytes []byte
+	if m.roastable[username] {
+		var err error
+		respBytes, err = marshalASRep(username, realm)
+		if err != nil {
+			return
+		}
 	} else {
-		code = errorcode.KDC_ERR_C_PRINCIPAL_UNKNOWN
-	}
-
-	sname := types.PrincipalName{
-		NameType:   nametype.KRB_NT_SRV_INST,
-		NameString: []string{"krbtgt", realm},
-	}
-	krbErr := messages.NewKRBError(sname, realm, code, "")
-	respBytes, err := krbErr.Marshal()
-	if err != nil {
-		return
+		var code int32
+		if m.users[username] {
+			code = errorcode.KDC_ERR_PREAUTH_REQUIRED
+		} else {
+			code = errorcode.KDC_ERR_C_PRINCIPAL_UNKNOWN
+		}
+		sname := types.PrincipalName{
+			NameType:   nametype.KRB_NT_SRV_INST,
+			NameString: []string{"krbtgt", realm},
+		}
+		krbErr := messages.NewKRBError(sname, realm, code, "")
+		var err error
+		respBytes, err = krbErr.Marshal()
+		if err != nil {
+			return
+		}
 	}
 
 	respLen := make([]byte, 4)
@@ -142,6 +155,20 @@ func TestEnumUser_ExistingUser(t *testing.T) {
 	assert.Equal(t, "administrator", result.Username)
 	assert.Equal(t, "TEST.LOCAL", result.Realm)
 	assert.Greater(t, result.Duration, time.Duration(0))
+}
+
+func TestEnumUser_NoPreAuth(t *testing.T) {
+	t.Parallel()
+	kdc := newMockKDC(t, nil)
+	kdc.roastable = map[string]bool{"guest": true}
+	t.Cleanup(kdc.Close)
+
+	result := EnumUser(context.Background(), kdc.Addr(), "TEST.LOCAL", "guest", 5*time.Second)
+
+	require.NoError(t, result.Error)
+	assert.True(t, result.Exists, "AS-REP means the principal exists")
+	assert.True(t, result.NoPreAuth, "AS-REP means Do not require preauth")
+	assert.Equal(t, "guest", result.Username)
 }
 
 func TestEnumUser_NonExistentUser(t *testing.T) {
@@ -326,4 +353,54 @@ func TestSendKerberosTCP_DefaultPort(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// TODO: Add TestEnumUser_NoPreAuth when a valid AS-REP can be constructed.
+func TestSendKerberosTCP_TooLarge(t *testing.T) {
+	t.Parallel()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = ln.Close() }()
+
+	go func() {
+		conn, acceptErr := ln.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		lenBuf := make([]byte, 4)
+		_, _ = io.ReadFull(conn, lenBuf)
+		msgLen := binary.BigEndian.Uint32(lenBuf)
+		buf := make([]byte, msgLen)
+		_, _ = io.ReadFull(conn, buf)
+		respLen := make([]byte, 4)
+		binary.BigEndian.PutUint32(respLen, 1024*1024+1)
+		_, _ = conn.Write(respLen)
+	}()
+
+	_, err = sendKerberosTCP(context.Background(), ln.Addr().String(), []byte("x"), 5*time.Second)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too large")
+}
+
+func marshalASRep(username, realm string) ([]byte, error) {
+	realm = strings.ToUpper(realm)
+	tkt := messages.Ticket{
+		TktVNO: iana.PVNO,
+		Realm:  realm,
+		SName: types.PrincipalName{
+			NameType:   nametype.KRB_NT_SRV_INST,
+			NameString: []string{"krbtgt", realm},
+		},
+		EncPart: types.EncryptedData{EType: 18, Cipher: []byte{0xde, 0xad}},
+	}
+	asRep := messages.ASRep{KDCRepFields: messages.KDCRepFields{
+		PVNO:    iana.PVNO,
+		MsgType: msgtype.KRB_AS_REP,
+		CRealm:  realm,
+		CName: types.PrincipalName{
+			NameType:   nametype.KRB_NT_PRINCIPAL,
+			NameString: []string{username},
+		},
+		Ticket:  tkt,
+		EncPart: types.EncryptedData{EType: 18, Cipher: []byte{0xbe, 0xef}},
+	}}
+	return asRep.Marshal()
+}

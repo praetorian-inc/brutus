@@ -30,10 +30,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 
 	// Import all plugins to register them
+	_ "github.com/praetorian-inc/brutus/internal/plugins/amqp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/cassandra"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/couchdb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/elasticsearch"
@@ -46,8 +48,10 @@ import (
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mssql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/mysql"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/neo4j"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/oracle"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/pop3"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/postgresql"
+	_ "github.com/praetorian-inc/brutus/internal/plugins/rdp"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/redis"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smb"
 	_ "github.com/praetorian-inc/brutus/internal/plugins/smtp"
@@ -122,6 +126,14 @@ func TestAllProtocols(t *testing.T) {
 			userEnv:  "LDAP_TEST_USER",
 			passEnv:  "LDAP_TEST_PASS",
 		},
+		{
+			name:     "RDP",
+			protocol: "rdp",
+			hostEnv:  "RDP_TEST_HOST",
+			userEnv:  "RDP_TEST_USER",
+			passEnv:  "RDP_TEST_PASS",
+			timeout:  30 * time.Second,
+		},
 		// ==================== Databases ====================
 		{
 			name:     "MySQL",
@@ -146,6 +158,14 @@ func TestAllProtocols(t *testing.T) {
 			timeout:  30 * time.Second,
 		},
 		{
+			name:     "Oracle",
+			protocol: "oracle",
+			hostEnv:  "ORACLE_TEST_HOST",
+			userEnv:  "ORACLE_TEST_USER",
+			passEnv:  "ORACLE_TEST_PASS",
+			timeout:  30 * time.Second,
+		},
+		{
 			name:     "MongoDB",
 			protocol: "mongodb",
 			hostEnv:  "MONGODB_TEST_HOST",
@@ -167,13 +187,20 @@ func TestAllProtocols(t *testing.T) {
 			passEnv:  "NEO4J_TEST_PASS",
 		},
 		{
-			name:       "Cassandra",
-			protocol:   "cassandra",
-			hostEnv:    "CASSANDRA_TEST_HOST",
-			userEnv:    "CASSANDRA_TEST_USER",
-			passEnv:    "CASSANDRA_TEST_PASS",
-			timeout:    30 * time.Second,
-			skipReason: "Official Cassandra image uses AllowAllAuthenticator by default",
+			name:     "Cassandra",
+			protocol: "cassandra",
+			hostEnv:  "CASSANDRA_TEST_HOST",
+			userEnv:  "CASSANDRA_TEST_USER",
+			passEnv:  "CASSANDRA_TEST_PASS",
+			timeout:  30 * time.Second,
+		},
+		{
+			name:     "Oracle",
+			protocol: "oracle",
+			hostEnv:  "ORACLE_TEST_HOST",
+			userEnv:  "ORACLE_TEST_USER",
+			passEnv:  "ORACLE_TEST_PASS",
+			timeout:  30 * time.Second,
 		},
 		{
 			name:     "CouchDB",
@@ -218,6 +245,13 @@ func TestAllProtocols(t *testing.T) {
 			hostEnv:  "POP3_TEST_HOST",
 			userEnv:  "POP3_TEST_USER",
 			passEnv:  "POP3_TEST_PASS",
+		},
+		{
+			name:     "AMQP",
+			protocol: "amqp",
+			hostEnv:  "AMQP_TEST_HOST",
+			userEnv:  "AMQP_TEST_USER",
+			passEnv:  "AMQP_TEST_PASS",
 		},
 	}
 
@@ -298,16 +332,8 @@ func runProtocolTest(t *testing.T, tc *testCase) {
 	// Test 1: Valid credentials should succeed
 	t.Run("ValidCredentials", func(t *testing.T) {
 		result := plugin.Test(ctx, host, username, password, timeout, brutus.PluginConfig{})
-
-		if result.Error != nil {
-			t.Logf("Connection error (may be expected): %v", result.Error)
-			// Connection errors are acceptable in CI (service may not be ready)
-			// We check that at least we got a result
-			return
-		}
-
+		require.NoError(t, result.Error, "valid credentials must not return a connection error talking to %s", host)
 		assert.True(t, result.Success, "Valid credentials should succeed")
-		assert.Nil(t, result.Error, "Valid credentials should not return error")
 		assert.Equal(t, tc.protocol, result.Protocol, "Protocol should match")
 		assert.Contains(t, result.Target, host, "Target should contain host")
 	})
@@ -315,14 +341,7 @@ func runProtocolTest(t *testing.T, tc *testCase) {
 	// Test 2: Invalid credentials should fail gracefully
 	t.Run("InvalidCredentials", func(t *testing.T) {
 		result := plugin.Test(ctx, host, username, "definitely-wrong-password-12345", timeout, brutus.PluginConfig{})
-
-		if result.Error != nil {
-			// Connection errors are different from auth failures
-			t.Logf("Got error (may be connection issue): %v", result.Error)
-			return
-		}
-
+		require.NoError(t, result.Error, "auth failure must not be classified as a connection error talking to %s", host)
 		assert.False(t, result.Success, "Invalid credentials should fail")
-		assert.Nil(t, result.Error, "Auth failure should return nil error (not connection error)")
 	})
 }

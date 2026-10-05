@@ -21,7 +21,7 @@ require (
 	github.com/mitchellh/go-vnc v0.0.0-20150629162542-723ed9867aed
 	github.com/nakagami/firebirdsql v0.9.20
 	github.com/nats-io/nats.go v1.53.1
-	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.5
 	github.com/praetorian-inc/capability-sdk v0.0.0-20260908174325-de5f920e8132
 	github.com/praetorian-inc/nerva v1.69.6
 	github.com/rabbitmq/amqp091-go v1.14.0

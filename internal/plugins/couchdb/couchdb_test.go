@@ -16,7 +16,10 @@ package couchdb
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,6 +94,14 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:5984", "admin", "password", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	if couchdbTestHost == "" {
 		t.Skip("Integration test - requires CouchDB server (set COUCHDB_TEST_HOST)")
@@ -109,6 +120,14 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.NotNil(t, result.Error)
 }
 
+func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := (&Plugin{}).Test(ctx, "127.0.0.1:1", "admin", "x", time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+}
+
 func TestPlugin_Test_Timeout(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
@@ -120,4 +139,36 @@ func TestPlugin_Test_Timeout(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
 	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_MockValidCredentials(t *testing.T) {
+	addr := mockCouchSession(t, http.StatusOK)
+	r := (&Plugin{}).Test(context.Background(), addr, "admin", "secret", 2*time.Second, brutus.PluginConfig{})
+	assert.True(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func TestPlugin_Test_MockInvalidCredentials(t *testing.T) {
+	addr := mockCouchSession(t, http.StatusOK)
+	r := (&Plugin{}).Test(context.Background(), addr, "admin", "wrong", 2*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func mockCouchSession(t *testing.T, okCode int) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/_session" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "admin" || pass != "secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(okCode)
+	}))
+	t.Cleanup(srv.Close)
+	return strings.TrimPrefix(srv.URL, "http://")
 }

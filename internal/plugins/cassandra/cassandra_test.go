@@ -29,6 +29,13 @@ func TestPlugin_Name(t *testing.T) {
 	assert.Equal(t, "cassandra", p.Name())
 }
 
+func TestPlugin_Test_ConnectionRefused(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:1", "cassandra", "cassandra", time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_ErrorClassification(t *testing.T) {
 	tests := []struct {
 		name     string

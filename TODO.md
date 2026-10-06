@@ -58,7 +58,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `mikrotik-routeros` — login `POST /login` (detection `/webfig/`) — `mikrotik.go`
 - [x] `draytek-vigor` — login `POST /cgi-bin/wlogin.cgi` (detection `/weblogin.htm`) — `draytek.go`
 - [x] `tp-link-router` — `/webpages/login.html` — `tp_link.go`
-- [ ] `netgear-router`, `d-link-router`, `maipu-network-device` — `netgear.go`, `d_link.go`, `maipu.go` (`/form/formUserLogin`)
+- [x] `netgear-router` — Basic Auth on `/` when it challenges (detection `/currentsetting.htm`; factory `admin:password`) — `netgear.go`
+- [ ] `d-link-router`, `maipu-network-device` — `d_link.go`, `maipu.go` (`/form/formUserLogin`)
 - [x] `apc-nmc` — login `POST /Forms/login1` (detection `/logon.htm`) — `apc_nmc.go`
 
 ### Storage, printers, and out-of-band

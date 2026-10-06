@@ -3538,7 +3538,7 @@ func TestRunDify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := Match(tpls, []string{"dify", "sophos"})
+	selected := Match(tpls, []string{"dify", "sophos", "netgear"})
 	if len(selected) != 1 || selected[0].ID != "dify" || selected[0].Path != "/console/api/login" {
 		t.Fatalf("dify match = %+v", selected)
 	}
@@ -3829,5 +3829,50 @@ func TestRunSophos(t *testing.T) {
 	}
 	if len(miss) != 0 {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunNetgear(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="NETGEAR"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user == "admin" && pass == "password" {
+			_, _ = w.Write([]byte("NETGEAR"))
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"netgear-router"})
+	if len(selected) != 1 || selected[0].ID != "netgear" {
+		t.Fatalf("netgear match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Username != "admin" || hits[0].Password != "password" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	open := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("NETGEAR"))
+	}))
+	defer open.Close()
+	hits, err = Run(context.Background(), open.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("open NETGEAR page reported a credential hit: %+v", hits)
 	}
 }

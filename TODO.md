@@ -79,7 +79,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 ### Admin UIs Nerva already separates from the API
 
 - [ ] `adminer` — `/adminer.php`, `/adminer/`, `/` — `adminer.go`
-- [ ] `phpmyadmin` — `/phpmyadmin/`, `/pma/`, `/phpMyAdmin/`, `/phpmyadmin/setup/` — `phpmyadmin.go`
+- [x] `phpmyadmin` — login `POST` `index.php` under `/phpmyadmin/`, `/pma/`, and `/phpMyAdmin/`; `/phpmyadmin/setup/` is the installer, not a login — `phpmyadmin.go`
 - [x] `pgadmin` / `pgadmin-login` — `/login` — `pgadmin.go`
 - [x] `jenkins` — login `POST /j_spring_security_check`, not `/script` and not a GET of `/login` — `jenkins.go`
 - [x] `gitlab` — login `POST /users/sign_in` (detection `/api/v4/version`) — `gitlab.go`

@@ -1,12 +1,12 @@
-id: phpmyadmin
-name: phpMyAdmin
-nerva: [phpmyadmin]
+id: phpmyadmin-pma
+name: phpMyAdmin at /pma
+nerva: [phpmyadmin, phpmyadmin-pma]
 method: form
-path: /phpmyadmin/index.php
+path: /pma/index.php
 username_field: pma_username
 password_field: pma_password
 prefetch:
-  path: /phpmyadmin/index.php
+  path: /pma/index.php
   extract:
     token: 'name="token" value="([^"]+)"'
 extra:

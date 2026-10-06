@@ -22,7 +22,7 @@ Brutus sprays generic defaults per protocol. Nerva already names the web applica
 - [x] Run selected templates in the template executor. Do not add a second spray engine, and do not feed product templates into the generic HTTP wordlist worker.
 - [x] A template that does not match the response is a miss. It does not fall back onto the generic HTTP Basic Auth list.
 - [x] Fixture test per executor: wrong password is a miss, default password is a hit, unrelated HTML is not a hit.
-- [ ] CLI: run templates against a target, and accept a Nerva JSON file so only matching products are attempted.
+- [x] CLI: `brutus template run --target` requires `--tech`. `--nerva-file` accepts Nerva JSON or JSONL, including stdin, and only matching products are attempted.
 
 Credential pairs come from vendor documentation and the existing wordlists. Do not invent passwords to fill a template.
 

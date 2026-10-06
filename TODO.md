@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, coldfusion, confluence, dahua, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, jenkins, keycloak, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, coldfusion, confluence, dahua, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, jenkins, keycloak, mikrotik, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -55,7 +55,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `pfsense` — root HTML match; confirm login path — `pfsense.go`
 - [ ] `opnsense` — `/ui/` — `opnsense.go`
 - [ ] `juniper-srx` — root match — `juniper.go`
-- [ ] `mikrotik-routeros` — `/webfig/` — `mikrotik.go`
+- [x] `mikrotik-routeros` — login `POST /login` (detection `/webfig/`) — `mikrotik.go`
 - [ ] `draytek-vigor` — `/weblogin.htm` — `draytek.go`
 - [ ] `tp-link-router` — `/webpages/login.html` — `tp_link.go`
 - [ ] `netgear-router`, `d-link-router`, `maipu-network-device` — `netgear.go`, `d_link.go`, `maipu.go` (`/form/formUserLogin`)

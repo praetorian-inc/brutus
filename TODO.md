@@ -41,7 +41,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 ### Network and VPN
 
 - [x] `fortinet-fortigate` — login `POST /remote/logincheck` (detection `/remote/login`) — `fortigate.go`
-- [ ] `globalprotect` — `/global-protect/prelogin.esp` — `globalprotect.go`
+- [x] `globalprotect` — login `POST /global-protect/getconfig.esp` (detection `/global-protect/prelogin.esp`; technology `palo-alto-globalprotect`) — `globalprotect.go`
 - [ ] `anyconnect` / `cisco-asa-ftd` — `/+CSCOE+/logon.html` — `anyconnect.go`, `cisco_asa_ftd.go`
 - [ ] `panos-mgmt` — `/php/login.php` — `panos_mgmt.go`
 - [ ] `sophos-firewall` — `/webconsole/webpages/login.jsp` — `sophos.go`

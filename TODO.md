@@ -170,7 +170,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 ### AI and notebook UIs
 
 - [x] `jupyterhub` — `/hub/login` — `jupyter.go`
-- [ ] `jupyter-notebook` / `jupyterlab` — token or empty token, not a password form
+- [x] `jupyter-notebook` / `jupyterlab` — detected from `/api` and `/lab`. Auth is a token or an empty token, not a password form. No template — `jupyter.go`
 - [x] `open_webui` — login `POST /api/v1/auths/signin` (detection `/api/config`) — `open_webui.go`
 - [x] `dify` — login `POST /console/api/login` (detection `/console/api/setup` is setup state, not a login) — `dify.go`
 - [x] `flowise` — `/api/v1/version` is an open version API by default. Basic Auth only when that path challenges; an open version API is not a hit — `flowise.go`

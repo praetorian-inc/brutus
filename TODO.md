@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, jenkins, nexus, panos, pgadmin, phpmyadmin, rabbitmq, roundcube, tomcat, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, jenkins, nexus, panos, pgadmin, phpmyadmin, rabbitmq, roundcube, tomcat, watchguard, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -46,7 +46,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `panos-mgmt` — `/php/login.php` — `panos_mgmt.go`
 - [ ] `sophos-firewall` — `/webconsole/webpages/login.jsp` — `sophos.go`
 - [ ] `sonicwall` — `/auth1.html` — `sonicwall.go`
-- [ ] `watchguard-firebox` — `/auth/login` — `watchguard.go`
+- [x] `watchguard-firebox` — `/auth/login` — `watchguard.go`
 - [ ] `zyxel-firewall` — `/weblogin.cgi` — `zyxel.go`
 - [ ] `checkpoint-gateway` — `/cgi-bin/home.tcl`, `/sslvpn/` — `checkpoint.go`
 - [ ] `citrix-netscaler` — `/logon/LogonPoint/`, `/vpn/login.js` — `citrix_netscaler.go`

@@ -146,7 +146,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `oracle_simphony` — `/EGateway/EGateway.asmx` is a SOAP service description, not a password form. No template — `oracle_simphony.go`
 - [x] `telerik-report-server` — `/Account/Login` — `telerik_report_server.go`
 - [x] `wsus` — `/ClientWebService/client.asmx` is a service endpoint, not a password form. No template — `wsus.go`
-- [ ] `sccm-mp` — `/sms_mp/.sms_aut?mplist` — service endpoint, not a password form
+- [x] `sccm-mp` — `/sms_mp/.sms_aut?mplist` is a service endpoint, not a password form. No template — `sccm.go`
 
 ### Data and BI consoles
 

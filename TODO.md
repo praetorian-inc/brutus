@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, nexus, opnsense, panos, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sitecore, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sitecore, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -121,7 +121,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `craftcms` — `/admin/login` — `craftcms.go`
 - [ ] `solarwinds-whd` — `/helpdesk/WebObjects/Helpdesk.woa` — `solarwinds_whd.go`
 - [ ] `manageengine` — `/showlogin.cc` and product prefixes — `manageengine.go`
-- [ ] `papercut` — `/app` — `papercut.go`
+- [x] `papercut` — `/app` — `papercut.go`
 - [ ] `screenconnect` — `/SetupWizard.aspx` — `screenconnect.go`
 - [ ] `simplehelp` — `/technician` — `simplehelp.go`
 - [ ] `veeam_enterprise_manager_web` — `/login.aspx` — `veeam.go`

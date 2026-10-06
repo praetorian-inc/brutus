@@ -155,7 +155,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `redis_commander` — Basic Auth on `/` only when the root page challenges; an open UI is not a hit — `redis_commander.go`
 - [x] `clickhouse-http` — Basic Auth on `/?query=SELECT+version()` only when that path challenges; factory user `default` with an empty password — `clickhouse.go`
 - [x] `arangodb` — Basic Auth on `/_api/version` only when that path challenges; historical `root` with an empty password — `arangodb.go`
-- [ ] `cockroachdb`, `yugabytedb`, `tidb`, `elasticsearch`, `opensearch`, `couchdb` — HTTP API auth. Reuse the native plugin when the service port is open; template only the HTTP console.
+- [x] `cockroachdb` — Basic Auth on `/api/v2/nodes/` only when that path challenges; an open console API is not a hit — `cockroachdb.go`
+- [ ] `yugabytedb`, `tidb`, `elasticsearch`, `opensearch`, `couchdb` — HTTP API auth. Reuse the native plugin when the service port is open; template only the HTTP console.
 
 ### AI and notebook UIs
 

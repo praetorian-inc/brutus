@@ -1,0 +1,11 @@
+id: rancher
+name: Rancher
+nerva: [rancher, rancher_dashboard]
+method: json
+path: /v3-public/localProviders/local?action=login
+username_field: username
+password_field: password
+success:
+  status: [201]
+  body: ["token"]
+  body_absent: ["invalid"]

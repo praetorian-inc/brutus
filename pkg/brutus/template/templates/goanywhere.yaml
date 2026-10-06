@@ -1,0 +1,12 @@
+id: goanywhere
+name: GoAnywhere MFT
+nerva: [goanywhere]
+method: form
+path: /goanywhere/auth/login
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /goanywhere/
+  header_absent: /auth/login

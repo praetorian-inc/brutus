@@ -99,7 +99,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `vault` — `/v1/sys/health` — `vault.go`
 - [ ] `consul` — `/v1/agent/self` — `consul.go`
 - [ ] `minio` — `/minio/health/live` — `minio.go`
-- [ ] `rabbitmq-management` — `/api/overview` — `rabbitmq_management.go`
+- [x] `rabbitmq-management` — Basic Auth on `/api/overview` only when that path challenges; factory `guest:guest` — `rabbitmq_management.go`
 - [ ] `traefik-dashboard` — `/api/overview` — `traefik.go`
 - [ ] `docker-registry` — `/v2/` — `docker_registry.go`
 - [x] `tomcat` — Basic Auth on `/manager/html`, not `/` — `tomcat.go`

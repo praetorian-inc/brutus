@@ -4783,3 +4783,52 @@ func TestRunTomcatDoesNotAuthRoot(t *testing.T) {
 		}
 	}
 }
+
+func TestRunRabbitMQ(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/overview" {
+			http.NotFound(w, r)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="rabbitmq"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user == "guest" && pass == "guest" {
+			_, _ = w.Write([]byte(`{"management_version":"3.12.0"}`))
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"rabbitmq-management"})
+	if len(selected) != 1 || selected[0].ID != "rabbitmq-management" || selected[0].Path != "/api/overview" {
+		t.Fatalf("rabbitmq match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Username != "guest" || hits[0].Password != "guest" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	open := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"management_version":"3.12.0"}`))
+	}))
+	defer open.Close()
+	hits, err = Run(context.Background(), open.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("open RabbitMQ overview reported a credential hit: %+v", hits)
+	}
+}

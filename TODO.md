@@ -95,7 +95,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `guacamole` / `guacamole-login` — login `POST /guacamole/api/tokens` (detection page `/guacamole/`) — `guacamole.go`
 - [ ] `kibana` — `/api/status` — `kibana.go`
 - [ ] `opensearch-dashboards` — root match — `opensearch_dashboards.go`
-- [ ] `prometheus` — `/api/v1/status/buildinfo` (often open; template only if auth is on) — `prometheus.go`
+- [x] `prometheus` — Basic Auth on `/api/v1/status/buildinfo` only when that path challenges; an open buildinfo is not a hit — `prometheus.go`
 - [ ] `vault` — `/v1/sys/health` — `vault.go`
 - [ ] `consul` — `/v1/agent/self` — `consul.go`
 - [ ] `minio` — `/minio/health/live` — `minio.go`

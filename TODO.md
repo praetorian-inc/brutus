@@ -67,7 +67,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 
 - [x] `hp-ilo` — login `POST /redfish/v1/SessionService/Sessions` (detection is the `HP-iLO-Server` header) — `hp.go`
 - [x] `hp-ews` — Basic Auth on `/` when it challenges (detection is the printer `Server` header; factory `admin` with an empty password, then `admin:admin`) — `hp.go`
-- [ ] `hp-chaisoe` — root match — `hp.go`
+- [x] `hp-chaisoe` — Basic Auth on `/` when it challenges (detection is the `HP-ChaiSOE` `Server` header) — `hp.go`
 - [x] `qnap-qts` — `/cgi-bin/authLogin.cgi` — `qnap.go`
 - [x] `synology-dsm` — login `POST /webapi/auth.cgi` (detection page `/webman/index.cgi`) — `synology_dsm.go`
 - [x] `unifi-status` — login `POST /api/login` (detection `/status`; technology `unifi-controller`) — `unifi.go`

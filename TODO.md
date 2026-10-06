@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, bigip, citrix, coldfusion, confluence, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, keycloak, mikrotik, nexus, opnsense, panos, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, keycloak, mikrotik, nexus, opnsense, panos, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -48,7 +48,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `sonicwall` — login `POST /api/sonicos/auth` (detection `/auth1.html`) — `sonicwall.go`
 - [x] `watchguard-firebox` — `/auth/login` — `watchguard.go`
 - [x] `zyxel-firewall` — `/weblogin.cgi` — `zyxel.go`
-- [ ] `checkpoint-gateway` — `/cgi-bin/home.tcl`, `/sslvpn/` — `checkpoint.go`
+- [x] `checkpoint-gateway` — login `POST /cgi-bin/home.tcl` (detection page; `/sslvpn/` is the mobile-access portal) — `checkpoint.go`
 - [x] `citrix-netscaler` — login `POST /cgi/login` (detection `/logon/LogonPoint/` and `/vpn/login.js`) — `citrix_netscaler.go`
 - [x] `bigip` — `/mgmt/tm/sys/version` is HTTP Basic Auth, not a form or token login — `bigip.go`
 - [x] `ivanti-connect-secure` — login `POST /dana-na/auth/url_default/login.cgi` (detection `/dana-na/auth/url_default/welcome.cgi`) — `ivanti_connect_secure.go`

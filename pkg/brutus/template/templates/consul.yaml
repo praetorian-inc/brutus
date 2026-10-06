@@ -1,0 +1,5 @@
+id: consul
+name: HashiCorp Consul
+nerva: [consul]
+method: basic
+path: /v1/agent/self

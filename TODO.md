@@ -97,7 +97,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `opensearch-dashboards` — root match — `opensearch_dashboards.go`
 - [x] `prometheus` — Basic Auth on `/api/v1/status/buildinfo` only when that path challenges; an open buildinfo is not a hit — `prometheus.go`
 - [x] `vault` — login `POST /v1/auth/userpass/login/{username}` (`/v1/sys/health` is health, not a login) — `vault.go`
-- [ ] `consul` — `/v1/agent/self` — `consul.go`
+- [x] `consul` — Basic Auth on `/v1/agent/self` only when that path challenges; an open agent API is not a hit — `consul.go`
 - [ ] `minio` — `/minio/health/live` — `minio.go`
 - [x] `rabbitmq-management` — Basic Auth on `/api/overview` only when that path challenges; factory `guest:guest` — `rabbitmq_management.go`
 - [ ] `traefik-dashboard` — `/api/overview` — `traefik.go`

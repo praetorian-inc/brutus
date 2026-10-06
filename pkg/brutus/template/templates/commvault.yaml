@@ -1,0 +1,11 @@
+id: commvault
+name: Commvault
+nerva: [commvault]
+method: json
+path: /webconsole/api/Login
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ["token"]
+  body_absent: ["invalid"]

@@ -1,0 +1,14 @@
+id: vmware-horizon
+name: VMware Horizon
+nerva: [vmware-horizon]
+method: form
+path: /portal/webclient/index.html
+username_field: username
+password_field: password
+extra:
+  domain: ""
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /portal/
+  header_absent: index.html

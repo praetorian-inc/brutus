@@ -110,7 +110,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `exchange` — login `POST /owa/auth.owa` (detection `/owa/`; technology `exchange_server`) — `exchange.go`
 - [x] `sharepoint` — login `POST /_layouts/15/Authenticate.aspx` (detection `/_layouts/`) — `sharepoint.go`
 - [x] `adfs` — login `POST /adfs/ls/` (detection `/adfs/ls`) — `adfs.go`
-- [ ] `adcs-web-enrollment` — `/certsrv/` — `adcs_web_enrollment.go`
+- [x] `adcs-web-enrollment` — `/certsrv/` is HTTP Basic Auth when the enrollment site challenges — `adcs_web_enrollment.go`
 - [x] `zimbra` — `/zimbra/` — `zimbra.go`
 - [ ] `roundcube` — `/?_task=login` — `roundcube.go`
 - [ ] `sap-netweaver` — `/sap/public/info` — `sapnetweaver.go`
@@ -125,7 +125,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `screenconnect` — login `POST /Login` (detection `/SetupWizard.aspx`; the template does not POST to that path) — `screenconnect.go`
 - [x] `simplehelp` — `/technician` — `simplehelp.go`
 - [x] `veeam_enterprise_manager_web` — `/login.aspx` — `veeam.go`
-- [ ] `commvault` — root match — `commvault.go`
+- [x] `commvault` — login `POST /webconsole/api/Login` (root detection) — `commvault.go`
 - [x] `quest-kace` — login `POST /admin` (technology `quest-kace-sma`) — `quest_kace.go`
 - [x] `nakivo` — `/c/login` — `nakivo.go`
 - [x] `moveit` — login `POST /human.aspx` with `transaction=signon` (plain signon only) — `moveit.go`
@@ -133,10 +133,10 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `cleo` — `/Synchronization` — `cleo.go`
 - [x] `goanywhere` — login `POST /goanywhere/auth/login` (detection `/goanywhere/`) — `goanywhere.go`
 - [x] `beyondtrust-pra` — login `POST /login/login` (detection marker `/appliance`) — `beyondtrust_pra.go`
-- [ ] `vmware-horizon` — `/portal/webclient/index.html` — `vmware_horizon.go`
+- [x] `vmware-horizon` — login `POST /portal/webclient/index.html` — `vmware_horizon.go`
 - [ ] `oracle_primavera_p6` — `/p6/action/login` — `oracle_primavera_p6.go`
 - [ ] `oracle_primavera_unifier`, `oracle-otm`, `oracle_ats`, `oracle_commerce`, `oracle-service-cloud`, `oracle_simphony` — confirm login vs SOAP before writing a template
-- [ ] `telerik-report-server` — `/Account/Login` — `telerik_report_server.go`
+- [x] `telerik-report-server` — `/Account/Login` — `telerik_report_server.go`
 - [ ] `wsus` — `/ClientWebService/client.asmx` — service endpoint, not a password form
 - [ ] `sccm-mp` — `/sms_mp/.sms_aut?mplist` — service endpoint, not a password form
 

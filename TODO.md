@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, guacamole, hikvision, jenkins, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, roundcube, synology, tomcat, unifi, watchguard, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, dahua, elasticsearch, fortigate, gitlab, grafana, guacamole, hikvision, jenkins, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, roundcube, synology, tomcat, unifi, watchguard, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -68,7 +68,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `synology-dsm` — login `POST /webapi/auth.cgi` (detection page `/webman/index.cgi`) — `synology_dsm.go`
 - [x] `unifi-status` — login `POST /api/login` (detection `/status`; technology `unifi-controller`) — `unifi.go`
 - [x] `hikvision` — `/ISAPI/System/deviceInfo` — `hikvision.go`
-- [ ] `dahua` — `/cgi-bin/magicBox.cgi` — `dahua.go`
+- [x] `dahua` — `/cgi-bin/magicBox.cgi` — `dahua.go`
 - [ ] `webmin` — root match — `webmin.go`
 - [ ] `samsung-magicinfo` — `/MagicInfo/` — `magicinfo.go`
 

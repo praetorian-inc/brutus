@@ -1,0 +1,14 @@
+id: citrix
+name: Citrix NetScaler
+nerva: [citrix-netscaler]
+method: form
+path: /cgi/login
+username_field: login
+password_field: passwd
+success:
+  status: [200, 302]
+  header: Set-Cookie
+  header_has: NSC_
+  body_absent: ["incorrect"]
+creds:
+  - "nsroot:nsroot"

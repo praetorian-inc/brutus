@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -2269,6 +2269,61 @@ func TestRunNakivo(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "director", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunCrushFTP(t *testing.T) {
+	var postedUser, postedCommand string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/WebInterface/function/" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("username")
+		postedCommand = r.Form.Get("command")
+		if postedUser == "crushadmin" && r.Form.Get("password") == "secret" && postedCommand == "login" {
+			_, _ = w.Write([]byte(`<response>success</response>`))
+			return
+		}
+		_, _ = w.Write([]byte(`<response>failure</response>`))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"crushftp"})
+	if len(selected) != 1 || selected[0].ID != "crushftp" {
+		t.Fatalf("crushftp match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "crushadmin", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "crushadmin" || postedCommand != "login" {
+		t.Fatalf("posted user=%q command=%q", postedUser, postedCommand)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "crushadmin", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

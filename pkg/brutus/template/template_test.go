@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "phpmyadmin-pma", "phpmyadmin-cased", "adminer", "adminer-php", "adminer-dir", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash", "airflow", "doccano", "mlflow", "jupyterhub", "open-webui", "dify", "globalprotect", "anyconnect", "d-link", "maipu", "magicinfo", "hp-ews", "hp-chaisoe", "primavera-p6", "prometheus", "vault", "consul", "docker-registry", "traefik", "teamcity", "splunk", "minio", "opensearch-dashboards"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "phpmyadmin-pma", "phpmyadmin-cased", "adminer", "adminer-php", "adminer-dir", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash", "airflow", "doccano", "mlflow", "jupyterhub", "open-webui", "dify", "globalprotect", "anyconnect", "d-link", "maipu", "magicinfo", "hp-ews", "hp-chaisoe", "primavera-p6", "prometheus", "vault", "consul", "docker-registry", "traefik", "teamcity", "splunk", "minio", "opensearch-dashboards", "kibana"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -5300,5 +5300,46 @@ func TestRunOpenSearchDashboards(t *testing.T) {
 	}
 	if len(miss) != 0 {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunKibana(t *testing.T) {
+	var sawHeader bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/internal/security/login" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Header.Get("kbn-xsrf") == "kibana" {
+			sawHeader = true
+		}
+		body, _ := io.ReadAll(r.Body)
+		raw := string(body)
+		if strings.Contains(raw, `"username":"elastic"`) && strings.Contains(raw, `"password":"changeme"`) && sawHeader {
+			_, _ = w.Write([]byte(`{"location":"/app/home"}`))
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"statusCode":401,"error":"Unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"kibana"})
+	if len(selected) != 1 || selected[0].ID != "kibana" {
+		t.Fatalf("kibana match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sawHeader {
+		t.Fatal("kbn-xsrf header was not sent")
+	}
+	if len(hits) != 1 || hits[0].Username != "elastic" || hits[0].Password != "changeme" {
+		t.Fatalf("hits = %+v", hits)
 	}
 }

@@ -53,6 +53,7 @@ type Template struct {
 	// with JSON-escaped credential values. Used when the product nests the
 	// password inside one form field.
 	Body     string            `yaml:"body,omitempty"`
+	Headers  map[string]string `yaml:"headers,omitempty"`
 	Extra    map[string]string `yaml:"extra,omitempty"`
 	Prefetch *Prefetch         `yaml:"prefetch,omitempty"`
 	Success  Matchers          `yaml:"success"`

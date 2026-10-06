@@ -285,6 +285,9 @@ func doLogin(ctx context.Context, client *http.Client, base *url.URL, t Template
 	default:
 		return response{}, fmt.Errorf("unknown method %s", t.Method)
 	}
+	for k, v := range t.Headers {
+		req.Header.Set(k, v)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return response{}, err

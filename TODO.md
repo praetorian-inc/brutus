@@ -93,7 +93,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `portainer` — login `POST /api/auth` (detection `/api/system/status`; `/api/users/admin/check` is setup state, not login) — `portainer.go`
 - [x] `keycloak` — login `POST /realms/master/protocol/openid-connect/token` (legacy `/auth/realms/master/...`; detection `/.well-known/openid-configuration`) — `keycloak.go`
 - [x] `guacamole` / `guacamole-login` — login `POST /guacamole/api/tokens` (detection page `/guacamole/`) — `guacamole.go`
-- [ ] `kibana` — `/api/status` — `kibana.go`
+- [x] `kibana` — login `POST /internal/security/login` with `kbn-xsrf` (detection `/api/status`; historical default `elastic:changeme`) — `kibana.go`
 - [x] `opensearch-dashboards` — login `POST /auth/login` (root detection; demo default `admin:admin`) — `opensearch_dashboards.go`
 - [x] `prometheus` — Basic Auth on `/api/v1/status/buildinfo` only when that path challenges; an open buildinfo is not a hit — `prometheus.go`
 - [x] `vault` — login `POST /v1/auth/userpass/login/{username}` (`/v1/sys/health` is health, not a login) — `vault.go`

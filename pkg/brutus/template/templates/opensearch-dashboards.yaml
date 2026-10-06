@@ -1,0 +1,14 @@
+id: opensearch-dashboards
+name: OpenSearch Dashboards
+nerva: [opensearch-dashboards]
+method: json
+path: /auth/login
+username_field: username
+password_field: password
+success:
+  status: [200]
+  header: Set-Cookie
+  header_has: security
+  body_absent: ["invalid"]
+creds:
+  - "admin:admin"

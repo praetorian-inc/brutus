@@ -170,7 +170,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `dify` — login `POST /console/api/login` (detection `/console/api/setup` is setup state, not a login) — `dify.go`
 - [x] `flowise` — `/api/v1/version` is an open version API by default. Basic Auth only when that path challenges; an open version API is not a hit — `flowise.go`
 - [x] `langflow` — `/api/v1/version` is an open version API. Login is `POST /api/v1/login`; a hit requires an `access_token` — `langflow.go`
-- [ ] `langfuse`, `gradio`, `streamlit`, `anythingllm` — confirm whether the detected page is a login or an open API
+- [x] `langfuse` — `/api/public/health` is open. Login is `POST /api/auth/callback/credentials`; a hit requires a redirect that is not an error — `langfuse.go`
+- [ ] `gradio`, `streamlit`, `anythingllm` — confirm whether the detected page is a login or an open API
 - [ ] `ollama`, `localai`, `tgi`, `triton`, `ray`, `weaviate`, `chromadb`, `pinecone`, `litellm` — version/health endpoints. Template only if the fingerprinter also sees an auth wall.
 
 ## Order

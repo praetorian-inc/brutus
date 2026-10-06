@@ -5328,7 +5328,7 @@ func TestRunKibana(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb", "flowise", "langflow"})
+	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb", "flowise", "langflow", "langfuse"})
 	if len(selected) != 1 || selected[0].ID != "kibana" {
 		t.Fatalf("kibana match = %+v", selected)
 	}
@@ -5984,6 +5984,67 @@ func TestRunLangflow(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "langflow", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunLangfuse(t *testing.T) {
+	var postedEmail, postedCSRF string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/csrf" {
+			_, _ = w.Write([]byte(`{"csrfToken":"lf-token"}`))
+			return
+		}
+		if r.URL.Path != "/api/auth/callback/credentials" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedEmail = r.Form.Get("email")
+		postedCSRF = r.Form.Get("csrfToken")
+		if postedEmail == "user@example.com" && r.Form.Get("password") == "secret" && postedCSRF == "lf-token" {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/api/auth/signin?error=CredentialsSignin")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"langfuse"})
+	if len(selected) != 1 || selected[0].ID != "langfuse" {
+		t.Fatalf("langfuse match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "user@example.com", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedEmail != "user@example.com" || postedCSRF != "lf-token" {
+		t.Fatalf("posted email=%q csrf=%q", postedEmail, postedCSRF)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "user@example.com", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

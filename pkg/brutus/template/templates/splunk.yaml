@@ -1,0 +1,12 @@
+id: splunk
+name: Splunk
+nerva: [splunk]
+method: form
+path: /en-US/account/login
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /en-US/
+  header_absent: /account/login

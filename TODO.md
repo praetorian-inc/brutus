@@ -104,7 +104,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `docker-registry` — Basic Auth on `/v2/` only when that path challenges; an open registry is not a hit — `docker_registry.go`
 - [x] `tomcat` — Basic Auth on `/manager/html`, not `/` — `tomcat.go`
 - [x] `teamcity` — Basic Auth on `/app/rest/server` only when that path challenges; an open REST API is not a hit — `teamcity.go`
-- [ ] `splunk` — `/` — `splunk.go`
+- [x] `splunk` — login `POST /en-US/account/login` (detection `/`) — `splunk.go`
 - [x] `confluence` — login `POST /dologin.action` (page `/login.action`) — `confluence.go`
 - [x] `wordpress` — login `POST /wp-login.php` (detection `/wp-json/wp/v2/`) — `wordpress.go`
 

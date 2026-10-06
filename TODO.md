@@ -182,7 +182,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `weaviate` — `/v1/meta` is an open meta endpoint. Auth, when enabled, is an API key, not a password form. No template — `weaviate.go`
 - [x] `chromadb` — `/api/v1/heartbeat` is open by default. Basic Auth only when that path challenges; an open heartbeat is not a hit — `chromadb.go`
 - [x] `pinecone` — detected from Pinecone API headers. Auth is an API key, not a password form. No template — `pinecone.go`
-- [ ] `litellm` — version/health endpoints. Template only if the fingerprinter also sees an auth wall.
+- [x] `litellm` — `/health/liveliness` is an open liveness check, not a password form. No template — `litellm.go`
 
 ## Order
 

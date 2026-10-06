@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "surfaceHash": "sha256:1d4cc140290018ebec0060e5db81bb43f05ff38068f9deacee1592ed70cadfa2",
+  "surfaceHash": "sha256:7a476a8856cb24d984e63421e8ccf84806e67b111a6e2ffc9ba2ebed8e2e31d8",
   "commands": [
     {
       "path": "brutus",
@@ -3946,6 +3946,292 @@
           "type": "bool",
           "default": "false",
           "usage": "Start interactive web terminal via detected backdoor"
+        }
+      ]
+    },
+    {
+      "path": "brutus template",
+      "use": "template",
+      "short": "Run product-specific default-credential templates",
+      "runnable": false,
+      "example": "  brutus template list\n\n  brutus template run --target https://10.0.0.5 --tech fortinet-fortigate\n\n  nerva --json -t 10.0.0.0/24 | brutus template run --nerva-file -",
+      "flags": [
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus template list",
+      "use": "list",
+      "short": "List embedded and extra templates",
+      "runnable": true,
+      "flags": [
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        }
+      ]
+    },
+    {
+      "path": "brutus template run",
+      "use": "run",
+      "short": "Run templates selected by technology",
+      "runnable": true,
+      "flags": [
+        {
+          "name": "credentials",
+          "shorthand": "c",
+          "type": "string",
+          "usage": "Comma-separated user:pass pairs, used instead of template defaults"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "nerva-file",
+          "type": "string",
+          "usage": "Nerva JSON or JSONL file, or - for stdin"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Base URL (scheme://host[:port]) when not reading Nerva JSON"
+        },
+        {
+          "name": "tech",
+          "type": "stringSlice",
+          "default": "[]",
+          "usage": "Nerva technology name (repeatable). Required with --target"
+        },
+        {
+          "name": "template-dir",
+          "type": "string",
+          "usage": "Directory of extra YAML templates; same id replaces embedded"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
         }
       ]
     },

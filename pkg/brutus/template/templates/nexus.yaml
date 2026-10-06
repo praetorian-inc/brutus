@@ -1,0 +1,7 @@
+id: nexus-status
+name: Sonatype Nexus
+nerva: [nexus-repository, nexus-repository-login]
+method: basic
+path: /service/rest/v1/status
+creds:
+  - "admin:admin123"

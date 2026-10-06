@@ -1,0 +1,12 @@
+id: panos
+name: Palo Alto PAN-OS
+nerva: [panos-mgmt]
+method: form
+path: /php/login.php
+username_field: user
+password_field: passwd
+success:
+  status: [200, 302]
+  body_absent: ["invalid credential", "login failed"]
+creds:
+  - "admin:admin"

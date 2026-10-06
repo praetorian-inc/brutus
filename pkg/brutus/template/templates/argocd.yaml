@@ -1,0 +1,11 @@
+id: argocd
+name: Argo CD
+nerva: [argocd, argocd-login]
+method: json
+path: /api/v1/session
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ["token"]
+  body_absent: ["invalid"]

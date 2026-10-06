@@ -1,0 +1,14 @@
+id: coldfusion
+name: Adobe ColdFusion Administrator
+nerva: [coldfusion]
+method: form
+path: /CFIDE/administrator/enter.cfm
+username_field: cfadminUserId
+password_field: adminPassword
+extra:
+  requestedURL: /CFIDE/administrator/index.cfm
+success:
+  status: [200, 302]
+  body_absent: ["invalid password"]
+creds:
+  - "admin:admin"

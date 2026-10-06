@@ -1,0 +1,18 @@
+id: gitlab
+name: GitLab
+nerva: [gitlab]
+method: form
+path: /users/sign_in
+username_field: user[login]
+password_field: user[password]
+prefetch:
+  path: /users/sign_in
+  extract:
+    authenticity_token: 'name="authenticity_token" value="([^"]+)"'
+extra:
+  authenticity_token: "{{authenticity_token}}"
+success:
+  status: [302]
+  header: Location
+  header_has: "/"
+  body_absent: ["invalid login"]

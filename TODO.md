@@ -116,7 +116,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `adcs-web-enrollment` — `/certsrv/` is HTTP Basic Auth when the enrollment site challenges — `adcs_web_enrollment.go`
 - [x] `zimbra` — `/zimbra/` — `zimbra.go`
 - [x] `roundcube` — login `POST /` with `_task=login` — `roundcube.go`
-- [ ] `sap-netweaver` — `/sap/public/info` — `sapnetweaver.go`
+- [x] `sap-netweaver` — Basic Auth on `/sap/bc/gui/sap/its/webgui` only when that path challenges (detection `/sap/public/info` is public) — `sapnetweaver.go`
 - [x] `coldfusion` — login `POST /CFIDE/administrator/enter.cfm` (detection `/CFIDE/administrator/`) — `coldfusion.go`
 - [x] `sitecore` — `/sitecore/login` — `sitecore.go`
 - [x] `kentico` — login `POST /CMSPages/logon.aspx` (detection `/CMSPages/GetResource.ashx`; technology `kentico-cms`) — `kentico.go`

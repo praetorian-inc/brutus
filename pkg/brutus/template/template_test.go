@@ -189,8 +189,32 @@ func TestRunJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(hits) != 1 || hits[0].TemplateID != "grafana-login" {
+	if len(hits) != 1 || hits[0].TemplateID != "grafana-login" || hits[0].Password != "admin" {
 		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, Match(tpls, []string{"grafana"}), Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "admin", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+
+	html := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html>not a login</html>"))
+	}))
+	defer html.Close()
+	hits, err = Run(context.Background(), html.URL, Match(tpls, []string{"grafana"}), Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("unrelated HTML reported a hit: %+v", hits)
 	}
 }
 

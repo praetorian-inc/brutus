@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, adfs, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, crushftp, dahua, draytek, elasticsearch, exchange, fortigate, gitea, gitlab, goanywhere, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, moveit, nakivo, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, quest-kace, rabbitmq, rancher, roundcube, screenconnect, sharepoint, simplehelp, sitecore, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zimbra, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, adfs, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, crushftp, dahua, draytek, elasticsearch, exchange, fortigate, gitea, gitlab, goanywhere, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, moveit, nakivo, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, quest-kace, rabbitmq, rancher, roundcube, screenconnect, sharepoint, simplehelp, sitecore, solarwinds-whd, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zimbra, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -119,7 +119,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `kentico` — login `POST /CMSPages/logon.aspx` (detection `/CMSPages/GetResource.ashx`; technology `kentico-cms`) — `kentico.go`
 - [x] `adobe_experience_manager` — login `POST /libs/granite/core/content/login.html/j_security_check` — `aem.go`
 - [x] `craftcms` — `/admin/login` — `craftcms.go`
-- [ ] `solarwinds-whd` — `/helpdesk/WebObjects/Helpdesk.woa` — `solarwinds_whd.go`
+- [x] `solarwinds-whd` — `/helpdesk/WebObjects/Helpdesk.woa` — `solarwinds_whd.go`
 - [ ] `manageengine` — `/showlogin.cc` and product prefixes — `manageengine.go`
 - [x] `papercut` — `/app` — `papercut.go`
 - [x] `screenconnect` — login `POST /Login` (detection `/SetupWizard.aspx`; the template does not POST to that path) — `screenconnect.go`

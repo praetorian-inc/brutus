@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, coldfusion, confluence, dahua, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, jenkins, keycloak, mikrotik, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, coldfusion, confluence, dahua, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, jenkins, keycloak, mikrotik, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -47,7 +47,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `sophos-firewall` — `/webconsole/webpages/login.jsp` — `sophos.go`
 - [ ] `sonicwall` — `/auth1.html` — `sonicwall.go`
 - [x] `watchguard-firebox` — `/auth/login` — `watchguard.go`
-- [ ] `zyxel-firewall` — `/weblogin.cgi` — `zyxel.go`
+- [x] `zyxel-firewall` — `/weblogin.cgi` — `zyxel.go`
 - [ ] `checkpoint-gateway` — `/cgi-bin/home.tcl`, `/sslvpn/` — `checkpoint.go`
 - [ ] `citrix-netscaler` — `/logon/LogonPoint/`, `/vpn/login.js` — `citrix_netscaler.go`
 - [ ] `bigip` — `/mgmt/tm/sys/version` (REST; confirm form vs token) — `bigip.go`

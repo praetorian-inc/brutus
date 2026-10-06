@@ -41,7 +41,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -207,5 +207,65 @@ func TestParseNerva(t *testing.T) {
 	}
 	if got[1].BaseURL != "http://panel.example" {
 		t.Fatalf("second target = %+v", got[1])
+	}
+}
+
+func TestRunPgAdmin(t *testing.T) {
+	var postedToken, postedEmail string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`<form><input name="csrf_token" value="pga-token"><title>pgAdmin 4</title></form>`))
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedToken = r.Form.Get("csrf_token")
+		postedEmail = r.Form.Get("email")
+		if r.Form.Get("email") == "admin@example.com" && r.Form.Get("password") == "secret" {
+			w.Header().Set("Location", "/browser/")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/login?error=1")
+		w.WriteHeader(http.StatusFound)
+		_, _ = w.Write([]byte("invalid login"))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"pgadmin-login"})
+	if len(selected) != 1 || selected[0].ID != "pgadmin" {
+		t.Fatalf("pgadmin-login match = %+v", selected)
+	}
+	creds := []Pair{{Username: "admin@example.com", Password: "secret"}}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second, Creds: creds})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedToken != "pga-token" || postedEmail != "admin@example.com" {
+		t.Fatalf("posted token=%q email=%q", postedToken, postedEmail)
+	}
+	if len(hits) != 1 || hits[0].Username != "admin@example.com" || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "admin@example.com", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
 	}
 }

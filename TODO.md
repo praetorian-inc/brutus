@@ -60,7 +60,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `tp-link-router` — `/webpages/login.html` — `tp_link.go`
 - [x] `netgear-router` — Basic Auth on `/` when it challenges (detection `/currentsetting.htm`; factory `admin:password`) — `netgear.go`
 - [x] `d-link-router` — login `POST /login.htm` (detection is the brand page; factory `admin` with an empty password, then `admin:admin`) — `d_link.go`
-- [ ] `maipu-network-device` — `maipu.go` (`/form/formUserLogin`)
+- [x] `maipu-network-device` — login `POST /form/formUserLogin` — `maipu.go`
 - [x] `apc-nmc` — login `POST /Forms/login1` (detection `/logon.htm`) — `apc_nmc.go`
 
 ### Storage, printers, and out-of-band

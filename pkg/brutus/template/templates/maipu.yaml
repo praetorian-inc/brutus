@@ -1,0 +1,12 @@
+id: maipu
+name: Maipu Network Device
+nerva: [maipu-network-device]
+method: form
+path: /form/formUserLogin
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: formUserLogin

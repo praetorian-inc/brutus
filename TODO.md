@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, jenkins, nexus, panos, pgadmin, phpmyadmin, qnap, rabbitmq, roundcube, synology, tomcat, watchguard, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, guacamole, jenkins, nexus, panos, pgadmin, phpmyadmin, qnap, rabbitmq, roundcube, synology, tomcat, watchguard, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -88,7 +88,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `rancher` / `rancher_dashboard` — `/dashboard/` — `rancher.go`
 - [ ] `portainer` — `/api/users/admin/check` — `portainer.go`
 - [ ] `keycloak` — `/realms/master` — `keycloak.go`
-- [ ] `guacamole` / `guacamole-login` — `/guacamole/` — `guacamole.go`
+- [x] `guacamole` / `guacamole-login` — login `POST /guacamole/api/tokens` (detection page `/guacamole/`) — `guacamole.go`
 - [ ] `kibana` — `/api/status` — `kibana.go`
 - [ ] `opensearch-dashboards` — root match — `opensearch_dashboards.go`
 - [ ] `prometheus` — `/api/v1/status/buildinfo` (often open; template only if auth is on) — `prometheus.go`

@@ -146,7 +146,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `superset` — login `POST /login/` (detection `/api/v1/info`) — `superset.go`
 - [x] `redash` — login `POST /login` (detection `/api/session`) — `redash.go`
 - [x] `airflow` — login `POST /login/` (detection `/api/v1/health`) — `airflow.go`
-- [ ] `mlflow` — `/api/2.0/mlflow/experiments/search` — `mlflow.go`
+- [x] `mlflow` — `/api/2.0/mlflow/experiments/search` is Basic Auth only when that path challenges; an open search is not a hit — `mlflow.go`
 - [ ] `backstage` — `/.backstage/health/v1/readiness` — `backstage.go`
 - [x] `doccano` — login `POST /v1/auth-token` (UI `/auth/login`) — `doccano.go`
 - [ ] `redis_commander` — root match — `redis_commander.go`

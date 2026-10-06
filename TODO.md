@@ -105,7 +105,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `tomcat` — manager path is not `/`; do not send Basic Auth to `/` — `tomcat.go`
 - [ ] `teamcity` — `/app/rest/server` — `teamcity.go`
 - [ ] `splunk` — `/` — `splunk.go`
-- [ ] `confluence` — `/login.action` — `confluence.go`
+- [x] `confluence` — login `POST /dologin.action` (page `/login.action`) — `confluence.go`
 - [x] `wordpress` — login `POST /wp-login.php` (detection `/wp-json/wp/v2/`) — `wordpress.go`
 
 ### Enterprise and file-transfer portals

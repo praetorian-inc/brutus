@@ -9,7 +9,7 @@ extra:
   os_destination: /
   login: "Log In"
 success:
-  status: [302]
+  status: [302, 303]
   header: Location
-  header_has: "/"
-  body_absent: ["login.action"]
+  header_has: /
+  header_absent: login.action

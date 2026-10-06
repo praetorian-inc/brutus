@@ -4682,3 +4682,60 @@ func TestRunWordPress(t *testing.T) {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
 	}
 }
+
+func TestRunConfluence(t *testing.T) {
+	var postedUser, postedDest string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/dologin.action" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("os_username")
+		postedDest = r.Form.Get("os_destination")
+		if postedUser == "wikiadmin" && r.Form.Get("os_password") == "secret" && postedDest == "/" {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/login.action")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"confluence"})
+	if len(selected) != 1 || selected[0].ID != "confluence" || selected[0].Path != "/dologin.action" {
+		t.Fatalf("confluence match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "wikiadmin", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "wikiadmin" || postedDest != "/" {
+		t.Fatalf("posted user=%q destination=%q", postedUser, postedDest)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "wikiadmin", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}

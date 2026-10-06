@@ -179,7 +179,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `tgi` — `/info` and `/metrics` are open info endpoints, not a password form. No template — `tgi.go`
 - [x] `triton` — `/v2` is an open version endpoint, not a password form. No template — `triton.go`
 - [x] `ray` — `/api/version` is an open version API, not a password form. No template — `ray.go`
-- [ ] `weaviate`, `chromadb`, `pinecone`, `litellm` — version/health endpoints. Template only if the fingerprinter also sees an auth wall.
+- [x] `weaviate` — `/v1/meta` is an open meta endpoint. Auth, when enabled, is an API key, not a password form. No template — `weaviate.go`
+- [ ] `chromadb`, `pinecone`, `litellm` — version/health endpoints. Template only if the fingerprinter also sees an auth wall.
 
 ## Order
 

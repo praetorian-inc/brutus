@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, guacamole, jenkins, nexus, panos, pgadmin, phpmyadmin, qnap, rabbitmq, roundcube, synology, tomcat, watchguard, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, guacamole, jenkins, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, roundcube, synology, tomcat, watchguard, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -86,7 +86,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `harbor` — `/api/v2.0/systeminfo` — `harbor.go`
 - [ ] `argocd` / `argocd-login` — `/login` — `argocd.go`
 - [ ] `rancher` / `rancher_dashboard` — `/dashboard/` — `rancher.go`
-- [ ] `portainer` — `/api/users/admin/check` — `portainer.go`
+- [x] `portainer` — login `POST /api/auth` (detection `/api/system/status`; `/api/users/admin/check` is setup state, not login) — `portainer.go`
 - [ ] `keycloak` — `/realms/master` — `keycloak.go`
 - [x] `guacamole` / `guacamole-login` — login `POST /guacamole/api/tokens` (detection page `/guacamole/`) — `guacamole.go`
 - [ ] `kibana` — `/api/status` — `kibana.go`

@@ -5328,7 +5328,7 @@ func TestRunKibana(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := Match(tpls, []string{"kibana"})
+	selected := Match(tpls, []string{"kibana", "opensearch"})
 	if len(selected) != 1 || selected[0].ID != "kibana" {
 		t.Fatalf("kibana match = %+v", selected)
 	}
@@ -5796,5 +5796,50 @@ func TestRunElasticsearch(t *testing.T) {
 	}
 	if len(hits) != 0 {
 		t.Fatalf("open Elasticsearch HTTP API reported a credential hit: %+v", hits)
+	}
+}
+
+func TestRunOpenSearch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="opensearch"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user == "admin" && pass == "admin" {
+			_, _ = w.Write([]byte(`{"tagline":"The OpenSearch Project"}`))
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"opensearch"})
+	if len(selected) != 1 || selected[0].ID != "opensearch" {
+		t.Fatalf("opensearch match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Username != "admin" || hits[0].Password != "admin" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	open := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"tagline":"The OpenSearch Project"}`))
+	}))
+	defer open.Close()
+	hits, err = Run(context.Background(), open.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("open OpenSearch HTTP API reported a credential hit: %+v", hits)
 	}
 }

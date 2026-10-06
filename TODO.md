@@ -159,7 +159,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `yugabytedb` — Basic Auth on `/api/v1/version` only when that path challenges; an open master API is not a hit — `yugabytedb.go`
 - [x] `tidb` — Basic Auth on `/status` only when that path challenges; an open status page is not a hit — `tidb.go`
 - [x] `elasticsearch` — Basic Auth on `/` only when that path challenges; historical `elastic:changeme` and `elastic:elastic`. Use the native plugin for the service port — `elasticsearch.go`
-- [ ] `opensearch`, `couchdb` — HTTP API auth. Reuse the native plugin when the service port is open; template only the HTTP console.
+- [x] `opensearch` — Basic Auth on `/` only when that path challenges; security-plugin demo default `admin:admin`. Use the native plugin for the service port — `opensearch.go`
+- [ ] `couchdb` — HTTP API auth. Reuse the native plugin when the service port is open; template only the HTTP console.
 
 ### AI and notebook UIs
 

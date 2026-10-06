@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash", "airflow", "doccano", "mlflow", "jupyterhub", "open-webui", "dify", "globalprotect"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash", "airflow", "doccano", "mlflow", "jupyterhub", "open-webui", "dify", "globalprotect", "anyconnect"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -3666,6 +3666,62 @@ func TestRunGlobalProtect(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "gpuser", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunAnyConnect(t *testing.T) {
+	var postedUser string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/+webvpn+/index.html" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("username")
+		if postedUser == "vpnuser" && r.Form.Get("password") == "secret" && r.Form.Get("Login") == "Login" {
+			w.Header().Set("Location", "/+CSCOE+/portal.html")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/+CSCOE+/logon.html")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"cisco-asa-ftd"})
+	if len(selected) != 1 || selected[0].ID != "anyconnect" {
+		t.Fatalf("anyconnect match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "vpnuser", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "vpnuser" {
+		t.Fatalf("posted user=%q", postedUser)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "vpnuser", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

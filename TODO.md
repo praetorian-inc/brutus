@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, coldfusion, confluence, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, jenkins, juniper, keycloak, mikrotik, nexus, opnsense, panos, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, bigip, coldfusion, confluence, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, jenkins, juniper, keycloak, mikrotik, nexus, opnsense, panos, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -50,7 +50,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `zyxel-firewall` — `/weblogin.cgi` — `zyxel.go`
 - [ ] `checkpoint-gateway` — `/cgi-bin/home.tcl`, `/sslvpn/` — `checkpoint.go`
 - [ ] `citrix-netscaler` — `/logon/LogonPoint/`, `/vpn/login.js` — `citrix_netscaler.go`
-- [ ] `bigip` — `/mgmt/tm/sys/version` (REST; confirm form vs token) — `bigip.go`
+- [x] `bigip` — `/mgmt/tm/sys/version` is HTTP Basic Auth, not a form or token login — `bigip.go`
 - [ ] `ivanti-connect-secure` — `/dana-na/auth/` — `ivanti_connect_secure.go`
 - [x] `pfsense` — login `POST /` with `usernamefld`/`passwordfld` (detection is the root login form) — `pfsense.go`
 - [x] `opnsense` — login `POST /` with `usernamefld`/`passwordfld` (detection `/ui/` and `/api/core/firmware/info`) — `opnsense.go`

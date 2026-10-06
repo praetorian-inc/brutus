@@ -1,0 +1,7 @@
+id: bigip
+name: F5 BIG-IP
+nerva: [bigip, f5-bigip]
+method: basic
+path: /mgmt/tm/sys/version
+creds:
+  - "admin:admin"

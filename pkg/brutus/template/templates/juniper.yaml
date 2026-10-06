@@ -1,0 +1,20 @@
+id: juniper
+name: Juniper SRX J-Web
+nerva: [juniper-srx]
+method: form
+path: /
+username_field: username
+password_field: password
+prefetch:
+  path: /
+  extract:
+    csrf: 'name="antiCSRFToken" value="([^"]+)"'
+extra:
+  antiCSRFToken: "{{csrf}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login
+creds:
+  - "root:"

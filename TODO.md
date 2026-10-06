@@ -143,7 +143,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `oracle_ats` — login `POST /olt/LoginSubmit.do` (detection `/olt` is the login page, not SOAP) — `oracle_ats.go`
 - [x] `oracle_commerce` — detected from `X-ATG-Version` and `ATG_SESSION_ID`, not a login form and not SOAP. No template — `oracle_commerce.go`
 - [x] `oracle-service-cloud` — detected from `/ci/about` and RightNow markers, not a login form and not SOAP. No template — `oracle_service_cloud.go`
-- [ ] `oracle_simphony` — confirm login vs SOAP before writing a template
+- [x] `oracle_simphony` — `/EGateway/EGateway.asmx` is a SOAP service description, not a password form. No template — `oracle_simphony.go`
 - [x] `telerik-report-server` — `/Account/Login` — `telerik_report_server.go`
 - [ ] `wsus` — `/ClientWebService/client.asmx` — service endpoint, not a password form
 - [ ] `sccm-mp` — `/sms_mp/.sms_aut?mplist` — service endpoint, not a password form

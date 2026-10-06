@@ -144,7 +144,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 
 - [x] `metabase` — login `POST /api/session` (UI `/auth/login`; detection `/api/session/properties`) — `metabase.go`
 - [x] `superset` — login `POST /login/` (detection `/api/v1/info`) — `superset.go`
-- [ ] `redash` — `/login` — `redash.go`
+- [x] `redash` — login `POST /login` (detection `/api/session`) — `redash.go`
 - [ ] `airflow` — confirm `/login` — `airflow.go`
 - [ ] `mlflow` — `/api/2.0/mlflow/experiments/search` — `mlflow.go`
 - [ ] `backstage` — `/.backstage/health/v1/readiness` — `backstage.go`

@@ -154,7 +154,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 
 ### AI and notebook UIs
 
-- [ ] `jupyterhub` — `/hub/login` — `jupyter.go`
+- [x] `jupyterhub` — `/hub/login` — `jupyter.go`
 - [ ] `jupyter-notebook` / `jupyterlab` — token or empty token, not a password form
 - [ ] `open_webui` — `/api/config` — `open_webui.go`
 - [ ] `dify` — `/console/api/setup` — `dify.go`

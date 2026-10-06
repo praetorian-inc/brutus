@@ -41,7 +41,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -324,5 +324,47 @@ func TestRunWatchGuard(t *testing.T) {
 	}
 	if len(miss) != 0 {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunQNAP(t *testing.T) {
+	var postedUser, postedPwd string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/cgi-bin/authLogin.cgi" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("user")
+		postedPwd = r.Form.Get("pwd")
+		w.Header().Set("Content-Type", "text/xml")
+		if postedUser == "admin" && postedPwd == "admin" {
+			_, _ = w.Write([]byte(`<QDocRoot><authPassed><![CDATA[1]]></authPassed><authSid><![CDATA[sid]]></authSid></QDocRoot>`))
+			return
+		}
+		_, _ = w.Write([]byte(`<QDocRoot><authPassed><![CDATA[0]]></authPassed></QDocRoot>`))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"qnap-qts"})
+	if len(selected) != 1 || selected[0].ID != "qnap" {
+		t.Fatalf("qnap match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "admin" || postedPwd != "admin" {
+		t.Fatalf("posted user=%q pwd=%q", postedUser, postedPwd)
+	}
+	if len(hits) != 1 || hits[0].Username != "admin" || hits[0].Password != "admin" {
+		t.Fatalf("hits = %+v", hits)
 	}
 }

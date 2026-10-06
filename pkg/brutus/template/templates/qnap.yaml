@@ -1,0 +1,13 @@
+id: qnap
+name: QNAP QTS
+nerva: [qnap-qts]
+method: form
+path: /cgi-bin/authLogin.cgi
+username_field: user
+password_field: pwd
+success:
+  status: [200]
+  body: ["authsid"]
+  body_absent: ["authpassed><![cdata[0]]", "authpassed>0"]
+creds:
+  - "admin:admin"

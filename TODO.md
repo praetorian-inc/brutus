@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, jenkins, nexus, panos, pgadmin, phpmyadmin, rabbitmq, roundcube, tomcat, watchguard, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, elasticsearch, fortigate, gitlab, grafana, jenkins, nexus, panos, pgadmin, phpmyadmin, qnap, rabbitmq, roundcube, tomcat, watchguard, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -64,7 +64,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 ### Storage, printers, and out-of-band
 
 - [ ] `hp-ilo`, `hp-ews`, `hp-chaisoe` — root match — `hp.go`
-- [ ] `qnap-qts` — `/cgi-bin/authLogin.cgi` — `qnap.go`
+- [x] `qnap-qts` — `/cgi-bin/authLogin.cgi` — `qnap.go`
 - [ ] `synology-dsm` — `/webman/index.cgi` — `synology_dsm.go`
 - [ ] `unifi-status` — `/status`, `/api/system` — `unifi.go`
 - [ ] `hikvision` — `/ISAPI/System/deviceInfo` — `hikvision.go`

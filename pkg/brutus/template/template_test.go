@@ -5328,7 +5328,7 @@ func TestRunKibana(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb", "flowise", "langflow", "langfuse", "gradio", "anythingllm"})
+	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb", "flowise", "langflow", "langfuse", "gradio", "anythingllm", "chromadb"})
 	if len(selected) != 1 || selected[0].ID != "kibana" {
 		t.Fatalf("kibana match = %+v", selected)
 	}
@@ -6156,5 +6156,60 @@ func TestRunAnythingLLM(t *testing.T) {
 	}
 	if len(miss) != 0 {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunChromaDB(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/heartbeat" {
+			http.NotFound(w, r)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="chromadb"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user == "chroma" && pass == "secret" {
+			_, _ = w.Write([]byte(`{"nanosecond heartbeat":1}`))
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"chromadb"})
+	if len(selected) != 1 || selected[0].ID != "chromadb" || selected[0].Path != "/api/v1/heartbeat" {
+		t.Fatalf("chromadb match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "chroma", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	open := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"nanosecond heartbeat":1}`))
+	}))
+	defer open.Close()
+	hits, err = Run(context.Background(), open.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "chroma", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("open ChromaDB heartbeat reported a credential hit: %+v", hits)
 	}
 }

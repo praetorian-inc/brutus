@@ -73,6 +73,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 
 	host, port := parseTarget(target, p.UseHTTPS)
 
+	// Unqualified names are local SAM logins. The WinRM library sends an empty
+	// domain for those, and Windows can pass that through to a DC.
+	wireUser, err := p.wireUser(ctx, host, port, username, timeout)
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
+
 	endpoint := winrm.NewEndpoint(host, port, p.UseHTTPS, true, nil, nil, nil, timeout)
 
 	// Use encrypted NTLM transport: default Windows WinRM has AllowUnencrypted=false,
@@ -94,7 +102,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return enc
 	}
 
-	client, err := winrm.NewClientWithParameters(endpoint, username, password, params)
+	client, err := winrm.NewClientWithParameters(endpoint, wireUser, password, params)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result

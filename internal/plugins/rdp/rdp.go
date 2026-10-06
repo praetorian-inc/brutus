@@ -20,8 +20,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/praetorian-inc/brutus/internal/winlocal"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
@@ -90,7 +90,18 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	host, port := brutus.ParseTarget(target, "3389")
 	addr := net.JoinHostPort(host, port)
 
-	domain, user := parseDomainUsername(username)
+	// Unqualified names are local SAM logins. An empty domain is not sent:
+	// NTLMv2 will not treat it as the local computer, and Windows may pass
+	// the attempt through to a domain controller.
+	domain, user, err := ntlmDomain(ctx, addr, username, timeout, pluginCfg.ProxyURL, pluginCfg.TLSMode)
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
+	if domain == "" {
+		result.Error = brutus.WrapConnError(fmt.Errorf("local auth: empty NTLM domain"))
+		return result
+	}
 
 	// Initialize WASM engine (singleton, first call compiles)
 	eng, err := initEngine()
@@ -339,14 +350,14 @@ func readOutputFromSlots(ctx context.Context, inst *wasmInstance, outPtrSlot, ou
 }
 
 // parseDomainUsername splits "DOMAIN\username" into (domain, username).
-// Returns empty domain if no backslash present.
-// Matches SMB plugin pattern (internal/plugins/smb/smb.go:128-136).
+// An unqualified name or ".\user" has an empty domain: ntlmDomain fills that
+// with the target computer name. DOMAIN\user is an explicit domain login.
 func parseDomainUsername(username string) (domain, user string) {
-	if strings.Contains(username, "\\") {
-		parts := strings.SplitN(username, "\\", 2)
-		return parts[0], parts[1]
+	id := winlocal.Parse(username)
+	if id.Local {
+		return "", id.User
 	}
-	return "", username
+	return id.Domain, id.User
 }
 
 var classifyError = brutus.NewClassifier(rdpAuthIndicators)

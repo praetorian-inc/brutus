@@ -1,0 +1,11 @@
+id: hp-ilo
+name: HPE iLO
+nerva: [hp-ilo]
+method: json
+path: /redfish/v1/SessionService/Sessions
+username_field: UserName
+password_field: Password
+success:
+  status: [201]
+  body: ["odata"]
+  body_absent: ["unauthorized"]

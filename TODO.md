@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, coldfusion, confluence, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, jenkins, keycloak, mikrotik, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, coldfusion, confluence, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, jenkins, keycloak, mikrotik, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -63,7 +63,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 
 ### Storage, printers, and out-of-band
 
-- [ ] `hp-ilo`, `hp-ews`, `hp-chaisoe` — root match — `hp.go`
+- [x] `hp-ilo` — login `POST /redfish/v1/SessionService/Sessions` (detection is the `HP-iLO-Server` header) — `hp.go`
+- [ ] `hp-ews`, `hp-chaisoe` — root match — `hp.go`
 - [x] `qnap-qts` — `/cgi-bin/authLogin.cgi` — `qnap.go`
 - [x] `synology-dsm` — login `POST /webapi/auth.cgi` (detection page `/webman/index.cgi`) — `synology_dsm.go`
 - [x] `unifi-status` — login `POST /api/login` (detection `/status`; technology `unifi-controller`) — `unifi.go`

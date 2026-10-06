@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash", "airflow"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -3230,6 +3230,67 @@ func TestRunRedash(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "analyst@example.com", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunAirflow(t *testing.T) {
+	var postedUser, postedCSRF string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login/" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`<input name="username"><input name="password"><input name="csrf_token" value="airflow-token">`))
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("username")
+		postedCSRF = r.Form.Get("csrf_token")
+		if postedUser == "airflow" && r.Form.Get("password") == "secret" && postedCSRF == "airflow-token" {
+			w.Header().Set("Location", "/home")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/login/")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"airflow"})
+	if len(selected) != 1 || selected[0].ID != "airflow" {
+		t.Fatalf("airflow match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "airflow", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "airflow" || postedCSRF != "airflow-token" {
+		t.Fatalf("posted user=%q csrf=%q", postedUser, postedCSRF)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "airflow", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

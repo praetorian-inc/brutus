@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, adfs, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, crushftp, dahua, draytek, elasticsearch, exchange, fortigate, gitea, gitlab, goanywhere, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, manageengine, mikrotik, moveit, nakivo, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, quest-kace, rabbitmq, rancher, roundcube, screenconnect, sharepoint, simplehelp, sitecore, solarwinds-whd, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zimbra, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, adfs, aem, apc-nmc, argocd, artifactory, beyondtrust-pra, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, crushftp, dahua, draytek, elasticsearch, exchange, fortigate, gitea, gitlab, goanywhere, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, manageengine, mikrotik, moveit, nakivo, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, quest-kace, rabbitmq, rancher, roundcube, screenconnect, sharepoint, simplehelp, sitecore, solarwinds-whd, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zimbra, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -132,7 +132,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `crushftp` — login `POST /WebInterface/function/` with `command=login` (detection `/WebInterface/`) — `crushftp.go`
 - [ ] `cleo` — `/Synchronization` — `cleo.go`
 - [x] `goanywhere` — login `POST /goanywhere/auth/login` (detection `/goanywhere/`) — `goanywhere.go`
-- [ ] `beyondtrust-pra` — `/appliance` — `beyondtrust_pra.go`
+- [x] `beyondtrust-pra` — login `POST /login/login` (detection marker `/appliance`) — `beyondtrust_pra.go`
 - [ ] `vmware-horizon` — `/portal/webclient/index.html` — `vmware_horizon.go`
 - [ ] `oracle_primavera_p6` — `/p6/action/login` — `oracle_primavera_p6.go`
 - [ ] `oracle_primavera_unifier`, `oracle-otm`, `oracle_ats`, `oracle_commerce`, `oracle-service-cloud`, `oracle_simphony` — confirm login vs SOAP before writing a template

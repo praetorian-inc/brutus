@@ -1,0 +1,12 @@
+id: beyondtrust-pra
+name: BeyondTrust Privileged Remote Access
+nerva: [beyondtrust-pra]
+method: form
+path: /login/login
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /console
+  header_absent: login

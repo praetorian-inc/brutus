@@ -175,7 +175,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `streamlit` — `/_stcore/health` is an open health check, not a password form. No template — `streamlit.go`
 - [x] `anythingllm` — `/api/utils/metrics` is an open metrics API. Login is `POST /api/request-token`; a hit requires a `token` — `anythingllm.go`
 - [x] `ollama` — `/api/version` is an open version API, not a password form. No template — `ollama.go`
-- [ ] `localai`, `tgi`, `triton`, `ray`, `weaviate`, `chromadb`, `pinecone`, `litellm` — version/health endpoints. Template only if the fingerprinter also sees an auth wall.
+- [x] `localai` — `/system` is an open system endpoint, not a password form. No template — `localai.go`
+- [ ] `tgi`, `triton`, `ray`, `weaviate`, `chromadb`, `pinecone`, `litellm` — version/health endpoints. Template only if the fingerprinter also sees an auth wall.
 
 ## Order
 

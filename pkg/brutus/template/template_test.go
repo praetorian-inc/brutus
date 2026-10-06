@@ -3538,7 +3538,7 @@ func TestRunDify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := Match(tpls, []string{"dify"})
+	selected := Match(tpls, []string{"dify", "sophos"})
 	if len(selected) != 1 || selected[0].ID != "dify" || selected[0].Path != "/console/api/login" {
 		t.Fatalf("dify match = %+v", selected)
 	}
@@ -3767,6 +3767,54 @@ func TestRunPANOS(t *testing.T) {
 	}
 	if postedUser != "admin" {
 		t.Fatalf("posted user=%q", postedUser)
+	}
+	if len(hits) != 1 || hits[0].Username != "admin" || hits[0].Password != "admin" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "admin", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunSophos(t *testing.T) {
+	var posted string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/webconsole/Controller" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		posted = string(body)
+		if strings.Contains(posted, `"username":"admin"`) && strings.Contains(posted, `"password":"admin"`) && strings.Contains(posted, "mode=151") {
+			_, _ = w.Write([]byte(`{"status":200}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":531}`))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"sophos-firewall"})
+	if len(selected) != 1 || selected[0].ID != "sophos" {
+		t.Fatalf("sophos match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(posted, `"password":"admin"`) {
+		t.Fatalf("posted body = %s", posted)
 	}
 	if len(hits) != 1 || hits[0].Username != "admin" || hits[0].Password != "admin" {
 		t.Fatalf("hits = %+v", hits)

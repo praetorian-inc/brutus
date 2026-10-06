@@ -17,6 +17,7 @@ package template
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -230,17 +231,29 @@ func doLogin(ctx context.Context, client *http.Client, base *url.URL, t Template
 			req.SetBasicAuth(pair.Username, pair.Password)
 		}
 	case MethodForm:
-		form := url.Values{}
-		form.Set(t.UsernameField, pair.Username)
-		form.Set(t.PasswordField, pair.Password)
-		for k, v := range t.Extra {
-			v = substitute(v, vars)
-			if v == "" {
-				continue
+		var reader *strings.Reader
+		if t.Body != "" {
+			bodyVars := map[string]string{}
+			for k, v := range vars {
+				bodyVars[k] = v
 			}
-			form.Set(k, v)
+			bodyVars["username"] = jsonString(pair.Username)
+			bodyVars["password"] = jsonString(pair.Password)
+			reader = strings.NewReader(substitute(t.Body, bodyVars))
+		} else {
+			form := url.Values{}
+			form.Set(t.UsernameField, pair.Username)
+			form.Set(t.PasswordField, pair.Password)
+			for k, v := range t.Extra {
+				v = substitute(v, vars)
+				if v == "" {
+					continue
+				}
+				form.Set(k, v)
+			}
+			reader = strings.NewReader(form.Encode())
 		}
-		req, err = http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
+		req, err = http.NewRequestWithContext(ctx, http.MethodPost, endpoint, reader)
 		if err != nil {
 			return response{}, err
 		}
@@ -293,4 +306,12 @@ func containsInt(list []int, n int) bool {
 		}
 	}
 	return false
+}
+
+func jsonString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return s
+	}
+	return strings.Trim(string(b), `"`)
 }

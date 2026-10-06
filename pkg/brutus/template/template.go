@@ -42,17 +42,21 @@ const (
 
 // Template is one product login check.
 type Template struct {
-	ID            string            `yaml:"id"`
-	Name          string            `yaml:"name"`
-	Nerva         []string          `yaml:"nerva"`
-	Method        string            `yaml:"method"`
-	Path          string            `yaml:"path"`
-	UsernameField string            `yaml:"username_field"`
-	PasswordField string            `yaml:"password_field"`
-	Extra         map[string]string `yaml:"extra,omitempty"`
-	Prefetch      *Prefetch         `yaml:"prefetch,omitempty"`
-	Success       Matchers          `yaml:"success"`
-	Creds         []string          `yaml:"creds,omitempty"`
+	ID            string   `yaml:"id"`
+	Name          string   `yaml:"name"`
+	Nerva         []string `yaml:"nerva"`
+	Method        string   `yaml:"method"`
+	Path          string   `yaml:"path"`
+	UsernameField string   `yaml:"username_field,omitempty"`
+	PasswordField string   `yaml:"password_field,omitempty"`
+	// Body is an optional form body. {{username}} and {{password}} are replaced
+	// with JSON-escaped credential values. Used when the product nests the
+	// password inside one form field.
+	Body     string            `yaml:"body,omitempty"`
+	Extra    map[string]string `yaml:"extra,omitempty"`
+	Prefetch *Prefetch         `yaml:"prefetch,omitempty"`
+	Success  Matchers          `yaml:"success"`
+	Creds    []string          `yaml:"creds,omitempty"`
 }
 
 // Prefetch is an unauthenticated GET whose body supplies {{name}} values.
@@ -142,7 +146,11 @@ func (t Template) validate() error {
 		return fmt.Errorf("%s: nerva technology names are required", t.ID)
 	}
 	if t.Method != MethodBasic {
-		if t.UsernameField == "" || t.PasswordField == "" {
+		if t.Body != "" {
+			if !strings.Contains(t.Body, "{{username}}") || !strings.Contains(t.Body, "{{password}}") {
+				return fmt.Errorf("%s: body must contain {{username}} and {{password}}", t.ID)
+			}
+		} else if t.UsernameField == "" || t.PasswordField == "" {
 			return fmt.Errorf("%s: username_field and password_field are required", t.ID)
 		}
 		if len(t.Success.Status) == 0 && len(t.Success.Body) == 0 && t.Success.Header == "" {

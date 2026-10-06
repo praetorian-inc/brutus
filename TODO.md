@@ -44,7 +44,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `globalprotect` — login `POST /global-protect/getconfig.esp` (detection `/global-protect/prelogin.esp`; technology `palo-alto-globalprotect`) — `globalprotect.go`
 - [x] `anyconnect` / `cisco-asa-ftd` — login `POST /+webvpn+/index.html` (detection `/+CSCOE+/logon.html`) — `anyconnect.go`, `cisco_asa_ftd.go`
 - [x] `panos-mgmt` — login `POST /php/login.php` — `panos_mgmt.go`
-- [ ] `sophos-firewall` — `/webconsole/webpages/login.jsp` — `sophos.go`
+- [x] `sophos-firewall` — login `POST /webconsole/Controller` (detection `/webconsole/webpages/login.jsp`) — `sophos.go`
 - [x] `sonicwall` — login `POST /api/sonicos/auth` (detection `/auth1.html`) — `sonicwall.go`
 - [x] `watchguard-firebox` — `/auth/login` — `watchguard.go`
 - [x] `zyxel-firewall` — `/weblogin.cgi` — `zyxel.go`

@@ -133,7 +133,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `nakivo` — `/c/login` — `nakivo.go`
 - [x] `moveit` — login `POST /human.aspx` with `transaction=signon` (plain signon only) — `moveit.go`
 - [x] `crushftp` — login `POST /WebInterface/function/` with `command=login` (detection `/WebInterface/`) — `crushftp.go`
-- [ ] `cleo` — `/Synchronization` — `cleo.go`
+- [x] `cleo` — `/Synchronization` is a fingerprint endpoint, not a password form. No template — `cleo.go`
 - [x] `goanywhere` — login `POST /goanywhere/auth/login` (detection `/goanywhere/`) — `goanywhere.go`
 - [x] `beyondtrust-pra` — login `POST /login/login` (detection marker `/appliance`) — `beyondtrust_pra.go`
 - [x] `vmware-horizon` — login `POST /portal/webclient/index.html` — `vmware_horizon.go`

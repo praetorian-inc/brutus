@@ -12,7 +12,7 @@ prefetch:
 extra:
   authenticity_token: "{{authenticity_token}}"
 success:
-  status: [302]
+  status: [302, 303]
   header: Location
-  header_has: "/"
-  body_absent: ["invalid login"]
+  header_has: /
+  header_absent: users/sign_in

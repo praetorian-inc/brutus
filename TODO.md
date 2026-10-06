@@ -82,7 +82,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `phpmyadmin` — `/phpmyadmin/`, `/pma/`, `/phpMyAdmin/`, `/phpmyadmin/setup/` — `phpmyadmin.go`
 - [x] `pgadmin` / `pgadmin-login` — `/login` — `pgadmin.go`
 - [ ] `jenkins` — confirm `/login` vs `/script` — `jenkins.go`
-- [ ] `gitlab` — API `/api/v4/version`; login is `/users/sign_in` (also in `adminpath.go`) — `gitlab.go`
+- [x] `gitlab` — login `POST /users/sign_in` (detection `/api/v4/version`) — `gitlab.go`
 - [x] `gitea` — login `POST /user/login` (detection `/api/v1/version`) — `gitea.go`
 - [x] `grafana` — login `POST /login` JSON `user`/`password`, not Basic Auth (detection `/api/health`) — `grafana.go`
 - [ ] `nexus-repository` / `nexus-repository-login` — `/service/rest/v1/status` — `nexus.go`

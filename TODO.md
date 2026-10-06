@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, dahua, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, hikvision, jenkins, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, dahua, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, jenkins, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -83,7 +83,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `grafana` — `/api/health`; login is form, not the Basic Auth pair in `http_defaults.txt` — `grafana.go`
 - [ ] `nexus-repository` / `nexus-repository-login` — `/service/rest/v1/status` — `nexus.go`
 - [ ] `artifactory` — `/artifactory/api/system/ping` — `artifactory.go`
-- [ ] `harbor` — `/api/v2.0/systeminfo` — `harbor.go`
+- [x] `harbor` — login `POST /c/login` (detection `/api/v2.0/systeminfo`) — `harbor.go`
 - [ ] `argocd` / `argocd-login` — `/login` — `argocd.go`
 - [ ] `rancher` / `rancher_dashboard` — `/dashboard/` — `rancher.go`
 - [x] `portainer` — login `POST /api/auth` (detection `/api/system/status`; `/api/users/admin/check` is setup state, not login) — `portainer.go`

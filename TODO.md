@@ -17,7 +17,7 @@ Brutus sprays generic defaults per protocol. Nerva already names the web applica
 
 ## Template engine
 
-- [ ] Schema: `id`, Nerva technology name, path, method (`basic`, `form`, `json`), request fields, success matcher, failure matcher, credential pairs.
+- [x] Schema: `id`, Nerva technology name, path, method (`basic`, `form`, `json`), request fields, success matcher, and credential pairs. A failed login is the negative control, not a separate matcher field.
 - [ ] Select templates from a Nerva result (technology / fingerprinter name), not from the port alone.
 - [ ] Run selected templates through the existing HTTP worker. No second spray engine.
 - [ ] Missing computer-name style failures stay failures. A template that does not match the response is a miss, not a fallback onto the generic Basic Auth list.

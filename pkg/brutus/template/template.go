@@ -147,8 +147,9 @@ func (t Template) validate() error {
 	}
 	if t.Method != MethodBasic {
 		if t.Body != "" {
-			if !strings.Contains(t.Body, "{{username}}") || !strings.Contains(t.Body, "{{password}}") {
-				return fmt.Errorf("%s: body must contain {{username}} and {{password}}", t.ID)
+			combined := t.Body + t.Path
+			if !strings.Contains(combined, "{{username}}") || !strings.Contains(combined, "{{password}}") {
+				return fmt.Errorf("%s: body or path must contain {{username}} and {{password}}", t.ID)
 			}
 		} else if t.UsernameField == "" || t.PasswordField == "" {
 			return fmt.Errorf("%s: username_field and password_field are required", t.ID)

@@ -218,7 +218,13 @@ func prefetch(ctx context.Context, client *http.Client, base *url.URL, t Templat
 }
 
 func doLogin(ctx context.Context, client *http.Client, base *url.URL, t Template, pair Pair, vars map[string]string, anonymous bool) (response, error) {
-	endpoint := resolve(base, substitute(t.Path, vars))
+	pathVars := map[string]string{}
+	for k, v := range vars {
+		pathVars[k] = v
+	}
+	pathVars["username"] = url.PathEscape(pair.Username)
+	pathVars["password"] = url.PathEscape(pair.Password)
+	endpoint := resolve(base, substitute(t.Path, pathVars))
 	var req *http.Request
 	var err error
 	switch t.Method {
@@ -259,7 +265,18 @@ func doLogin(ctx context.Context, client *http.Client, base *url.URL, t Template
 		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	case MethodJSON:
-		payload := fmt.Sprintf(`{%q:%q,%q:%q}`, t.UsernameField, pair.Username, t.PasswordField, pair.Password)
+		var payload string
+		if t.Body != "" {
+			bodyVars := map[string]string{}
+			for k, v := range vars {
+				bodyVars[k] = v
+			}
+			bodyVars["username"] = jsonString(pair.Username)
+			bodyVars["password"] = jsonString(pair.Password)
+			payload = substitute(t.Body, bodyVars)
+		} else {
+			payload = fmt.Sprintf(`{%q:%q,%q:%q}`, t.UsernameField, pair.Username, t.PasswordField, pair.Password)
+		}
 		req, err = http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(payload))
 		if err != nil {
 			return response{}, err

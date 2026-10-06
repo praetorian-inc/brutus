@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, screenconnect, simplehelp, sitecore, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, nakivo, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, screenconnect, simplehelp, sitecore, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -127,7 +127,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `veeam_enterprise_manager_web` — `/login.aspx` — `veeam.go`
 - [ ] `commvault` — root match — `commvault.go`
 - [ ] `quest-kace` — `/admin` — `quest_kace.go`
-- [ ] `nakivo` — `/c/login` — `nakivo.go`
+- [x] `nakivo` — `/c/login` — `nakivo.go`
 - [ ] `moveit` — `/human.aspx` — `moveit.go`
 - [ ] `crushftp` — `/WebInterface/login.html` — `crushftp.go`
 - [ ] `cleo` — `/Synchronization` — `cleo.go`

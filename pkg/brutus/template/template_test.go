@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -2220,6 +2220,55 @@ func TestRunVeeam(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "veeamadmin", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunNakivo(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/c/login" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		raw := string(body)
+		w.Header().Set("Content-Type", "application/json")
+		if strings.Contains(raw, `"username":"director"`) && strings.Contains(raw, `"password":"secret"`) {
+			_, _ = w.Write([]byte(`{"token":"abc"}`))
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"invalid credentials"}`))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"nakivo"})
+	if len(selected) != 1 || selected[0].ID != "nakivo" {
+		t.Fatalf("nakivo match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "director", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Username != "director" || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "director", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -73,7 +73,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `hikvision` — `/ISAPI/System/deviceInfo` — `hikvision.go`
 - [x] `dahua` — `/cgi-bin/magicBox.cgi` — `dahua.go`
 - [x] `webmin` — login `POST /session_login.cgi` (detection is the root login page) — `webmin.go`
-- [ ] `samsung-magicinfo` — `/MagicInfo/` — `magicinfo.go`
+- [x] `samsung-magicinfo` — login `POST /MagicInfo/servlet/LoginServlet` (detection `/MagicInfo/`) — `magicinfo.go`
 
 ### Admin UIs Nerva already separates from the API
 

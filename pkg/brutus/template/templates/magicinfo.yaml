@@ -1,0 +1,14 @@
+id: magicinfo
+name: Samsung MagicINFO
+nerva: [samsung-magicinfo]
+method: form
+path: /MagicInfo/servlet/LoginServlet
+username_field: userId
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /MagicInfo/
+  header_absent: login
+creds:
+  - "admin:admin"

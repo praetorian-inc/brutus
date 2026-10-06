@@ -5753,3 +5753,48 @@ func TestRunTiDB(t *testing.T) {
 		t.Fatalf("open TiDB status reported a credential hit: %+v", hits)
 	}
 }
+
+func TestRunElasticsearch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="elasticsearch"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user == "elastic" && pass == "changeme" {
+			_, _ = w.Write([]byte(`{"tagline":"You Know, for Search"}`))
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"elasticsearch"})
+	if len(selected) != 1 || selected[0].ID != "elasticsearch-http" || selected[0].Path != "/" {
+		t.Fatalf("elasticsearch match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Username != "elastic" || hits[0].Password != "changeme" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	open := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"tagline":"You Know, for Search"}`))
+	}))
+	defer open.Close()
+	hits, err = Run(context.Background(), open.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("open Elasticsearch HTTP API reported a credential hit: %+v", hits)
+	}
+}

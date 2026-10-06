@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, dahua, elasticsearch, fortigate, gitlab, grafana, guacamole, hikvision, jenkins, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, argocd, coldfusion, confluence, dahua, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, hikvision, jenkins, nexus, panos, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, roundcube, synology, tomcat, unifi, watchguard, webmin, wordpress. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -79,7 +79,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `pgadmin` / `pgadmin-login` — `/login` — `pgadmin.go`
 - [ ] `jenkins` — confirm `/login` vs `/script` — `jenkins.go`
 - [ ] `gitlab` — API `/api/v4/version`; login is `/users/sign_in` (also in `adminpath.go`) — `gitlab.go`
-- [ ] `gitea` — `/api/v1/version`; confirm login path — `gitea.go`
+- [x] `gitea` — login `POST /user/login` (detection `/api/v1/version`) — `gitea.go`
 - [ ] `grafana` — `/api/health`; login is form, not the Basic Auth pair in `http_defaults.txt` — `grafana.go`
 - [ ] `nexus-repository` / `nexus-repository-login` — `/service/rest/v1/status` — `nexus.go`
 - [ ] `artifactory` — `/artifactory/api/system/ping` — `artifactory.go`

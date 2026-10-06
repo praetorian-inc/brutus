@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -723,6 +723,67 @@ func TestRunWebmin(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "root", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunGitea(t *testing.T) {
+	var postedUser, postedCSRF string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/user/login" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`<input type="hidden" name="_csrf" value="gitea-token">`))
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("user_name")
+		postedCSRF = r.Form.Get("_csrf")
+		if postedUser == "gitadmin" && r.Form.Get("password") == "secret" && postedCSRF == "gitea-token" {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusSeeOther)
+			return
+		}
+		w.Header().Set("Location", "/user/login")
+		w.WriteHeader(http.StatusSeeOther)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"gitea"})
+	if len(selected) != 1 || selected[0].ID != "gitea" {
+		t.Fatalf("gitea match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "gitadmin", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "gitadmin" || postedCSRF != "gitea-token" {
+		t.Fatalf("posted user=%q csrf=%q", postedUser, postedCSRF)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "gitadmin", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

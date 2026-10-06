@@ -138,7 +138,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `beyondtrust-pra` — login `POST /login/login` (detection marker `/appliance`) — `beyondtrust_pra.go`
 - [x] `vmware-horizon` — login `POST /portal/webclient/index.html` — `vmware_horizon.go`
 - [x] `oracle_primavera_p6` — login `POST /p6/action/j_security_check` (detection `/p6/action/login`) — `oracle_primavera_p6.go`
-- [ ] `oracle_primavera_unifier`, `oracle-otm`, `oracle_ats`, `oracle_commerce`, `oracle-service-cloud`, `oracle_simphony` — confirm login vs SOAP before writing a template
+- [x] `oracle_primavera_unifier` — login `POST /bluedoor/j_security_check` (detection `/bluedoor` is the login page, not SOAP) — `oracle_primavera_unifier.go`
+- [ ] `oracle-otm`, `oracle_ats`, `oracle_commerce`, `oracle-service-cloud`, `oracle_simphony` — confirm login vs SOAP before writing a template
 - [x] `telerik-report-server` — `/Account/Login` — `telerik_report_server.go`
 - [ ] `wsus` — `/ClientWebService/client.asmx` — service endpoint, not a password form
 - [ ] `sccm-mp` — `/sms_mp/.sms_aut?mplist` — service endpoint, not a password form

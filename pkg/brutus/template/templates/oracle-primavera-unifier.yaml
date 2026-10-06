@@ -1,0 +1,12 @@
+id: oracle-primavera-unifier
+name: Oracle Primavera Unifier
+nerva: [oracle_primavera_unifier]
+method: form
+path: /bluedoor/j_security_check
+username_field: j_username
+password_field: j_password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /bluedoor/
+  header_absent: login

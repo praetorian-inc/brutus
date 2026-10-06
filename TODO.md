@@ -84,7 +84,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `jenkins` — confirm `/login` vs `/script` — `jenkins.go`
 - [ ] `gitlab` — API `/api/v4/version`; login is `/users/sign_in` (also in `adminpath.go`) — `gitlab.go`
 - [x] `gitea` — login `POST /user/login` (detection `/api/v1/version`) — `gitea.go`
-- [ ] `grafana` — `/api/health`; login is form, not the Basic Auth pair in `http_defaults.txt` — `grafana.go`
+- [x] `grafana` — login `POST /login` JSON `user`/`password`, not Basic Auth (detection `/api/health`) — `grafana.go`
 - [ ] `nexus-repository` / `nexus-repository-login` — `/service/rest/v1/status` — `nexus.go`
 - [x] `artifactory` — `/artifactory/api/system/ping` — `artifactory.go`
 - [x] `harbor` — login `POST /c/login` (detection `/api/v2.0/systeminfo`) — `harbor.go`

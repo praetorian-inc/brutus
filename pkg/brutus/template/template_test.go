@@ -4225,3 +4225,60 @@ func TestRunColdFusion(t *testing.T) {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
 	}
 }
+
+func TestRunRoundcube(t *testing.T) {
+	var postedUser, postedTask string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("_user")
+		postedTask = r.Form.Get("_task")
+		if postedUser == "mailuser" && r.Form.Get("_pass") == "secret" && postedTask == "login" && r.Form.Get("_action") == "login" {
+			w.Header().Set("Location", "/?_task=mail")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("Login failed"))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"roundcube"})
+	if len(selected) != 1 || selected[0].ID != "roundcube" {
+		t.Fatalf("roundcube match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "mailuser", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "mailuser" || postedTask != "login" {
+		t.Fatalf("posted user=%q task=%q", postedUser, postedTask)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "mailuser", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}

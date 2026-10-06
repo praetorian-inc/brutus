@@ -1,0 +1,11 @@
+id: metabase
+name: Metabase
+nerva: [metabase]
+method: json
+path: /api/session
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ['"id":']
+  body_absent: ["did not match", "unauthorized"]

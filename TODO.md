@@ -102,7 +102,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `rabbitmq-management` — `/api/overview` — `rabbitmq_management.go`
 - [ ] `traefik-dashboard` — `/api/overview` — `traefik.go`
 - [ ] `docker-registry` — `/v2/` — `docker_registry.go`
-- [ ] `tomcat` — manager path is not `/`; do not send Basic Auth to `/` — `tomcat.go`
+- [x] `tomcat` — Basic Auth on `/manager/html`, not `/` — `tomcat.go`
 - [ ] `teamcity` — `/app/rest/server` — `teamcity.go`
 - [ ] `splunk` — `/` — `splunk.go`
 - [x] `confluence` — login `POST /dologin.action` (page `/login.action`) — `confluence.go`

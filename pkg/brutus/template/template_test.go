@@ -4739,3 +4739,47 @@ func TestRunConfluence(t *testing.T) {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
 	}
 }
+
+func TestRunTomcatDoesNotAuthRoot(t *testing.T) {
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.URL.Path != "/manager/html" {
+			http.NotFound(w, r)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="tomcat"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user == "tomcat" && pass == "tomcat" {
+			_, _ = w.Write([]byte("Tomcat Web Application Manager"))
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"tomcat"})
+	if len(selected) != 1 || selected[0].Path != "/manager/html" {
+		t.Fatalf("tomcat match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Password != "tomcat" {
+		t.Fatalf("hits = %+v", hits)
+	}
+	for _, path := range paths {
+		if path == "/" {
+			t.Fatalf("Tomcat template requested /: %v", paths)
+		}
+	}
+}

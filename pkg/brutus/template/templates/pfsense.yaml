@@ -1,0 +1,19 @@
+id: pfsense
+name: pfSense
+nerva: [pfsense]
+method: form
+path: /
+username_field: usernamefld
+password_field: passwordfld
+prefetch:
+  path: /
+  extract:
+    csrf: 'name="__csrf_magic" value="([^"]+)"'
+extra:
+  __csrf_magic: "{{csrf}}"
+  login: Login
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login

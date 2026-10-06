@@ -5328,7 +5328,7 @@ func TestRunKibana(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb"})
+	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb", "flowise"})
 	if len(selected) != 1 || selected[0].ID != "kibana" {
 		t.Fatalf("kibana match = %+v", selected)
 	}
@@ -5886,5 +5886,60 @@ func TestRunCouchDB(t *testing.T) {
 	}
 	if len(hits) != 0 {
 		t.Fatalf("open CouchDB admin party reported a credential hit: %+v", hits)
+	}
+}
+
+func TestRunFlowise(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/version" {
+			http.NotFound(w, r)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="flowise"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if user == "flowise" && pass == "secret" {
+			_, _ = w.Write([]byte(`{"version":"1.8.0"}`))
+			return
+		}
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"flowise"})
+	if len(selected) != 1 || selected[0].ID != "flowise" {
+		t.Fatalf("flowise match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "flowise", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	open := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"version":"1.8.0"}`))
+	}))
+	defer open.Close()
+	hits, err = Run(context.Background(), open.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "flowise", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("open Flowise version API reported a credential hit: %+v", hits)
 	}
 }

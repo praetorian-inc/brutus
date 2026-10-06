@@ -168,7 +168,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [ ] `jupyter-notebook` / `jupyterlab` — token or empty token, not a password form
 - [x] `open_webui` — login `POST /api/v1/auths/signin` (detection `/api/config`) — `open_webui.go`
 - [x] `dify` — login `POST /console/api/login` (detection `/console/api/setup` is setup state, not a login) — `dify.go`
-- [ ] `flowise`, `langflow`, `langfuse`, `gradio`, `streamlit`, `anythingllm` — confirm whether the detected page is a login or an open API
+- [x] `flowise` — `/api/v1/version` is an open version API by default. Basic Auth only when that path challenges; an open version API is not a hit — `flowise.go`
+- [ ] `langflow`, `langfuse`, `gradio`, `streamlit`, `anythingllm` — confirm whether the detected page is a login or an open API
 - [ ] `ollama`, `localai`, `tgi`, `triton`, `ray`, `weaviate`, `chromadb`, `pinecone`, `litellm` — version/health endpoints. Template only if the fingerprinter also sees an auth wall.
 
 ## Order

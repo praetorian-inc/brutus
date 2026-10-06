@@ -1,0 +1,5 @@
+id: tidb
+name: TiDB
+nerva: [tidb]
+method: basic
+path: /status

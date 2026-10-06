@@ -88,7 +88,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `nexus-repository` / `nexus-repository-login` — Basic Auth on `/service/rest/v1/status` only when that path challenges — `nexus.go`
 - [x] `artifactory` — `/artifactory/api/system/ping` — `artifactory.go`
 - [x] `harbor` — login `POST /c/login` (detection `/api/v2.0/systeminfo`) — `harbor.go`
-- [ ] `argocd` / `argocd-login` — `/login` — `argocd.go`
+- [x] `argocd` / `argocd-login` — login `POST /api/v1/session` (UI `/login`; initial admin password is generated, so no embedded default) — `argocd.go`
 - [x] `rancher` / `rancher_dashboard` — login `POST /v3-public/localProviders/local?action=login` (detection `/rancherversion` and `/dashboard/`) — `rancher.go`
 - [x] `portainer` — login `POST /api/auth` (detection `/api/system/status`; `/api/users/admin/check` is setup state, not login) — `portainer.go`
 - [x] `keycloak` — login `POST /realms/master/protocol/openid-connect/token` (legacy `/auth/realms/master/...`; detection `/.well-known/openid-configuration`) — `keycloak.go`

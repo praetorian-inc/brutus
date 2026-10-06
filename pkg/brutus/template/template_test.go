@@ -5328,7 +5328,7 @@ func TestRunKibana(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb", "flowise", "langflow", "langfuse"})
+	selected := Match(tpls, []string{"kibana", "opensearch", "couchdb", "flowise", "langflow", "langfuse", "gradio"})
 	if len(selected) != 1 || selected[0].ID != "kibana" {
 		t.Fatalf("kibana match = %+v", selected)
 	}
@@ -6045,6 +6045,62 @@ func TestRunLangfuse(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "user@example.com", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunGradio(t *testing.T) {
+	var postedUser string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/login" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("username")
+		if postedUser == "gradio" && r.Form.Get("password") == "secret" {
+			w.Header().Set("Location", "/")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/login")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"gradio"})
+	if len(selected) != 1 || selected[0].ID != "gradio" || selected[0].Path != "/login" {
+		t.Fatalf("gradio match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "gradio", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "gradio" {
+		t.Fatalf("posted user=%q", postedUser)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "gradio", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

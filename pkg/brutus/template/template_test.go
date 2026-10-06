@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -891,5 +891,68 @@ func TestRunArtifactory(t *testing.T) {
 	}
 	if len(hits) != 0 {
 		t.Fatalf("open Artifactory ping reported a credential hit: %+v", hits)
+	}
+}
+
+func TestRunKeycloak(t *testing.T) {
+	var postedGrant string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/realms/master/protocol/openid-connect/token" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedGrant = r.Form.Get("grant_type")
+		if r.Form.Get("username") == "kcadmin" && r.Form.Get("password") == "secret" && r.Form.Get("client_id") == "admin-cli" && postedGrant == "password" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"token","token_type":"Bearer"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"Invalid user credentials"}`))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"keycloak"})
+	modern := 0
+	for _, tplt := range selected {
+		if tplt.ID == "keycloak" || tplt.ID == "keycloak-wildfly" {
+			modern++
+		}
+	}
+	if modern != 2 {
+		t.Fatalf("keycloak match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "kcadmin", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedGrant != "password" {
+		t.Fatalf("posted grant_type=%q", postedGrant)
+	}
+	if len(hits) != 1 || hits[0].TemplateID != "keycloak" || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "kcadmin", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
 	}
 }

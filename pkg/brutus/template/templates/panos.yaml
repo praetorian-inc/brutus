@@ -6,7 +6,9 @@ path: /php/login.php
 username_field: user
 password_field: passwd
 success:
-  status: [200, 302]
-  body_absent: ["invalid credential", "login failed"]
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login.php
 creds:
   - "admin:admin"

@@ -3730,3 +3730,56 @@ func TestRunAnyConnect(t *testing.T) {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
 	}
 }
+
+func TestRunPANOS(t *testing.T) {
+	var postedUser string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/php/login.php" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("user")
+		if postedUser == "admin" && r.Form.Get("passwd") == "admin" {
+			w.Header().Set("Location", "/php/dashboard.php")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/php/login.php")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"panos-mgmt"})
+	if len(selected) != 1 || selected[0].ID != "panos" {
+		t.Fatalf("panos match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "admin" {
+		t.Fatalf("posted user=%q", postedUser)
+	}
+	if len(hits) != 1 || hits[0].Username != "admin" || hits[0].Password != "admin" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "admin", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}

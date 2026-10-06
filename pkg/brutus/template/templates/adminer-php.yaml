@@ -1,8 +1,8 @@
-id: adminer
-name: Adminer
-nerva: [adminer, adminer_root]
+id: adminer-php
+name: Adminer single file
+nerva: [adminer]
 method: form
-path: /
+path: /adminer.php
 username_field: auth[username]
 password_field: auth[password]
 extra:

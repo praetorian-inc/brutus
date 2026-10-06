@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "phpmyadmin-pma", "phpmyadmin-cased", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash", "airflow", "doccano", "mlflow", "jupyterhub", "open-webui", "dify", "globalprotect", "anyconnect", "d-link", "maipu", "magicinfo", "hp-ews", "hp-chaisoe", "primavera-p6"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "phpmyadmin-pma", "phpmyadmin-cased", "adminer", "adminer-php", "adminer-dir", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint", "adfs", "zimbra", "solarwinds-whd", "manageengine", "beyondtrust-pra", "adcs", "telerik", "commvault", "vmware-horizon", "metabase", "superset", "redash", "airflow", "doccano", "mlflow", "jupyterhub", "open-webui", "dify", "globalprotect", "anyconnect", "d-link", "maipu", "magicinfo", "hp-ews", "hp-chaisoe", "primavera-p6"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -4582,6 +4582,47 @@ func TestRunPhpMyAdminPMAPrefix(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(hits) != 1 || hits[0].TemplateID != "phpmyadmin-pma" || hits[0].Password != "root" {
+		t.Fatalf("hits = %+v", hits)
+	}
+}
+
+func TestRunAdminerPHP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/adminer.php" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		if r.Form.Get("auth[username]") == "root" && r.Form.Get("auth[password]") == "" && r.Form.Get("auth[driver]") == "server" {
+			_, _ = w.Write([]byte("Logout"))
+			return
+		}
+		_, _ = w.Write([]byte("Login - Adminer"))
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"adminer"})
+	var php Template
+	for _, tplt := range selected {
+		if tplt.ID == "adminer-php" {
+			php = tplt
+		}
+	}
+	if php.Path != "/adminer.php" {
+		t.Fatalf("adminer-php missing from %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, []Template{php}, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Password != "" {
 		t.Fatalf("hits = %+v", hits)
 	}
 }

@@ -1,0 +1,12 @@
+id: sharepoint
+name: Microsoft SharePoint
+nerva: [sharepoint]
+method: form
+path: /_layouts/15/Authenticate.aspx
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: Authenticate.aspx

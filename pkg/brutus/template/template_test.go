@@ -42,7 +42,7 @@ func TestLoadEmbedded(t *testing.T) {
 			t.Errorf("%s missing nerva name or path", tplt.ID)
 		}
 	}
-	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange"} {
+	for _, id := range []string{"tomcat-manager", "grafana-login", "phpmyadmin", "adminer", "fortigate", "gitlab", "pgadmin", "watchguard", "qnap", "synology", "guacamole", "portainer", "hikvision", "unifi", "dahua", "webmin", "gitea", "harbor", "artifactory", "keycloak", "keycloak-wildfly", "rancher", "apc-nmc", "mikrotik", "zyxel", "sonicwall", "tp-link", "draytek", "hp-ilo", "pfsense", "opnsense", "juniper", "bigip", "ivanti", "citrix", "checkpoint", "sitecore", "kentico", "craftcms", "aem", "papercut", "screenconnect", "simplehelp", "veeam", "nakivo", "crushftp", "goanywhere", "moveit", "quest-kace", "exchange", "sharepoint"} {
 		if !ids[id] {
 			t.Errorf("missing embedded template %s", id)
 		}
@@ -2552,6 +2552,62 @@ func TestRunExchange(t *testing.T) {
 	miss, err := Run(context.Background(), srv.URL, selected, Options{
 		Timeout: 2 * time.Second,
 		Creds:   []Pair{{Username: "user@contoso.com", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}
+
+func TestRunSharePoint(t *testing.T) {
+	var postedUser string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/_layouts/15/Authenticate.aspx" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("username")
+		if postedUser == "spadmin" && r.Form.Get("password") == "secret" {
+			w.Header().Set("Location", "/_layouts/15/start.aspx")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/_layouts/15/Authenticate.aspx?Source=/")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"sharepoint"})
+	if len(selected) != 1 || selected[0].ID != "sharepoint" {
+		t.Fatalf("sharepoint match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "spadmin", Password: "secret"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "spadmin" {
+		t.Fatalf("posted user=%q", postedUser)
+	}
+	if len(hits) != 1 || hits[0].Password != "secret" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "spadmin", Password: "wrong"}},
 	})
 	if err != nil {
 		t.Fatal(err)

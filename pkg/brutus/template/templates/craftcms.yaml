@@ -1,0 +1,18 @@
+id: craftcms
+name: Craft CMS
+nerva: [craftcms]
+method: form
+path: /admin/login
+username_field: loginName
+password_field: password
+prefetch:
+  path: /admin/login
+  extract:
+    csrf: 'name="CRAFT_CSRF_TOKEN" value="([^"]+)"'
+extra:
+  CRAFT_CSRF_TOKEN: "{{csrf}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /admin
+  header_absent: /admin/login

@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, nexus, opnsense, panos, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sitecore, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, dahua, draytek, elasticsearch, fortigate, gitea, gitlab, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, nexus, opnsense, panos, pfsense, pgadmin, phpmyadmin, portainer, qnap, rabbitmq, rancher, roundcube, sitecore, sonicwall, synology, tomcat, tp-link, unifi, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -118,7 +118,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `sitecore` — `/sitecore/login` — `sitecore.go`
 - [x] `kentico` — login `POST /CMSPages/logon.aspx` (detection `/CMSPages/GetResource.ashx`; technology `kentico-cms`) — `kentico.go`
 - [ ] `adobe_experience_manager` — `/libs/granite/core/content/login.html` — `aem.go`
-- [ ] `craftcms` — `/admin/login` — `craftcms.go`
+- [x] `craftcms` — `/admin/login` — `craftcms.go`
 - [ ] `solarwinds-whd` — `/helpdesk/WebObjects/Helpdesk.woa` — `solarwinds_whd.go`
 - [ ] `manageengine` — `/showlogin.cc` and product prefixes — `manageengine.go`
 - [ ] `papercut` — `/app` — `papercut.go`

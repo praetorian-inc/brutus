@@ -1,6 +1,6 @@
 # Shipped
 
-`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, adfs, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, crushftp, dahua, draytek, elasticsearch, exchange, fortigate, gitea, gitlab, goanywhere, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, moveit, nakivo, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, quest-kace, rabbitmq, rancher, roundcube, screenconnect, sharepoint, simplehelp, sitecore, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zyxel. Products without a vendor default run only with `-c`.
+`brutus template` loads YAML templates, selects them by Nerva technology name, and runs basic, form, or JSON logins. A URL alone does not select products. Embedded templates: adminer, adfs, aem, apc-nmc, argocd, artifactory, bigip, checkpoint, citrix, coldfusion, confluence, craftcms, crushftp, dahua, draytek, elasticsearch, exchange, fortigate, gitea, gitlab, goanywhere, grafana, guacamole, harbor, hikvision, hp-ilo, ivanti, jenkins, juniper, kentico, keycloak, mikrotik, moveit, nakivo, nexus, opnsense, panos, papercut, pfsense, pgadmin, phpmyadmin, portainer, qnap, quest-kace, rabbitmq, rancher, roundcube, screenconnect, sharepoint, simplehelp, sitecore, sonicwall, synology, tomcat, tp-link, unifi, veeam, watchguard, webmin, wordpress, zimbra, zyxel. Products without a vendor default run only with `-c`.
 
 The rest of this file is the backlog.
 
@@ -111,7 +111,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `sharepoint` — login `POST /_layouts/15/Authenticate.aspx` (detection `/_layouts/`) — `sharepoint.go`
 - [x] `adfs` — login `POST /adfs/ls/` (detection `/adfs/ls`) — `adfs.go`
 - [ ] `adcs-web-enrollment` — `/certsrv/` — `adcs_web_enrollment.go`
-- [ ] `zimbra` — `/zimbra/` — `zimbra.go`
+- [x] `zimbra` — `/zimbra/` — `zimbra.go`
 - [ ] `roundcube` — `/?_task=login` — `roundcube.go`
 - [ ] `sap-netweaver` — `/sap/public/info` — `sapnetweaver.go`
 - [ ] `coldfusion` — `/CFIDE/administrator/` — `coldfusion.go`

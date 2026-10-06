@@ -1,0 +1,5 @@
+id: yugabytedb
+name: YugabyteDB
+nerva: [yugabytedb]
+method: basic
+path: /api/v1/version

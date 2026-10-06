@@ -150,7 +150,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `redash` — login `POST /login` (detection `/api/session`) — `redash.go`
 - [x] `airflow` — login `POST /login/` (detection `/api/v1/health`) — `airflow.go`
 - [x] `mlflow` — `/api/2.0/mlflow/experiments/search` is Basic Auth only when that path challenges; an open search is not a hit — `mlflow.go`
-- [ ] `backstage` — `/.backstage/health/v1/readiness` — `backstage.go`
+- [x] `backstage` — Basic Auth on `/.backstage/health/v1/readiness` only when that path challenges; an open health check is not a hit — `backstage.go`
 - [x] `doccano` — login `POST /v1/auth-token` (UI `/auth/login`) — `doccano.go`
 - [x] `redis_commander` — Basic Auth on `/` only when the root page challenges; an open UI is not a hit — `redis_commander.go`
 - [ ] `clickhouse-http`, `arangodb`, `cockroachdb`, `yugabytedb`, `tidb`, `elasticsearch`, `opensearch`, `couchdb` — HTTP API auth. Reuse the native plugin when the service port is open; template only the HTTP console.

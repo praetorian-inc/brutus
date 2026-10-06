@@ -8,7 +8,9 @@ password_field: adminPassword
 extra:
   requestedURL: /CFIDE/administrator/index.cfm
 success:
-  status: [200, 302]
-  body_absent: ["invalid password"]
+  status: [302, 303]
+  header: Location
+  header_has: /CFIDE/administrator/
+  header_absent: enter.cfm
 creds:
   - "admin:admin"

@@ -4171,3 +4171,57 @@ func TestRunPrimaveraP6(t *testing.T) {
 		t.Fatalf("wrong password reported a hit: %+v", miss)
 	}
 }
+
+func TestRunColdFusion(t *testing.T) {
+	var postedUser, postedURL string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/CFIDE/administrator/enter.cfm" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad form", http.StatusBadRequest)
+			return
+		}
+		postedUser = r.Form.Get("cfadminUserId")
+		postedURL = r.Form.Get("requestedURL")
+		if postedUser == "admin" && r.Form.Get("adminPassword") == "admin" && postedURL == "/CFIDE/administrator/index.cfm" {
+			w.Header().Set("Location", "/CFIDE/administrator/index.cfm")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		w.Header().Set("Location", "/CFIDE/administrator/enter.cfm")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer srv.Close()
+
+	tpls, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	selected := Match(tpls, []string{"coldfusion"})
+	if len(selected) != 1 || selected[0].ID != "coldfusion" {
+		t.Fatalf("coldfusion match = %+v", selected)
+	}
+	hits, err := Run(context.Background(), srv.URL, selected, Options{Timeout: 2 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if postedUser != "admin" || postedURL != "/CFIDE/administrator/index.cfm" {
+		t.Fatalf("posted user=%q url=%q", postedUser, postedURL)
+	}
+	if len(hits) != 1 || hits[0].Username != "admin" || hits[0].Password != "admin" {
+		t.Fatalf("hits = %+v", hits)
+	}
+
+	miss, err := Run(context.Background(), srv.URL, selected, Options{
+		Timeout: 2 * time.Second,
+		Creds:   []Pair{{Username: "admin", Password: "wrong"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(miss) != 0 {
+		t.Fatalf("wrong password reported a hit: %+v", miss)
+	}
+}

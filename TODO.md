@@ -117,7 +117,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `zimbra` — `/zimbra/` — `zimbra.go`
 - [ ] `roundcube` — `/?_task=login` — `roundcube.go`
 - [ ] `sap-netweaver` — `/sap/public/info` — `sapnetweaver.go`
-- [ ] `coldfusion` — `/CFIDE/administrator/` — `coldfusion.go`
+- [x] `coldfusion` — login `POST /CFIDE/administrator/enter.cfm` (detection `/CFIDE/administrator/`) — `coldfusion.go`
 - [x] `sitecore` — `/sitecore/login` — `sitecore.go`
 - [x] `kentico` — login `POST /CMSPages/logon.aspx` (detection `/CMSPages/GetResource.ashx`; technology `kentico-cms`) — `kentico.go`
 - [x] `adobe_experience_manager` — login `POST /libs/granite/core/content/login.html/j_security_check` — `aem.go`

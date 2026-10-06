@@ -137,7 +137,7 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `goanywhere` — login `POST /goanywhere/auth/login` (detection `/goanywhere/`) — `goanywhere.go`
 - [x] `beyondtrust-pra` — login `POST /login/login` (detection marker `/appliance`) — `beyondtrust_pra.go`
 - [x] `vmware-horizon` — login `POST /portal/webclient/index.html` — `vmware_horizon.go`
-- [ ] `oracle_primavera_p6` — `/p6/action/login` — `oracle_primavera_p6.go`
+- [x] `oracle_primavera_p6` — login `POST /p6/action/j_security_check` (detection `/p6/action/login`) — `oracle_primavera_p6.go`
 - [ ] `oracle_primavera_unifier`, `oracle-otm`, `oracle_ats`, `oracle_commerce`, `oracle-service-cloud`, `oracle_simphony` — confirm login vs SOAP before writing a template
 - [x] `telerik-report-server` — `/Account/Login` — `telerik_report_server.go`
 - [ ] `wsus` — `/ClientWebService/client.asmx` — service endpoint, not a password form

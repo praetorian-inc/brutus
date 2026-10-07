@@ -1,0 +1,21 @@
+id: phpmyadmin
+name: phpMyAdmin
+nerva: [phpmyadmin]
+method: form
+path: /phpmyadmin/index.php
+username_field: pma_username
+password_field: pma_password
+prefetch:
+  path: /phpmyadmin/index.php
+  extract:
+    token: 'name="token" value="([^"]+)"'
+extra:
+  server: "1"
+  token: "{{token}}"
+success:
+  status: [200, 302]
+  body_absent: ["access denied", "cannot log in"]
+creds:
+  - "root:"
+  - "root:root"
+  - "admin:admin"

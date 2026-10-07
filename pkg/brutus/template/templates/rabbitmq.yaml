@@ -1,0 +1,7 @@
+id: rabbitmq-management
+name: RabbitMQ Management
+nerva: [rabbitmq-management]
+method: basic
+path: /api/overview
+creds:
+  - "guest:guest"

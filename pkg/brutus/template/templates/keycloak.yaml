@@ -1,0 +1,14 @@
+id: keycloak
+name: Keycloak
+nerva: [keycloak]
+method: form
+path: /realms/master/protocol/openid-connect/token
+username_field: username
+password_field: password
+extra:
+  grant_type: password
+  client_id: admin-cli
+success:
+  status: [200]
+  body: ["access_token"]
+  body_absent: ["invalid_grant"]

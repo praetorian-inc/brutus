@@ -166,6 +166,7 @@ brutus enum       # Enumerate accounts against account-existence oracles or Acti
 brutus logon      # Detect Windows logon-screen backdoors (runs both sticky keys and utilman)
 brutus snmp       # Test SNMP community strings against targets
 brutus stickykeys # Detect the Windows sticky-keys (sethc.exe) logon backdoor only
+brutus template   # Run product-specific default-credential templates
 brutus utilman    # Detect the Windows utilman (Ease of Access) logon backdoor only
 brutus web        # Audit HTTP/web panel credentials (AI-powered or credential list)
 ```

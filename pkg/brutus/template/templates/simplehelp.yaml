@@ -1,0 +1,12 @@
+id: simplehelp
+name: SimpleHelp
+nerva: [simplehelp]
+method: form
+path: /technician
+username_field: username
+password_field: password
+success:
+  status: [200, 302]
+  header: Set-Cookie
+  header_has: session
+  body_absent: ["invalid password"]

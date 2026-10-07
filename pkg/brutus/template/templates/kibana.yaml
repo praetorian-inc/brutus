@@ -1,0 +1,14 @@
+id: kibana
+name: Kibana
+nerva: [kibana]
+method: json
+path: /internal/security/login
+headers:
+  kbn-xsrf: kibana
+body: '{"providerType":"basic","providerName":"basic","currentURL":"/login","params":{"username":"{{username}}","password":"{{password}}"}}'
+success:
+  status: [200]
+  body: ["location"]
+  body_absent: ["Unauthorized"]
+creds:
+  - "elastic:changeme"

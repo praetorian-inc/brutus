@@ -1,0 +1,5 @@
+id: redis-commander
+name: Redis Commander
+nerva: [redis_commander]
+method: basic
+path: /

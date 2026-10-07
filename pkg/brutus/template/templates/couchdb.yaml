@@ -1,0 +1,7 @@
+id: couchdb
+name: CouchDB
+nerva: [couchdb]
+method: basic
+path: /
+creds:
+  - "admin:admin"

@@ -1,0 +1,13 @@
+id: moveit
+name: MOVEit Transfer
+nerva: [moveit]
+method: form
+path: /human.aspx
+username_field: arg01
+password_field: arg02
+extra:
+  transaction: signon
+  arg12: signon
+success:
+  status: [200, 302]
+  body_absent: ["arg02", "invalid username"]

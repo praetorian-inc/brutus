@@ -1,0 +1,7 @@
+id: tp-link
+name: TP-Link Router
+nerva: [tp-link-router]
+method: basic
+path: /webpages/login.html
+creds:
+  - "admin:admin"

@@ -1,0 +1,14 @@
+id: anyconnect
+name: Cisco AnyConnect
+nerva: [anyconnect, cisco-anyconnect, cisco-asa-ftd]
+method: form
+path: /+webvpn+/index.html
+username_field: username
+password_field: password
+extra:
+  Login: Login
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /+CSCOE+/
+  header_absent: logon.html

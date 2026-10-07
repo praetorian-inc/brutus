@@ -1,0 +1,5 @@
+id: docker-registry
+name: Docker Registry
+nerva: [docker-registry]
+method: basic
+path: /v2/

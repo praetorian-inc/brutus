@@ -1,0 +1,12 @@
+id: quest-kace
+name: Quest KACE SMA
+nerva: [quest-kace, quest-kace-sma]
+method: form
+path: /admin
+username_field: userName
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login

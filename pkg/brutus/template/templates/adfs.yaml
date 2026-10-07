@@ -1,0 +1,14 @@
+id: adfs
+name: Microsoft ADFS
+nerva: [adfs]
+method: form
+path: /adfs/ls/
+username_field: UserName
+password_field: Password
+extra:
+  AuthMethod: FormsAuthentication
+success:
+  status: [200, 302]
+  header: Set-Cookie
+  header_has: MSISAuth
+  body_absent: ["incorrect"]

@@ -1,0 +1,12 @@
+id: oracle-ats
+name: Oracle Application Testing Suite
+nerva: [oracle_ats]
+method: form
+path: /olt/LoginSubmit.do
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /olt/
+  header_absent: LoginSubmit

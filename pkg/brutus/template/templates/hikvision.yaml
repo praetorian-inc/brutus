@@ -1,0 +1,7 @@
+id: hikvision
+name: Hikvision ISAPI
+nerva: [hikvision]
+method: basic
+path: /ISAPI/System/deviceInfo
+creds:
+  - "admin:12345"

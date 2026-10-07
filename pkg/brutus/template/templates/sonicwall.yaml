@@ -1,0 +1,13 @@
+id: sonicwall
+name: SonicWall
+nerva: [sonicwall]
+method: json
+path: /api/sonicos/auth
+username_field: user
+password_field: password
+success:
+  status: [200]
+  body: ['"success":true']
+  body_absent: ['"success":false']
+creds:
+  - "admin:password"

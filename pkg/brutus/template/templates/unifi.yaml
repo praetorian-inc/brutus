@@ -1,0 +1,13 @@
+id: unifi
+name: UniFi Network Controller
+nerva: [unifi-status, unifi-controller]
+method: json
+path: /api/login
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ['"rc":"ok"']
+  body_absent: ["api.err.invalid"]
+creds:
+  - "ubnt:ubnt"

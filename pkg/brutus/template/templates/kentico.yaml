@@ -1,0 +1,18 @@
+id: kentico
+name: Kentico
+nerva: [kentico, kentico-cms]
+method: form
+path: /CMSPages/logon.aspx
+username_field: "Login1$UserName"
+password_field: "Login1$Password"
+prefetch:
+  path: /CMSPages/logon.aspx
+  extract:
+    viewstate: 'name="__VIEWSTATE" value="([^"]+)"'
+extra:
+  __VIEWSTATE: "{{viewstate}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /Admin
+  header_absent: logon

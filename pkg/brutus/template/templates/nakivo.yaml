@@ -1,0 +1,11 @@
+id: nakivo
+name: NAKIVO
+nerva: [nakivo]
+method: json
+path: /c/login
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ["token"]
+  body_absent: ["invalid"]

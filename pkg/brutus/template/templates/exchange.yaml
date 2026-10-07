@@ -1,0 +1,15 @@
+id: exchange
+name: Microsoft Exchange OWA
+nerva: [exchange, exchange_server]
+method: form
+path: /owa/auth.owa
+username_field: username
+password_field: password
+extra:
+  destination: /owa/
+  flags: "4"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /owa/
+  header_absent: reason=

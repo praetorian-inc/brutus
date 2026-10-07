@@ -1,0 +1,13 @@
+id: guacamole
+name: Apache Guacamole
+nerva: [apache-guacamole, guacamole, guacamole-login]
+method: form
+path: /guacamole/api/tokens
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ["authtoken"]
+  body_absent: ["invalid login"]
+creds:
+  - "guacadmin:guacadmin"

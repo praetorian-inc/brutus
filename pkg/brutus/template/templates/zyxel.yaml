@@ -1,0 +1,14 @@
+id: zyxel
+name: Zyxel Firewall
+nerva: [zyxel-firewall]
+method: form
+path: /weblogin.cgi
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: weblogin
+creds:
+  - "admin:1234"

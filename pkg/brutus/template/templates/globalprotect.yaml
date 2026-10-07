@@ -1,0 +1,13 @@
+id: globalprotect
+name: Palo Alto GlobalProtect
+nerva: [globalprotect, palo-alto-globalprotect]
+method: form
+path: /global-protect/getconfig.esp
+username_field: user
+password_field: passwd
+extra:
+  clientos: Windows
+success:
+  status: [200]
+  body: ["portal-userauthcookie"]
+  body_absent: ["auth-failed", "<status>error"]

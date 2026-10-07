@@ -1,0 +1,5 @@
+id: traefik
+name: Traefik Dashboard
+nerva: [traefik-dashboard]
+method: basic
+path: /api/overview

@@ -1,0 +1,7 @@
+id: opensearch
+name: OpenSearch
+nerva: [opensearch]
+method: basic
+path: /
+creds:
+  - "admin:admin"

@@ -1,0 +1,8 @@
+id: elasticsearch-http
+name: Elasticsearch HTTP
+nerva: [elasticsearch]
+method: basic
+path: /
+creds:
+  - "elastic:changeme"
+  - "elastic:elastic"

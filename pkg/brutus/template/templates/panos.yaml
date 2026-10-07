@@ -1,0 +1,14 @@
+id: panos
+name: Palo Alto PAN-OS
+nerva: [panos-mgmt]
+method: form
+path: /php/login.php
+username_field: user
+password_field: passwd
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login.php
+creds:
+  - "admin:admin"

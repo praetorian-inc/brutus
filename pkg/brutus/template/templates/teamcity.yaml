@@ -1,0 +1,5 @@
+id: teamcity
+name: TeamCity
+nerva: [teamcity]
+method: basic
+path: /app/rest/server

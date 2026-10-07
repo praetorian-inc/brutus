@@ -1,0 +1,7 @@
+id: clickhouse
+name: ClickHouse HTTP
+nerva: [clickhouse-http]
+method: basic
+path: /?query=SELECT+version()
+creds:
+  - "default:"

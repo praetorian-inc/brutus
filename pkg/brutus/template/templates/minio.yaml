@@ -1,0 +1,5 @@
+id: minio
+name: MinIO
+nerva: [minio]
+method: basic
+path: /minio/health/live

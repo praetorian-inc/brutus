@@ -1,0 +1,12 @@
+id: primavera-p6
+name: Oracle Primavera P6
+nerva: [oracle_primavera_p6]
+method: form
+path: /p6/action/j_security_check
+username_field: j_username
+password_field: j_password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /p6/
+  header_absent: login

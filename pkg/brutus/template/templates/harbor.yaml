@@ -1,0 +1,14 @@
+id: harbor
+name: Harbor
+nerva: [harbor]
+method: form
+path: /c/login
+username_field: principal
+password_field: password
+success:
+  status: [200]
+  header: Set-Cookie
+  header_has: sid
+  body_absent: ["unauthorized"]
+creds:
+  - "admin:Harbor12345"

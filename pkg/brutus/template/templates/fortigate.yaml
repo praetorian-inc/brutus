@@ -1,0 +1,16 @@
+id: fortigate
+name: Fortinet FortiGate
+nerva: [fortinet-fortigate]
+method: form
+path: /remote/logincheck
+username_field: username
+password_field: credential
+extra:
+  ajax: "1"
+success:
+  status: [200]
+  body: ["ret=1"]
+  body_absent: ["ret=0"]
+creds:
+  - "admin:"
+  - "admin:admin"

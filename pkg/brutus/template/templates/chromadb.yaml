@@ -1,0 +1,5 @@
+id: chromadb
+name: ChromaDB
+nerva: [chromadb]
+method: basic
+path: /api/v1/heartbeat

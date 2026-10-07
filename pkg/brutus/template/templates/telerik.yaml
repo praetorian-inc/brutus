@@ -1,0 +1,18 @@
+id: telerik
+name: Telerik Report Server
+nerva: [telerik-report-server]
+method: form
+path: /Account/Login
+username_field: UserName
+password_field: Password
+prefetch:
+  path: /Account/Login
+  extract:
+    token: 'name="__RequestVerificationToken" value="([^"]+)"'
+extra:
+  __RequestVerificationToken: "{{token}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: /Account/Login

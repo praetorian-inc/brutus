@@ -1,0 +1,16 @@
+id: adminer-php
+name: Adminer single file
+nerva: [adminer]
+method: form
+path: /adminer.php
+username_field: auth[username]
+password_field: auth[password]
+extra:
+  "auth[driver]": server
+success:
+  status: [200, 302]
+  body_absent: ["invalid credentials", "login - adminer"]
+creds:
+  - "root:"
+  - "root:root"
+  - "admin:admin"

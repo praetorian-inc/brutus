@@ -1,0 +1,15 @@
+id: zimbra
+name: Zimbra
+nerva: [zimbra]
+method: form
+path: /zimbra/
+username_field: username
+password_field: password
+extra:
+  loginOp: login
+  client: preferred
+success:
+  status: [200, 302]
+  header: Set-Cookie
+  header_has: ZM_AUTH_TOKEN
+  body_absent: ["invalid"]

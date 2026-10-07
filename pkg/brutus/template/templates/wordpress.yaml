@@ -1,0 +1,15 @@
+id: wordpress
+name: WordPress
+nerva: [wordpress]
+method: form
+path: /wp-login.php
+username_field: log
+password_field: pwd
+extra:
+  wp-submit: Log In
+  testcookie: "1"
+success:
+  status: [302]
+  header: Location
+  header_has: wp-admin
+  body_absent: ["incorrect"]

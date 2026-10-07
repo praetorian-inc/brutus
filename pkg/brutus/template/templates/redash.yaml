@@ -1,0 +1,18 @@
+id: redash
+name: Redash
+nerva: [redash]
+method: form
+path: /login
+username_field: email
+password_field: password
+prefetch:
+  path: /login
+  extract:
+    csrf: 'name="csrf_token" value="([^"]+)"'
+extra:
+  csrf_token: "{{csrf}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: /login

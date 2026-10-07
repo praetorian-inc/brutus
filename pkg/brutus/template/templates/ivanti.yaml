@@ -1,0 +1,15 @@
+id: ivanti
+name: Ivanti Connect Secure
+nerva: [ivanti-connect-secure]
+method: form
+path: /dana-na/auth/url_default/login.cgi
+username_field: username
+password_field: password
+extra:
+  realm: Users
+  btnSubmit: Sign In
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /dana/
+  header_absent: /dana-na/auth

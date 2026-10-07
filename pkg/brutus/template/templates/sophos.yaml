@@ -1,0 +1,12 @@
+id: sophos
+name: Sophos Firewall
+nerva: [sophos-firewall]
+method: form
+path: /webconsole/Controller
+body: 'mode=151&json={"username":"{{username}}","password":"{{password}}","languageid":"1"}'
+success:
+  status: [200]
+  body: ['"status":200']
+  body_absent: ['"status":531', "invalid"]
+creds:
+  - "admin:admin"

@@ -1,0 +1,15 @@
+id: d-link
+name: D-Link Router
+nerva: [d-link-router]
+method: form
+path: /login.htm
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login.htm
+creds:
+  - "admin:"
+  - "admin:admin"

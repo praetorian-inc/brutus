@@ -1,0 +1,10 @@
+id: vault
+name: HashiCorp Vault
+nerva: [vault]
+method: json
+path: /v1/auth/userpass/login/{{username}}
+body: '{"password":"{{password}}"}'
+success:
+  status: [200]
+  body: ["client_token"]
+  body_absent: ["permission denied"]

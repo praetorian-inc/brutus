@@ -1,0 +1,14 @@
+id: draytek
+name: DrayTek Vigor
+nerva: [draytek-vigor]
+method: form
+path: /cgi-bin/wlogin.cgi
+username_field: aa
+password_field: ab
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: weblogin
+creds:
+  - "admin:admin"

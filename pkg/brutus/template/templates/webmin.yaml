@@ -1,0 +1,12 @@
+id: webmin
+name: Webmin
+nerva: [webmin, usermin]
+method: form
+path: /session_login.cgi
+username_field: user
+password_field: pass
+success:
+  status: [302]
+  header: Location
+  header_has: /
+  header_absent: session_login

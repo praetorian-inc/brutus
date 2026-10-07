@@ -1,0 +1,14 @@
+id: aem
+name: Adobe Experience Manager
+nerva: [adobe_experience_manager]
+method: form
+path: /libs/granite/core/content/login.html/j_security_check
+username_field: j_username
+password_field: j_password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login.html
+creds:
+  - "admin:admin"

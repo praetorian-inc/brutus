@@ -1,0 +1,5 @@
+id: cockroachdb
+name: CockroachDB
+nerva: [cockroachdb]
+method: basic
+path: /api/v2/nodes/

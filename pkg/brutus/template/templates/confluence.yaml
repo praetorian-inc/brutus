@@ -1,0 +1,15 @@
+id: confluence
+name: Atlassian Confluence
+nerva: [confluence]
+method: form
+path: /dologin.action
+username_field: os_username
+password_field: os_password
+extra:
+  os_destination: /
+  login: "Log In"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login.action

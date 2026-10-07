@@ -1,0 +1,7 @@
+id: artifactory
+name: JFrog Artifactory
+nerva: [artifactory]
+method: basic
+path: /artifactory/api/system/ping
+creds:
+  - "admin:password"

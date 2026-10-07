@@ -1,0 +1,15 @@
+id: roundcube
+name: Roundcube
+nerva: [roundcube]
+method: form
+path: /
+username_field: _user
+password_field: _pass
+extra:
+  _task: login
+  _action: login
+success:
+  status: [302]
+  header: Location
+  header_has: _task=mail
+  body_absent: ["login failed"]

@@ -1,0 +1,11 @@
+id: anythingllm
+name: AnythingLLM
+nerva: [anythingllm, anythingllm-html]
+method: json
+path: /api/request-token
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ["token"]
+  body_absent: ["error"]

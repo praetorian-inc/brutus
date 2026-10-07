@@ -1,0 +1,13 @@
+id: grafana-login
+name: Grafana
+nerva: [grafana]
+method: json
+path: /login
+username_field: user
+password_field: password
+success:
+  status: [200]
+  body: ["logged in"]
+  body_absent: ["invalid"]
+creds:
+  - "admin:admin"

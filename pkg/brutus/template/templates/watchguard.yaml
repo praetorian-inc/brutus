@@ -1,0 +1,15 @@
+id: watchguard
+name: WatchGuard Firebox
+nerva: [watchguard-firebox]
+method: form
+path: /auth/login
+username_field: user
+password_field: password
+extra:
+  domain: Firebox-DB
+  uaction: login
+success:
+  status: [302]
+  header: Location
+  header_has: /
+  header_absent: login

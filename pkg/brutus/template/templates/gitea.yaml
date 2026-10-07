@@ -1,0 +1,18 @@
+id: gitea
+name: Gitea
+nerva: [gitea]
+method: form
+path: /user/login
+username_field: user_name
+password_field: password
+prefetch:
+  path: /user/login
+  extract:
+    csrf: 'name="_csrf" value="([^"]+)"'
+extra:
+  _csrf: "{{csrf}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: user/login

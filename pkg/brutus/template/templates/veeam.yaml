@@ -1,0 +1,18 @@
+id: veeam
+name: Veeam Backup Enterprise Manager
+nerva: [veeam_enterprise_manager_web, veeam_backup_enterprise_manager_web]
+method: form
+path: /login.aspx
+username_field: txtLogin
+password_field: txtPassword
+prefetch:
+  path: /login.aspx
+  extract:
+    viewstate: 'name="__VIEWSTATE" value="([^"]+)"'
+extra:
+  __VIEWSTATE: "{{viewstate}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: login.aspx

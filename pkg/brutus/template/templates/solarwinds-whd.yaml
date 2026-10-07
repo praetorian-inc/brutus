@@ -1,0 +1,14 @@
+id: solarwinds-whd
+name: SolarWinds Web Help Desk
+nerva: [solarwinds-whd]
+method: form
+path: /helpdesk/WebObjects/Helpdesk.woa
+username_field: username
+password_field: password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /helpdesk/
+  header_absent: login
+creds:
+  - "admin:admin"

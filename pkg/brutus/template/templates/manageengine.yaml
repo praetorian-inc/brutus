@@ -1,0 +1,14 @@
+id: manageengine
+name: ManageEngine
+nerva: [manageengine]
+method: form
+path: /j_security_check
+username_field: j_username
+password_field: j_password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: showlogin
+creds:
+  - "admin:admin"

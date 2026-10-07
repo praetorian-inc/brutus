@@ -1,0 +1,14 @@
+id: mikrotik
+name: MikroTik RouterOS
+nerva: [mikrotik-routeros]
+method: form
+path: /login
+username_field: name
+password_field: password
+success:
+  status: [200, 302]
+  header: Set-Cookie
+  header_has: username
+  body_absent: ["authentication failed"]
+creds:
+  - "admin:"

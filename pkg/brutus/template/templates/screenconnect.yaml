@@ -1,0 +1,12 @@
+id: screenconnect
+name: ConnectWise ScreenConnect
+nerva: [screenconnect]
+method: form
+path: /Login
+username_field: UserName
+password_field: Password
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /Host
+  header_absent: /Login

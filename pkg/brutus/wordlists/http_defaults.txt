@@ -1071,3 +1071,5 @@ admin:123
 admin:ironport
 # DPL 0881: 3c om 812 HTTP
 # already present: Administrator:admin
+# DPL 0882: Asante FM2008 Multi
+admin:asante

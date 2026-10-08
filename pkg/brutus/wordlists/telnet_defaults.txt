@@ -976,3 +976,5 @@ admin:epicrouter
 admin:123
 # DPL 0880: IronPort Messaging Gateway Appliance Multi
 admin:ironport
+# DPL 0882: Asante FM2008 Multi
+admin:asante

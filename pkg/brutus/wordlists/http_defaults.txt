@@ -511,3 +511,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0427: Lantronix ETS4P Multi
 # omitted: no username, so this is not a login pair
+# DPL 0428: Lantronix ETS16P Multi
+# omitted: no username, so this is not a login pair

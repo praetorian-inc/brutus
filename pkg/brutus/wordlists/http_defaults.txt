@@ -653,3 +653,5 @@ ro:ro
 rw:rw
 # DPL 0565: Nortel Accelar (Passport) 1000 series routing switches Multi
 rwa:rwa
+# DPL 0566: Nortel Extranet Switches Multi
+admin:setup

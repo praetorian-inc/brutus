@@ -881,3 +881,5 @@ root:admin
 Any:12345
 # DPL 0741: US ROBOTICS ADSL Ethernet Modem HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0743: us21100060 hp omibook 6100 Multi
+# omitted: no username, so this is not a login pair

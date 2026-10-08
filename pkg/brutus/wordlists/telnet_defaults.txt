@@ -856,3 +856,5 @@ root:admin
 Any:12345
 # DPL 0742: US Robotics SureConnect ADSL SureConnect ADSL Telnet
 # already present: support:support
+# DPL 0743: us21100060 hp omibook 6100 Multi
+# omitted: no username, so this is not a login pair

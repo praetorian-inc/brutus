@@ -1239,3 +1239,5 @@ root:12345
 # already present: admin:password
 # DPL 0979: Allied Telesyn AT-AR130 (U) -10 HTTP
 Manager:friend
+# DPL 0980: Mikrotik Router OS 02/09/17 HTTP
+# already present: admin:

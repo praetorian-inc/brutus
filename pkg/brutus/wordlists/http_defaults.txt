@@ -1151,3 +1151,5 @@ Administrator:pilou
 # already present: admin:
 # DPL 0927: AXUS AXUS YOTTA Multi
 # omitted: no username, so this is not a login pair
+# DPL 0928: D-link DSL500G Multi
+# already present: admin:admin

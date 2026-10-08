@@ -1150,3 +1150,5 @@ Admin:
 # already present: admin:
 # DPL 1067: Nokia M1921 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 1068: Nokia ADSL router M1921 Telnet
+# omitted: no username, so this is not a login pair

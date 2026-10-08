@@ -1323,3 +1323,5 @@ SSA:SSA
 # omitted: no username, so this is not a login pair
 # DPL 1024: Secure Computing Webwasher all HTTP
 # already present: admin:
+# DPL 1025: Cisco CallManager HTTP
+# already present: admin:admin

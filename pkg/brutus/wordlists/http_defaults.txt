@@ -887,3 +887,5 @@ Any:12345
 # already present: admin:
 # DPL 0748: Watch guard firebox 1000 Multi
 # already present: admin:
+# DPL 0750: westell 2200 Multi
+# already present: admin:password

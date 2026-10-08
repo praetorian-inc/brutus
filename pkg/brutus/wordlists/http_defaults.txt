@@ -549,3 +549,5 @@ admin:Ascend
 readwrite:lucenttech1
 # DPL 0457: Lucent PSAX 1250 and above Multi
 # already present: readonly:lucenttech2
+# DPL 0460: Lucent PacketStar Multi
+Administrator:

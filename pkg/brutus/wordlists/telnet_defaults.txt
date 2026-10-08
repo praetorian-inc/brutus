@@ -302,3 +302,5 @@ admin:my_DEMARC
 # omitted: no username, so this is not a login pair
 # DPL 0243: Digicorp Viper Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0246: Dlink DSL-500 Multi
+# already present: admin:admin

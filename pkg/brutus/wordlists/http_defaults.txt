@@ -227,3 +227,5 @@ MDaemon:MServer
 admin:my_DEMARC
 # DPL 0236: Deutsche Telekom T-Sinus DSL 130 HTTP
 # already present: admin:
+# DPL 0246: Dlink DSL-500 Multi
+# already present: admin:admin

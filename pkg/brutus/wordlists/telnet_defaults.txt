@@ -1102,3 +1102,5 @@ TMAR#HWMT8007079:
 # already present: root:1234
 # DPL 1005: Juniper ISG2000 Multi
 # already present: netscreen:netscreen
+# DPL 1008: samsung modem/router aht-e300 Multi
+# omitted: the list says this resets or initializes passwords

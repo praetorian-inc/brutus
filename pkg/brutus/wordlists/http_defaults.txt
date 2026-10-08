@@ -1231,3 +1231,5 @@ root:12345
 # already present: admin:epicrouter
 # DPL 0971: aztech DSL-600E HTTP
 # already present: admin:admin
+# DPL 0972: comtrend ct536+ Multi
+# already present: admin:

@@ -1080,3 +1080,5 @@ root:12345
 # omitted: no username, so this is not a login pair
 # DPL 0968: edimax wireless adsl router AR-7024 Multi
 # already present: admin:epicrouter
+# DPL 0972: comtrend ct536+ Multi
+# already present: admin:

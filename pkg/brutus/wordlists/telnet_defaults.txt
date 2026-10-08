@@ -26,3 +26,5 @@ GEPON:GEPON
 debug:synnet
 # DPL 0002: 3COM CoreBuilder 7000/6000/3500/2500 Telnet
 tech:tech
+# DPL 0003: 3COM HiPerARC v4.1.x Telnet
+adm:

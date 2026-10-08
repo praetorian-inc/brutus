@@ -1230,3 +1230,5 @@ administrator:
 operator:1234
 # DPL 1159: ATL P1000 Multi
 Service:5678
+# DPL 1163: Sagem Livebox Multi
+# already present: admin:admin

@@ -1529,3 +1529,5 @@ Service:5678
 # already present: admin:admin
 # DPL 1161: Netgear FSM7326P 24+2 L3 mANAGED PoE Switch HTTP
 # already present: admin:
+# DPL 1163: Sagem Livebox Multi
+# already present: admin:admin

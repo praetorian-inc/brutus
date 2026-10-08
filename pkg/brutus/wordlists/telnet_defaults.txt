@@ -114,3 +114,5 @@ manager:manager
 # already present: admin:
 # DPL 0055: 3com CellPlex 7000 Telnet
 # already present: tech:
+# DPL 0056: 3com Switch 3300XM Multi
+# already present: admin:admin

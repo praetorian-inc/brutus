@@ -67,3 +67,5 @@ Root:
 # omitted: no username, so this is not a login pair
 # DPL 0052: 3com cellplex Multi
 # already present: admin:admin
+# DPL 0056: 3com Switch 3300XM Multi
+# already present: admin:admin

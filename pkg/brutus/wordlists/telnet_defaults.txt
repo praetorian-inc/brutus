@@ -246,3 +246,5 @@ admin:bintec
 # already present: admin:bintec
 # DPL 0171: BinTec x3200 37834 Multi
 # already present: admin:bintec
+# DPL 0172: BMC Patrol 6 Multi
+patrol:patrol

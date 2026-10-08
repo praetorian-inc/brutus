@@ -23,3 +23,5 @@ jenkins:jenkins
 admin:default
 # GPON OLT vendors
 admin:Xpon@Olt9417#
+# DPL 0584: Nortel Business Communications Manager 3.5 and 3.6 HTTPS
+supervisor:PlsChgMe

@@ -1106,3 +1106,5 @@ TMAR#HWMT8007079:
 # omitted: the list says this resets or initializes passwords
 # DPL 1011: smc smc 7904BRA Multi
 # omitted: no username, so this is not a login pair
+# DPL 1012: DLINK 604 Multi
+# omitted: no username, so this is not a login pair

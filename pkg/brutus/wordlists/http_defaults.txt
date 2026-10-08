@@ -1299,3 +1299,5 @@ user:tivonpw
 # already present: admin:admin
 # DPL 1011: smc smc 7904BRA Multi
 # omitted: no username, so this is not a login pair
+# DPL 1012: DLINK 604 Multi
+# omitted: no username, so this is not a login pair

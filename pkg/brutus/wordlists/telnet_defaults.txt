@@ -1146,3 +1146,5 @@ Admin:
 # already present: admin:admin
 # DPL 1062: Actiontec Wireless Broadband Router Multi
 # already present: admin:password
+# DPL 1063: D-Link DI-634M Multi
+# already present: admin:

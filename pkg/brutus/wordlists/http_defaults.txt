@@ -185,3 +185,5 @@ patrol:patrol
 root:fivranne
 # DPL 0181: Brocade Silkworm all Multi
 # already present: admin:password
+# DPL 0182: Brocade Fabric OS Multi
+# already present: admin:password

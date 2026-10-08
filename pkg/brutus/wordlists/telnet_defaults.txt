@@ -122,3 +122,5 @@ manager:manager
 # omitted: no username, so this is not a login pair
 # DPL 0061: 3com officeconnect Multi
 # omitted: no username, so this is not a login pair
+# DPL 0063: 3com superstack II Netbuilder 11.1 Multi
+# omitted: no username, so this is not a login pair

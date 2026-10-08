@@ -1513,3 +1513,5 @@ netadmin:nimdaten
 # omitted: no username, so this is not a login pair
 # DPL 1151: D-Link DWL-G730AP 1.1 HTTP
 # already present: admin:
+# DPL 1152: Fujitsu Siemens Fibre Channel SAN storage FX 60 HTTP
+manage:!manage

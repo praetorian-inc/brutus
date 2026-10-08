@@ -1185,3 +1185,5 @@ root:Cisco
 # omitted: no username, so this is not a login pair
 # DPL 0944: Minolta QMS Magicolor 3100 3.0.0 HTTP
 operator:
+# DPL 0945: IBM Remote Supervisor Adapter (RSA) HTTP
+USERID:PASSW0RD

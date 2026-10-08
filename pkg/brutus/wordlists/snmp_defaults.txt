@@ -46,3 +46,5 @@ cascade
 # already present: admin
 # DPL 0492: MERCURY KT133A/686B SNMP
 # already present: admin
+# DPL 0530: Netgear ME102 SNMP
+# already present: private

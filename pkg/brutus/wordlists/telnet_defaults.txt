@@ -770,3 +770,5 @@ deskman:changeme
 desknorm:password
 # DPL 0652: RM RM Connect Multi
 deskres:password
+# DPL 0653: RM RM Connect Multi
+# already present: guest:

@@ -614,3 +614,5 @@ SYSADM:sysadm
 # omitted: no username, so this is not a login pair
 # DPL 0516: NetGear RM356 None Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0520: Netgear RP114 3.26 Telnet
+# omitted: no username, so this is not a login pair

@@ -28,3 +28,5 @@ rapport:r@p8p0r+
 root:1234
 # DPL 0848: Exabyte Magnum20 FTP
 anonymous:Exabyte
+# DPL 0974: Alcatel OmniPCX Office 4.1 FTP
+ftp_inst:pbxk1064

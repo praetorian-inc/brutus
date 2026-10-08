@@ -573,3 +573,5 @@ admin:motorola
 # omitted: no username, so this is not a login pair
 # DPL 0509: mro software maximo v4.1 Multi
 SYSADM:sysadm
+# DPL 0510: Mutare Software EVM Admin All HTTP
+# omitted: no username, so this is not a login pair

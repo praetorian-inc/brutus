@@ -1189,3 +1189,5 @@ operator:
 USERID:PASSW0RD
 # DPL 0946: IBM BladeCenter Mgmt Console HTTP
 # already present: USERID:PASSW0RD
+# DPL 0947: Draytek Vigor 2600 HTTP
+# already present: admin:

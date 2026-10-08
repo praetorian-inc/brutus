@@ -906,3 +906,5 @@ sysadmin:password
 # already present: admin:password
 # DPL 0808: Konica Minolta magicolor 2430DL All Multi
 # omitted: no username, so this is not a login pair
+# DPL 0809: KTI KS-2260 Telnet
+superuser:123456

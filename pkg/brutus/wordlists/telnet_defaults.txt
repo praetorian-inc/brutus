@@ -596,3 +596,5 @@ ami:
 MICRO:RSX
 # DPL 0493: Meridian PBX ANY Telnet
 service:smile
+# DPL 0494: Micronet Access Point SP912 Telnet
+# already present: root:default

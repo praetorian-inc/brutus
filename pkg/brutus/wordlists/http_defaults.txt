@@ -917,3 +917,5 @@ super:super
 admin:switch
 # DPL 0780: Yakumo Routers HTTP
 # already present: admin:admin
+# DPL 0783: ZyXEL Prestige HTTP
+# omitted: no username, so this is not a login pair

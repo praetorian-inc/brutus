@@ -1439,3 +1439,5 @@ scout:scout
 # omitted: no username, so this is not a login pair
 # DPL 1103: Sphairon (Versatel WLAN-Router) Multi
 admin:passwort
+# DPL 1104: HP MSL Series Libraries Multi
+# omitted: the list says this resets or initializes passwords

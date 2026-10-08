@@ -402,3 +402,5 @@
 # not sprayed: Console
 # DPL 0841: us robotic adsl gateway wireless router wireless router
 # not sprayed: wireless router
+# DPL 0846: KTI KS2600 Console
+# not sprayed: Console

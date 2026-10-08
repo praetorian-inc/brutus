@@ -318,3 +318,5 @@ D-Link:D-Link
 # already present: admin:
 # DPL 0257: D-Link D-704P Multi
 # already present: admin:admin
+# DPL 0259: D-Link DI-704 Multi
+# omitted: no username, so this is not a login pair

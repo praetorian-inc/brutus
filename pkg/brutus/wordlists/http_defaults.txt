@@ -251,3 +251,5 @@ user:
 # already present: admin:admin
 # DPL 0258: D-Link DWL-900+ HTTP
 # already present: admin:
+# DPL 0259: D-Link DI-704 Multi
+# omitted: no username, so this is not a login pair

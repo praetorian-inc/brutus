@@ -26,3 +26,5 @@ user:pass
 rapport:r@p8p0r+
 # DPL 0784: ZyXEL Prestige FTP
 root:1234
+# DPL 0848: Exabyte Magnum20 FTP
+anonymous:Exabyte

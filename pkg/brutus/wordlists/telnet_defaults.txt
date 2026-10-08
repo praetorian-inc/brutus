@@ -802,3 +802,5 @@ ADMN:admn
 superuser:admin
 # DPL 0689: Siemens Pro C5 Siemens Multi
 # omitted: no username, so this is not a login pair
+# DPL 0690: Siips Trojan 8974202 Multi
+Administrator:ganteng

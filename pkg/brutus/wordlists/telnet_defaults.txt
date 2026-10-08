@@ -1234,3 +1234,5 @@ Service:5678
 # already present: admin:admin
 # DPL 1164: Inventel Livebox Multi
 # already present: admin:admin
+# DPL 1165: INOVA ONT4BKP (IP clock) all Telnet
+iclock:timely

@@ -848,3 +848,5 @@ admin:extendnet
 NAU:NAU
 # DPL 0737: Unisys ClearPath MCP Multi
 ADMINISTRATOR:ADMINISTRATOR
+# DPL 0738: Unisys ClearPath MCP Multi
+HTTP:HTTP

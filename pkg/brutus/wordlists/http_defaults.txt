@@ -291,3 +291,5 @@ admin:1234
 guest:
 # DPL 0279: Efficient 5871 DSL Router v 5.3.3-0 Multi
 login:admin
+# DPL 0286: Enterasys ANG-1105 unknown HTTP
+admin:netadmin

@@ -1115,3 +1115,5 @@ CSG:SESAME
 admin:sysAdmin
 # DPL 0907: CNET CNET 4PORT ADSL MODEM CNAD NF400 Multi
 # already present: admin:epicrouter
+# DPL 0908: SMC SMCWBR14-G SMCWBR14-G HTTP
+# omitted: no username, so this is not a login pair

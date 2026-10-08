@@ -30,3 +30,5 @@ root:1234
 anonymous:Exabyte
 # DPL 0974: Alcatel OmniPCX Office 4.1 FTP
 ftp_inst:pbxk1064
+# DPL 0975: Alcatel OmniPCX Office 4.1 FTP
+ftp_admi:kilo1987

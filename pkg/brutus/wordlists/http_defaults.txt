@@ -525,3 +525,5 @@ sysadmin:PASS
 # already present: Administrator:admin
 # DPL 0435: Linksys Linksys Router DSL/Cable HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0436: Linksys BEFW11S4 1 HTTP
+# already present: admin:

@@ -803,3 +803,5 @@ Administrator:ganteng
 # already present: root:
 # DPL 0693: Sitecom All WiFi routers Multi
 # omitted: no username, so this is not a login pair
+# DPL 0694: SmartSwitch Router 250 ssr2500 v3.0.9 Multi
+# already present: admin:

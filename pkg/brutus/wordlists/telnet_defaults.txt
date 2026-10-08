@@ -680,3 +680,5 @@ maint:ntacdmax
 # already present: disttech:4tas
 # DPL 0578: Nortel Meridian CCR Multi
 # already present: maint:maint
+# DPL 0579: Nortel Meridian CCR Multi
+ccrusr:ccrusr

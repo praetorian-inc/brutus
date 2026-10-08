@@ -440,3 +440,5 @@
 # not sprayed: Custom program
 # DPL 1093: Netgear WGT624 Serial console
 # not sprayed: Serial console
+# DPL 1116: EMC DS-4100B Console
+# not sprayed: Console

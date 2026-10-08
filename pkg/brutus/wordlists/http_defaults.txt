@@ -985,3 +985,5 @@ admin:hagpolm1
 admin:smallbusiness
 # DPL 0826: McData FC Switches/Directors Multi
 Administrator:password
+# DPL 0827: BBR-4MG and BBR-4HG BUFFALO ALL HTTP
+# already present: root:

@@ -501,3 +501,5 @@ PRODDTA:PRODDTA
 # already present: admin:admin
 # DPL 0418: LANCOM IL11 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0422: Lantronix SCS1620 Multi
+sysadmin:PASS

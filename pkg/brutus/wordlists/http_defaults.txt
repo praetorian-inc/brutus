@@ -1557,3 +1557,5 @@ mso:w0rkplac3rul3s
 # already present: admin:Sharp
 # DPL 1177: Sharp MX-5500 HTTP
 # already present: admin:admin
+# DPL 1178: Toshiba E-Studio 4511c HTTP
+admin:123456

@@ -1,0 +1,19 @@
+# Lab: docker run -d --name zabbix --platform linux/amd64 -p 80:80 zabbix/zabbix-appliance
+# Verified on appliance 4.4.6. Current Zabbix still posts name and password to /index.php.
+# Username is case-sensitive. Admin:zabbix is 302 to zabbix.php?action=dashboard.view.
+# admin:zabbix and Admin:wrong stay on the sign-in page.
+id: zabbix
+name: Zabbix
+nerva: [zabbix]
+method: form
+path: /index.php
+username_field: name
+password_field: password
+extra:
+  enter: Sign in
+success:
+  status: [302]
+  header: Location
+  header_has: dashboard.view
+creds:
+  - "Admin:zabbix"

@@ -1363,3 +1363,5 @@ admin:Password
 admin:administrator
 # DPL 1053: planet akcess point HTTP
 # already present: admin:admin
+# DPL 1054: Sharp AR-M355N HTTP
+admin:Sharp

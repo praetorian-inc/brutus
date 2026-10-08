@@ -1248,3 +1248,5 @@ iclock:timely
 # already present: admin:1234
 # DPL 1175: D-Link WBR-1310 B-1 Multi
 # already present: admin:
+# DPL 1179: Leviton 47611-GT5 Multi
+admin:leviton

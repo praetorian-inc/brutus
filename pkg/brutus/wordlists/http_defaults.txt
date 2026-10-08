@@ -1559,3 +1559,5 @@ mso:w0rkplac3rul3s
 # already present: admin:admin
 # DPL 1178: Toshiba E-Studio 4511c HTTP
 admin:123456
+# DPL 1179: Leviton 47611-GT5 Multi
+admin:leviton

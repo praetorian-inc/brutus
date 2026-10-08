@@ -443,3 +443,5 @@ MGR:ROBELLE
 MGR:HPOFFICE
 # DPL 0373: Hewlett-Packard HP 2000/3000 MPE/xx Multi
 MGR:HPONLY
+# DPL 0375: Hewlett-Packard LaserJet Net Printers Ones with Jetdirect on them HTTP
+# omitted: no username, so this is not a login pair

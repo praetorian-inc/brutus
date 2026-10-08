@@ -258,3 +258,5 @@
 # not sprayed: FTP Telnet and HTTP
 # DPL 0538: Netopia Netopia 7100
 # not sprayed: blank access type
+# DPL 0539: Netopia Netopia 9500
+# not sprayed: blank access type

@@ -50,3 +50,5 @@ admin:comcomcom
 # already present: tech:tech
 # DPL 0016: 3COM cellplex 7000 Telnet
 # already present: admin:admin
+# DPL 0017: 3com cellplex 7000 Telnet
+operator:

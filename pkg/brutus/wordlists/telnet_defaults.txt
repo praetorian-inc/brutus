@@ -492,3 +492,5 @@ MGR:HPONLY
 # omitted: no username, so this is not a login pair
 # DPL 0379: hp sa7200 Multi
 # already present: admin:admin
+# DPL 0380: hp sa7200 Multi
+# already present: admin:

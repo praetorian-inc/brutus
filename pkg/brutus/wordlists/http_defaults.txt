@@ -1121,3 +1121,5 @@ admin:sysAdmin
 # already present: admin:epicrouter
 # DPL 0910: JAHT adsl router AR41/2A HTTP
 # already present: admin:epicrouter
+# DPL 0911: D-Link firewall dfl-200 HTTP
+# already present: admin:admin

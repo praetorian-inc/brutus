@@ -1138,3 +1138,5 @@ draytek:1234
 admin:Password
 # DPL 1056: 3com LANplex 2500 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 1058: cuproplus bus Multi
+# omitted: no username, so this is not a login pair

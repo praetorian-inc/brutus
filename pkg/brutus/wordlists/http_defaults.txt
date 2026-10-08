@@ -1367,3 +1367,5 @@ admin:administrator
 admin:Sharp
 # DPL 1055: Sharp MX-3501n HTTP
 # already present: Administrator:admin
+# DPL 1058: cuproplus bus Multi
+# omitted: no username, so this is not a login pair

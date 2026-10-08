@@ -969,3 +969,5 @@ system/manager:sys/change_on_install
 dadmin:dadmin01
 # DPL 0815: Allied Telesyn ALAT8326GB Multi
 # already present: manager:manager
+# DPL 0816: Sun Cobalt HTTP
+# already present: admin:admin

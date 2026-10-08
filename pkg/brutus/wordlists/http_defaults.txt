@@ -641,3 +641,5 @@ telecom:telecom
 disttech:4tas
 # DPL 0558: Nortel Meridian Link Multi
 maint:maint
+# DPL 0559: Nortel Meridian Link Multi
+mlusr:mlusr

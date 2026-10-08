@@ -296,3 +296,5 @@ root:davox
 # already present: admin:admin
 # DPL 0232: Davox Unison Multi
 davox:davox
+# DPL 0235: Demarc Network Monitor multi
+admin:my_DEMARC

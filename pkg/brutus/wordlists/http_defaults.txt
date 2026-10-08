@@ -223,3 +223,5 @@ root:davox
 davox:davox
 # DPL 0234: Deerfield MDaemon HTTP
 MDaemon:MServer
+# DPL 0235: Demarc Network Monitor multi
+admin:my_DEMARC

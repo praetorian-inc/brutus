@@ -968,3 +968,5 @@ admin:barricade
 # already present: Administrator:admin
 # DPL 0872: giga 8ippro1000 Multi
 # already present: Administrator:admin
+# DPL 0874: Gericom Phoenix Multi
+# already present: Administrator:

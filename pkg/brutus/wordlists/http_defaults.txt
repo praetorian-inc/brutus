@@ -1055,3 +1055,5 @@ webadmin:1234
 # already present: Administrator:admin
 # DPL 0873: Netgear GSM7224 HTTP
 # already present: admin:
+# DPL 0874: Gericom Phoenix Multi
+# already present: Administrator:

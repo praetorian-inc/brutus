@@ -232,3 +232,5 @@
 # not sprayed: blank access type
 # DPL 0482: Lucent System 75
 # not sprayed: blank access type
+# DPL 0483: Lucent System 75
+# not sprayed: blank access type

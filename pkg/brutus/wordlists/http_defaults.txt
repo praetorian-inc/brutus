@@ -1031,3 +1031,5 @@ admin:22222
 # already present: admin:
 # DPL 0857: ZyXEL Prestige 900 HTTP
 webadmin:1234
+# DPL 0860: NRG or RICOH DSc338 Printer 1.19 HTTP
+# omitted: no username, so this is not a login pair

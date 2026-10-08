@@ -907,3 +907,5 @@ admin:2222
 # already present: admin:
 # DPL 0765: xerox work centre pro 35 HTTP
 admin:1111
+# DPL 0766: X-Micro X-Micro WLAN 11b Broadband Router 1.2.2 1.2.2.3 1.2.2.4 1.6.0.0 Multi
+super:super

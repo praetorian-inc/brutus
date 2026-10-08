@@ -1489,3 +1489,5 @@ admin:adslroot
 # omitted: no username, so this is not a login pair
 # DPL 1135: linksys wrt54g Multi
 # already present: admin:admin
+# DPL 1136: Addon GWAR3000/ARM8100 HTTP
+# already present: admin:admin

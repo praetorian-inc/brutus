@@ -679,3 +679,5 @@ ccrusr:ccrusr
 # omitted: no username, so this is not a login pair
 # DPL 0587: nortel p8600 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0588: olitec sx 200 adsl modem router Multi
+admin:adslolitec

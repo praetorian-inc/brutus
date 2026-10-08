@@ -1249,3 +1249,5 @@ Manager:friend
 # already present: admin:
 # DPL 0984: 3ware 3DM HTTP
 Administrator:3ware
+# DPL 0985: Netgear FWG114P Multi
+# omitted: no username, so this is not a login pair

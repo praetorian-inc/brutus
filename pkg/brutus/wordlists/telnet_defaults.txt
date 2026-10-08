@@ -1084,3 +1084,5 @@ root:12345
 # already present: admin:
 # DPL 0973: Quintum Technologies Inc. Tenor Series all Multi
 # already present: admin:admin
+# DPL 0985: Netgear FWG114P Multi
+# omitted: no username, so this is not a login pair

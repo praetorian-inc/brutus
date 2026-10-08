@@ -42,3 +42,5 @@ snmp-Trap
 public/private/secret
 # DPL 0450: Lucent B-STDX9000 all SNMP
 cascade
+# DPL 0491: MERCURY 234234 234234 SNMP
+# already present: admin

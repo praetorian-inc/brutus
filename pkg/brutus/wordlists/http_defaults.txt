@@ -1177,3 +1177,5 @@ root:calvin
 # already present: admin:epicrouter
 # DPL 0940: D-link DSL-G604T Multi
 # already present: admin:admin
+# DPL 0941: Cisco Aironet 1200 HTTP
+root:Cisco

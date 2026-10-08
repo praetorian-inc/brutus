@@ -1195,3 +1195,5 @@ USERID:PASSW0RD
 # already present: admin:epicrouter
 # DPL 0949: Linksys AG 241 - ADSL2 Gateway with 4-Port Switch Multi
 # already present: admin:admin
+# DPL 0950: Micronet 3351 / 3354 Multi
+# already present: admin:epicrouter

@@ -1375,3 +1375,5 @@ admin:Sharp
 Admin:
 # DPL 1061: hp 2300 Multi
 # already present: admin:admin
+# DPL 1062: Actiontec Wireless Broadband Router Multi
+# already present: admin:password

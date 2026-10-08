@@ -338,3 +338,5 @@ login:admin
 login:password
 # DPL 0283: Efficient Networks EN 5861 Telnet
 # already present: login:admin
+# DPL 0285: Elsa LANCom Office ISDN Router 800/1000/1100 Telnet
+# omitted: no username, so this is not a login pair

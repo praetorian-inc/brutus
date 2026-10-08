@@ -148,3 +148,5 @@
 # not sprayed: blank access type
 # DPL 0310: Freetech PC BIOS Console
 # not sprayed: Console
+# DPL 0311: Freetech BIOS Console
+# not sprayed: Console

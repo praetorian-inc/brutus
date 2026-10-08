@@ -882,3 +882,5 @@ admin:2222
 # already present: super:super
 # DPL 0768: X-Micro WLAN 11b Access Point 01/02/02 Multi
 # already present: super:super
+# DPL 0769: Xylan Omniswitch Telnet
+# already present: admin:switch

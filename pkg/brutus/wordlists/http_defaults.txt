@@ -109,3 +109,5 @@ root:
 # omitted: no username, so this is not a login pair
 # DPL 0109: Alteon ACEswitch 180e HTTP
 # already present: admin:admin
+# DPL 0111: Alteon ACEswitch 180e HTTP
+admin:linga

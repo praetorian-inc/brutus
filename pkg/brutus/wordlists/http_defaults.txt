@@ -29,3 +29,5 @@ admin:Xpon@Olt9417#
 adminttd:adminttd
 # DPL 0014: 3COM Wireless AP ANY Multi
 admin:comcomcom
+# DPL 0019: 3com 3Com SuperStack 3 Switch 3300XM Multi
+security:security

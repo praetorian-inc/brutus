@@ -21,3 +21,6 @@ test
 guest
 password
 secret
+# --- aggressive ---
+# DPL 0007: 3COM NetBuilder SNMP
+ANYCOM

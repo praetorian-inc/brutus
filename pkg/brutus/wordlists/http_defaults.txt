@@ -1577,3 +1577,5 @@ admin:leviton
 # omitted: no username, so this is not a login pair
 # DPL 1190: Beetel ADSL Modem 220X Multi
 # already present: admin:password
+# DPL 1191: Linksys WAG354G 2 HTTP
+# already present: admin:admin

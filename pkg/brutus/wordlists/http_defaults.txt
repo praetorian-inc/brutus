@@ -1125,3 +1125,5 @@ admin:sysAdmin
 # already present: admin:admin
 # DPL 0912: ovislink WL-1120AP Multi
 # already present: root:
+# DPL 0913: Linksys WRT54G All Revisions HTTP
+# omitted: no username, so this is not a login pair

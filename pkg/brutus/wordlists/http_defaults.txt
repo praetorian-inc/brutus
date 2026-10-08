@@ -1427,3 +1427,5 @@ scout:scout
 # already present: admin:
 # DPL 1096: DIGICOM Michelangelo Wave108 HTTP
 # already present: root:admin
+# DPL 1097: US Robotics USR9106 HTTP
+# already present: admin:admin

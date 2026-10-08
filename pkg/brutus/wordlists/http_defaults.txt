@@ -961,3 +961,5 @@ admin:isee
 # omitted: no username, so this is not a login pair
 # DPL 0810: Oracle Oracle RDBMS Any Multi
 system/manager:sys/change_on_install
+# DPL 0811: Infosmart SOHO router HTTP
+# already present: admin:0

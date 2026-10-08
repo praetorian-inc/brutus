@@ -1587,3 +1587,5 @@ images:images
 # already present: admin:password
 # DPL 1197: Thomson TCW-710 Multi
 # omitted: no username, so this is not a login pair
+# DPL 1198: Ricoh Aficio 551 Multi
+# omitted: no username, so this is not a login pair

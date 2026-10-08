@@ -568,3 +568,5 @@ sysadmin:PASS
 !root:
 # DPL 0443: Livingston Livingston Portmaster 3 Telnet
 # already present: !root:
+# DPL 0444: Livingston Officerouter Telnet
+# already present: !root:

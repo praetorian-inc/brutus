@@ -1092,3 +1092,5 @@ root:12345
 # already present: admin:admin
 # DPL 0996: Atlantis A02-RA141 Multi
 admin:atlantis
+# DPL 0997: Atlantis I-Storm Lan Router ADSL Multi
+# already present: admin:atlantis

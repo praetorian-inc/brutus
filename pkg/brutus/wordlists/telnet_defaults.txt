@@ -82,3 +82,5 @@ monitor:monitor
 manager:manager
 # DPL 0035: 3com CellPlex 7000 Telnet
 # already present: root:
+# DPL 0036: 3com Netbuilder Multi
+# already present: admin:

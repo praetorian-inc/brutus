@@ -41,3 +41,5 @@ admin:synnet
 monitor:monitor
 # DPL 0034: 3COM SuperStack 3 4400-49XX Multi
 manager:manager
+# DPL 0036: 3com Netbuilder Multi
+# already present: admin:

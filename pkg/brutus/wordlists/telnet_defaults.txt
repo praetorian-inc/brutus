@@ -278,3 +278,5 @@ root:attack
 # already present: admin:admin
 # DPL 0207: Cisco Content Engine Telnet
 admin:default
+# DPL 0208: cisco 3600 Telnet
+Administrator:admin

@@ -294,3 +294,5 @@
 # not sprayed: blank access type
 # DPL 0614: Osicom NETPrint 500 1000
 # not sprayed: 1000
+# DPL 0615: Pacific Micro Data MAST 9500 Universal Disk Array ESM ver. 2.11 / 1 Console
+# not sprayed: Console

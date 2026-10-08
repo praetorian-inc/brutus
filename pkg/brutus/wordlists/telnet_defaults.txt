@@ -730,3 +730,5 @@ write:private
 # omitted: no username, so this is not a login pair
 # DPL 0617: panasonic cf 27 4 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0618: Panasonic CF-45 Multi
+# omitted: no username, so this is not a login pair

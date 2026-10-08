@@ -1355,3 +1355,5 @@ admin:x-admin
 # already present: admin:admin
 # DPL 1048: Sercom IP806GB HTTP
 # already present: admin:admin
+# DPL 1050: netgear DG834GT 192.168.0.1 Multi
+admin:Password

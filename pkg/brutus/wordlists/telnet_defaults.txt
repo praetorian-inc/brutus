@@ -1018,3 +1018,5 @@ super.super:master
 guest:guest
 # DPL 0903: Wang Wang Multi
 CSG:SESAME
+# DPL 0904: Westell Wang Multi
+# already present: CSG:SESAME

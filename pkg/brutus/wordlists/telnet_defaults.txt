@@ -580,3 +580,5 @@ sysadmin:PASS
 admin:Ascend
 # DPL 0455: Lucent PSAX 1200 and below Multi
 # already present: root:ascend
+# DPL 0456: Lucent PSAX 1250 and above Multi
+readwrite:lucenttech1

@@ -900,3 +900,5 @@ admin:2222
 # already present: admin:admin
 # DPL 0799: HP ISEE Multi
 admin:isee
+# DPL 0805: Ricoh Aficio 2228c Multi
+sysadmin:password

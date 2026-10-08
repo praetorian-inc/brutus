@@ -951,3 +951,5 @@ admin:isee
 # already present: admin:admin
 # DPL 0804: Sigma Sigmacoma IPshare Sigmacom router v1.0 HTTP
 # already present: admin:admin
+# DPL 0805: Ricoh Aficio 2228c Multi
+# already present: sysadmin:password

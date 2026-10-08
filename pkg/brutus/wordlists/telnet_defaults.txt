@@ -772,3 +772,5 @@ desknorm:password
 deskres:password
 # DPL 0653: RM RM Connect Multi
 # already present: guest:
+# DPL 0654: RM RM Connect Multi
+replicator:replicator

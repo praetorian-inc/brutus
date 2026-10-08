@@ -1067,3 +1067,5 @@ webadmin:1234
 # omitted: no username, so this is not a login pair
 # DPL 0879: Edimax ES-5224RXM Multi
 admin:123
+# DPL 0880: IronPort Messaging Gateway Appliance Multi
+admin:ironport

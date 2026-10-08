@@ -1172,3 +1172,5 @@ scout:scout
 # already present: admin:admin
 # DPL 1095: D-Link DI-524 E1 Telnet
 Alphanetworks:wrgg15_di524
+# DPL 1098: SpeedStream 5200-Serie SpeedStream Telnet
+# already present: Administrator:admin

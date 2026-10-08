@@ -215,3 +215,5 @@ Cisco:Cisco
 Administrator:admin
 # DPL 0226: Cyclades TS800 HTTP
 root:tslinux
+# DPL 0230: Davox Unison Multi
+root:davox

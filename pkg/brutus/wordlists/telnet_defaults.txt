@@ -290,3 +290,5 @@ Cisco:Cisco
 super:surt
 # DPL 0227: Dallas Semiconductors TINI embedded JAVA Module <= 1.0 Telnet
 root:tini
+# DPL 0230: Davox Unison Multi
+root:davox

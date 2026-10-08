@@ -151,3 +151,5 @@ craft:
 # already present: root:root
 # DPL 0144: Avaya Cajun P550R P580 P880 and P882 Multi
 diag:danger
+# DPL 0145: Avaya Cajun P550R P580 P880 and P882 Multi
+manuf:xxyyzz

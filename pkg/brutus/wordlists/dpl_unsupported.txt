@@ -122,3 +122,5 @@
 # not sprayed: Sybase
 # DPL 0237: Develcon Orbitor Default Console
 # not sprayed: blank access type
+# DPL 0238: Develcon Orbitor Default Console
+# not sprayed: blank access type

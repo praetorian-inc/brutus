@@ -1579,3 +1579,5 @@ admin:leviton
 # already present: admin:password
 # DPL 1191: Linksys WAG354G 2 HTTP
 # already present: admin:admin
+# DPL 1192: QLogic SANbox 5602 Fibre Channel Switch Multi
+# already present: admin:password

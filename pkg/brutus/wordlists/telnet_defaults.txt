@@ -1262,3 +1262,5 @@ admin:P@55w0rd!
 # omitted: no username, so this is not a login pair
 # DPL 1190: Beetel ADSL Modem 220X Multi
 # already present: admin:password
+# DPL 1192: QLogic SANbox 5602 Fibre Channel Switch Multi
+# already present: admin:password

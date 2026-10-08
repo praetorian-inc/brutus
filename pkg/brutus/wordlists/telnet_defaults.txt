@@ -1014,3 +1014,5 @@ super.super:
 super.super:master
 # DPL 0901: VxWorks misc Multi
 # already present: admin:admin
+# DPL 0902: VxWorks misc Multi
+guest:guest

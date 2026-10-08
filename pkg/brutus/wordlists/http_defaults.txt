@@ -827,3 +827,5 @@ admin:smcadmin
 # omitted: no username, so this is not a login pair
 # DPL 0706: Solution 6 Viztopia Accounts Multi
 aaa:often blank
+# DPL 0707: SonicWALL ALL ALL HTTP
+# already present: admin:password

@@ -1517,3 +1517,5 @@ netadmin:nimdaten
 manage:!manage
 # DPL 1154: Spectra Logic 64000 Gator Multi
 administrator:
+# DPL 1155: Spectra Logic 64000 Gator Multi
+# already present: operator:

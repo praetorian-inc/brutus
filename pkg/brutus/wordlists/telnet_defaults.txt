@@ -152,3 +152,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0082: adtran Agent Card Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0083: adtran TSU Router Module/L128/L768/1.5 Telnet
+# omitted: no username, so this is not a login pair

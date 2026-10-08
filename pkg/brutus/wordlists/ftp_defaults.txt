@@ -36,3 +36,5 @@ ftp_admi:kilo1987
 ftp_oper:help1954
 # DPL 0977: Alcatel OmniPCX Office 4.1 FTP
 ftp_nmc:tuxalize
+# DPL 1162: seninleyimben @skan el rattani FTP
+# already present: admin:admin

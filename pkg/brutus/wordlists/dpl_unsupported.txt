@@ -56,3 +56,5 @@
 # not sprayed: blank access type
 # DPL 0162: Bay Networks SuperStack II
 # not sprayed: blank access type
+# DPL 0163: Bay Networks Switch 350T
+# not sprayed: blank access type

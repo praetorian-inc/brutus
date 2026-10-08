@@ -86,3 +86,5 @@
 # not sprayed: Console
 # DPL 0195: Cisco ConfigMaker
 # not sprayed: blank access type
+# DPL 0197: Cisco CNR All CNR GUI
+# not sprayed: CNR GUI

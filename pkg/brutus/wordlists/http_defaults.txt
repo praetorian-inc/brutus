@@ -773,3 +773,5 @@ topicalt:password
 topicnorm:password
 # DPL 0658: RM RM Connect Multi
 topicres:password
+# DPL 0659: RoamAbout RoamAbout R2 Wireless Access Platform Multi
+# already present: admin:password

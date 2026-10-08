@@ -1199,3 +1199,5 @@ USERID:PASSW0RD
 # already present: admin:epicrouter
 # DPL 0951: Planet ADE-4000 Multi
 # already present: admin:epicrouter
+# DPL 0952: SAGEM FAST 1400 Multi
+# already present: admin:epicrouter

@@ -136,3 +136,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0074: ADIC Scalar i2000 Multi
 # already present: admin:password
+# DPL 0075: adtran MX2800 Telnet
+# omitted: no username, so this is not a login pair

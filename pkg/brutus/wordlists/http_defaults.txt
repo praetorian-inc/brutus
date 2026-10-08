@@ -1357,3 +1357,5 @@ admin:x-admin
 # already present: admin:admin
 # DPL 1050: netgear DG834GT 192.168.0.1 Multi
 admin:Password
+# DPL 1051: d-link ads500g HTTP
+# already present: admin:admin

@@ -1515,3 +1515,5 @@ netadmin:nimdaten
 # already present: admin:
 # DPL 1152: Fujitsu Siemens Fibre Channel SAN storage FX 60 HTTP
 manage:!manage
+# DPL 1154: Spectra Logic 64000 Gator Multi
+administrator:

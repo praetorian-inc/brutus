@@ -1,0 +1,4 @@
+# Phenoelit Default Password List entries Brutus does not spray.
+# Console, serial, and unknown access types are recorded here only.
+# DPL 0020: 3com superstack II 1100/3300 Console
+# not sprayed: Console

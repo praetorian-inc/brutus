@@ -110,3 +110,5 @@ manager:manager
 # omitted: no username, so this is not a login pair
 # DPL 0052: 3com cellplex Multi
 # already present: admin:admin
+# DPL 0053: 3com HiPerACT v4.1.x Telnet
+# already present: admin:

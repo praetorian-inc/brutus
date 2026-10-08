@@ -162,3 +162,5 @@ sysadm:anicust
 admin:switch
 # DPL 0098: Alcatel Omnistack/Omniswitch Telnet/Console
 diag:switch
+# DPL 0099: Alcatel Omnistack/omniswitch Telnet
+# already present: diag:switch

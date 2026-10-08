@@ -167,3 +167,5 @@ root:pass
 # already present: root:pass
 # DPL 0155: axis 2100 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0165: Belkin F5D7150 FB Multi
+# omitted: no username, so this is not a login pair

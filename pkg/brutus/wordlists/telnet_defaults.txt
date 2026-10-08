@@ -1074,3 +1074,5 @@ smc:smcadmin
 root:12345
 # DPL 0960: Cable And Wireless ADSL Modem/Router Multi
 # already present: admin:1234
+# DPL 0962: ZyXEL ZyWALL Series Prestige 660R-61C Multi
+# omitted: no username, so this is not a login pair

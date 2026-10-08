@@ -742,3 +742,5 @@ admin:microbusiness
 user:password
 # DPL 0625: Planet WAP-1900/1950/2000 02/05/00 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0628: Polycom ViewStation 4000 3.5 Multi
+# omitted: no username, so this is not a login pair

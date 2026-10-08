@@ -1053,3 +1053,5 @@ webadmin:1234
 # already present: root:root
 # DPL 0872: giga 8ippro1000 Multi
 # already present: Administrator:admin
+# DPL 0873: Netgear GSM7224 HTTP
+# already present: admin:

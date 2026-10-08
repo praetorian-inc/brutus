@@ -432,3 +432,5 @@
 # not sprayed: Console
 # DPL 1073: Alcatel 7300 ASAM TL1
 # not sprayed: TL1
+# DPL 1080: Juniper Netscreen 3.2 Console
+# not sprayed: Console

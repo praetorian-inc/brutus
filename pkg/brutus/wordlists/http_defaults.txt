@@ -147,3 +147,5 @@ root:ascend
 customer:
 # DPL 0142: Avaya Definity G3Si Multi
 craft:
+# DPL 0143: Avaya Cajun Pxxx Multi
+# already present: root:root

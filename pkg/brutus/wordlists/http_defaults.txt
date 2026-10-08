@@ -1591,3 +1591,5 @@ images:images
 # omitted: no username, so this is not a login pair
 # DPL 1200: Guru Wireless ADSL2 HTTP
 # already present: admin:admin
+# DPL 1201: Colubris MSC HTTP
+# already present: admin:admin

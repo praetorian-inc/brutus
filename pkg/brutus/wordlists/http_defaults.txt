@@ -89,3 +89,5 @@ Root:
 # already present: admin:
 # DPL 0071: Aceex Modem ADSL Router HTTP
 # already present: admin:
+# DPL 0073: ADIC Scalar 100/1000 HTTP
+admin:secure

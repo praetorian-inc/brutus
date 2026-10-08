@@ -1295,3 +1295,5 @@ user:tivonpw
 # omitted: the list says this resets or initializes passwords
 # DPL 1009: mediatrix 2102 mediatrix 2102 HTTP
 # already present: admin:1234
+# DPL 1010: Draytek Vigor 2900+ HTTP
+# already present: admin:admin

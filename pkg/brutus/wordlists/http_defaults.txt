@@ -1057,3 +1057,5 @@ webadmin:1234
 # already present: admin:
 # DPL 0874: Gericom Phoenix Multi
 # already present: Administrator:
+# DPL 0875: Bausch Datacom Proxima PRI ADSL PSTN Router4 Wireless Multi
+# already present: admin:epicrouter

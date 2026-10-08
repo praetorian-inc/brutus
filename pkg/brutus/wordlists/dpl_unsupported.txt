@@ -80,3 +80,5 @@
 # not sprayed: blank access type
 # DPL 0188: Cayman Cayman DSL
 # not sprayed: blank access type
+# DPL 0192: Checkpoint SecurePlatform NG FP3 Console
+# not sprayed: Console

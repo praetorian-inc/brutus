@@ -499,3 +499,5 @@ PRODDTA:PRODDTA
 # already present: root:root
 # DPL 0417: Kyocera Intermate LAN FS Pro 10/100 K82_0371 HTTP
 # already present: admin:admin
+# DPL 0418: LANCOM IL11 Multi
+# omitted: no username, so this is not a login pair

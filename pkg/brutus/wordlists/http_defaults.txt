@@ -473,3 +473,5 @@ superadmin:secret
 NICONEX:NICONEX
 # DPL 0396: Intel Express 520T Switch Multi
 setup:setup
+# DPL 0398: Intel Wireless AP 2011 2.21 Multi
+# omitted: no username, so this is not a login pair

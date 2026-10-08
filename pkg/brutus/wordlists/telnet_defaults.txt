@@ -636,3 +636,5 @@ netscreen:netscreen
 # already present: Administrator:
 # DPL 0543: netscreen firewall Telnet
 # already present: admin:
+# DPL 0544: netscreen firewall Telnet
+# already present: operator:

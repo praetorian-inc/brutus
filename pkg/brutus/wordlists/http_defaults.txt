@@ -1237,3 +1237,5 @@ root:12345
 # already present: admin:admin
 # DPL 0978: Netgear ADSL Modem DG632 V3.3.0a_cx HTTP
 # already present: admin:password
+# DPL 0979: Allied Telesyn AT-AR130 (U) -10 HTTP
+Manager:friend

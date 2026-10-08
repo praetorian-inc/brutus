@@ -170,3 +170,5 @@ diag:switch
 manager:friend
 # DPL 0110: Alteon ACEswitch 180e Telnet
 # already present: admin:
+# DPL 0113: AMBIT ADSL Telnet
+# already present: root:

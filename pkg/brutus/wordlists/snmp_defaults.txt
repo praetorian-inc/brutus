@@ -40,3 +40,5 @@ MiniAP
 snmp-Trap
 # DPL 0204: Cisco Catalyst 4000/5000/6000 All SNMP
 public/private/secret
+# DPL 0450: Lucent B-STDX9000 all SNMP
+cascade

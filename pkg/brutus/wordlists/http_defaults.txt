@@ -811,3 +811,5 @@ Administrator:ganteng
 # already present: admin:admin
 # DPL 0697: SMC SMC broadband router HTTP
 # already present: admin:admin
+# DPL 0698: SMC SMC2804WBR v.1 HTTP
+# omitted: no username, so this is not a login pair

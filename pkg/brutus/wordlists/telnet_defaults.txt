@@ -38,3 +38,5 @@ adm:
 # already present: admin:
 # DPL 0010: 3COM Office Connect ISDN Routers 5x0 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0011: 3COM SuperStack II Switch 2200 Telnet
+# already present: debug:synnet

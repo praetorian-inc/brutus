@@ -498,3 +498,5 @@ MGR:HPONLY
 # omitted: no username, so this is not a login pair
 # DPL 0382: IBM A21m Multi
 # omitted: no username, so this is not a login pair
+# DPL 0383: IBM 390e Multi
+# omitted: no username, so this is not a login pair

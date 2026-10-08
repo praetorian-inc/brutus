@@ -1555,3 +1555,5 @@ mso:w0rkplac3rul3s
 # already present: admin:
 # DPL 1176: Sharp AR-M155 HTTP
 # already present: admin:Sharp
+# DPL 1177: Sharp MX-5500 HTTP
+# already present: admin:admin

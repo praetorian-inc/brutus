@@ -1401,3 +1401,5 @@ stratacom:stratauser
 Admin:123456
 # DPL 1077: Xerox WorkCentre 7132 Multi
 11111:x-admin
+# DPL 1078: Sharp AL-1655CS HTTP
+# already present: admin:Sharp

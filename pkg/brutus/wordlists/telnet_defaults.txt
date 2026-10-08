@@ -156,3 +156,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0084: adtran T3SU 300 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0096: Alcatel Office 4200 Multi
+# omitted: no username, so this is not a login pair

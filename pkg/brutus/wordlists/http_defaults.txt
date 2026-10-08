@@ -93,3 +93,5 @@ Root:
 admin:secure
 # DPL 0074: ADIC Scalar i2000 Multi
 # already present: admin:password
+# DPL 0096: Alcatel Office 4200 Multi
+# omitted: no username, so this is not a login pair

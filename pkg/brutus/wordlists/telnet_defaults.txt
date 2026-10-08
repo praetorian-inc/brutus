@@ -298,3 +298,5 @@ root:davox
 davox:davox
 # DPL 0235: Demarc Network Monitor multi
 admin:my_DEMARC
+# DPL 0242: Digicorp Viper Telnet
+# omitted: no username, so this is not a login pair

@@ -1020,3 +1020,5 @@ guest:guest
 CSG:SESAME
 # DPL 0904: Westell Wang Multi
 # already present: CSG:SESAME
+# DPL 0905: Westell Wirespeed wireless router Multi
+admin:sysAdmin

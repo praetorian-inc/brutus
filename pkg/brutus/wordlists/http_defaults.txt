@@ -1087,3 +1087,5 @@ hsa:hsadb
 # already present: root:blender
 # DPL 0891: Cisco WLSE Multi
 wlse:wlsedb
+# DPL 0892: Digicom Michelangelo Multi
+admin:michelangelo

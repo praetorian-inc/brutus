@@ -977,3 +977,5 @@ dadmin:dadmin01
 # already present: admin:password
 # DPL 0821: Dell Laser Printer 3000cn / 3100cn HTTP
 # already present: admin:password
+# DPL 0823: Siemens SpeedStream 4100 HTTP
+admin:hagpolm1

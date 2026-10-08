@@ -1381,3 +1381,5 @@ Admin:
 # already present: admin:
 # DPL 1064: Silvercrest WR-6640Sg HTTP
 # already present: admin:admin
+# DPL 1065: Deutsche Telekom T-Sinus 1054 DSL All HTTP
+# omitted: no username, so this is not a login pair

@@ -515,3 +515,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0429: Lantronix ETS32PR Multi
 # omitted: no username, so this is not a login pair
+# DPL 0430: Lantronix ETS422PR Multi
+# omitted: no username, so this is not a login pair

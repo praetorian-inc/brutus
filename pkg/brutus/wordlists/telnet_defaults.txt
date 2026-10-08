@@ -294,3 +294,5 @@ root:tini
 root:davox
 # DPL 0231: Davox Unison Multi
 # already present: admin:admin
+# DPL 0232: Davox Unison Multi
+davox:davox

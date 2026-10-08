@@ -1171,3 +1171,5 @@ root:calvin
 # already present: admin:1234
 # DPL 0937: ASMAX AR701u / ASMAX AR6024 HTTP
 # already present: admin:epicrouter
+# DPL 0938: ASMAX AR800C2 HTTP
+# already present: admin:epicrouter

@@ -105,3 +105,5 @@ manager:admin
 root:
 # DPL 0106: ALLNET T-DSL Modem Software Version: v1.51 HTTP
 # already present: admin:admin
+# DPL 0107: Allnet ALL0275 802.11g AP 1.0.6 HTTP
+# omitted: no username, so this is not a login pair

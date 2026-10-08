@@ -1465,3 +1465,5 @@ citel:password
 admin:12345
 # DPL 1121: pfSense pfSense Firewall 1.0.1 Multi
 admin:pfsense
+# DPL 1122: ASUS ASUS WL-330 Pocket Wireless Access Point HTTP
+# already present: admin:admin

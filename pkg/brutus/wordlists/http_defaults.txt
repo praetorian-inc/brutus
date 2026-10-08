@@ -865,3 +865,5 @@ root:admin_1
 admin:extendnet
 # DPL 0733: TVT System Expresse G5 Multi
 # already present: craft:
+# DPL 0734: TVT System Expresse G5 DS1 Module Multi
+# omitted: no username, so this is not a login pair

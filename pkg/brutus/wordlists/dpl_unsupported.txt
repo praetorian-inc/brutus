@@ -424,3 +424,5 @@
 # not sprayed: Console
 # DPL 1031: Panasonic PBX TDA 100/200/400 all Console
 # not sprayed: Console
+# DPL 1035: netgear sc101 management software
+# not sprayed: management software

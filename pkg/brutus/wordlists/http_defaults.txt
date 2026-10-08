@@ -861,3 +861,5 @@ aaa:often blank
 tellabs:tellabs#1
 # DPL 0730: Tellabs 7120 Multi
 root:admin_1
+# DPL 0732: Troy ExtendNet 100zx Multi
+admin:extendnet

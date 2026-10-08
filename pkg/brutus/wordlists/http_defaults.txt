@@ -555,3 +555,5 @@ Administrator:
 ami:
 # DPL 0486: maxdata ms2137 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0487: medion Routers HTTP
+# omitted: no username, so this is not a login pair

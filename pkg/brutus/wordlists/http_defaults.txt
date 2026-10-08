@@ -121,3 +121,5 @@ admin:linga
 # already present: admin:admin
 # DPL 0119: AOC zenworks 4.0 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0122: apc Smartups 3000 HTTP
+apc:apc

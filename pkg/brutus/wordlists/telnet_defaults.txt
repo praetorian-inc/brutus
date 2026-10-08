@@ -180,3 +180,5 @@ manager:friend
 # omitted: no username, so this is not a login pair
 # DPL 0120: APC 9606 Smart Slot Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0124: APC Smart UPS Multi
+apc:apc

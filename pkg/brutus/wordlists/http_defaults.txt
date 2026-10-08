@@ -125,3 +125,5 @@ admin:linga
 apc:apc
 # DPL 0123: APC UPSes (Web/SNMP Mgmt Card) HTTP
 device:device
+# DPL 0124: APC Smart UPS Multi
+# already present: apc:apc

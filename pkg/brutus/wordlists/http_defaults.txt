@@ -1495,3 +1495,5 @@ admin:adslroot
 # already present: admin:
 # DPL 1138: Netgear Wifi Router WGT 624 v3 HTTP
 # already present: admin:password
+# DPL 1139: Apache Tomcat Web Server Administration Tool 5 HTTP
+# already present: admin:

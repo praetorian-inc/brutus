@@ -495,3 +495,5 @@ PRODDTA:PRODDTA
 # omitted: no username, so this is not a login pair
 # DPL 0415: Kyocera EcoLink 7.2 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0416: Kyocera Telnet Server IB-20/21 multi
+# already present: root:root

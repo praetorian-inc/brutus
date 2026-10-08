@@ -534,3 +534,5 @@ intermec:intermec
 PRODDTA:PRODDTA
 # DPL 0414: Konica Minolta magicolor 2300 DL Multi
 # omitted: no username, so this is not a login pair
+# DPL 0416: Kyocera Telnet Server IB-20/21 multi
+# already present: root:root

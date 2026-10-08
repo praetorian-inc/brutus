@@ -278,3 +278,5 @@
 # not sprayed: Console
 # DPL 0585: Nortel Phone System All From Phone
 # not sprayed: From Phone
+# DPL 0586: Nortel Norstar Console
+# not sprayed: Console

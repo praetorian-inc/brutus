@@ -123,3 +123,5 @@ admin:linga
 # omitted: no username, so this is not a login pair
 # DPL 0122: apc Smartups 3000 HTTP
 apc:apc
+# DPL 0123: APC UPSes (Web/SNMP Mgmt Card) HTTP
+device:device

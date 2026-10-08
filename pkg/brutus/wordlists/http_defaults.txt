@@ -1279,3 +1279,5 @@ admin:atlantis
 # already present: Administrator:admin
 # DPL 1000: Huawei MT880r Multi
 TMAR#HWMT8007079:
+# DPL 1001: OKI C5700 HTTP
+root:the 6 last digit of the MAC adress

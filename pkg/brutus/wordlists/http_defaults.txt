@@ -627,3 +627,5 @@ admin:NetCache
 e500:e500changeme
 # DPL 0549: Network Associates WebShield Security Appliance e250 HTTP
 e250:e250changeme
+# DPL 0550: NGSec NGSecureWeb HTTP
+# already present: admin:

@@ -213,3 +213,5 @@ Cisco:Cisco
 # already present: admin:admin
 # DPL 0223: Corecess Corecess 3112 HTTP
 Administrator:admin
+# DPL 0226: Cyclades TS800 HTTP
+root:tslinux

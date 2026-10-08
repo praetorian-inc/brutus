@@ -1219,3 +1219,5 @@ root:12345
 # omitted: no username, so this is not a login pair
 # DPL 0963: DI624 D-LINK C3 HTTP
 # already present: admin:password
+# DPL 0964: SMC SMCWBR14-G HTTP
+# omitted: no username, so this is not a login pair

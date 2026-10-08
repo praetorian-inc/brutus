@@ -330,3 +330,5 @@ user:
 # already present: admin:admin
 # DPL 0277: Edimax EW-7205APL Firmware release 2.40a-00 Multi
 guest:
+# DPL 0278: Efficient Speedstream DSL Telnet
+# omitted: no username, so this is not a login pair

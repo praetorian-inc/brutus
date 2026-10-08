@@ -238,3 +238,5 @@ User:
 Manager:
 # DPL 0165: Belkin F5D7150 FB Multi
 # omitted: no username, so this is not a login pair
+# DPL 0167: Bintec Bianka Routers Multi
+admin:bintec

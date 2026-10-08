@@ -171,3 +171,5 @@ root:pass
 # omitted: no username, so this is not a login pair
 # DPL 0166: Billion Bipac 5100 HTTP
 # already present: admin:admin
+# DPL 0167: Bintec Bianka Routers Multi
+admin:bintec

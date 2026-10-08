@@ -42,3 +42,5 @@
 # not sprayed: Console
 # DPL 0138: Aspect ACD 6 Oracle
 # not sprayed: Oracle
+# DPL 0139: Aspect ACD 7 Oracle
+# not sprayed: Oracle

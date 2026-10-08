@@ -619,3 +619,5 @@ admin:noway
 netscreen:netscreen
 # DPL 0545: netscreen firewall HTTP
 # already present: Administrator:
+# DPL 0546: Netstar Netpilot Multi
+# already present: admin:password

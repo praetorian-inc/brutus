@@ -586,3 +586,5 @@ readwrite:lucenttech1
 # already present: readonly:lucenttech2
 # DPL 0460: Lucent PacketStar Multi
 Administrator:
+# DPL 0462: LUCENT M770 Telnet
+super:super

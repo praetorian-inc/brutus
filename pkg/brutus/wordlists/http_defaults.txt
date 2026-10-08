@@ -587,3 +587,5 @@ SYSADM:sysadm
 # already present: admin:password
 # DPL 0521: Netgear WG602 Firmware Version 1.04.0 HTTP
 super:5777364
+# DPL 0522: Netgear WG602 Firmware Version 1.7.14 HTTP
+superman:21241036

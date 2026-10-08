@@ -1571,3 +1571,5 @@ admin:leviton
 # already present: operator:
 # DPL 1187: Davolink DV2020 HTTP
 # already present: user:user
+# DPL 1188: motorola sgb900 HTTP
+# already present: admin:motorola

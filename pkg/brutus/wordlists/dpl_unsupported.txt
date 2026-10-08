@@ -150,3 +150,5 @@
 # not sprayed: Console
 # DPL 0311: Freetech BIOS Console
 # not sprayed: Console
+# DPL 0313: Funk Software Steel Belted Radius 3.x Proprietary
+# not sprayed: Proprietary

@@ -1507,3 +1507,5 @@ netadmin:nimdaten
 # already present: admin:password
 # DPL 1148: Prolink H9000 Series HTTP
 # already present: admin:password
+# DPL 1149: netgear dg834 Multi
+# omitted: no username, so this is not a login pair

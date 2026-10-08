@@ -1589,3 +1589,5 @@ images:images
 # omitted: no username, so this is not a login pair
 # DPL 1198: Ricoh Aficio 551 Multi
 # omitted: no username, so this is not a login pair
+# DPL 1200: Guru Wireless ADSL2 HTTP
+# already present: admin:admin

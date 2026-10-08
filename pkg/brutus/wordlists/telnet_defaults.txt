@@ -860,3 +860,5 @@ Any:12345
 # omitted: no username, so this is not a login pair
 # DPL 0744: VASCO VACMAN Middleware 2.x Multi
 # already present: admin:
+# DPL 0746: Verilink NE6100-4 NetEngine IAD 3.4.8 Telnet
+# omitted: no username, so this is not a login pair

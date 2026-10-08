@@ -795,3 +795,5 @@ ADMN:admn
 # omitted: no username, so this is not a login pair
 # DPL 0677: SIEMENS SE515 HTTP
 # already present: admin:
+# DPL 0689: Siemens Pro C5 Siemens Multi
+# omitted: no username, so this is not a login pair

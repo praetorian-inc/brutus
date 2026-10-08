@@ -1164,3 +1164,5 @@ stratacom:stratauser
 CISCO15:otbu+1
 # DPL 1082: Telewell TW-EA501 v1 Multi
 # already present: admin:admin
+# DPL 1083: NOMADIX AG5000 Telnet
+# already present: admin:

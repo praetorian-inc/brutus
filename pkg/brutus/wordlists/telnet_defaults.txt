@@ -1162,3 +1162,5 @@ stratacom:stratauser
 11111:x-admin
 # DPL 1081: Cisco ONS all Multi
 CISCO15:otbu+1
+# DPL 1082: Telewell TW-EA501 v1 Multi
+# already present: admin:admin

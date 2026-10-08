@@ -269,3 +269,5 @@ User:
 # already present: admin:
 # DPL 0267: D-Link DWL 2100AP Multi
 # already present: admin:
+# DPL 0268: D-LINK DSL-G664T A1 HTTP
+# already present: admin:admin

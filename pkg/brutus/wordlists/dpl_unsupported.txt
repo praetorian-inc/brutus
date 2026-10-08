@@ -452,3 +452,5 @@
 # not sprayed: Console
 # DPL 1146: Crossbeam COS / XOS Lilo boot
 # not sprayed: Lilo boot
+# DPL 1156: HP t5000 Thin Client series Console
+# not sprayed: Console

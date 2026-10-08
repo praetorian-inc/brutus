@@ -672,3 +672,5 @@ admin:setup
 # already present: service:smile
 # DPL 0573: Nortel Meridian MAX Multi
 root:3ep5w2u
+# DPL 0575: Nortel Meridian MAX Multi
+maint:ntacdmax

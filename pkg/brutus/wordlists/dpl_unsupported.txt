@@ -240,3 +240,5 @@
 # not sprayed: Console
 # DPL 0490: Mentec Micro/RSX
 # not sprayed: blank access type
+# DPL 0495: Micronet Micronet SP5002 Console
+# not sprayed: Console

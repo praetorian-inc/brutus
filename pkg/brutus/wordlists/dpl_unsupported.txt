@@ -390,3 +390,5 @@
 # not sprayed: Console
 # DPL 0788: ZyXEL Prestige 100IH Console
 # not sprayed: Console
+# DPL 0797: Logitech Logitech Mobile Headset Bluetooth
+# not sprayed: Bluetooth

@@ -242,3 +242,5 @@
 # not sprayed: blank access type
 # DPL 0495: Micronet Micronet SP5002 Console
 # not sprayed: Console
+# DPL 0497: microRouter 900i Console/Multi
+# not sprayed: Console/Multi

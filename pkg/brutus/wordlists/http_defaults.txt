@@ -677,3 +677,5 @@ ccrusr:ccrusr
 # already present: admin:setup
 # DPL 0583: nortel dms Multi
 # omitted: no username, so this is not a login pair
+# DPL 0587: nortel p8600 Multi
+# omitted: no username, so this is not a login pair

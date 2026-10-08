@@ -34,3 +34,5 @@ ftp_inst:pbxk1064
 ftp_admi:kilo1987
 # DPL 0976: Alcatel OmniPCX Office 4.1 FTP
 ftp_oper:help1954
+# DPL 0977: Alcatel OmniPCX Office 4.1 FTP
+ftp_nmc:tuxalize

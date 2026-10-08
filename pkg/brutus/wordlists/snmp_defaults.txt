@@ -24,3 +24,5 @@ secret
 # --- aggressive ---
 # DPL 0007: 3COM NetBuilder SNMP
 ANYCOM
+# DPL 0008: 3COM NetBuilder SNMP
+ILMI

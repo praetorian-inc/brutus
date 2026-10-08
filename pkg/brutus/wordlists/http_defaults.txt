@@ -709,3 +709,5 @@ cac_admin:cacadmin
 # omitted: no username, so this is not a login pair
 # DPL 0618: Panasonic CF-45 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0619: penril datability vcp300 terminal server Multi
+# omitted: no username, so this is not a login pair

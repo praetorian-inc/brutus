@@ -1145,3 +1145,5 @@ admin:sysAdmin
 # already present: admin:password
 # DPL 0924: SMC Modem/Router HTTP
 cusadmin:highspeed
+# DPL 0925: ihoi oihoh lknlkn HTTP
+Administrator:pilou

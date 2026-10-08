@@ -300,3 +300,5 @@
 # not sprayed: VigilEnt Security Manager Console
 # DPL 0621: Perle CS9000 any Console
 # not sprayed: Console
+# DPL 0635: Raidzone raid arrays
+# not sprayed: blank access type

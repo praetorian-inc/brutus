@@ -781,3 +781,5 @@ root:1234
 # omitted: no username, so this is not a login pair
 # DPL 0662: Samsung MagicLAN SWL-3500RG 2.15 HTTP
 public:public
+# DPL 0663: Senao 2611CB3+D (802.11b Wireless AP) HTTP
+# already present: admin:

@@ -1070,3 +1070,5 @@ admin:sysAdmin
 # already present: admin:epicrouter
 # DPL 0953: SMC 7204BRA Multi
 smc:smcadmin
+# DPL 0954: U.S. Robotics SureConnect 9003 ADSL Ethernet/USB Router Multi
+root:12345

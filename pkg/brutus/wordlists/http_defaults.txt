@@ -319,3 +319,5 @@ operator:operator
 root:default
 # DPL 0302: F5-Networks BIGIP Multi
 # omitted: no username, so this is not a login pair
+# DPL 0309: Foundry Networks IronView Network Manager Version 01.6.00a(service pack) 0620031754 HTTP
+# already present: admin:admin

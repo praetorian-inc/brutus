@@ -995,3 +995,5 @@ Administrator:password
 # already present: admin:admin
 # DPL 0833: Phoenix v1.14 Phoenix v1.14 Multi
 # already present: Administrator:admin
+# DPL 0834: asus WL500g HTTP
+# already present: admin:admin

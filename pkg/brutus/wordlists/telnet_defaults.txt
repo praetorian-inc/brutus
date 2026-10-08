@@ -146,3 +146,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0079: adtran NxIQ Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0080: adtran TSU IQ/DSU IQ Telnet
+# omitted: no username, so this is not a login pair

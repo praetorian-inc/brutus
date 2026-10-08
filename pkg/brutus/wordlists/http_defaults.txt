@@ -1567,3 +1567,5 @@ admin:leviton
 # omitted: no username, so this is not a login pair
 # DPL 1185: US Robotics USR5462 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1186: telecom home hauwei Multi
+# already present: operator:

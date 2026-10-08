@@ -34,3 +34,5 @@ volition
 TENmanUFactOryPOWER
 # DPL 0148: AVAYA Cajun P33x firmware before 3.11.0 SNMP
 # already present: admin
+# DPL 0164: Belkin F5D6130 SNMP
+MiniAP

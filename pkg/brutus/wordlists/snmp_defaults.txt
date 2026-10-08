@@ -48,3 +48,5 @@ cascade
 # already present: admin
 # DPL 0530: Netgear ME102 SNMP
 # already present: private
+# DPL 0781: Zcom Wireless SNMP
+# already present: admin

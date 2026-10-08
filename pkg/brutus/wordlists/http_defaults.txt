@@ -1073,3 +1073,5 @@ admin:ironport
 # already present: Administrator:admin
 # DPL 0882: Asante FM2008 Multi
 admin:asante
+# DPL 0883: Broadlogic XLT router HTTP
+webadmin:webadmin

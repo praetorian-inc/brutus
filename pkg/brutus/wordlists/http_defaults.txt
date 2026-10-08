@@ -1183,3 +1183,5 @@ root:Cisco
 # already present: admin:
 # DPL 0943: Linksys model WRT54GC compact wireless-G broadband router Multi
 # omitted: no username, so this is not a login pair
+# DPL 0944: Minolta QMS Magicolor 3100 3.0.0 HTTP
+operator:

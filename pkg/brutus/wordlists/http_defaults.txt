@@ -279,3 +279,5 @@ User:
 # already present: admin:admin
 # DPL 0272: D-Link DWL-2000AP+ 1.13 HTTP
 # already present: admin:
+# DPL 0273: D-Link DI-614+ HTTP
+# already present: admin:admin

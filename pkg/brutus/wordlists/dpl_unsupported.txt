@@ -74,3 +74,5 @@
 # not sprayed: blank access type
 # DPL 0183: Brother NC-3100h
 # not sprayed: blank access type
+# DPL 0184: Brother NC-4100h
+# not sprayed: blank access type

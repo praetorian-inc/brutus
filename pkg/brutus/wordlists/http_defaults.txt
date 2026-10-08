@@ -1597,3 +1597,5 @@ images:images
 admin:draadloos
 # DPL 1203: T-Com Speedport Router Family all HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1206: Netgear MR814 v1 HTTP
+# already present: admin:password

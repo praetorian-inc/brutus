@@ -1165,3 +1165,5 @@ root:calvin
 # already present: Administrator:admin
 # DPL 0934: D-link DSL-504T HTTP
 # already present: admin:admin
+# DPL 0935: Planet ADE-4110 HTTP
+# already present: admin:epicrouter

@@ -280,3 +280,5 @@
 # not sprayed: From Phone
 # DPL 0586: Nortel Norstar Console
 # not sprayed: Console
+# DPL 0603: Osicom NETCommuter Telnet debug
+# not sprayed: debug

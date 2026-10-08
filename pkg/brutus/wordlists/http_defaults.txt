@@ -249,3 +249,5 @@ user:
 # already present: admin:
 # DPL 0257: D-Link D-704P Multi
 # already present: admin:admin
+# DPL 0258: D-Link DWL-900+ HTTP
+# already present: admin:

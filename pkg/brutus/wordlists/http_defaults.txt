@@ -1201,3 +1201,5 @@ USERID:PASSW0RD
 # already present: admin:epicrouter
 # DPL 0952: SAGEM FAST 1400 Multi
 # already present: admin:epicrouter
+# DPL 0953: SMC 7204BRA Multi
+# already present: smc:smcadmin

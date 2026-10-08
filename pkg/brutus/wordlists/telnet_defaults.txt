@@ -956,3 +956,5 @@ scmadmin:scmchangeme
 # already present: admin:
 # DPL 0859: Corecess 6808 APC Telnet
 corecess:corecess
+# DPL 0863: SMC Router/Modem BR7401 Multi
+admin:barricade

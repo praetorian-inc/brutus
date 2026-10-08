@@ -1037,3 +1037,5 @@ webadmin:1234
 # already present: admin:admin
 # DPL 0862: Proxim Orinoco 600/2000 All HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0863: SMC Router/Modem BR7401 Multi
+# already present: admin:barricade

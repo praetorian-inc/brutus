@@ -1250,3 +1250,5 @@ iclock:timely
 # already present: admin:
 # DPL 1179: Leviton 47611-GT5 Multi
 admin:leviton
+# DPL 1180: Nortel Passport 2430 Telnet
+# already present: Manager:

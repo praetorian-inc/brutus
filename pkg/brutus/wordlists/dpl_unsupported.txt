@@ -312,3 +312,5 @@
 # not sprayed: Console
 # DPL 0668: Siemens ROLM PBX
 # not sprayed: blank access type
+# DPL 0669: Siemens ROLM PBX
+# not sprayed: blank access type

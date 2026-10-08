@@ -1075,3 +1075,5 @@ admin:ironport
 admin:asante
 # DPL 0883: Broadlogic XLT router HTTP
 webadmin:webadmin
+# DPL 0886: Cisco Aironet Multi
+# omitted: no username, so this is not a login pair

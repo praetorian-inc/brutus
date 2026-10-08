@@ -982,3 +982,5 @@ admin:asante
 # already present: admin:admin
 # DPL 0885: Broadlogic XLT router Telnet
 installer:installer
+# DPL 0886: Cisco Aironet Multi
+# omitted: no username, so this is not a login pair

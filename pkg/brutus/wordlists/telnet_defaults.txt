@@ -1086,3 +1086,5 @@ root:12345
 # already present: admin:admin
 # DPL 0985: Netgear FWG114P Multi
 # omitted: no username, so this is not a login pair
+# DPL 0988: CTC Union ATU-R130 81001a Multi
+# already present: root:root

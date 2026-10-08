@@ -939,3 +939,5 @@ admin:switch
 jagadmin:
 # DPL 0798: Cisco Ciso Aironet 1100 series Rev. 01 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0799: HP ISEE Multi
+admin:isee

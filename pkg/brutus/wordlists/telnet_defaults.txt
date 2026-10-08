@@ -898,3 +898,5 @@ admin:2222
 # already present: admin:admin
 # DPL 0794: Benq awl 700 wireless router 1.3.6 Beta-002 Multi
 # already present: admin:admin
+# DPL 0799: HP ISEE Multi
+admin:isee

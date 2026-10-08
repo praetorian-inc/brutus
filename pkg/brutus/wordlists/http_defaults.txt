@@ -53,3 +53,5 @@ manager:manager
 # already present: admin:admin
 # DPL 0045: 3com OfficeConnect Wireless 11g Cable/DSL Gateway HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0046: 3COM Netbuilder HTTP
+Root:

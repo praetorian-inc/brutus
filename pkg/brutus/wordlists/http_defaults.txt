@@ -485,3 +485,5 @@ intermec:intermec
 operator:$chwarzepumpe
 # DPL 0408: intex organizer Multi
 # omitted: no username, so this is not a login pair
+# DPL 0409: iPSTAR iPSTAR Satellite Router/Radio v2 HTTP
+admin:operator

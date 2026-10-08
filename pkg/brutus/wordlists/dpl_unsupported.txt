@@ -144,3 +144,5 @@
 # not sprayed: blank access type
 # DPL 0292: Ericsson Ericsson Acc
 # not sprayed: blank access type
+# DPL 0307: Flowpoint Flowpoint DSL
+# not sprayed: blank access type

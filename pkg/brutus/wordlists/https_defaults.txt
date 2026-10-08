@@ -25,3 +25,5 @@ admin:default
 admin:Xpon@Olt9417#
 # DPL 0584: Nortel Business Communications Manager 3.5 and 3.6 HTTPS
 supervisor:PlsChgMe
+# DPL 0708: SOPHIA (Schweiz) AG Protector HTTPS
+admin:Protector

@@ -981,3 +981,5 @@ dadmin:dadmin01
 admin:hagpolm1
 # DPL 0824: Wanadoo Livebox Multi
 # already present: admin:admin
+# DPL 0825: Pirelli Pirelli AGE-SB HTTP
+admin:smallbusiness

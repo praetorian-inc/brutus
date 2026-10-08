@@ -1048,3 +1048,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0928: D-link DSL500G Multi
 # already present: admin:admin
+# DPL 0929: Asus P5P800 Multi
+# omitted: no username, so this is not a login pair

@@ -1047,3 +1047,5 @@ webadmin:1234
 # omitted: no username, so this is not a login pair
 # DPL 0868: Netgear MR314 Multi
 # already present: admin:1234
+# DPL 0869: Aethra Starbridge EU HTTP
+# already present: admin:password

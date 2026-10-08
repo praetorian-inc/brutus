@@ -1065,3 +1065,5 @@ webadmin:1234
 # already present: admin:admin
 # DPL 0878: Conexant Router HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0879: Edimax ES-5224RXM Multi
+admin:123

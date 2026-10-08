@@ -972,3 +972,5 @@ admin:barricade
 # already present: Administrator:
 # DPL 0875: Bausch Datacom Proxima PRI ADSL PSTN Router4 Wireless Multi
 admin:epicrouter
+# DPL 0879: Edimax ES-5224RXM Multi
+admin:123

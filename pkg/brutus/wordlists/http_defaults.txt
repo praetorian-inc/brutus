@@ -899,3 +899,5 @@ xd:xd
 admin:2222
 # DPL 0761: Xerox WorkCenter Pro 428 HTTP
 # already present: admin:admin
+# DPL 0762: xerox xerox Multi
+# already present: admin:admin

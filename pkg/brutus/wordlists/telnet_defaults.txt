@@ -874,3 +874,5 @@ Any:12345
 xd:xd
 # DPL 0760: Xerox Multi Function Equipment Multi
 admin:2222
+# DPL 0762: xerox xerox Multi
+# already present: admin:admin

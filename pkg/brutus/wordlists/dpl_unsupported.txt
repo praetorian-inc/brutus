@@ -50,3 +50,5 @@
 # not sprayed: Console
 # DPL 0150: Avaya CMS Supervisor 11 Console
 # not sprayed: Console
+# DPL 0156: Axis NETCAM 200/240
+# not sprayed: blank access type

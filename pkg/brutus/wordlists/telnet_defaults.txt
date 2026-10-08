@@ -600,3 +600,5 @@ service:smile
 # already present: root:default
 # DPL 0496: Microplex Print Server Telnet
 # already present: root:root
+# DPL 0498: Mikrotik Router OS all Telnet
+# already present: admin:

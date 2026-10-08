@@ -120,3 +120,5 @@
 # not sprayed: blank access type
 # DPL 0233: Davox Unison Sybase
 # not sprayed: Sybase
+# DPL 0237: Develcon Orbitor Default Console
+# not sprayed: blank access type

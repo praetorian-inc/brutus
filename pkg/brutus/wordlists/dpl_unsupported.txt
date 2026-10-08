@@ -434,3 +434,5 @@
 # not sprayed: TL1
 # DPL 1080: Juniper Netscreen 3.2 Console
 # not sprayed: Console
+# DPL 1084: Mediatrix MDD 2400/2600 Console
+# not sprayed: Console

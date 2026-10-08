@@ -1103,3 +1103,5 @@ install:secret
 super.super:
 # DPL 0900: Tandem TACL Multi
 super.super:master
+# DPL 0901: VxWorks misc Multi
+# already present: admin:admin

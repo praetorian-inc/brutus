@@ -261,3 +261,5 @@ user:
 User:
 # DPL 0263: D-Link DI-604 2.02 HTTP
 # already present: admin:admin
+# DPL 0264: D-Link DWL 1000 HTTP
+# already present: admin:

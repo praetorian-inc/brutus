@@ -673,3 +673,5 @@ ccrusr:ccrusr
 # omitted: no username, so this is not a login pair
 # DPL 0581: Nortel Meridian Link Multi
 # already present: service:smile
+# DPL 0582: Nortel Contivity Extranet/VPN switches HTTP
+# already present: admin:setup

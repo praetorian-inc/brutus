@@ -155,3 +155,5 @@ diag:danger
 manuf:xxyyzz
 # DPL 0146: Avaya Pxxx 05/02/14 Multi
 # already present: diag:danger
+# DPL 0147: Avaya Pxxx 05/02/14 Multi
+# already present: manuf:xxyyzz

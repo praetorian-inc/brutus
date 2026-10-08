@@ -52,3 +52,5 @@
 # not sprayed: Console
 # DPL 0156: Axis NETCAM 200/240
 # not sprayed: blank access type
+# DPL 0161: Bay Networks Router
+# not sprayed: blank access type

@@ -1214,3 +1214,5 @@ cisco:
 # already present: admin:admin
 # DPL 1140: Sitecom WL-0xx up to WL-17x all Multi
 # already present: admin:admin
+# DPL 1142: Nokia M1122 unknown Multi
+# omitted: no username, so this is not a login pair

@@ -563,3 +563,5 @@ MICRO:RSX
 system:password
 # DPL 0502: Mitel SX2000 all Multi
 # omitted: no username, so this is not a login pair
+# DPL 0504: Motorola WR850G 4.03 HTTP
+admin:motorola

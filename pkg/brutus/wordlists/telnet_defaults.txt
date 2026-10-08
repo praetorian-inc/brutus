@@ -712,3 +712,5 @@ adminuser:OCS
 helpdesk:OCS
 # DPL 0600: Osicom NETPrint 500 1000 1500 and 2000 Series Telnet
 Manager:Manager
+# DPL 0601: Osicom NETPrint and JETX Print 500 1000 1500 and 2000 Series Telnet
+sysadm:sysadm

@@ -628,3 +628,5 @@ netopia:netopia
 # omitted: no username, so this is not a login pair
 # DPL 0537: Netopia 4542 Multi
 admin:noway
+# DPL 0540: Netport Express 10/100 multi
+# already present: setup:setup

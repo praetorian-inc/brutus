@@ -774,3 +774,5 @@ deskres:password
 # already present: guest:
 # DPL 0654: RM RM Connect Multi
 replicator:replicator
+# DPL 0655: RM RM Connect Multi
+RMUser1:password

@@ -28,3 +28,5 @@ debug:synnet
 tech:tech
 # DPL 0003: 3COM HiPerARC v4.1.x Telnet
 adm:
+# DPL 0004: 3COM LANplex 2500 Telnet
+# already present: debug:synnet

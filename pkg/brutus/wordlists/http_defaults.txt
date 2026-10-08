@@ -1511,3 +1511,5 @@ netadmin:nimdaten
 # omitted: no username, so this is not a login pair
 # DPL 1150: Brother MFC-420CN Firmware Ver.C Multi
 # omitted: no username, so this is not a login pair
+# DPL 1151: D-Link DWL-G730AP 1.1 HTTP
+# already present: admin:

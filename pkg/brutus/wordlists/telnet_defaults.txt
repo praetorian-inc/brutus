@@ -682,3 +682,5 @@ maint:ntacdmax
 # already present: maint:maint
 # DPL 0579: Nortel Meridian CCR Multi
 ccrusr:ccrusr
+# DPL 0580: Nortel Meridian Multi
+# omitted: no username, so this is not a login pair

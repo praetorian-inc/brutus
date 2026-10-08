@@ -779,3 +779,5 @@ topicres:password
 root:1234
 # DPL 0661: samsung n620 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0662: Samsung MagicLAN SWL-3500RG 2.15 HTTP
+public:public

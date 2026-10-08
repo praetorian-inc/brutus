@@ -1259,3 +1259,5 @@ Administrator:3ware
 User:Password
 # DPL 0990: Scientific Atlanta DPX2100 Comcast-supplied HTTP
 admin:w2402
+# DPL 0991: Terayon Unknown Comcast-supplied HTTP
+# omitted: no username, so this is not a login pair

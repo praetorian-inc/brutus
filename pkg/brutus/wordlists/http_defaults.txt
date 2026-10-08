@@ -1607,3 +1607,5 @@ admin:draadloos
 # already present: Administrator:admin
 # DPL 1210: Brother HL5270DN HTTP
 admin:access
+# DPL 1211: TrendMicro InterScan 7.0 HTTP
+admin:imss7.0

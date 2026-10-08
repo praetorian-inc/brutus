@@ -1026,3 +1026,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0907: CNET CNET 4PORT ADSL MODEM CNAD NF400 Multi
 # already present: admin:epicrouter
+# DPL 0912: ovislink WL-1120AP Multi
+# already present: root:

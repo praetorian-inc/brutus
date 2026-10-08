@@ -301,3 +301,5 @@ admin:netadmin
 # omitted: no username, so this is not a login pair
 # DPL 0293: Ericsson ACC Tigris Platform All Multi
 public:
+# DPL 0294: E-Tech ADSL Ethernet Router Annex A v2 HTTP
+admin:epicrouter

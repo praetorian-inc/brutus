@@ -1004,3 +1004,5 @@ tiger:tiger123
 # omitted: no username, so this is not a login pair
 # DPL 0896: Pirelli AGE ADSL Router Multi
 # already present: admin:microbusiness
+# DPL 0897: Pirelli AGE ADSL Router Multi
+# already present: user:password

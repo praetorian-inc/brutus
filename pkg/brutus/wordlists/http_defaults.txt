@@ -1095,3 +1095,5 @@ admin:michelangelo
 tiger:tiger123
 # DPL 0896: Pirelli AGE ADSL Router Multi
 # already present: admin:microbusiness
+# DPL 0897: Pirelli AGE ADSL Router Multi
+# already present: user:password

@@ -142,3 +142,5 @@
 # not sprayed: Console
 # DPL 0289: Ericsson Ericsson Acc
 # not sprayed: blank access type
+# DPL 0292: Ericsson Ericsson Acc
+# not sprayed: blank access type

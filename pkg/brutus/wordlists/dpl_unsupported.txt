@@ -156,3 +156,5 @@
 # not sprayed: 9100
 # DPL 0386: IBM 8239 Token Ring HUB 2.5 Console
 # not sprayed: Console
+# DPL 0393: Integral Technologies RemoteView 4 Console
+# not sprayed: Console

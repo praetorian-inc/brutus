@@ -304,3 +304,5 @@ admin:my_DEMARC
 # omitted: no username, so this is not a login pair
 # DPL 0246: Dlink DSL-500 Multi
 # already present: admin:admin
+# DPL 0247: D-Link hubs/switches Telnet
+D-Link:D-Link

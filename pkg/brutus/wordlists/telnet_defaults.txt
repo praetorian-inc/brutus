@@ -522,3 +522,5 @@ setup:setup
 # omitted: no username, so this is not a login pair
 # DPL 0402: Intel/Shiva Mezza ISDN Router All Telnet
 admin:hello
+# DPL 0403: Intel/Shiva Access Port All Telnet
+# already present: admin:hello

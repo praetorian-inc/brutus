@@ -1072,3 +1072,5 @@ admin:sysAdmin
 smc:smcadmin
 # DPL 0954: U.S. Robotics SureConnect 9003 ADSL Ethernet/USB Router Multi
 root:12345
+# DPL 0960: Cable And Wireless ADSL Modem/Router Multi
+# already present: admin:1234

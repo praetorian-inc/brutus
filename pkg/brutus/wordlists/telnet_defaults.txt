@@ -288,3 +288,5 @@ Cisco:Cisco
 # already present: Administrator:admin
 # DPL 0225: Cyclades PR 1000 Telnet
 super:surt
+# DPL 0227: Dallas Semiconductors TINI embedded JAVA Module <= 1.0 Telnet
+root:tini

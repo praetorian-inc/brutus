@@ -1158,3 +1158,5 @@ Admin:
 ADSL:expert03
 # DPL 1075: stratacom all all Multi
 stratacom:stratauser
+# DPL 1077: Xerox WorkCentre 7132 Multi
+11111:x-admin

@@ -22,3 +22,5 @@ root:admin123
 zte:zte
 # DPL 0391: IBM Hardware Management Console 3 ssh
 hscroot:abc123
+# DPL 0633: Radware Linkproof ssh
+lp:lp

@@ -394,3 +394,5 @@
 # not sprayed: Bluetooth
 # DPL 0813: Areca RAID controllers Console
 # not sprayed: Console
+# DPL 0819: E-Con Econ DSL Router Router
+# not sprayed: Router

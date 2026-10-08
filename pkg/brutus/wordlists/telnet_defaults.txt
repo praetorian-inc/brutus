@@ -824,3 +824,5 @@ aaa:often blank
 # already present: admin:admin
 # DPL 0713: Speedstream DSL Multi
 # already present: admin:admin
+# DPL 0715: SpeedStream 5660 Telnet
+# omitted: no username, so this is not a login pair

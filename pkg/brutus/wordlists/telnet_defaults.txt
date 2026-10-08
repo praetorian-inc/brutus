@@ -558,3 +558,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0432: Linksys WAP11 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0433: Linksys DSL Telnet
+# omitted: no username, so this is not a login pair

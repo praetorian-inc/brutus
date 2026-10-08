@@ -459,3 +459,5 @@ admin:hp.com
 # omitted: no username, so this is not a login pair
 # DPL 0385: IBM TotalStorage Enterprise Server Multi
 storwatch:specialist
+# DPL 0387: IBM 8224 HUB Multi
+vt100:public

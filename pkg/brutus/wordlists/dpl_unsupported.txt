@@ -284,3 +284,5 @@
 # not sprayed: debug
 # DPL 0604: Osicom NETCommuter Telnet echo
 # not sprayed: echo
+# DPL 0605: Osicom NETCommuter Telnet guest
+# not sprayed: guest

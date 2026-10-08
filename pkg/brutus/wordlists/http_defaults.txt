@@ -209,3 +209,5 @@ root:attack
 # already present: admin:admin
 # DPL 0209: Cisco AP1200 IOS Multi
 Cisco:Cisco
+# DPL 0215: COM3 OLe HTTP
+# already present: admin:admin

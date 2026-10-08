@@ -200,3 +200,5 @@ IntraStack:Asante
 superuser:
 # DPL 0133: Ascend Yurie Multi
 readonly:lucenttech2
+# DPL 0134: Ascend Router Telnet
+# omitted: no username, so this is not a login pair

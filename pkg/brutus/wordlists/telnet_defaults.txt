@@ -1170,3 +1170,5 @@ CISCO15:otbu+1
 scout:scout
 # DPL 1090: Planet WAP 4000 Multi
 # already present: admin:admin
+# DPL 1095: D-Link DI-524 E1 Telnet
+Alphanetworks:wrgg15_di524

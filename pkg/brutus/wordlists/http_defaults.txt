@@ -489,3 +489,5 @@ operator:$chwarzepumpe
 admin:operator
 # DPL 0410: iPSTAR iPSTAR Network Box v.2+ HTTP
 # already present: admin:operator
+# DPL 0412: JDE WorldVision/OneWorld Multi
+PRODDTA:PRODDTA

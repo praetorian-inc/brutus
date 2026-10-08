@@ -530,3 +530,5 @@ SYSDBA:masterkey
 intermec:intermec
 # DPL 0408: intex organizer Multi
 # omitted: no username, so this is not a login pair
+# DPL 0412: JDE WorldVision/OneWorld Multi
+PRODDTA:PRODDTA

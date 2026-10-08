@@ -332,3 +332,5 @@
 # not sprayed: blank access type
 # DPL 0681: Siemens PhoneMail
 # not sprayed: blank access type
+# DPL 0682: Siemens ROLM PBX
+# not sprayed: blank access type

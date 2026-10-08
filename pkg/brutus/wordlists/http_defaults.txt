@@ -1303,3 +1303,5 @@ user:tivonpw
 # omitted: no username, so this is not a login pair
 # DPL 1013: ZyXel Prestige P660HW Multi
 # already present: admin:1234
+# DPL 1014: topsec firewall Multi
+superman:talent

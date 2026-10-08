@@ -193,3 +193,5 @@ root:fivranne
 # already present: root:
 # DPL 0189: Celerity Mediator Multi Multi
 mediator:mediator
+# DPL 0190: Celerity Mediator Multi
+root:Mau'dib

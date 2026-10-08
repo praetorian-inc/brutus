@@ -631,3 +631,5 @@ e250:e250changeme
 # already present: admin:
 # DPL 0551: NGSec NGSecureWeb HTTP
 admin:asd
+# DPL 0552: Niksun NetDetector Multi
+vcr:NetVCR

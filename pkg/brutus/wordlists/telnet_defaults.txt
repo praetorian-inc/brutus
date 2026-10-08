@@ -642,3 +642,5 @@ netscreen:netscreen
 # already present: admin:password
 # DPL 0547: Network Appliance NetCache any Multi
 admin:NetCache
+# DPL 0552: Niksun NetDetector Multi
+vcr:NetVCR

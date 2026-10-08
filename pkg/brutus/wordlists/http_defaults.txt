@@ -1505,3 +1505,5 @@ netadmin:nimdaten
 # omitted: no username, so this is not a login pair
 # DPL 1147: Edimax Edimax Fast Ethernet Switch HTTP
 # already present: admin:password
+# DPL 1148: Prolink H9000 Series HTTP
+# already present: admin:password

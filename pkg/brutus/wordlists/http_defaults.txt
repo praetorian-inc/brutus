@@ -913,3 +913,5 @@ super:super
 1502:1502
 # DPL 0768: X-Micro WLAN 11b Access Point 01/02/02 Multi
 # already present: super:super
+# DPL 0771: Xylan omniswitch Multi
+admin:switch

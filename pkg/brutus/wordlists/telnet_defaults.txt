@@ -886,3 +886,5 @@ admin:2222
 # already present: admin:switch
 # DPL 0770: Xylan Omniswitch Telnet
 # already present: diag:switch
+# DPL 0771: Xylan omniswitch Multi
+# already present: admin:switch

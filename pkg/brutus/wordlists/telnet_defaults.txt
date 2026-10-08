@@ -22,3 +22,5 @@ admin:Xpon@Olt9417#
 root:admin123
 zte:zte
 GEPON:GEPON
+# DPL 0001: 3COM CoreBuilder 7000/6000/3500/2500 Telnet
+debug:synnet

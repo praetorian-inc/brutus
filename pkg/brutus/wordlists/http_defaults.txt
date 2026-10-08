@@ -1565,3 +1565,5 @@ admin:leviton
 # already present: root:
 # DPL 1182: Xerox 6204 Multi
 # omitted: no username, so this is not a login pair
+# DPL 1185: US Robotics USR5462 HTTP
+# omitted: no username, so this is not a login pair

@@ -1167,3 +1167,5 @@ root:calvin
 # already present: admin:admin
 # DPL 0935: Planet ADE-4110 HTTP
 # already present: admin:epicrouter
+# DPL 0936: Planet XRT-401D HTTP
+# already present: admin:1234

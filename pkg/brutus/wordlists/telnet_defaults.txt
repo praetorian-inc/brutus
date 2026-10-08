@@ -582,3 +582,5 @@ admin:Ascend
 # already present: root:ascend
 # DPL 0456: Lucent PSAX 1250 and above Multi
 readwrite:lucenttech1
+# DPL 0457: Lucent PSAX 1250 and above Multi
+# already present: readonly:lucenttech2

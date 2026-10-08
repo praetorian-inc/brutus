@@ -146,3 +146,5 @@
 # not sprayed: blank access type
 # DPL 0307: Flowpoint Flowpoint DSL
 # not sprayed: blank access type
+# DPL 0310: Freetech PC BIOS Console
+# not sprayed: Console

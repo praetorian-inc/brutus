@@ -496,3 +496,5 @@ MGR:HPONLY
 # already present: admin:
 # DPL 0381: IBM Ascend OEM Routers Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0382: IBM A21m Multi
+# omitted: no username, so this is not a login pair

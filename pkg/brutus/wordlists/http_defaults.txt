@@ -451,3 +451,5 @@ admin:hp.com
 # already present: admin:admin
 # DPL 0380: hp sa7200 Multi
 # already present: admin:
+# DPL 0382: IBM A21m Multi
+# omitted: no username, so this is not a login pair

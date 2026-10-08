@@ -1389,3 +1389,5 @@ Admin:
 # omitted: no username, so this is not a login pair
 # DPL 1070: TrendNET TEW-435BRM 1 HTTP
 # already present: admin:password
+# DPL 1071: Netgear RO318 Multi
+# already present: admin:1234

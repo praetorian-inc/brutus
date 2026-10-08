@@ -1152,3 +1152,5 @@ Admin:
 # omitted: no username, so this is not a login pair
 # DPL 1068: Nokia ADSL router M1921 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 1071: Netgear RO318 Multi
+# already present: admin:1234

@@ -1365,3 +1365,5 @@ admin:administrator
 # already present: admin:admin
 # DPL 1054: Sharp AR-M355N HTTP
 admin:Sharp
+# DPL 1055: Sharp MX-3501n HTTP
+# already present: Administrator:admin

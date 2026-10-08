@@ -661,3 +661,5 @@ service:smile
 root:3ep5w2u
 # DPL 0575: Nortel Meridian MAX Multi
 maint:ntacdmax
+# DPL 0576: Nortel Meridian CCR Multi
+# already present: service:smile

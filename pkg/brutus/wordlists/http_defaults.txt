@@ -447,3 +447,5 @@ MGR:HPONLY
 # omitted: no username, so this is not a login pair
 # DPL 0378: Hewlett-Packard webmin 0.84 HTTP
 admin:hp.com
+# DPL 0379: hp sa7200 Multi
+# already present: admin:admin

@@ -490,3 +490,5 @@ MGR:HPOFFICE
 MGR:HPONLY
 # DPL 0374: Hewlett-Packard LaserJet Net Printers Ones with Jetdirect on them Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0379: hp sa7200 Multi
+# already present: admin:admin

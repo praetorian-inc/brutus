@@ -516,3 +516,5 @@ vt100:public
 NICONEX:NICONEX
 # DPL 0396: Intel Express 520T Switch Multi
 setup:setup
+# DPL 0397: intel netstructure 480t Telnet
+# already present: admin:

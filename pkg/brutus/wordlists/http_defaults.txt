@@ -1467,3 +1467,5 @@ admin:12345
 admin:pfsense
 # DPL 1122: ASUS ASUS WL-330 Pocket Wireless Access Point HTTP
 # already present: admin:admin
+# DPL 1123: Planex BRL-04UR Multi
+# already present: admin:0

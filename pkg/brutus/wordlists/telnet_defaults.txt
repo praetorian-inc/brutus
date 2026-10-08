@@ -1198,3 +1198,5 @@ root:tslinux
 # omitted: no username, so this is not a login pair
 # DPL 1121: pfSense pfSense Firewall 1.0.1 Multi
 admin:pfsense
+# DPL 1123: Planex BRL-04UR Multi
+admin:0

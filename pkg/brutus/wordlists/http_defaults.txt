@@ -1449,3 +1449,5 @@ admin:OkiLAN
 # already present: admin:
 # DPL 1108: Various DD-WRT v23 SP1 Final HTTP
 # already present: root:admin
+# DPL 1110: Aztecj DSL 600EU 62.53.2 HTTP
+isp:isp

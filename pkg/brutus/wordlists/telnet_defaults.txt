@@ -890,3 +890,5 @@ admin:2222
 # already present: admin:switch
 # DPL 0785: ZyXEL Prestige Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0790: Zyxel adsl routers All ZyNOS Firmwares Multi
+# already present: admin:1234

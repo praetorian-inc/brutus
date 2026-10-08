@@ -923,3 +923,5 @@ admin:switch
 # already present: admin:1234
 # DPL 0789: Zyxel ZyWall 2 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0790: Zyxel adsl routers All ZyNOS Firmwares Multi
+# already present: admin:1234

@@ -805,3 +805,5 @@ Administrator:ganteng
 # omitted: no username, so this is not a login pair
 # DPL 0694: SmartSwitch Router 250 ssr2500 v3.0.9 Multi
 # already present: admin:
+# DPL 0695: SMC Barricade 7004 AWBR Multi
+# already present: admin:

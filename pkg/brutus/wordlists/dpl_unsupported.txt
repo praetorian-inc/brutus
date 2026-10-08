@@ -268,3 +268,5 @@
 # not sprayed: Client
 # DPL 0568: Nortel Meridian PBX Serial
 # not sprayed: Serial
+# DPL 0569: Nortel Meridian PBX Serial
+# not sprayed: Serial

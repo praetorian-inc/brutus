@@ -1487,3 +1487,5 @@ admin:adslroot
 # already present: admin:1234
 # DPL 1133: SMC SMCWBR14-G HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1135: linksys wrt54g Multi
+# already present: admin:admin

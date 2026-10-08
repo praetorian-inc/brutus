@@ -1210,3 +1210,5 @@ admin:adslroot
 # already present: admin:admin
 # DPL 1131: cisco 2600 router Telnet
 cisco:
+# DPL 1135: linksys wrt54g Multi
+# already present: admin:admin

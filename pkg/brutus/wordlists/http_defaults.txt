@@ -849,3 +849,5 @@ aaa:often blank
 # already present: Administrator:
 # DPL 0723: Teklogix Accesspoint Multi
 # already present: Administrator:
+# DPL 0724: Teledat Routers HTTP
+# already present: admin:1234

@@ -38,3 +38,5 @@
 # not sprayed: console
 # DPL 0112: Alteon AD4 9 Console
 # not sprayed: Console
+# DPL 0118: Andover Controls Infinity any Console
+# not sprayed: Console

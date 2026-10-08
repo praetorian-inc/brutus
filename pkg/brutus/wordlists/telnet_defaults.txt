@@ -1002,3 +1002,5 @@ admin:michelangelo
 tiger:tiger123
 # DPL 0895: Pentaoffice Sat Router Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0896: Pirelli AGE ADSL Router Multi
+# already present: admin:microbusiness

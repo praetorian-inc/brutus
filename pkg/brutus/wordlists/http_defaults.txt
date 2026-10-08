@@ -1093,3 +1093,5 @@ admin:michelangelo
 # already present: user:password
 # DPL 0894: Enterasys Vertical Horizon VH-2402S Multi
 tiger:tiger123
+# DPL 0896: Pirelli AGE ADSL Router Multi
+# already present: admin:microbusiness

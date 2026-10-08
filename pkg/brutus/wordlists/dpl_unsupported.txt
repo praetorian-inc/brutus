@@ -124,3 +124,5 @@
 # not sprayed: blank access type
 # DPL 0238: Develcon Orbitor Default Console
 # not sprayed: blank access type
+# DPL 0239: Dictaphone ProLog
+# not sprayed: blank access type

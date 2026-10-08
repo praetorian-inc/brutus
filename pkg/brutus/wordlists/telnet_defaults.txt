@@ -1028,3 +1028,5 @@ admin:sysAdmin
 # already present: admin:epicrouter
 # DPL 0912: ovislink WL-1120AP Multi
 # already present: root:
+# DPL 0914: canyon router Multi
+# already present: Administrator:admin

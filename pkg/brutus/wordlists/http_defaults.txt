@@ -1127,3 +1127,5 @@ admin:sysAdmin
 # already present: root:
 # DPL 0913: Linksys WRT54G All Revisions HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0914: canyon router Multi
+# already present: Administrator:admin

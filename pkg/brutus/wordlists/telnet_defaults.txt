@@ -556,3 +556,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0431: latis network border guard Multi
 # omitted: no username, so this is not a login pair
+# DPL 0432: Linksys WAP11 Multi
+# omitted: no username, so this is not a login pair

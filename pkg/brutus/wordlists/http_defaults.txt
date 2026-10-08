@@ -1435,3 +1435,5 @@ scout:scout
 # already present: admin:admin
 # DPL 1101: Comtrend ct-536+ HTTP
 # already present: admin:1234
+# DPL 1102: 2wire wifi routers n/a HTTP
+# omitted: no username, so this is not a login pair

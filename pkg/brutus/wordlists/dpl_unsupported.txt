@@ -454,3 +454,5 @@
 # not sprayed: Lilo boot
 # DPL 1156: HP t5000 Thin Client series Console
 # not sprayed: Console
+# DPL 1194: Lucent Cellpipe 20A-GX-UK Console
+# not sprayed: Console

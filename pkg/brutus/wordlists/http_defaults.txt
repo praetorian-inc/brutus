@@ -1245,3 +1245,5 @@ Manager:friend
 # already present: admin:password
 # DPL 0982: D-Link DI-524 all HTTP
 # already present: user:
+# DPL 0983: Ricoh AP410N 1.13 HTTP
+# already present: admin:

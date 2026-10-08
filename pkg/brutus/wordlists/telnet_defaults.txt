@@ -684,3 +684,5 @@ maint:ntacdmax
 ccrusr:ccrusr
 # DPL 0580: Nortel Meridian Multi
 # omitted: no username, so this is not a login pair
+# DPL 0581: Nortel Meridian Link Multi
+# already present: service:smile

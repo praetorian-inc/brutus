@@ -1483,3 +1483,5 @@ root:0P3N
 admin:adslroot
 # DPL 1130: Intracom jetSpeed 520/520i Multi
 # already present: admin:admin
+# DPL 1132: Edimax EW-7206APG HTTP
+# already present: admin:1234

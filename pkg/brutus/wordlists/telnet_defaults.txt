@@ -648,3 +648,5 @@ vcr:NetVCR
 m1122:m1122
 # DPL 0556: Nokia MW1122 Multi
 telecom:telecom
+# DPL 0557: Nortel Meridian Link Multi
+disttech:4tas

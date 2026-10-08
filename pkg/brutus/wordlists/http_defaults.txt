@@ -205,3 +205,5 @@ netrangr:attack
 Administrator:changeme
 # DPL 0202: Cisco Netranger/secure IDS 3.0(5)S17 Multi
 root:attack
+# DPL 0206: Cisco VPN Concentrator 3000 series 3 Multi
+# already present: admin:admin

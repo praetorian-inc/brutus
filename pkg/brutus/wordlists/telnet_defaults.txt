@@ -274,3 +274,5 @@ Administrator:changeme
 root:attack
 # DPL 0205: Cisco PIX firewall Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0206: Cisco VPN Concentrator 3000 series 3 Multi
+# already present: admin:admin

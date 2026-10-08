@@ -991,3 +991,5 @@ Administrator:password
 # omitted: no username, so this is not a login pair
 # DPL 0831: IBM Infoprint 6700 http://www.phenoelit.de/dpl/dpl.html Multi
 # already present: root:
+# DPL 0832: ASUS WL-500G 1.7.5.6 HTTP
+# already present: admin:admin

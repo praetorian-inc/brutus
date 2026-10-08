@@ -1033,3 +1033,5 @@ admin:22222
 webadmin:1234
 # DPL 0860: NRG or RICOH DSc338 Printer 1.19 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0861: Xerox Document Centre 405 - HTTP
+# already present: admin:admin

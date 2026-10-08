@@ -73,3 +73,5 @@ Root:
 # omitted: no username, so this is not a login pair
 # DPL 0059: 3com 3CRADSL72 1.2 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0061: 3com officeconnect Multi
+# omitted: no username, so this is not a login pair

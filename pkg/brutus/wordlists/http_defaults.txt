@@ -1319,3 +1319,5 @@ superman:talent
 # already present: admin:password
 # DPL 1022: SSA BPCS Up to 5.02 Multi
 SSA:SSA
+# DPL 1023: Minolta PagrPro QMS 4100GN PagePro HTTP
+# omitted: no username, so this is not a login pair

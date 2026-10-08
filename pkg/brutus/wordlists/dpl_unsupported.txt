@@ -348,3 +348,5 @@
 # not sprayed: Console
 # DPL 0692: sitara qosworks Console
 # not sprayed: Console
+# DPL 0705: Snapgear Pro Lite and SOHO
+# not sprayed: and SOHO

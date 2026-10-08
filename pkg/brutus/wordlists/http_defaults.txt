@@ -725,3 +725,5 @@ user:password
 Polycom:SpIp
 # DPL 0628: Polycom ViewStation 4000 3.5 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0629: Polycom iPower 9000 Multi
+# omitted: no username, so this is not a login pair

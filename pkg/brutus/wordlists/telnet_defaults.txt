@@ -204,3 +204,5 @@ readonly:lucenttech2
 # omitted: no username, so this is not a login pair
 # DPL 0135: Ascend Sahara Multi
 root:ascend
+# DPL 0136: Ascom Ascotel PBX ALL Multi
+# omitted: no username, so this is not a login pair

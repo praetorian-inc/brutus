@@ -1060,3 +1060,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0948: LG LAM200E / LAM200R Multi
 # already present: admin:epicrouter
+# DPL 0949: Linksys AG 241 - ADSL2 Gateway with 4-Port Switch Multi
+# already present: admin:admin

@@ -1008,3 +1008,5 @@ tiger:tiger123
 # already present: user:password
 # DPL 0898: System/32 VOS Multi
 install:secret
+# DPL 0899: Tandem TACL Multi
+super.super:

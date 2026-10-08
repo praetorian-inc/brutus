@@ -1533,3 +1533,5 @@ Service:5678
 # already present: admin:admin
 # DPL 1164: Inventel Livebox Multi
 # already present: admin:admin
+# DPL 1166: D-Link G624T Multi
+# already present: admin:admin

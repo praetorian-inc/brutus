@@ -1236,3 +1236,5 @@ Service:5678
 # already present: admin:admin
 # DPL 1165: INOVA ONT4BKP (IP clock) all Telnet
 iclock:timely
+# DPL 1166: D-Link G624T Multi
+# already present: admin:admin

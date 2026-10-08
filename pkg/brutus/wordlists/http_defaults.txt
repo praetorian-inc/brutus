@@ -1027,3 +1027,5 @@ scmadmin:scmchangeme
 admin:22222
 # DPL 0855: NOKIA 7360 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0856: Advantek Networks Wireless LAN 802.11 g/b Multi
+# already present: admin:

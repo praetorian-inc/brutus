@@ -78,3 +78,5 @@
 # not sprayed: blank access type
 # DPL 0187: Cabletron Netgear modem/router and SSR
 # not sprayed: blank access type
+# DPL 0188: Cayman Cayman DSL
+# not sprayed: blank access type

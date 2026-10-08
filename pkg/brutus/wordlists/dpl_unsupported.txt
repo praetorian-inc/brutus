@@ -94,3 +94,5 @@
 # not sprayed: Telnet or Named Pipes
 # DPL 0203: Cisco BBSM MSDE Administrator 5.0 and 5.1 IP and Named Pipes
 # not sprayed: IP and Named Pipes
+# DPL 0211: Cisco CiscoWorks 2000
+# not sprayed: blank access type

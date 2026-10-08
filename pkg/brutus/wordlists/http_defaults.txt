@@ -283,3 +283,5 @@ User:
 # already present: admin:admin
 # DPL 0274: Draytek Vigor all HTTP
 # already present: admin:admin
+# DPL 0275: Dynalink RTA230 Multi
+# already present: admin:admin

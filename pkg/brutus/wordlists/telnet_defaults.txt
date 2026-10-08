@@ -326,3 +326,5 @@ user:
 # already present: admin:
 # DPL 0270: D-Link DSL-302G Multi
 # already present: admin:admin
+# DPL 0275: Dynalink RTA230 Multi
+# already present: admin:admin

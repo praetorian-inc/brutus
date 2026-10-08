@@ -84,3 +84,5 @@ manager:manager
 # already present: root:
 # DPL 0036: 3com Netbuilder Multi
 # already present: admin:
+# DPL 0037: 3com cellplex 7000 Telnet
+# already present: operator:

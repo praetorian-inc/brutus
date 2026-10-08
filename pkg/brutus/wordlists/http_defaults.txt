@@ -1403,3 +1403,5 @@ Admin:123456
 11111:x-admin
 # DPL 1078: Sharp AL-1655CS HTTP
 # already present: admin:Sharp
+# DPL 1079: 3Com 3CRWDR100A-72 2.06 (Sep 21 2005 14:24:48) HTTP
+admin:1234admin

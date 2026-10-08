@@ -448,3 +448,5 @@
 # not sprayed: Console
 # DPL 1144: Fortinet Fortigate Console
 # not sprayed: Console
+# DPL 1145: Fortinet Fortigate Console
+# not sprayed: Console

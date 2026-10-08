@@ -138,3 +138,5 @@
 # not sprayed: blank access type
 # DPL 0282: Efficient Networks Speedstream 5711 Teledanmark version (only .dk) Console
 # not sprayed: Console
+# DPL 0284: Efficient Networks 5851 SDSL Router N/A Console
+# not sprayed: Console

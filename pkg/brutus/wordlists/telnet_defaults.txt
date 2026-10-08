@@ -1128,3 +1128,5 @@ cusadmin:highspeed
 # omitted: no username, so this is not a login pair
 # DPL 1037: SMC smc7904wbrb Multi
 # omitted: no username, so this is not a login pair
+# DPL 1041: Ericsson MD110 Telnet
+MD110:help

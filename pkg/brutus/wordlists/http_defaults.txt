@@ -893,3 +893,5 @@ Any:12345
 # already present: admin:
 # DPL 0755: Wyse winterm Multi
 # already present: root:
+# DPL 0759: xd xdd xddd Multi
+xd:xd

@@ -90,3 +90,5 @@ manager:manager
 # already present: admin:
 # DPL 0039: 3com cellplex Multi
 # already present: admin:admin
+# DPL 0040: 3com HiPerACT v4.1.x Telnet
+# already present: admin:

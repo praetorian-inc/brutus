@@ -801,3 +801,5 @@ ADMN:admn
 Administrator:ganteng
 # DPL 0691: silex technology PRICOM (Printserver) Multi
 # already present: root:
+# DPL 0693: Sitecom All WiFi routers Multi
+# omitted: no username, so this is not a login pair

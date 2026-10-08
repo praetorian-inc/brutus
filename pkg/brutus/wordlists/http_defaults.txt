@@ -91,3 +91,5 @@ Root:
 # already present: admin:
 # DPL 0073: ADIC Scalar 100/1000 HTTP
 admin:secure
+# DPL 0074: ADIC Scalar i2000 Multi
+# already present: admin:password

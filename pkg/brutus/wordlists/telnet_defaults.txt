@@ -526,3 +526,5 @@ admin:hello
 # already present: admin:hello
 # DPL 0404: Interbase Interbase Database Server All Multi
 SYSDBA:masterkey
+# DPL 0405: Intermec Mobile LAN 5.25 Multi
+intermec:intermec

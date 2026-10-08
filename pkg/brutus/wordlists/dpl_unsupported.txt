@@ -290,3 +290,5 @@
 # not sprayed: Manager
 # DPL 0607: Osicom NETCommuter Telnet sysadm
 # not sprayed: sysadm
+# DPL 0608: Osicom Osicom Plus T1/PLUS 56k
+# not sprayed: blank access type

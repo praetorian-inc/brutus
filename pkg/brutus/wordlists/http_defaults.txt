@@ -1119,3 +1119,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0909: asmack router ar804u HTTP
 # already present: admin:epicrouter
+# DPL 0910: JAHT adsl router AR41/2A HTTP
+# already present: admin:epicrouter

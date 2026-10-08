@@ -360,3 +360,5 @@
 # not sprayed: blank access type
 # DPL 0747: Visual Networks Visual Uptime T1 CSU/DSU 1 Console
 # not sprayed: Console
+# DPL 0752: Wyse Winterm 5440XL Console
+# not sprayed: Console

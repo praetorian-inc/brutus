@@ -189,3 +189,5 @@ root:fivranne
 # already present: admin:password
 # DPL 0185: Brother HL-1270n Multi
 # omitted: no username, so this is not a login pair
+# DPL 0186: Buffalo Wireless Broadband Base Station-g WLA-G54 WBR-G54 HTTP
+# already present: root:

@@ -26,3 +26,5 @@ secret
 ANYCOM
 # DPL 0008: 3COM NetBuilder SNMP
 ILMI
+# DPL 0023: 3com NetBuilder SNMP
+# already present: admin

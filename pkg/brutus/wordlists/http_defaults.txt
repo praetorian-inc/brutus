@@ -983,3 +983,5 @@ admin:hagpolm1
 # already present: admin:admin
 # DPL 0825: Pirelli Pirelli AGE-SB HTTP
 admin:smallbusiness
+# DPL 0826: McData FC Switches/Directors Multi
+Administrator:password

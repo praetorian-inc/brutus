@@ -920,3 +920,5 @@ dadmin:dadmin01
 # already present: root:admin
 # DPL 0824: Wanadoo Livebox Multi
 # already present: admin:admin
+# DPL 0826: McData FC Switches/Directors Multi
+Administrator:password

@@ -150,3 +150,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0081: adtran Express 5110/5200/5210 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0082: adtran Agent Card Telnet
+# omitted: no username, so this is not a login pair

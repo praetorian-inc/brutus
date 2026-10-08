@@ -112,3 +112,5 @@ manager:manager
 # already present: admin:admin
 # DPL 0053: 3com HiPerACT v4.1.x Telnet
 # already present: admin:
+# DPL 0055: 3com CellPlex 7000 Telnet
+# already present: tech:

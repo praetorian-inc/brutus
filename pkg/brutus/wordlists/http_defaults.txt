@@ -311,3 +311,5 @@ admin:epicrouter
 # already present: admin:admin
 # DPL 0298: EverFocus PowerPlex EDR1600 Multi
 supervisor:supervisor
+# DPL 0299: EverFocus PowerPlex EDR1600 Multi
+operator:operator

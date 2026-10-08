@@ -1006,3 +1006,5 @@ tiger:tiger123
 # already present: admin:microbusiness
 # DPL 0897: Pirelli AGE ADSL Router Multi
 # already present: user:password
+# DPL 0898: System/32 VOS Multi
+install:secret

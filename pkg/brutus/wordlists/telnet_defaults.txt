@@ -168,3 +168,5 @@ diag:switch
 # omitted: no username, so this is not a login pair
 # DPL 0102: Allied Telesyn Multi
 manager:friend
+# DPL 0110: Alteon ACEswitch 180e Telnet
+# already present: admin:

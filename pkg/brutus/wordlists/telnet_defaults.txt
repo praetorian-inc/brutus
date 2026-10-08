@@ -250,3 +250,5 @@ admin:bintec
 patrol:patrol
 # DPL 0180: Brocade Fabric OS All Multi
 root:fivranne
+# DPL 0181: Brocade Silkworm all Multi
+# already present: admin:password

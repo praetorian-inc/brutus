@@ -1547,3 +1547,5 @@ supervisor:
 # already present: Administrator:admin
 # DPL 1172: Comcast Home Networking Comcast Home Networking ALL HTTP
 comcast:
+# DPL 1173: SMC SMC8013WG-CCR 2.11.19-1d HTTP
+mso:w0rkplac3rul3s

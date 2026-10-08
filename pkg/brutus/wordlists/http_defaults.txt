@@ -1601,3 +1601,5 @@ admin:draadloos
 # already present: admin:password
 # DPL 1207: Motorola SURFboard SBV5120 HTTP
 # already present: admin:motorola
+# DPL 1208: linksys BEFW11S4 2 Multi
+# omitted: no username, so this is not a login pair

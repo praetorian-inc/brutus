@@ -1278,3 +1278,5 @@ images:images
 # already present: admin:
 # DPL 1205: Zyxel Prestige 650HW31 31 Telnet
 192.168.1.1 60020:@dsl_xilno
+# DPL 1208: linksys BEFW11S4 2 Multi
+# omitted: no username, so this is not a login pair

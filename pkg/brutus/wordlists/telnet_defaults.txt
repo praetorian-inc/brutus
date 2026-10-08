@@ -362,3 +362,5 @@ operator:operator
 root:default
 # DPL 0302: F5-Networks BIGIP Multi
 # omitted: no username, so this is not a login pair
+# DPL 0303: Flowpoint 2200 SDSL Telnet
+# already present: admin:admin

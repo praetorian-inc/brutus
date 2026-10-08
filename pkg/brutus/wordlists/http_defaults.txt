@@ -965,3 +965,5 @@ system/manager:sys/change_on_install
 # already present: admin:0
 # DPL 0812: Pansonic KXTD1232 Multi
 # already present: admin:1234
+# DPL 0814: Avaya Definity Multi
+dadmin:dadmin01

@@ -1585,3 +1585,5 @@ admin:leviton
 images:images
 # DPL 1195: Buffalo Technology TeraStation Multi
 # already present: admin:password
+# DPL 1197: Thomson TCW-710 Multi
+# omitted: no username, so this is not a login pair

@@ -1270,3 +1270,5 @@ images:images
 # already present: admin:password
 # DPL 1196: linksys wag354g Telnet
 # already present: admin:admin
+# DPL 1197: Thomson TCW-710 Multi
+# omitted: no username, so this is not a login pair

@@ -1148,3 +1148,5 @@ Admin:
 # already present: admin:password
 # DPL 1063: D-Link DI-634M Multi
 # already present: admin:
+# DPL 1067: Nokia M1921 Telnet
+# omitted: no username, so this is not a login pair

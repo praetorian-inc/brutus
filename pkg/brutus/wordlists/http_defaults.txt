@@ -1413,3 +1413,5 @@ CISCO15:otbu+1
 # already present: Admin:
 # DPL 1086: digicom Wavegate 54C HTTP
 # already present: Admin:
+# DPL 1088: Sparklan Wx-6215 D and G HTTP
+# already present: admin:admin

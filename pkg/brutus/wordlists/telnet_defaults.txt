@@ -1254,3 +1254,5 @@ admin:leviton
 # already present: Manager:
 # DPL 1182: Xerox 6204 Multi
 # omitted: no username, so this is not a login pair
+# DPL 1183: iDirect iNFINITY series 3000/5000/7000 Telnet
+admin:P@55w0rd!

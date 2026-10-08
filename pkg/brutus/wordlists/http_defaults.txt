@@ -953,3 +953,5 @@ admin:isee
 # already present: admin:admin
 # DPL 0805: Ricoh Aficio 2228c Multi
 # already present: sysadmin:password
+# DPL 0806: Linksys WAP54G 2 HTTP
+# omitted: no username, so this is not a login pair

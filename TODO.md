@@ -189,6 +189,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `pinecone` — detected from Pinecone API headers. Auth is an API key, not a password form. No template — `pinecone.go`
 - [x] `litellm` — `/health/liveliness` is an open liveness check, not a password form. No template — `litellm.go`
 
+- [x] `cups` — Basic Auth on `/admin/conf` when it challenges (detection `Server: CUPS/<version>`; `olbat/cupsd` ships `print:print`) — `cups.go`
+
 ## Order
 
 1. Template schema, Nerva match, and one executor test.

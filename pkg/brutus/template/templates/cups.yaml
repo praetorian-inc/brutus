@@ -1,0 +1,12 @@
+# Lab: docker run -d --name cups --platform linux/amd64 -p 631:631 olbat/cupsd
+# The image creates user print with password print (see its Dockerfile). Upstream CUPS has no baked-in web password.
+# GET /admin is open. GET /admin/conf and /admin/log challenge with Basic realm="CUPS".
+# print:print is 200. A wrong password and a missing Authorization header are 401.
+# An open 200 page is not a hit. Server header is "CUPS/<version> IPP/2.1".
+id: cups
+name: CUPS
+nerva: [cups]
+method: basic
+path: /admin/conf
+creds:
+  - "print:print"

@@ -154,3 +154,5 @@
 # not sprayed: Proprietary
 # DPL 0377: Hewlett-Packard LaserJet Net Printers Ones with Jetdirect on them 9100
 # not sprayed: 9100
+# DPL 0386: IBM 8239 Token Ring HUB 2.5 Console
+# not sprayed: Console

@@ -925,3 +925,5 @@ admin:switch
 # omitted: no username, so this is not a login pair
 # DPL 0790: Zyxel adsl routers All ZyNOS Firmwares Multi
 # already present: admin:1234
+# DPL 0791: ZyXEL Prestige 650 Multi
+1234:1234

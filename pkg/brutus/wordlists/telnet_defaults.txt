@@ -334,3 +334,5 @@ guest:
 # omitted: no username, so this is not a login pair
 # DPL 0279: Efficient 5871 DSL Router v 5.3.3-0 Multi
 login:admin
+# DPL 0280: Efficient 5851 Telnet
+login:password

@@ -456,3 +456,5 @@
 # not sprayed: Console
 # DPL 1194: Lucent Cellpipe 20A-GX-UK Console
 # not sprayed: Console
+# DPL 1199: Cisco PIX 6.3 Console
+# not sprayed: Console

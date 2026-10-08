@@ -1485,3 +1485,5 @@ admin:adslroot
 # already present: admin:admin
 # DPL 1132: Edimax EW-7206APG HTTP
 # already present: admin:1234
+# DPL 1133: SMC SMCWBR14-G HTTP
+# omitted: no username, so this is not a login pair

@@ -1255,3 +1255,5 @@ Administrator:3ware
 # omitted: no username, so this is not a login pair
 # DPL 0988: CTC Union ATU-R130 81001a Multi
 # already present: root:root
+# DPL 0989: 3Com Shark Fin Comcast-supplied HTTP
+User:Password

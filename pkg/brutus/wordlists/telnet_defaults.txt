@@ -990,3 +990,5 @@ installer:installer
 root:blender
 # DPL 0889: Cisco HSE Multi
 hsa:hsadb
+# DPL 0890: Cisco WLSE Multi
+# already present: root:blender

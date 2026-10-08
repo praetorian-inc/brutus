@@ -524,3 +524,5 @@ setup:setup
 admin:hello
 # DPL 0403: Intel/Shiva Access Port All Telnet
 # already present: admin:hello
+# DPL 0404: Interbase Interbase Database Server All Multi
+SYSDBA:masterkey

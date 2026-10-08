@@ -477,3 +477,5 @@ setup:setup
 # omitted: no username, so this is not a login pair
 # DPL 0399: Intel Wireless Gateway 3.x HTTP
 intel:intel
+# DPL 0404: Interbase Interbase Database Server All Multi
+SYSDBA:masterkey

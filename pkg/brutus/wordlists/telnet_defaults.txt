@@ -726,3 +726,5 @@ write:private
 # already present: sysadm:sysadm
 # DPL 0613: Osicom JETXPrint 500 E/B Telnet
 # already present: sysadm:sysadm
+# DPL 0616: Panasonic CF-28 Multi
+# omitted: no username, so this is not a login pair

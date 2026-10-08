@@ -703,3 +703,5 @@ helpdesk:OCS
 sys:uplink
 # DPL 0599: Openwave MSP Any HTTP
 cac_admin:cacadmin
+# DPL 0616: Panasonic CF-28 Multi
+# omitted: no username, so this is not a login pair

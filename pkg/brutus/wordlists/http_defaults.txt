@@ -263,3 +263,5 @@ User:
 # already present: admin:admin
 # DPL 0264: D-Link DWL 1000 HTTP
 # already present: admin:
+# DPL 0265: D-Link DI-514 Multi
+# already present: user:

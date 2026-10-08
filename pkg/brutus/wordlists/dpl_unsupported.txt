@@ -252,3 +252,5 @@
 # not sprayed: blank access type
 # DPL 0511: NAI Intrushield IPS 1200/2600/4000 SSH + Web console
 # not sprayed: SSH + Web console
+# DPL 0512: NAI Entercept Management console
+# not sprayed: Management console

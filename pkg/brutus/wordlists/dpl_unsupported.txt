@@ -32,3 +32,5 @@
 # not sprayed: Port 2533
 # DPL 0100: Alcatel Timestep VPN 1520 3.00.026 Permit config and console
 # not sprayed: Permit config and console
+# DPL 0103: Allied Telesyn AT-8024(GB) Console
+# not sprayed: Console

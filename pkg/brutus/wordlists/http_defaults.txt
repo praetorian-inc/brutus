@@ -1157,3 +1157,5 @@ Administrator:pilou
 # omitted: no username, so this is not a login pair
 # DPL 0930: Dell Remote Access Card HTTP
 root:calvin
+# DPL 0931: d-link di-524 HTTP
+# already present: admin:

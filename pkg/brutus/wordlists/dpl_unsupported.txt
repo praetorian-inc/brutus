@@ -366,3 +366,5 @@
 # not sprayed: BIOS
 # DPL 0757: Xavi 7000-ABA-ST1 Console
 # not sprayed: Console
+# DPL 0758: Xavi 7001 Console
+# not sprayed: Console

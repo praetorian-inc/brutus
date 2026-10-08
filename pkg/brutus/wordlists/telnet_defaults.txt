@@ -904,3 +904,5 @@ admin:isee
 sysadmin:password
 # DPL 0807: Westell Wirespeed Multi
 # already present: admin:password
+# DPL 0808: Konica Minolta magicolor 2430DL All Multi
+# omitted: no username, so this is not a login pair

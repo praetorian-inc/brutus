@@ -14,3 +14,5 @@ anonymous:ftp
 test:test
 upload:upload
 backup:backup
+# DPL 0229: Datawizard.net FTPXQ server FTP
+anonymous:any@

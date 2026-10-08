@@ -1132,3 +1132,5 @@ cusadmin:highspeed
 MD110:help
 # DPL 1043: Cisco Cisco Wireless Location Appliance 2700 Series prior to 2.1.34.0 Multi
 # already present: root:password
+# DPL 1049: draytek Vigor3300 series Telnet
+draytek:1234

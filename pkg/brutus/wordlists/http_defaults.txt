@@ -1293,3 +1293,5 @@ root:the 6 last digit of the MAC adress
 user:tivonpw
 # DPL 1008: samsung modem/router aht-e300 Multi
 # omitted: the list says this resets or initializes passwords
+# DPL 1009: mediatrix 2102 mediatrix 2102 HTTP
+# already present: admin:1234

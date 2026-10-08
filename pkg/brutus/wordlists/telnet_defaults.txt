@@ -58,3 +58,5 @@ operator:
 security:security
 # DPL 0021: 3COM LANplex 2500 Telnet
 tech:
+# DPL 0024: 3COM SuperStack II Switch 2700 Telnet
+# already present: tech:tech

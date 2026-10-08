@@ -372,3 +372,5 @@
 # not sprayed: Port 7000
 # DPL 0773: Xyplex Terminal Server Port 7000
 # not sprayed: Port 7000
+# DPL 0774: Xyplex Terminal Server Port 7000
+# not sprayed: Port 7000

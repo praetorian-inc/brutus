@@ -190,3 +190,5 @@
 # not sprayed: Console
 # DPL 0459: Lucent Anymedia Console
 # not sprayed: Console
+# DPL 0461: Lucent Cellpipe 22A-BX-AR USB D Console
+# not sprayed: Console

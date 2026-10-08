@@ -157,3 +157,5 @@ manuf:xxyyzz
 # already present: diag:danger
 # DPL 0147: Avaya Pxxx 05/02/14 Multi
 # already present: manuf:xxyyzz
+# DPL 0149: Avaya definity up to rev. 6 any
+craft:crftpw

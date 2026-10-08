@@ -356,3 +356,5 @@
 # not sprayed: AdminSrv
 # DPL 0731: Tiara 1400 3.x Console
 # not sprayed: Console
+# DPL 0745: Verifone Verifone Junior 2.05
+# not sprayed: blank access type

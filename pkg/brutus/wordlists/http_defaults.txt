@@ -1425,3 +1425,5 @@ scout:scout
 # already present: admin:
 # DPL 1094: Dell PowerConnect 2724 HTTP
 # already present: admin:
+# DPL 1096: DIGICOM Michelangelo Wave108 HTTP
+# already present: root:admin

@@ -87,3 +87,5 @@ Root:
 # omitted: no username, so this is not a login pair
 # DPL 0070: Aceex Modem ADSL Router HTTP
 # already present: admin:
+# DPL 0071: Aceex Modem ADSL Router HTTP
+# already present: admin:

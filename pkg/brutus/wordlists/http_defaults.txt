@@ -1269,3 +1269,5 @@ comcast:1234
 # already present: comcast:1234
 # DPL 0995: Zyxel Prestige 660HW Multi
 # already present: admin:admin
+# DPL 0996: Atlantis A02-RA141 Multi
+admin:atlantis

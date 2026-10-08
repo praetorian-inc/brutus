@@ -629,3 +629,5 @@ e500:e500changeme
 e250:e250changeme
 # DPL 0550: NGSec NGSecureWeb HTTP
 # already present: admin:
+# DPL 0551: NGSec NGSecureWeb HTTP
+admin:asd

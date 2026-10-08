@@ -691,3 +691,5 @@ admin:adslolitec
 admin:OCS
 # DPL 0593: OpenConnect OC://WebConnect Pro Multi
 adminstat:OCS
+# DPL 0594: OpenConnect OC://WebConnect Pro Multi
+adminview:OCS

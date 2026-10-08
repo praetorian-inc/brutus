@@ -738,3 +738,5 @@ write:private
 admin:mu
 # DPL 0623: Pirelli Pirelli Router Multi
 admin:microbusiness
+# DPL 0624: Pirelli Pirelli Router Multi
+user:password

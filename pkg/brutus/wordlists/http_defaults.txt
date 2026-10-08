@@ -1029,3 +1029,5 @@ admin:22222
 # omitted: no username, so this is not a login pair
 # DPL 0856: Advantek Networks Wireless LAN 802.11 g/b Multi
 # already present: admin:
+# DPL 0857: ZyXEL Prestige 900 HTTP
+webadmin:1234

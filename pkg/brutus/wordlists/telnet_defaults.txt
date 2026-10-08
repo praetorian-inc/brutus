@@ -1122,3 +1122,5 @@ SSA:SSA
 cusadmin:highspeed
 # DPL 1029: Brother NC-2100p Multi
 # omitted: no username, so this is not a login pair
+# DPL 1030: Signamax 065-7726S Multi
+# already present: admin:admin

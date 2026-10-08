@@ -1417,3 +1417,5 @@ CISCO15:otbu+1
 # already present: admin:admin
 # DPL 1089: Applied Innovations AIscout Multi
 scout:scout
+# DPL 1090: Planet WAP 4000 Multi
+# already present: admin:admin

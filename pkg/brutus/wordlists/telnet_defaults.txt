@@ -76,3 +76,5 @@ root:
 # already present: admin:admin
 # DPL 0032: 3COM SuperStack 3 4XXX Multi
 # already present: admin:
+# DPL 0033: 3COM SuperStack 3 4XXX Multi
+monitor:monitor

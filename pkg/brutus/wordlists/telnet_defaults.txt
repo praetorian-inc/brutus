@@ -202,3 +202,5 @@ superuser:
 readonly:lucenttech2
 # DPL 0134: Ascend Router Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0135: Ascend Sahara Multi
+root:ascend

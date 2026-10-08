@@ -139,3 +139,5 @@ IntraSwitch:Asante
 IntraStack:Asante
 # DPL 0133: Ascend Yurie Multi
 readonly:lucenttech2
+# DPL 0135: Ascend Sahara Multi
+root:ascend

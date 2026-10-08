@@ -430,3 +430,5 @@
 # not sprayed: HTTPS (8082)
 # DPL 1057: Cisco MeetingPlace Console
 # not sprayed: Console
+# DPL 1073: Alcatel 7300 ASAM TL1
+# not sprayed: TL1

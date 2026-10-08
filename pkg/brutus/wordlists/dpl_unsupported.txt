@@ -420,3 +420,5 @@
 # not sprayed: Console
 # DPL 1026: Cisco WSLE all all
 # not sprayed: all
+# DPL 1027: Cisco WLSE all Console
+# not sprayed: Console

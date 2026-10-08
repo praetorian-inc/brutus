@@ -630,3 +630,5 @@ netopia:netopia
 admin:noway
 # DPL 0540: Netport Express 10/100 multi
 # already present: setup:setup
+# DPL 0541: Netscreen Firewall multi
+netscreen:netscreen

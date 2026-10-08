@@ -243,3 +243,5 @@ user:
 # already present: admin:
 # DPL 0254: D-link DWL-900AP+ rev a rev b rev c HTTP
 # already present: admin:
+# DPL 0255: D-Link DI-604 rev a rev b rev c rev e Multi
+# already present: admin:

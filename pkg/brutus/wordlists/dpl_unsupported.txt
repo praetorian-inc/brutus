@@ -308,3 +308,5 @@
 # not sprayed: blank access type
 # DPL 0640: Research PC BIOS Console
 # not sprayed: Console
+# DPL 0641: Research BIOS Console
+# not sprayed: Console

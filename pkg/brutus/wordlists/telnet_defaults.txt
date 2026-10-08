@@ -958,3 +958,5 @@ scmadmin:scmchangeme
 corecess:corecess
 # DPL 0863: SMC Router/Modem BR7401 Multi
 admin:barricade
+# DPL 0864: Netgear Router/Modem Multi
+# already present: admin:password

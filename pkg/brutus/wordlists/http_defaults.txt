@@ -1039,3 +1039,5 @@ webadmin:1234
 # omitted: no username, so this is not a login pair
 # DPL 0863: SMC Router/Modem BR7401 Multi
 # already present: admin:barricade
+# DPL 0864: Netgear Router/Modem Multi
+# already present: admin:password

@@ -191,3 +191,5 @@ root:fivranne
 # omitted: no username, so this is not a login pair
 # DPL 0186: Buffalo Wireless Broadband Base Station-g WLA-G54 WBR-G54 HTTP
 # already present: root:
+# DPL 0189: Celerity Mediator Multi Multi
+mediator:mediator

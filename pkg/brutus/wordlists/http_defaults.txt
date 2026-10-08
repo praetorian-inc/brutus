@@ -1423,3 +1423,5 @@ scout:scout
 # already present: admin:admin
 # DPL 1092: Lanier Digital Imager LD124c HTTP
 # already present: admin:
+# DPL 1094: Dell PowerConnect 2724 HTTP
+# already present: admin:

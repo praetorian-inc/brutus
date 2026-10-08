@@ -82,3 +82,5 @@
 # not sprayed: blank access type
 # DPL 0192: Checkpoint SecurePlatform NG FP3 Console
 # not sprayed: Console
+# DPL 0194: CISCO Cache Engine Console
+# not sprayed: Console

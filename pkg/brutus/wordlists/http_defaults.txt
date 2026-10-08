@@ -69,3 +69,5 @@ Root:
 # already present: admin:admin
 # DPL 0056: 3com Switch 3300XM Multi
 # already present: admin:admin
+# DPL 0058: 3com OfficeConnect Wireless 11g Cable/DSL Gateway HTTP
+# omitted: no username, so this is not a login pair

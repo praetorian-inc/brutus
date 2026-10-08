@@ -366,3 +366,5 @@ root:default
 # already present: admin:admin
 # DPL 0304: Flowpoint DSL Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0305: Flowpoint 100 IDSN Telnet
+# already present: admin:admin

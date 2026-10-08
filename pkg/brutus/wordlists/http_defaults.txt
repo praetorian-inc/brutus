@@ -585,3 +585,5 @@ SYSADM:sysadm
 # already present: admin:admin
 # DPL 0519: Netgear RP614 HTTP
 # already present: admin:password
+# DPL 0521: Netgear WG602 Firmware Version 1.04.0 HTTP
+super:5777364

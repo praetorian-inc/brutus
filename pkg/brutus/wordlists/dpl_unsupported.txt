@@ -118,3 +118,5 @@
 # not sprayed: console + passport1
 # DPL 0228: Datacom BSASX/101
 # not sprayed: blank access type
+# DPL 0233: Davox Unison Sybase
+# not sprayed: Sybase

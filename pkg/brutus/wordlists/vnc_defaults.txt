@@ -19,3 +19,5 @@
 :00000000
 # DPL 0753: Wyse Winterm 5440XL VNC
 VNC:winterm
+# DPL 0966: Wyse Winterm 3150 VNC
+# omitted: no username, so this is not a login pair

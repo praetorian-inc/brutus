@@ -28,3 +28,5 @@ ANYCOM
 ILMI
 # DPL 0023: 3com NetBuilder SNMP
 # already present: admin
+# DPL 0065: 3M VOL-0215 etc. SNMP
+volition

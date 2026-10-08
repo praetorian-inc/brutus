@@ -108,3 +108,5 @@ manager:manager
 # already present: admin:
 # DPL 0051: 3com cellplex Multi
 # omitted: no username, so this is not a login pair
+# DPL 0052: 3com cellplex Multi
+# already present: admin:admin

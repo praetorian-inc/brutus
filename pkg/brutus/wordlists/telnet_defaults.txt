@@ -370,3 +370,5 @@ root:default
 # already present: admin:admin
 # DPL 0306: Flowpoint 40 IDSL Telnet
 # already present: admin:admin
+# DPL 0308: Fortinet Fortigate Telnet
+# already present: admin:

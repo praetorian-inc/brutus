@@ -623,3 +623,5 @@ netscreen:netscreen
 # already present: admin:password
 # DPL 0547: Network Appliance NetCache any Multi
 admin:NetCache
+# DPL 0548: Network Associates WebShield Security Appliance e500 HTTP
+e500:e500changeme

@@ -103,3 +103,5 @@ manager:friend
 manager:admin
 # DPL 0105: Allied Telesyn AT Router HTTP
 root:
+# DPL 0106: ALLNET T-DSL Modem Software Version: v1.51 HTTP
+# already present: admin:admin

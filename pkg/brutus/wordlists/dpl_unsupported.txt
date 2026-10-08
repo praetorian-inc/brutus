@@ -416,3 +416,5 @@
 # not sprayed: Web Admin gui
 # DPL 0961: Telco Systems Edge Link 100 Console
 # not sprayed: Console
+# DPL 0986: ALCATEL 4400 Console
+# not sprayed: Console

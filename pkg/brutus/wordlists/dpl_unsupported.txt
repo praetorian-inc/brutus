@@ -414,3 +414,5 @@
 # not sprayed: on-screen menu system
 # DPL 0959: Entrust getAccess 4.x and 7.x Web Admin gui
 # not sprayed: Web Admin gui
+# DPL 0961: Telco Systems Edge Link 100 Console
+# not sprayed: Console

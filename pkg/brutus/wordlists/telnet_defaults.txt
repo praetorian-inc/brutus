@@ -1184,3 +1184,5 @@ admin:passwort
 # omitted: the list says this resets or initializes passwords
 # DPL 1109: Aztecj DSL 600EU 62.53.2 Telnet
 # already present: root:admin
+# DPL 1111: Linksys rv082 Multi
+# already present: admin:

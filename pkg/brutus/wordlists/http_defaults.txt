@@ -1451,3 +1451,5 @@ admin:OkiLAN
 # already present: root:admin
 # DPL 1110: Aztecj DSL 600EU 62.53.2 HTTP
 isp:isp
+# DPL 1111: Linksys rv082 Multi
+# already present: admin:

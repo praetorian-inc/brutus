@@ -633,3 +633,5 @@ e250:e250changeme
 admin:asd
 # DPL 0552: Niksun NetDetector Multi
 vcr:NetVCR
+# DPL 0555: Nokia DSL Router M1122 1.1 - 1.2 Multi
+m1122:m1122

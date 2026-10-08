@@ -1335,3 +1335,5 @@ SSA:SSA
 # already present: admin:admin
 # DPL 1034: Irongate NetSurvibox 266 1 HTTP
 admin:NetSurvibox
+# DPL 1037: SMC smc7904wbrb Multi
+# omitted: no username, so this is not a login pair

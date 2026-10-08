@@ -1126,3 +1126,5 @@ cusadmin:highspeed
 # already present: admin:admin
 # DPL 1032: Zyxel Router 650-1 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 1037: SMC smc7904wbrb Multi
+# omitted: no username, so this is not a login pair

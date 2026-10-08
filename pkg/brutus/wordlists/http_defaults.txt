@@ -1233,3 +1233,5 @@ root:12345
 # already present: admin:admin
 # DPL 0972: comtrend ct536+ Multi
 # already present: admin:
+# DPL 0973: Quintum Technologies Inc. Tenor Series all Multi
+# already present: admin:admin

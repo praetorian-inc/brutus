@@ -225,3 +225,5 @@ davox:davox
 MDaemon:MServer
 # DPL 0235: Demarc Network Monitor multi
 admin:my_DEMARC
+# DPL 0236: Deutsche Telekom T-Sinus DSL 130 HTTP
+# already present: admin:

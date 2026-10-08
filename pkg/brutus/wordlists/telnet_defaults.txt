@@ -188,3 +188,5 @@ apc:apc
 # omitted: no username, so this is not a login pair
 # DPL 0127: Apple Airport Extreme Base Station 2 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0128: Arescom modem/router 10XX Telnet
+# omitted: no username, so this is not a login pair

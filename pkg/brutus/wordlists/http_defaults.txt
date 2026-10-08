@@ -897,3 +897,5 @@ Any:12345
 xd:xd
 # DPL 0760: Xerox Multi Function Equipment Multi
 admin:2222
+# DPL 0761: Xerox WorkCenter Pro 428 HTTP
+# already present: admin:admin

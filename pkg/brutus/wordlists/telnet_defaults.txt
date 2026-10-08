@@ -1188,3 +1188,5 @@ admin:passwort
 # already present: admin:
 # DPL 1112: AVAYA P333 Telnet
 Administrator:ggdaseuaimhrke
+# DPL 1113: AVAYA P333 Telnet
+root:ggdaseuaimhrke

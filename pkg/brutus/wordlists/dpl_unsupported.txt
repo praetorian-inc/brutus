@@ -26,3 +26,5 @@
 # not sprayed: Port 2533
 # DPL 0093: Alcatel PBX 4400 Port 2533
 # not sprayed: Port 2533
+# DPL 0094: Alcatel PBX 4400 Port 2533
+# not sprayed: Port 2533

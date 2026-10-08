@@ -591,3 +591,5 @@ super:5777364
 superman:21241036
 # DPL 0523: Netgear WG602 Firmware Version 1.5.67 HTTP
 # already present: super:5777364
+# DPL 0524: Netgear MR814 HTTP
+# already present: admin:password

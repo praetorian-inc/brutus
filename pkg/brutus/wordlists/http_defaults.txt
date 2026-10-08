@@ -1361,3 +1361,5 @@ admin:Password
 # already present: admin:admin
 # DPL 1052: Konica Minolta magicolor 5430 DL HTTP
 admin:administrator
+# DPL 1053: planet akcess point HTTP
+# already present: admin:admin

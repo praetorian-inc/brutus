@@ -1202,3 +1202,5 @@ admin:pfsense
 admin:0
 # DPL 1124: maxdata 7000x Multi
 # omitted: no username, so this is not a login pair
+# DPL 1125: Conceptronic C54BRS4 Multi
+# already present: admin:1234

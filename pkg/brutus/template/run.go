@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"strings"
@@ -99,6 +100,13 @@ func newClient(opt Options) (*http.Client, error) {
 	c.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
+	// Form logins often bind a CSRF token to the session cookie from the
+	// prefetch GET. ErrUseLastResponse skips the client's normal cookie save.
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+	c.Jar = jar
 	return c, nil
 }
 
@@ -116,6 +124,10 @@ func runOne(ctx context.Context, client *http.Client, base *url.URL, t Template,
 			return nil, nil
 		}
 	} else {
+		vars, err = prefetch(ctx, client, base, t)
+		if err != nil {
+			return nil, err
+		}
 		neg := pairs[0]
 		neg.Password = invalidSecret
 		negResp, err := doLogin(ctx, client, base, t, neg, vars, false)
@@ -128,6 +140,10 @@ func runOne(ctx context.Context, client *http.Client, base *url.URL, t Template,
 	}
 	var hits []Hit
 	for _, pair := range pairs {
+		vars, err = prefetch(ctx, client, base, t)
+		if err != nil {
+			return hits, err
+		}
 		resp, err := doLogin(ctx, client, base, t, pair, vars, false)
 		if err != nil {
 			return hits, err
@@ -199,6 +215,7 @@ func prefetch(ctx context.Context, client *http.Client, base *url.URL, t Templat
 	if err != nil {
 		return nil, err
 	}
+	storeCookies(client, resp)
 	body, err := readBody(resp)
 	if err != nil {
 		return nil, err
@@ -292,6 +309,7 @@ func doLogin(ctx context.Context, client *http.Client, base *url.URL, t Template
 	if err != nil {
 		return response{}, err
 	}
+	storeCookies(client, resp)
 	return readBody(resp)
 }
 
@@ -302,6 +320,13 @@ func readBody(resp *http.Response) (response, error) {
 		return response{}, err
 	}
 	return response{Status: resp.StatusCode, Header: resp.Header.Clone(), Body: string(buf)}, nil
+}
+
+func storeCookies(client *http.Client, resp *http.Response) {
+	if client == nil || client.Jar == nil || resp == nil || resp.Request == nil || resp.Request.URL == nil {
+		return
+	}
+	client.Jar.SetCookies(resp.Request.URL, resp.Cookies())
 }
 
 func resolve(base *url.URL, path string) string {

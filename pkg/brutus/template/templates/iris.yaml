@@ -1,0 +1,20 @@
+id: iris
+name: InterSystems IRIS
+nerva: [intersystems-iris]
+method: form
+path: /csp/sys/UtilHome.csp
+username_field: IRISUsername
+password_field: IRISPassword
+prefetch:
+  path: /csp/sys/UtilHome.csp
+  extract:
+    token: 'name="IRISSessionToken" value="([^"]*)"'
+extra:
+  IRISLogin: Login
+  IRISSessionToken: "{{token}}"
+success:
+  status: [200]
+  body: ["IRISOldPassword"]
+creds:
+  - "_SYSTEM:SYS"
+  - "SuperUser:SYS"

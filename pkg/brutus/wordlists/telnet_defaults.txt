@@ -42,3 +42,5 @@ adm:
 # already present: debug:synnet
 # DPL 0012: 3COM SuperStack II Switch 2700 Telnet
 # already present: tech:tech
+# DPL 0013: 3COM OfficeConnect 812 ADSL Multi
+adminttd:adminttd

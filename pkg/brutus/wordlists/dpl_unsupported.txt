@@ -328,3 +328,5 @@
 # not sprayed: blank access type
 # DPL 0679: Siemens PhoneMail
 # not sprayed: blank access type
+# DPL 0680: Siemens PhoneMail
+# not sprayed: blank access type

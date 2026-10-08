@@ -933,3 +933,5 @@ admin:switch
 # already present: admin:admin
 # DPL 0794: Benq awl 700 wireless router 1.3.6 Beta-002 Multi
 # already present: admin:admin
+# DPL 0795: Konica/ Minolta Di 2010f n/a HTTP
+# omitted: no username, so this is not a login pair

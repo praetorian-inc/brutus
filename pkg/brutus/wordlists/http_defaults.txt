@@ -345,3 +345,5 @@ MGR:REGO
 MGR:RJE
 # DPL 0324: Hewlett-Packard HP 2000/3000 MPE/xx Multi
 MGR:CONV
+# DPL 0325: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+OPERATOR:SYS

@@ -799,3 +799,5 @@ ADMN:admn
 # omitted: no username, so this is not a login pair
 # DPL 0690: Siips Trojan 8974202 Multi
 Administrator:ganteng
+# DPL 0691: silex technology PRICOM (Printserver) Multi
+# already present: root:

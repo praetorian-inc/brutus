@@ -798,3 +798,5 @@ ADMN:admn
 # omitted: no username, so this is not a login pair
 # DPL 0671: siemens hipath Multi
 # omitted: no username, so this is not a login pair
+# DPL 0678: Siemens 5940 T1E1 Router 5940-001 v6.0.180-2 Telnet
+superuser:admin

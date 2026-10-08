@@ -1247,3 +1247,5 @@ Manager:friend
 # already present: user:
 # DPL 0983: Ricoh AP410N 1.13 HTTP
 # already present: admin:
+# DPL 0984: 3ware 3DM HTTP
+Administrator:3ware

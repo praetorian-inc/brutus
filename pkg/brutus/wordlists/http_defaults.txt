@@ -1035,3 +1035,5 @@ webadmin:1234
 # omitted: no username, so this is not a login pair
 # DPL 0861: Xerox Document Centre 405 - HTTP
 # already present: admin:admin
+# DPL 0862: Proxim Orinoco 600/2000 All HTTP
+# omitted: no username, so this is not a login pair

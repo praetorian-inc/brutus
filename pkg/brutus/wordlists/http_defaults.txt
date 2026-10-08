@@ -63,3 +63,5 @@ Root:
 # already present: admin:
 # DPL 0050: 3com OfficeConnect 812 ADSL 01.50-01 Multi
 # already present: admin:
+# DPL 0051: 3com cellplex Multi
+# omitted: no username, so this is not a login pair

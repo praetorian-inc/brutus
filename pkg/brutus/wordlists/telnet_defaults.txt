@@ -784,3 +784,5 @@ topicnorm:password
 topicres:password
 # DPL 0659: RoamAbout RoamAbout R2 Wireless Access Platform Multi
 # already present: admin:password
+# DPL 0660: sagem fast 1400w Multi
+root:1234

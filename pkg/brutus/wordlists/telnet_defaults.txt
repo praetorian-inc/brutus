@@ -788,3 +788,5 @@ topicres:password
 root:1234
 # DPL 0661: samsung n620 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0664: Server Technology Sentry Remote Power Manager Multi
+GEN1:gen1

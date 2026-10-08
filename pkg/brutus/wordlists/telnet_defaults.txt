@@ -998,3 +998,5 @@ wlse:wlsedb
 admin:michelangelo
 # DPL 0893: Digicom Michelangelo Multi
 # already present: user:password
+# DPL 0894: Enterasys Vertical Horizon VH-2402S Multi
+tiger:tiger123

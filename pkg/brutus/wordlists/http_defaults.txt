@@ -1175,3 +1175,5 @@ root:calvin
 # already present: admin:epicrouter
 # DPL 0939: ASMAX AR800C2 HTTP
 # already present: admin:epicrouter
+# DPL 0940: D-link DSL-G604T Multi
+# already present: admin:admin

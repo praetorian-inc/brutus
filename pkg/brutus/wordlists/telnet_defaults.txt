@@ -1054,3 +1054,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0933: ion nelu nel Multi
 # already present: Administrator:admin
+# DPL 0940: D-link DSL-G604T Multi
+# already present: admin:admin

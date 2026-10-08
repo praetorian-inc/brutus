@@ -64,3 +64,5 @@ tech:
 root:
 # DPL 0026: 3COM HiPerACT v4.1.x Telnet
 # already present: admin:
+# DPL 0027: 3COM CellPlex 7000 Telnet
+# already present: tech:

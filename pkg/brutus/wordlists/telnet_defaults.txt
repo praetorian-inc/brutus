@@ -532,3 +532,5 @@ intermec:intermec
 # omitted: no username, so this is not a login pair
 # DPL 0412: JDE WorldVision/OneWorld Multi
 PRODDTA:PRODDTA
+# DPL 0414: Konica Minolta magicolor 2300 DL Multi
+# omitted: no username, so this is not a login pair

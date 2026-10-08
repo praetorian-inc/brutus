@@ -44,3 +44,5 @@
 # not sprayed: Oracle
 # DPL 0139: Aspect ACD 7 Oracle
 # not sprayed: Oracle
+# DPL 0140: Aspect ACD 8 Oracle
+# not sprayed: Oracle

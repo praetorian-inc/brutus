@@ -396,3 +396,5 @@
 # not sprayed: Console
 # DPL 0819: E-Con Econ DSL Router Router
 # not sprayed: Router
+# DPL 0820: Allied Telesyn AT8016F Console
+# not sprayed: Console

@@ -1,0 +1,7 @@
+id: shoutcast
+name: SHOUTcast DNAS
+nerva: [shoutcast]
+method: basic
+path: /admin.cgi
+creds:
+  - "admin:changeme"

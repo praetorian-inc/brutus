@@ -99,3 +99,5 @@ admin:secure
 # omitted: no username, so this is not a login pair
 # DPL 0102: Allied Telesyn Multi
 manager:friend
+# DPL 0104: Allied Telesyn AT-8024(GB) HTTP
+manager:admin

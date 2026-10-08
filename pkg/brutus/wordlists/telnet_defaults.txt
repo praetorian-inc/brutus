@@ -34,3 +34,5 @@ adm:
 # already present: tech:tech
 # DPL 0006: 3COM LinkSwitch 2000/2700 Telnet
 # already present: tech:tech
+# DPL 0009: 3COM Netbuilder Multi
+# already present: admin:

@@ -23,3 +23,5 @@ jenkins:jenkins
 admin:default
 # GPON OLT vendors
 admin:Xpon@Olt9417#
+# DPL 0009: 3COM Netbuilder Multi
+# already present: admin:

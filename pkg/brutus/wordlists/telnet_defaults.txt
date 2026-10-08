@@ -1160,3 +1160,5 @@ ADSL:expert03
 stratacom:stratauser
 # DPL 1077: Xerox WorkCentre 7132 Multi
 11111:x-admin
+# DPL 1081: Cisco ONS all Multi
+CISCO15:otbu+1

@@ -1405,3 +1405,5 @@ Admin:123456
 # already present: admin:Sharp
 # DPL 1079: 3Com 3CRWDR100A-72 2.06 (Sep 21 2005 14:24:48) HTTP
 admin:1234admin
+# DPL 1081: Cisco ONS all Multi
+CISCO15:otbu+1

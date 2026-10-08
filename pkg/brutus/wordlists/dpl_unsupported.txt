@@ -266,3 +266,5 @@
 # not sprayed: Console
 # DPL 0560: Nortel Remote Office 9150 Client
 # not sprayed: Client
+# DPL 0568: Nortel Meridian PBX Serial
+# not sprayed: Serial

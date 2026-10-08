@@ -368,3 +368,5 @@
 # not sprayed: Console
 # DPL 0758: Xavi 7001 Console
 # not sprayed: Console
+# DPL 0772: Xyplex Routers Port 7000
+# not sprayed: Port 7000

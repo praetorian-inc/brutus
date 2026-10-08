@@ -62,3 +62,5 @@
 # not sprayed: BMC unique
 # DPL 0174: Breezecom Breezecom Adapters 3.x
 # not sprayed: blank access type
+# DPL 0175: Breezecom Breezecom Adapters 2.x
+# not sprayed: blank access type

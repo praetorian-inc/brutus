@@ -26,3 +26,5 @@ hscroot:abc123
 lp:lp
 # DPL 0709: SOPHIA (Schweiz) AG Protector SSH
 # already present: root:root
+# DPL 1184: iDirect iNFINITY series 3000/5000/7000 ssh
+root:iDirect

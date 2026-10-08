@@ -535,3 +535,5 @@ sysadmin:PASS
 # already present: admin:admin
 # DPL 0440: linksys ap 1120 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0447: longshine isscfg HTTP
+admin:0

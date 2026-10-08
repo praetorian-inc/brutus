@@ -100,3 +100,5 @@
 # not sprayed: blank access type
 # DPL 0213: Cisco ConfigMaker
 # not sprayed: blank access type
+# DPL 0214: Cisco-Arrowpoint Arrowpoint
+# not sprayed: blank access type

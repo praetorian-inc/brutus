@@ -1383,3 +1383,5 @@ Admin:
 # already present: admin:admin
 # DPL 1065: Deutsche Telekom T-Sinus 1054 DSL All HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1066: Netgear FVS114 GR HTTP
+# already present: admin:password

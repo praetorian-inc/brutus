@@ -1100,3 +1100,5 @@ admin:atlantis
 TMAR#HWMT8007079:
 # DPL 1002: Sagem F@st 1200 (Fast 1200) Telnet
 # already present: root:1234
+# DPL 1005: Juniper ISG2000 Multi
+# already present: netscreen:netscreen

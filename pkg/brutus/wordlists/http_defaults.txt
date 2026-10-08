@@ -1285,3 +1285,5 @@ root:the 6 last digit of the MAC adress
 # already present: admin:
 # DPL 1004: Ricoh Aficio 2020D HTTP
 # already present: admin:password
+# DPL 1005: Juniper ISG2000 Multi
+# already present: netscreen:netscreen

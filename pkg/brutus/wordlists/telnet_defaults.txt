@@ -506,3 +506,5 @@ MGR:HPONLY
 storwatch:specialist
 # DPL 0387: IBM 8224 HUB Multi
 vt100:public
+# DPL 0388: IBM 3534 F08 Fibre Switch Multi
+# already present: admin:password

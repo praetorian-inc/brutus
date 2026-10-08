@@ -949,3 +949,5 @@ admin:isee
 # already present: admin:admin
 # DPL 0803: Asus wl300 All HTTP
 # already present: admin:admin
+# DPL 0804: Sigma Sigmacoma IPshare Sigmacom router v1.0 HTTP
+# already present: admin:admin

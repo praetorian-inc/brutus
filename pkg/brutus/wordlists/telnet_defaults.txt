@@ -1174,3 +1174,5 @@ scout:scout
 Alphanetworks:wrgg15_di524
 # DPL 1098: SpeedStream 5200-Serie SpeedStream Telnet
 # already present: Administrator:admin
+# DPL 1099: Siemens Gigaset All Multi
+# omitted: no username, so this is not a login pair

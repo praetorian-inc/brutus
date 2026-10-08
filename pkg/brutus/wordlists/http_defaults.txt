@@ -1429,3 +1429,5 @@ scout:scout
 # already present: root:admin
 # DPL 1097: US Robotics USR9106 HTTP
 # already present: admin:admin
+# DPL 1099: Siemens Gigaset All Multi
+# omitted: no username, so this is not a login pair

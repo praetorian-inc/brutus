@@ -531,3 +531,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0438: Linksys WRT54G HTTP
 # already present: admin:admin
+# DPL 0439: Linksys WAG54G HTTP
+# already present: admin:admin

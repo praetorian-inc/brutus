@@ -458,3 +458,5 @@
 # not sprayed: Console
 # DPL 1199: Cisco PIX 6.3 Console
 # not sprayed: Console
+# DPL 1212: Promise NS4300N NAS Shell
+# not sprayed: Shell

@@ -1043,3 +1043,5 @@ webadmin:1234
 # already present: admin:password
 # DPL 0866: Conexant Router HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0867: Network Everywhere NWR11B HTTP
+# omitted: no username, so this is not a login pair

@@ -601,3 +601,5 @@ superman:21241036
 # already present: admin:password
 # DPL 0529: Netgear FR114P HTTP
 # already present: admin:password
+# DPL 0531: Netgear WGR614 v4 Multi
+# already present: admin:password

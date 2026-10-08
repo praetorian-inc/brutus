@@ -1129,3 +1129,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0914: canyon router Multi
 # already present: Administrator:admin
+# DPL 0916: Kalatel Calibur DSR-2000e Multi
+# omitted: no username, so this is not a login pair

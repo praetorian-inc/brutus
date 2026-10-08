@@ -666,3 +666,5 @@ rw:rw
 rwa:rwa
 # DPL 0566: Nortel Extranet Switches Multi
 admin:setup
+# DPL 0567: Nortel Baystack 350-24T Telnet
+# omitted: no username, so this is not a login pair

@@ -1605,3 +1605,5 @@ admin:draadloos
 # omitted: no username, so this is not a login pair
 # DPL 1209: WLAN_3D Router HTTP
 # already present: Administrator:admin
+# DPL 1210: Brother HL5270DN HTTP
+admin:access

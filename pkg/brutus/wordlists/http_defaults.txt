@@ -181,3 +181,5 @@ admin:bintec
 # already present: admin:bintec
 # DPL 0172: BMC Patrol 6 Multi
 patrol:patrol
+# DPL 0180: Brocade Fabric OS All Multi
+root:fivranne

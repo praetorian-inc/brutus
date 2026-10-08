@@ -163,3 +163,5 @@ craft:crftpw
 root:pass
 # DPL 0153: Axis Webcams HTTP
 # already present: root:pass
+# DPL 0154: Axis 540/542 Print Server Multi
+# already present: root:pass

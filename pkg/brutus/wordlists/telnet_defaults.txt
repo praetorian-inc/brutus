@@ -224,3 +224,5 @@ craft:crftpw
 root:pass
 # DPL 0152: Axis All Axis Printserver All Multi
 # already present: root:pass
+# DPL 0154: Axis 540/542 Print Server Multi
+# already present: root:pass

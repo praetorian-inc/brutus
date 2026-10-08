@@ -1040,3 +1040,5 @@ admin:sysAdmin
 # already present: admin:
 # DPL 0920: 3com office connect 11g Multi
 # already present: admin:
+# DPL 0922: IBM IBM Multi
+# omitted: no username, so this is not a login pair

@@ -1139,3 +1139,5 @@ admin:sysAdmin
 # already present: admin:
 # DPL 0921: Asus WL500g Deluxe HTTP
 # already present: admin:admin
+# DPL 0922: IBM IBM Multi
+# omitted: no username, so this is not a login pair

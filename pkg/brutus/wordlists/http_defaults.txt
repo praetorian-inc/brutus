@@ -1545,3 +1545,5 @@ Service:5678
 supervisor:
 # DPL 1171: 3COM OfficeConnect 812 ADSL Multi
 # already present: Administrator:admin
+# DPL 1172: Comcast Home Networking Comcast Home Networking ALL HTTP
+comcast:

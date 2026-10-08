@@ -1331,3 +1331,5 @@ SSA:SSA
 # omitted: no username, so this is not a login pair
 # DPL 1030: Signamax 065-7726S Multi
 # already present: admin:admin
+# DPL 1033: Huawei mt820 V100R006C01B021 HTTP
+# already present: admin:admin

@@ -24,6 +24,16 @@ import (
 	"time"
 )
 
+// TestRunIRIS models the Community Edition portal. To troubleshoot against
+// the real app:
+//
+//	docker run -d --name iris --platform linux/arm64 \
+//	  -p 52773:52773 -p 1972:1972 \
+//	  intersystems/iris-community:latest-cd-linux-arm64
+//
+// Login is POST /csp/sys/UtilHome.csp. Keep the CSPSESSIONID cookie and the
+// IRISSessionToken from the GET of that same URL. _SYSTEM:SYS and
+// SuperUser:SYS hit the password-change page. system:sys does not.
 func TestRunIRIS(t *testing.T) {
 	var mu sync.Mutex
 	sessions := map[string]string{}

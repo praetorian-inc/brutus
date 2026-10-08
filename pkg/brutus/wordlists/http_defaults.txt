@@ -1229,3 +1229,5 @@ root:12345
 # omitted: no username, so this is not a login pair
 # DPL 0970: Asmax Ar-804u HTTP
 # already present: admin:epicrouter
+# DPL 0971: aztech DSL-600E HTTP
+# already present: admin:admin

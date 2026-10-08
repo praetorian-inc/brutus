@@ -189,6 +189,8 @@ Nerva file is under `pkg/plugins/fingerprinters/`. Path is the probe or login pa
 - [x] `pinecone` — detected from Pinecone API headers. Auth is an API key, not a password form. No template — `pinecone.go`
 - [x] `litellm` — `/health/liveliness` is an open liveness check, not a password form. No template — `litellm.go`
 
+- [x] `intersystems-iris` — login `POST /csp/sys/UtilHome.csp` with `IRISUsername`/`IRISPassword` (detection `/csp/sys/UtilHome.csp`; factory `_SYSTEM:SYS` and `SuperUser:SYS`) — `iris.go`
+
 ## Order
 
 1. Template schema, Nerva match, and one executor test.

@@ -74,3 +74,5 @@ root:
 # already present: admin:
 # DPL 0031: 3com cellplex 7000 Multi
 # already present: admin:admin
+# DPL 0032: 3COM SuperStack 3 4XXX Multi
+# already present: admin:

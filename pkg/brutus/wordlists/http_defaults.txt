@@ -793,3 +793,5 @@ ADMN:admn
 # omitted: no username, so this is not a login pair
 # DPL 0671: siemens hipath Multi
 # omitted: no username, so this is not a login pair
+# DPL 0677: SIEMENS SE515 HTTP
+# already present: admin:

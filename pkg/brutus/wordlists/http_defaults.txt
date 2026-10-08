@@ -721,3 +721,5 @@ user:password
 # omitted: no username, so this is not a login pair
 # DPL 0626: planet Akcess Point HTTP
 # already present: admin:admin
+# DPL 0627: Polycom Soundpoint VoIP phones HTTP
+Polycom:SpIp

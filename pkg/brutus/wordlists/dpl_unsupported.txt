@@ -10,3 +10,5 @@
 # not sprayed: Console
 # DPL 0085: Alcatel PBX 4400 Port 2533
 # not sprayed: Port 2533
+# DPL 0086: Alcatel PBX 4400 Port 2533
+# not sprayed: Port 2533

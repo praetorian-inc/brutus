@@ -1345,3 +1345,5 @@ admin:x-admin
 # already present: admin:default
 # DPL 1043: Cisco Cisco Wireless Location Appliance 2700 Series prior to 2.1.34.0 Multi
 # already present: root:password
+# DPL 1044: Topcom Wireless Webr@cer 1154+ PSTN (Annex A) V 4.00.0 HTTP
+# already present: admin:admin

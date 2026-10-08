@@ -512,3 +512,5 @@ vt100:public
 # already present: admin:
 # DPL 0394: Intel Shiva Multi
 # already present: root:
+# DPL 0395: Intel Express 9520 Router Multi
+NICONEX:NICONEX

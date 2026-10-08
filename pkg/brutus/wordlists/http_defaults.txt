@@ -469,3 +469,5 @@ superadmin:secret
 # omitted: no username, so this is not a login pair
 # DPL 0394: Intel Shiva Multi
 # already present: root:
+# DPL 0395: Intel Express 9520 Router Multi
+NICONEX:NICONEX

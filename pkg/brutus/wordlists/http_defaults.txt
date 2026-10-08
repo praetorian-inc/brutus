@@ -813,3 +813,5 @@ Administrator:ganteng
 # already present: admin:admin
 # DPL 0698: SMC SMC2804WBR v.1 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0699: SMC WiFi Router All HTTP
+# omitted: no username, so this is not a login pair

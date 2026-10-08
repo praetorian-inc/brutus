@@ -1209,3 +1209,5 @@ root:12345
 # already present: admin:admin
 # DPL 0956: 3COM OfficeConnect ADSL Wireless 11g Firewall Router 3CRWDR100-72 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0957: ZyXEL Prestige 645 HTTP
+# already present: admin:1234

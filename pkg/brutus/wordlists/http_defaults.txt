@@ -275,3 +275,5 @@ User:
 # already present: admin:admin
 # DPL 0270: D-Link DSL-302G Multi
 # already present: admin:admin
+# DPL 0271: D-Link DI-624+ A3 HTTP
+# already present: admin:admin

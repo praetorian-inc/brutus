@@ -1,0 +1,12 @@
+# Lab: download sc_serv2_linux_x64-latest.tar.gz from download.nullsoft.com and extract it.
+# The shipped examples/sc_serv_simple.conf sets adminpassword=changeme. The binary will not start without a config.
+# docker run -d --name shoutcast --platform linux/amd64 -p 8000:8000 -v "$PWD":/opt/sc:ro debian:bookworm-slim /opt/sc/sc_serv /opt/sc/examples/sc_serv_simple.conf
+# GET /admin.cgi with no Authorization is 401, realm "Shoutcast Server". admin:changeme is 200, title "Shoutcast Server Administrator".
+# A wrong password is 401. An open 200 page is not a hit.
+id: shoutcast
+name: SHOUTcast DNAS
+nerva: [shoutcast]
+method: basic
+path: /admin.cgi
+creds:
+  - "admin:changeme"

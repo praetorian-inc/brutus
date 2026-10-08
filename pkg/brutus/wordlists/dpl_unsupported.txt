@@ -350,3 +350,5 @@
 # not sprayed: Console
 # DPL 0705: Snapgear Pro Lite and SOHO
 # not sprayed: and SOHO
+# DPL 0717: Spike CPE Console
+# not sprayed: Console

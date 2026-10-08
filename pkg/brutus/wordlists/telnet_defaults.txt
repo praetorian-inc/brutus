@@ -210,3 +210,5 @@ root:ascend
 craft:
 # DPL 0143: Avaya Cajun Pxxx Multi
 # already present: root:root
+# DPL 0144: Avaya Cajun P550R P580 P880 and P882 Multi
+diag:danger

@@ -1447,3 +1447,5 @@ admin:passwort
 admin:OkiLAN
 # DPL 1107: siemen speedstream 5400 059-e440-a02 HTTP
 # already present: admin:
+# DPL 1108: Various DD-WRT v23 SP1 Final HTTP
+# already present: root:admin

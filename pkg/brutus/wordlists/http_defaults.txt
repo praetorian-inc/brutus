@@ -1077,3 +1077,5 @@ admin:asante
 webadmin:webadmin
 # DPL 0886: Cisco Aironet Multi
 # omitted: no username, so this is not a login pair
+# DPL 0887: Cisco Aironet Multi
+# already present: Cisco:Cisco

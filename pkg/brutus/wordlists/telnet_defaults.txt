@@ -92,3 +92,5 @@ manager:manager
 # already present: admin:admin
 # DPL 0040: 3com HiPerACT v4.1.x Telnet
 # already present: admin:
+# DPL 0041: 3com 3c16405 Multi
+# omitted: no username, so this is not a login pair

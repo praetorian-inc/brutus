@@ -180,3 +180,5 @@
 # not sprayed: blank access type
 # DPL 0446: Lockdown Networks All Lockdown Products up to 2.7 Console
 # not sprayed: Console
+# DPL 0449: Lucent B-STDX9000 debug mode
+# not sprayed: debug mode

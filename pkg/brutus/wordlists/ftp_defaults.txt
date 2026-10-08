@@ -18,3 +18,5 @@ backup:backup
 anonymous:any@
 # DPL 0376: Hewlett-Packard LaserJet Net Printers Ones with Jetdirect on them FTP
 Anonymous:
+# DPL 0722: Team Xodus XeniumOS 2.3 FTP
+xbox:xbox

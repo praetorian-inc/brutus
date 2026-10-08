@@ -1333,3 +1333,5 @@ SSA:SSA
 # already present: admin:admin
 # DPL 1033: Huawei mt820 V100R006C01B021 HTTP
 # already present: admin:admin
+# DPL 1034: Irongate NetSurvibox 266 1 HTTP
+admin:NetSurvibox

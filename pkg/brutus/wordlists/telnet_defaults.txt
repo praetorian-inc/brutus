@@ -142,3 +142,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0077: adtran Atlas 800/800Plus/810Plus/550 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0078: adtran Smart 16/16e Telnet
+# omitted: no username, so this is not a login pair

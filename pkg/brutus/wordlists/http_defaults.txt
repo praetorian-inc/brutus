@@ -1595,3 +1595,5 @@ images:images
 # already present: admin:admin
 # DPL 1202: Netgear WGR614 v6 HTTP
 admin:draadloos
+# DPL 1203: T-Com Speedport Router Family all HTTP
+# omitted: no username, so this is not a login pair

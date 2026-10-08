@@ -342,3 +342,5 @@ login:password
 # omitted: no username, so this is not a login pair
 # DPL 0287: Enterasys ANG-1105 unknown Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0288: Enterasys Vertical Horizon ANY Multi
+# already present: admin:

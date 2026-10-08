@@ -293,3 +293,5 @@ guest:
 login:admin
 # DPL 0286: Enterasys ANG-1105 unknown HTTP
 admin:netadmin
+# DPL 0288: Enterasys Vertical Horizon ANY Multi
+# already present: admin:

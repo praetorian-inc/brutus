@@ -140,3 +140,5 @@
 # not sprayed: Console
 # DPL 0284: Efficient Networks 5851 SDSL Router N/A Console
 # not sprayed: Console
+# DPL 0289: Ericsson Ericsson Acc
+# not sprayed: blank access type

@@ -790,3 +790,5 @@ root:1234
 # omitted: no username, so this is not a login pair
 # DPL 0664: Server Technology Sentry Remote Power Manager Multi
 GEN1:gen1
+# DPL 0665: Server Technology Sentry Remote Power Manager Multi
+GEN2:gen2

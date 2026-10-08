@@ -785,3 +785,5 @@ public:public
 # already present: admin:
 # DPL 0664: Server Technology Sentry Remote Power Manager Multi
 GEN1:gen1
+# DPL 0665: Server Technology Sentry Remote Power Manager Multi
+GEN2:gen2

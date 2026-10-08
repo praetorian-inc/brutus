@@ -412,3 +412,5 @@
 # not sprayed: PLS
 # DPL 0917: Kalatel Calibur DSR-2000e on-screen menu system
 # not sprayed: on-screen menu system
+# DPL 0959: Entrust getAccess 4.x and 7.x Web Admin gui
+# not sprayed: Web Admin gui

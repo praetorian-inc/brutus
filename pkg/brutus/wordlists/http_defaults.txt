@@ -1461,3 +1461,5 @@ isp:isp
 citel:password
 # DPL 1119: Grandstream GXP-2000 HTTP
 # already present: admin:1234
+# DPL 1120: SysMaster M10 HTTP
+admin:12345

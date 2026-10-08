@@ -1011,3 +1011,5 @@ Administrator:password
 # already present: admin:admin
 # DPL 0844: Billion BIPAC-640 AC 640AE100 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0845: Blue Coat Systems ProxySG 3.x HTTP
+admin:articon

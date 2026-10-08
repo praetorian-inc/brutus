@@ -578,3 +578,5 @@ sysadmin:PASS
 # already present: (any 3 characters):cascade
 # DPL 0454: Lucent MAX-TNT Multi
 admin:Ascend
+# DPL 0455: Lucent PSAX 1200 and below Multi
+# already present: root:ascend

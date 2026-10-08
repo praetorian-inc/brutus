@@ -988,3 +988,5 @@ installer:installer
 # already present: Cisco:Cisco
 # DPL 0888: Cisco HSE Multi
 root:blender
+# DPL 0889: Cisco HSE Multi
+hsa:hsadb

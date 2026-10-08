@@ -98,3 +98,5 @@
 # not sprayed: blank access type
 # DPL 0212: Cisco CiscoWorks 2000
 # not sprayed: blank access type
+# DPL 0213: Cisco ConfigMaker
+# not sprayed: blank access type

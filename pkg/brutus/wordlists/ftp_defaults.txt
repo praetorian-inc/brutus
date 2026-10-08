@@ -16,3 +16,5 @@ upload:upload
 backup:backup
 # DPL 0229: Datawizard.net FTPXQ server FTP
 anonymous:any@
+# DPL 0376: Hewlett-Packard LaserJet Net Printers Ones with Jetdirect on them FTP
+Anonymous:

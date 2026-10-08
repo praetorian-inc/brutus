@@ -254,3 +254,5 @@
 # not sprayed: SSH + Web console
 # DPL 0512: NAI Entercept Management console
 # not sprayed: Management console
+# DPL 0526: Netgear DM602 FTP Telnet and HTTP
+# not sprayed: FTP Telnet and HTTP

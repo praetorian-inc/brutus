@@ -30,3 +30,5 @@ tech:tech
 adm:
 # DPL 0004: 3COM LANplex 2500 Telnet
 # already present: debug:synnet
+# DPL 0005: 3COM LANplex 2500 Telnet
+# already present: tech:tech

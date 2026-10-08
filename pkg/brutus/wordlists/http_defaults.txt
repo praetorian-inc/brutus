@@ -323,3 +323,5 @@ root:default
 # already present: admin:admin
 # DPL 0312: Fujitsu Siemens Routers HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0314: GVC e800/rb4 HTTP
+# already present: Administrator:admin

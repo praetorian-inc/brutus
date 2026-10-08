@@ -885,3 +885,5 @@ Any:12345
 # omitted: no username, so this is not a login pair
 # DPL 0744: VASCO VACMAN Middleware 2.x Multi
 # already present: admin:
+# DPL 0748: Watch guard firebox 1000 Multi
+# already present: admin:

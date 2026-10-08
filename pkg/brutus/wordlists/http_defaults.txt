@@ -107,3 +107,5 @@ root:
 # already present: admin:admin
 # DPL 0107: Allnet ALL0275 802.11g AP 1.0.6 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0109: Alteon ACEswitch 180e HTTP
+# already present: admin:admin

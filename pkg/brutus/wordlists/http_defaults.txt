@@ -1227,3 +1227,5 @@ root:12345
 # already present: admin:epicrouter
 # DPL 0969: Deutsche Telekom T-Sinus 154 DSL 13.9.38 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0970: Asmax Ar-804u HTTP
+# already present: admin:epicrouter

@@ -739,3 +739,5 @@ radware:radware
 piranha:q
 # DPL 0639: RedHat Redhat 6.2 HTTP
 piranha:piranha
+# DPL 0642: Ricoh Aficio AP3800C HTTP
+sysadmin:password

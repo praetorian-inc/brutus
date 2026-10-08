@@ -1309,3 +1309,5 @@ superman:talent
 # already present: admin:
 # DPL 1016: CNET CSH-2400W unk HTTP
 # already present: admin:1234
+# DPL 1017: Psionteklogix 9160 1 HTTP
+# already present: admin:admin

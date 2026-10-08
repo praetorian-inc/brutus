@@ -943,3 +943,5 @@ jagadmin:
 admin:isee
 # DPL 0800: IBM 3583 Tape Library HTTP
 # already present: admin:secure
+# DPL 0801: Asus wl503g All HTTP
+# already present: admin:admin

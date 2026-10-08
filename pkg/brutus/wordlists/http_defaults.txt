@@ -823,3 +823,5 @@ admin:barricade
 smc:smcadmin
 # DPL 0703: SMC Barricade7204BRB HTTP
 admin:smcadmin
+# DPL 0704: SMC 2804wr HTTP
+# omitted: no username, so this is not a login pair

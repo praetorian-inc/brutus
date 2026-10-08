@@ -1241,3 +1241,5 @@ root:12345
 Manager:friend
 # DPL 0980: Mikrotik Router OS 02/09/17 HTTP
 # already present: admin:
+# DPL 0981: Netgear WGT634U HTTP
+# already present: admin:password

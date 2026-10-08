@@ -410,3 +410,5 @@
 # not sprayed: Console
 # DPL 0865: Nullsoft Shoutcast 01/09/05 PLS
 # not sprayed: PLS
+# DPL 0917: Kalatel Calibur DSR-2000e on-screen menu system
+# not sprayed: on-screen menu system

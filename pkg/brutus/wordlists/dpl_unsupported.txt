@@ -64,3 +64,5 @@
 # not sprayed: blank access type
 # DPL 0175: Breezecom Breezecom Adapters 2.x
 # not sprayed: blank access type
+# DPL 0176: Breezecom Breezecom Adapters 4.4.x Console
+# not sprayed: Console

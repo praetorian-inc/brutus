@@ -1223,3 +1223,5 @@ root:12345
 # omitted: no username, so this is not a login pair
 # DPL 0965: Ricoh Aficio AP3800C 2.17 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0968: edimax wireless adsl router AR-7024 Multi
+# already present: admin:epicrouter

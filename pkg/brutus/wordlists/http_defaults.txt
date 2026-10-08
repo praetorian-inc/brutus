@@ -1431,3 +1431,5 @@ scout:scout
 # already present: admin:admin
 # DPL 1099: Siemens Gigaset All Multi
 # omitted: no username, so this is not a login pair
+# DPL 1100: Comtrend ct-536+ HTTP
+# already present: admin:admin

@@ -757,3 +757,5 @@ adminstrator:changeme
 deskalt:password
 # DPL 0650: RM RM Connect Multi
 deskman:changeme
+# DPL 0651: RM RM Connect Multi
+desknorm:password

@@ -733,3 +733,5 @@ Polycom:SpIp
 support:h179350
 # DPL 0632: Pyramid Computer BenHur all HTTP
 # already present: admin:admin
+# DPL 0634: Radware Linkproof 3.73.03 Multi
+radware:radware

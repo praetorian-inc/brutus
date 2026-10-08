@@ -748,3 +748,5 @@ user:password
 # omitted: no username, so this is not a login pair
 # DPL 0630: Prestigio Nobile 156 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0634: Radware Linkproof 3.73.03 Multi
+radware:radware

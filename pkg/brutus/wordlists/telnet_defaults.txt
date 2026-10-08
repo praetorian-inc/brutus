@@ -478,3 +478,5 @@ MGR:HPDESK
 MGR:CCC
 # DPL 0368: Hewlett-Packard HP 2000/3000 MPE/xx Multi
 MGR:CNAS
+# DPL 0369: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+MGR:WORD

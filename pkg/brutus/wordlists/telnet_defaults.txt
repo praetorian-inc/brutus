@@ -510,3 +510,5 @@ vt100:public
 # already present: admin:password
 # DPL 0389: IBM switch 8275-217 Telnet
 # already present: admin:
+# DPL 0394: Intel Shiva Multi
+# already present: root:

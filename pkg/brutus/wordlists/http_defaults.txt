@@ -467,3 +467,5 @@ vt100:public
 superadmin:secret
 # DPL 0392: IMAI Traffic Shaper TS-1012 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0394: Intel Shiva Multi
+# already present: root:

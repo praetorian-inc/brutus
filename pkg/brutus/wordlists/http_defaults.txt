@@ -1009,3 +1009,5 @@ Administrator:password
 # omitted: no username, so this is not a login pair
 # DPL 0843: D-Link DSL-300g+ Teo HTTP
 # already present: admin:admin
+# DPL 0844: Billion BIPAC-640 AC 640AE100 HTTP
+# omitted: no username, so this is not a login pair

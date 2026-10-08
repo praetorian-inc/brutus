@@ -487,3 +487,5 @@ operator:$chwarzepumpe
 # omitted: no username, so this is not a login pair
 # DPL 0409: iPSTAR iPSTAR Satellite Router/Radio v2 HTTP
 admin:operator
+# DPL 0410: iPSTAR iPSTAR Network Box v.2+ HTTP
+# already present: admin:operator

@@ -442,3 +442,5 @@
 # not sprayed: Serial console
 # DPL 1116: EMC DS-4100B Console
 # not sprayed: Console
+# DPL 1134: ASUS ASUS SMTA Router Firmware: 3.5.1.3(C0.0.7.4) - Hardware: 1100(AVG6002 REV:2.26A) HTTP + Telnet
+# not sprayed: HTTP + Telnet

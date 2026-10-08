@@ -272,3 +272,5 @@
 # not sprayed: Serial
 # DPL 0570: Nortel Meridian PBX Serial
 # not sprayed: Serial
+# DPL 0571: Nortel Meridian PBX Serial
+# not sprayed: Serial

@@ -1207,3 +1207,5 @@ USERID:PASSW0RD
 root:12345
 # DPL 0955: U.S. Robotics SureConnect 9105 ADSL 4-Port Router HTTP
 # already present: admin:admin
+# DPL 0956: 3COM OfficeConnect ADSL Wireless 11g Firewall Router 3CRWDR100-72 HTTP
+# omitted: no username, so this is not a login pair

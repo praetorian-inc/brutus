@@ -343,3 +343,5 @@ MGR:NETBASE
 MGR:REGO
 # DPL 0323: Hewlett-Packard HP 2000/3000 MPE/xx Multi
 MGR:RJE
+# DPL 0324: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+MGR:CONV

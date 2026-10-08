@@ -46,3 +46,5 @@ adm:
 adminttd:adminttd
 # DPL 0014: 3COM Wireless AP ANY Multi
 admin:comcomcom
+# DPL 0015: 3COM CellPlex 7000 Telnet
+# already present: tech:tech

@@ -1059,3 +1059,5 @@ webadmin:1234
 # already present: Administrator:
 # DPL 0875: Bausch Datacom Proxima PRI ADSL PSTN Router4 Wireless Multi
 # already present: admin:epicrouter
+# DPL 0876: Sun Microsystems ILOM of X4100 1 HTTP
+# already present: root:changeme

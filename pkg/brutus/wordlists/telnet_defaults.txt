@@ -670,3 +670,5 @@ admin:setup
 # omitted: no username, so this is not a login pair
 # DPL 0572: Nortel Meridian MAX Multi
 # already present: service:smile
+# DPL 0573: Nortel Meridian MAX Multi
+root:3ep5w2u

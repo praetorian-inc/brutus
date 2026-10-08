@@ -657,3 +657,5 @@ rwa:rwa
 admin:setup
 # DPL 0572: Nortel Meridian MAX Multi
 service:smile
+# DPL 0573: Nortel Meridian MAX Multi
+root:3ep5w2u

@@ -20,3 +20,5 @@ oracle:oracle
 admin:Xpon@Olt9417#
 root:admin123
 zte:zte
+# DPL 0391: IBM Hardware Management Console 3 ssh
+hscroot:abc123

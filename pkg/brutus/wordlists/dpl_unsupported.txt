@@ -292,3 +292,5 @@
 # not sprayed: sysadm
 # DPL 0608: Osicom Osicom Plus T1/PLUS 56k
 # not sprayed: blank access type
+# DPL 0614: Osicom NETPrint 500 1000
+# not sprayed: 1000

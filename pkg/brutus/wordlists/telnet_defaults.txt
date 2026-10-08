@@ -230,3 +230,5 @@ root:pass
 # omitted: no username, so this is not a login pair
 # DPL 0157: Bay Networks Switch 350T Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0158: Bay Networks SuperStack II Telnet
+# already present: security:security

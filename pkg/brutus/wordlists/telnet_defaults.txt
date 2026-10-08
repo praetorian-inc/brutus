@@ -310,3 +310,5 @@ D-Link:D-Link
 # omitted: no username, so this is not a login pair
 # DPL 0249: D-Link DI-804 v2.03 Multi
 # already present: admin:
+# DPL 0250: D-Link DWL 900AP Multi
+# omitted: no username, so this is not a login pair

@@ -829,3 +829,5 @@ admin:smcadmin
 aaa:often blank
 # DPL 0707: SonicWALL ALL ALL HTTP
 # already present: admin:password
+# DPL 0710: Speedstream 5861 SMT Router Multi
+# already present: admin:admin

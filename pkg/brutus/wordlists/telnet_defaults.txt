@@ -816,3 +816,5 @@ Administrator:ganteng
 Administrator:smcadmin
 # DPL 0706: Solution 6 Viztopia Accounts Multi
 aaa:often blank
+# DPL 0710: Speedstream 5861 SMT Router Multi
+# already present: admin:admin

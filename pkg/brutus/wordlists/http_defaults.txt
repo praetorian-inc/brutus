@@ -611,3 +611,5 @@ naadmin:naadmin
 # already present: admin:
 # DPL 0536: Netopia 3351 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0537: Netopia 4542 Multi
+admin:noway

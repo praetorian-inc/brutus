@@ -386,3 +386,5 @@
 # not sprayed: Port 7000
 # DPL 0782: ZOOM ZOOM ADSL Modem Console
 # not sprayed: Console
+# DPL 0786: ZyXEL Prestige 643 Console
+# not sprayed: Console

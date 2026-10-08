@@ -60,3 +60,5 @@
 # not sprayed: blank access type
 # DPL 0173: BMC Software Patrol all BMC unique
 # not sprayed: BMC unique
+# DPL 0174: Breezecom Breezecom Adapters 3.x
+# not sprayed: blank access type

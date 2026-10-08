@@ -305,3 +305,5 @@ public:
 admin:epicrouter
 # DPL 0295: E-Tech Wireless 11Mbps Router Model:WLRT03 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0296: E-Tech Router RTBR03 HTTP
+# omitted: no username, so this is not a login pair

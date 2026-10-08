@@ -127,3 +127,5 @@ apc:apc
 device:device
 # DPL 0124: APC Smart UPS Multi
 # already present: apc:apc
+# DPL 0125: Apple AirPort Base Station (Graphite) 2 Multi
+# omitted: no username, so this is not a login pair

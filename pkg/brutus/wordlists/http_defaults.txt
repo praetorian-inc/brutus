@@ -1419,3 +1419,5 @@ CISCO15:otbu+1
 scout:scout
 # DPL 1090: Planet WAP 4000 Multi
 # already present: admin:admin
+# DPL 1091: fon La fonera 0.7.1 r1 HTTP
+# already present: admin:admin

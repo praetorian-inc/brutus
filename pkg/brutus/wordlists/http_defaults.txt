@@ -699,3 +699,5 @@ adminuser:OCS
 # already present: adminview:OCS
 # DPL 0597: OpenConnect OC://WebConnect Pro Multi
 helpdesk:OCS
+# DPL 0598: Openwave WAP Gateway Any HTTP
+sys:uplink

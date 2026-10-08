@@ -1273,3 +1273,5 @@ comcast:1234
 admin:atlantis
 # DPL 0997: Atlantis I-Storm Lan Router ADSL Multi
 # already present: admin:atlantis
+# DPL 0998: Linksys WAG54GS Multi
+# already present: admin:admin

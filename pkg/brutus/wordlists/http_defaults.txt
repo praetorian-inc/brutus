@@ -645,3 +645,5 @@ maint:maint
 mlusr:mlusr
 # DPL 0561: Nortel Accelar (Passport) 1000 series routing switches Multi
 l2:l2
+# DPL 0562: Nortel Accelar (Passport) 1000 series routing switches Multi
+l3:l3

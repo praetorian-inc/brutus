@@ -196,3 +196,5 @@ apc:apc
 IntraSwitch:Asante
 # DPL 0131: Asante IntraStack multi
 IntraStack:Asante
+# DPL 0132: Asante FM2008 Telnet
+superuser:

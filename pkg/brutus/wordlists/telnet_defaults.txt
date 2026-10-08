@@ -1154,3 +1154,5 @@ Admin:
 # omitted: no username, so this is not a login pair
 # DPL 1071: Netgear RO318 Multi
 # already present: admin:1234
+# DPL 1072: ZTE ZXDSL 831 4.2 Multi
+ADSL:expert03

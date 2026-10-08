@@ -989,3 +989,5 @@ Administrator:password
 # already present: root:
 # DPL 0829: creative 2015U Multi
 # omitted: no username, so this is not a login pair
+# DPL 0831: IBM Infoprint 6700 http://www.phenoelit.de/dpl/dpl.html Multi
+# already present: root:

@@ -941,3 +941,5 @@ jagadmin:
 # omitted: no username, so this is not a login pair
 # DPL 0799: HP ISEE Multi
 admin:isee
+# DPL 0800: IBM 3583 Tape Library HTTP
+# already present: admin:secure

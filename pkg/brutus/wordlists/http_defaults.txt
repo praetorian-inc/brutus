@@ -1443,3 +1443,5 @@ admin:passwort
 # omitted: the list says this resets or initializes passwords
 # DPL 1105: Overland NEO Series Libraries Multi
 # omitted: the list says this resets or initializes passwords
+# DPL 1106: OKI 6120e and 421n HTTP
+admin:OkiLAN

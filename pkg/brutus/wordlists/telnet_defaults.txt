@@ -686,3 +686,5 @@ ccrusr:ccrusr
 # omitted: no username, so this is not a login pair
 # DPL 0581: Nortel Meridian Link Multi
 # already present: service:smile
+# DPL 0583: nortel dms Multi
+# omitted: no username, so this is not a login pair

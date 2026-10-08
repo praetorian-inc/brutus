@@ -675,3 +675,5 @@ ccrusr:ccrusr
 # already present: service:smile
 # DPL 0582: Nortel Contivity Extranet/VPN switches HTTP
 # already present: admin:setup
+# DPL 0583: nortel dms Multi
+# omitted: no username, so this is not a login pair

@@ -665,3 +665,5 @@ maint:ntacdmax
 # already present: service:smile
 # DPL 0577: Nortel Meridian CCR Multi
 # already present: disttech:4tas
+# DPL 0578: Nortel Meridian CCR Multi
+# already present: maint:maint

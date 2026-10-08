@@ -796,3 +796,5 @@ GEN2:gen2
 ADMN:admn
 # DPL 0667: sharp AR-407/S402 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0671: siemens hipath Multi
+# omitted: no username, so this is not a login pair

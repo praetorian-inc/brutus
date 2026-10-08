@@ -1267,3 +1267,5 @@ admin:w2402
 comcast:1234
 # DPL 0994: NetGear Comcast Comcast-supplied HTTP
 # already present: comcast:1234
+# DPL 0995: Zyxel Prestige 660HW Multi
+# already present: admin:admin

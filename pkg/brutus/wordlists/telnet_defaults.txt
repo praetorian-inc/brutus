@@ -1088,3 +1088,5 @@ root:12345
 # omitted: no username, so this is not a login pair
 # DPL 0988: CTC Union ATU-R130 81001a Multi
 # already present: root:root
+# DPL 0995: Zyxel Prestige 660HW Multi
+# already present: admin:admin

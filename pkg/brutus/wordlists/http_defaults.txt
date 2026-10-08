@@ -1187,3 +1187,5 @@ root:Cisco
 operator:
 # DPL 0945: IBM Remote Supervisor Adapter (RSA) HTTP
 USERID:PASSW0RD
+# DPL 0946: IBM BladeCenter Mgmt Console HTTP
+# already present: USERID:PASSW0RD

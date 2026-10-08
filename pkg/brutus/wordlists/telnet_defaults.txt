@@ -232,3 +232,5 @@ root:pass
 # omitted: no username, so this is not a login pair
 # DPL 0158: Bay Networks SuperStack II Telnet
 # already present: security:security
+# DPL 0159: Bay Networks Router Telnet
+User:

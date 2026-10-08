@@ -1194,3 +1194,5 @@ root:ggdaseuaimhrke
 # already present: admin:
 # DPL 1115: Avocent Cyclade Linux hostnamehere 2.6.11 #1 Tue Mar 28 13:31:20 PST 2006 ppc unknown Multi
 root:tslinux
+# DPL 1118: Citel Handset Gateway Telnet
+# omitted: no username, so this is not a login pair

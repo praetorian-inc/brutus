@@ -938,3 +938,5 @@ target:password
 # omitted: no username, so this is not a login pair
 # DPL 0838: Symbol AP-4121 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0839: Symbol AP-4131 Multi
+# omitted: no username, so this is not a login pair

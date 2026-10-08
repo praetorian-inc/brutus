@@ -922,3 +922,5 @@ dadmin:dadmin01
 # already present: admin:admin
 # DPL 0826: McData FC Switches/Directors Multi
 Administrator:password
+# DPL 0828: Swissvoice IP 10S Telnet
+target:password

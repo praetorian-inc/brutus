@@ -273,3 +273,5 @@ User:
 # already present: admin:admin
 # DPL 0269: d-link 504g adsl router HTTP
 # already present: admin:admin
+# DPL 0270: D-Link DSL-302G Multi
+# already present: admin:admin

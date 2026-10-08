@@ -324,3 +324,5 @@ D-Link:D-Link
 user:
 # DPL 0267: D-Link DWL 2100AP Multi
 # already present: admin:
+# DPL 0270: D-Link DSL-302G Multi
+# already present: admin:admin

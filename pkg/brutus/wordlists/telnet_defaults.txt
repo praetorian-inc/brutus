@@ -978,3 +978,5 @@ admin:123
 admin:ironport
 # DPL 0882: Asante FM2008 Multi
 admin:asante
+# DPL 0884: Broadlogic XLT router Telnet
+# already present: admin:admin

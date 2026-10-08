@@ -222,3 +222,5 @@ manuf:xxyyzz
 craft:crftpw
 # DPL 0151: Axis NETCAM 200/240 Telnet
 root:pass
+# DPL 0152: Axis All Axis Printserver All Multi
+# already present: root:pass

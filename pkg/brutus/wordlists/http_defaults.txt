@@ -159,3 +159,5 @@ manuf:xxyyzz
 # already present: manuf:xxyyzz
 # DPL 0149: Avaya definity up to rev. 6 any
 craft:crftpw
+# DPL 0152: Axis All Axis Printserver All Multi
+root:pass

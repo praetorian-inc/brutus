@@ -1441,3 +1441,5 @@ scout:scout
 admin:passwort
 # DPL 1104: HP MSL Series Libraries Multi
 # omitted: the list says this resets or initializes passwords
+# DPL 1105: Overland NEO Series Libraries Multi
+# omitted: the list says this resets or initializes passwords

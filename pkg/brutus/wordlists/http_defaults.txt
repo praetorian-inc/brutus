@@ -207,3 +207,5 @@ Administrator:changeme
 root:attack
 # DPL 0206: Cisco VPN Concentrator 3000 series 3 Multi
 # already present: admin:admin
+# DPL 0209: Cisco AP1200 IOS Multi
+Cisco:Cisco

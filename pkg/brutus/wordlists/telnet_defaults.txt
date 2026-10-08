@@ -280,3 +280,5 @@ root:attack
 admin:default
 # DPL 0208: cisco 3600 Telnet
 Administrator:admin
+# DPL 0209: Cisco AP1200 IOS Multi
+Cisco:Cisco

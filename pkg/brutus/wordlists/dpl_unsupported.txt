@@ -236,3 +236,5 @@
 # not sprayed: blank access type
 # DPL 0484: Lucent System 75
 # not sprayed: blank access type
+# DPL 0488: Megastar BIOS Console
+# not sprayed: Console

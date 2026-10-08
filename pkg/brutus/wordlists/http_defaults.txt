@@ -239,3 +239,5 @@ admin:my_DEMARC
 user:
 # DPL 0252: D-Link DWL-614+ rev a rev b HTTP
 # already present: admin:
+# DPL 0253: D-Link D-704P rev b Multi
+# already present: admin:

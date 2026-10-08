@@ -872,3 +872,5 @@ Any:12345
 # already present: root:
 # DPL 0759: xd xdd xddd Multi
 xd:xd
+# DPL 0760: Xerox Multi Function Equipment Multi
+admin:2222

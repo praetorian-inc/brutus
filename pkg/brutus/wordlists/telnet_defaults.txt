@@ -1022,3 +1022,5 @@ CSG:SESAME
 # already present: CSG:SESAME
 # DPL 0905: Westell Wirespeed wireless router Multi
 admin:sysAdmin
+# DPL 0906: 3COM CoreBuilder 7000/6000/3500/2500 Telnet
+# omitted: no username, so this is not a login pair

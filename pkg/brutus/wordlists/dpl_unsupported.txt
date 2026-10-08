@@ -84,3 +84,5 @@
 # not sprayed: Console
 # DPL 0194: CISCO Cache Engine Console
 # not sprayed: Console
+# DPL 0195: Cisco ConfigMaker
+# not sprayed: blank access type

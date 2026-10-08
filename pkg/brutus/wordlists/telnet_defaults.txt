@@ -286,3 +286,5 @@ Cisco:Cisco
 # already present: admin:admin
 # DPL 0222: conexant ACCESS RUNNER ADSL CONSOLE PORT 3.27 Telnet
 # already present: Administrator:admin
+# DPL 0225: Cyclades PR 1000 Telnet
+super:surt

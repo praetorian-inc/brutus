@@ -178,3 +178,5 @@
 # not sprayed: EZWebCon downloaded from ftp.lantronix.com
 # DPL 0441: Linksys Linksys DSL
 # not sprayed: blank access type
+# DPL 0446: Lockdown Networks All Lockdown Products up to 2.7 Console
+# not sprayed: Console

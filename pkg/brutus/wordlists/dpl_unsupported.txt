@@ -276,3 +276,5 @@
 # not sprayed: Serial
 # DPL 0574: Nortel Matra 6501 PBX Console
 # not sprayed: Console
+# DPL 0585: Nortel Phone System All From Phone
+# not sprayed: From Phone

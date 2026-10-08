@@ -916,3 +916,5 @@ system/manager:sys/change_on_install
 dadmin:dadmin01
 # DPL 0815: Allied Telesyn ALAT8326GB Multi
 # already present: manager:manager
+# DPL 0822: Sonic-X SonicAnime on Telnet
+# already present: root:admin

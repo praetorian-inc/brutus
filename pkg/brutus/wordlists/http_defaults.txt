@@ -1493,3 +1493,5 @@ admin:adslroot
 # already present: admin:admin
 # DPL 1137: ZyXeL 660HW HTTP
 # already present: admin:
+# DPL 1138: Netgear Wifi Router WGT 624 v3 HTTP
+# already present: admin:password

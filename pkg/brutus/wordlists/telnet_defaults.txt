@@ -736,3 +736,5 @@ write:private
 # omitted: no username, so this is not a login pair
 # DPL 0622: Pirelli Pirelli Router Multi
 admin:mu
+# DPL 0623: Pirelli Pirelli Router Multi
+admin:microbusiness

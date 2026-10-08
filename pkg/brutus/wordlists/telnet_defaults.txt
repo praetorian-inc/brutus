@@ -124,3 +124,5 @@ manager:manager
 # omitted: no username, so this is not a login pair
 # DPL 0063: 3com superstack II Netbuilder 11.1 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0064: 3COM Office Connect ISDN Routers 5x0 Telnet?
+# omitted: no username, so this is not a login pair

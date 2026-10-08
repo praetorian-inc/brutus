@@ -911,3 +911,5 @@ admin:1111
 super:super
 # DPL 0767: X-Micro X-Micro WLAN 11b Broadband Router 1.6.0.1 HTTP
 1502:1502
+# DPL 0768: X-Micro WLAN 11b Access Point 01/02/02 Multi
+# already present: super:super

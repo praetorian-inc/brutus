@@ -880,3 +880,5 @@ admin:2222
 # omitted: no username, so this is not a login pair
 # DPL 0766: X-Micro X-Micro WLAN 11b Broadband Router 1.2.2 1.2.2.3 1.2.2.4 1.6.0.0 Multi
 # already present: super:super
+# DPL 0768: X-Micro WLAN 11b Access Point 01/02/02 Multi
+# already present: super:super

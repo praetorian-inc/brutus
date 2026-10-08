@@ -1521,3 +1521,5 @@ administrator:
 # already present: operator:
 # DPL 1157: Huawei MT880 HTTP
 # already present: admin:admin
+# DPL 1158: ATL P1000 Multi
+operator:1234

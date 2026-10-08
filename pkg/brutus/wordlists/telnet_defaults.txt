@@ -1226,3 +1226,5 @@ manage:!manage
 administrator:
 # DPL 1155: Spectra Logic 64000 Gator Multi
 # already present: operator:
+# DPL 1158: ATL P1000 Multi
+operator:1234

@@ -693,3 +693,5 @@ admin:OCS
 adminstat:OCS
 # DPL 0594: OpenConnect OC://WebConnect Pro Multi
 adminview:OCS
+# DPL 0595: OpenConnect OC://WebConnect Pro Multi
+adminuser:OCS

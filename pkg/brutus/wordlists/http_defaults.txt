@@ -1197,3 +1197,5 @@ USERID:PASSW0RD
 # already present: admin:admin
 # DPL 0950: Micronet 3351 / 3354 Multi
 # already present: admin:epicrouter
+# DPL 0951: Planet ADE-4000 Multi
+# already present: admin:epicrouter

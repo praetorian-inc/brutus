@@ -1583,3 +1583,5 @@ admin:leviton
 # already present: admin:password
 # DPL 1193: QLogic SANbox 5602 Fibre Channel Switch Multi
 images:images
+# DPL 1195: Buffalo Technology TeraStation Multi
+# already present: admin:password

@@ -594,3 +594,5 @@ ami:
 # omitted: no username, so this is not a login pair
 # DPL 0489: Mentec Micro/RSX Multi
 MICRO:RSX
+# DPL 0493: Meridian PBX ANY Telnet
+service:smile

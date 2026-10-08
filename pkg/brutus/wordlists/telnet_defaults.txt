@@ -226,3 +226,5 @@ root:pass
 # already present: root:pass
 # DPL 0154: Axis 540/542 Print Server Multi
 # already present: root:pass
+# DPL 0155: axis 2100 Multi
+# omitted: no username, so this is not a login pair

@@ -2,3 +2,5 @@
 # Console, serial, and unknown access types are recorded here only.
 # DPL 0020: 3com superstack II 1100/3300 Console
 # not sprayed: Console
+# DPL 0042: 3com 3c16405 Console
+# not sprayed: Console

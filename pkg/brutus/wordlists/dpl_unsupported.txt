@@ -298,3 +298,5 @@
 # not sprayed: Console
 # DPL 0620: PentaSafe VigilEnt Security Manager 3 VigilEnt Security Manager Console
 # not sprayed: VigilEnt Security Manager Console
+# DPL 0621: Perle CS9000 any Console
+# not sprayed: Console

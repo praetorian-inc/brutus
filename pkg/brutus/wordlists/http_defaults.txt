@@ -75,3 +75,5 @@ Root:
 # omitted: no username, so this is not a login pair
 # DPL 0061: 3com officeconnect Multi
 # omitted: no username, so this is not a login pair
+# DPL 0062: 3Com Internet Firewall 3C16770 HTTP
+# already present: admin:password

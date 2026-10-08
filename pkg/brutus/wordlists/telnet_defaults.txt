@@ -52,3 +52,5 @@ admin:comcomcom
 # already present: admin:admin
 # DPL 0017: 3com cellplex 7000 Telnet
 operator:
+# DPL 0018: 3COM HiPerARC v4.1.x Telnet
+# already present: adm:

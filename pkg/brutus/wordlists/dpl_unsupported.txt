@@ -288,3 +288,5 @@
 # not sprayed: guest
 # DPL 0606: Osicom NETCommuter Telnet Manager
 # not sprayed: Manager
+# DPL 0607: Osicom NETCommuter Telnet sysadm
+# not sprayed: sysadm

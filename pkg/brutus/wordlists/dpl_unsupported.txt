@@ -256,3 +256,5 @@
 # not sprayed: Management console
 # DPL 0526: Netgear DM602 FTP Telnet and HTTP
 # not sprayed: FTP Telnet and HTTP
+# DPL 0538: Netopia Netopia 7100
+# not sprayed: blank access type

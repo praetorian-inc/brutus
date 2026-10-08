@@ -832,3 +832,5 @@ aaa:often blank
 # omitted: no username, so this is not a login pair
 # DPL 0723: Teklogix Accesspoint Multi
 # already present: Administrator:
+# DPL 0726: Telewell TW-EA200 Multi
+# already present: admin:password

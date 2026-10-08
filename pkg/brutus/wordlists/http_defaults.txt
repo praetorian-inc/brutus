@@ -851,3 +851,5 @@ aaa:often blank
 # already present: Administrator:
 # DPL 0724: Teledat Routers HTTP
 # already present: admin:1234
+# DPL 0726: Telewell TW-EA200 Multi
+# already present: admin:password

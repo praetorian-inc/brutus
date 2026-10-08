@@ -729,3 +729,5 @@ Polycom:SpIp
 # omitted: no username, so this is not a login pair
 # DPL 0630: Prestigio Nobile 156 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0631: Psion Teklogix 9150 HTTP
+support:h179350

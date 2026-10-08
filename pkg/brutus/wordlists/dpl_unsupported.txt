@@ -436,3 +436,5 @@
 # not sprayed: Console
 # DPL 1084: Mediatrix MDD 2400/2600 Console
 # not sprayed: Console
+# DPL 1087: Siemens Hipath 3300-3750 Custom program
+# not sprayed: Custom program

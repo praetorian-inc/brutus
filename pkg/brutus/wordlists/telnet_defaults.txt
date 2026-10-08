@@ -1034,3 +1034,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0916: Kalatel Calibur DSR-2000e Multi
 # omitted: no username, so this is not a login pair
+# DPL 0918: IBM T20 Multi
+# omitted: no username, so this is not a login pair

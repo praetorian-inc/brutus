@@ -184,3 +184,5 @@
 # not sprayed: debug mode
 # DPL 0452: Lucent CBX 500 debug mode
 # not sprayed: debug mode
+# DPL 0453: Lucent GX 550 SNMP readwrite
+# not sprayed: SNMP readwrite

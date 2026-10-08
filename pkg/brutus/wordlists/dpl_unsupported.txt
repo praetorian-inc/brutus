@@ -58,3 +58,5 @@
 # not sprayed: blank access type
 # DPL 0163: Bay Networks Switch 350T
 # not sprayed: blank access type
+# DPL 0173: BMC Software Patrol all BMC unique
+# not sprayed: BMC unique

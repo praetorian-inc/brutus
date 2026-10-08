@@ -1056,3 +1056,5 @@ admin:sysAdmin
 # already present: Administrator:admin
 # DPL 0940: D-link DSL-G604T Multi
 # already present: admin:admin
+# DPL 0943: Linksys model WRT54GC compact wireless-G broadband router Multi
+# omitted: no username, so this is not a login pair

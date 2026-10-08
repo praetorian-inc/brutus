@@ -1181,3 +1181,5 @@ root:calvin
 root:Cisco
 # DPL 0942: D-link Di-707p router HTTP
 # already present: admin:
+# DPL 0943: Linksys model WRT54GC compact wireless-G broadband router Multi
+# omitted: no username, so this is not a login pair

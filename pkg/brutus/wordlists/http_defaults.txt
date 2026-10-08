@@ -49,3 +49,5 @@ manager:manager
 # already present: admin:admin
 # DPL 0041: 3com 3c16405 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0043: 3com Switch 3300XM Multi
+# already present: admin:admin

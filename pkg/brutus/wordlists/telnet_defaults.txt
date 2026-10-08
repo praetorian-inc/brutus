@@ -1268,3 +1268,5 @@ admin:P@55w0rd!
 images:images
 # DPL 1195: Buffalo Technology TeraStation Multi
 # already present: admin:password
+# DPL 1196: linksys wag354g Telnet
+# already present: admin:admin

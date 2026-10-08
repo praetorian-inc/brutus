@@ -1457,3 +1457,5 @@ isp:isp
 # already present: admin:
 # DPL 1115: Avocent Cyclade Linux hostnamehere 2.6.11 #1 Tue Mar 28 13:31:20 PST 2006 ppc unknown Multi
 # already present: root:tslinux
+# DPL 1117: Citel Handset Gateway HTTP
+citel:password

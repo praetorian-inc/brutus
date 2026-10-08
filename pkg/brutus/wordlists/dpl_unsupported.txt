@@ -8,3 +8,5 @@
 # not sprayed: Console
 # DPL 0060: 3com CB9000 / 4007 3 Console
 # not sprayed: Console
+# DPL 0085: Alcatel PBX 4400 Port 2533
+# not sprayed: Port 2533

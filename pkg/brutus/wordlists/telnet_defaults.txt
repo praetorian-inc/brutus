@@ -352,3 +352,5 @@ login:password
 public:
 # DPL 0297: EverFocus PowerPlex EDR1600 Multi
 # already present: admin:admin
+# DPL 0298: EverFocus PowerPlex EDR1600 Multi
+supervisor:supervisor

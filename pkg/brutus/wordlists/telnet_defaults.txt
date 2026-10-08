@@ -834,3 +834,5 @@ aaa:often blank
 # already present: Administrator:
 # DPL 0726: Telewell TW-EA200 Multi
 # already present: admin:password
+# DPL 0729: Tellabs Titan 5500 FP 6.x Multi
+tellabs:tellabs#1

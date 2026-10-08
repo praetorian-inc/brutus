@@ -857,3 +857,5 @@ aaa:often blank
 # omitted: no username, so this is not a login pair
 # DPL 0728: Telindus SHDSL1421 yes HTTP
 # already present: admin:admin
+# DPL 0729: Tellabs Titan 5500 FP 6.x Multi
+tellabs:tellabs#1

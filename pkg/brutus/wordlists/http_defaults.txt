@@ -435,3 +435,5 @@ MGR:CCC
 MGR:CNAS
 # DPL 0369: Hewlett-Packard HP 2000/3000 MPE/xx Multi
 MGR:WORD
+# DPL 0370: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+MGR:COGNOS

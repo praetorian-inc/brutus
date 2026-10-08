@@ -932,3 +932,5 @@ target:password
 # already present: Administrator:admin
 # DPL 0835: Symbol AP-2412 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0836: Symbol AP-3020 Multi
+# omitted: no username, so this is not a login pair

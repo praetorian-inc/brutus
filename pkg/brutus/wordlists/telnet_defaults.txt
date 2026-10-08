@@ -780,3 +780,5 @@ RMUser1:password
 topicalt:password
 # DPL 0657: RM RM Connect Multi
 topicnorm:password
+# DPL 0658: RM RM Connect Multi
+topicres:password

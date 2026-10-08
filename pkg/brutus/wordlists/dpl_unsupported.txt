@@ -130,3 +130,5 @@
 # not sprayed: blank access type
 # DPL 0241: Dictaphone ProLog
 # not sprayed: blank access type
+# DPL 0244: Digicorp Router
+# not sprayed: blank access type

@@ -195,3 +195,5 @@ root:fivranne
 mediator:mediator
 # DPL 0190: Celerity Mediator Multi
 root:Mau'dib
+# DPL 0191: Cellit CCPro Multi
+cellit:cellit

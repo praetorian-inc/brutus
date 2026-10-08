@@ -192,3 +192,5 @@
 # not sprayed: Console
 # DPL 0461: Lucent Cellpipe 22A-BX-AR USB D Console
 # not sprayed: Console
+# DPL 0463: Lucent System 75
+# not sprayed: blank access type

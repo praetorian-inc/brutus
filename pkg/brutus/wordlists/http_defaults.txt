@@ -1541,3 +1541,5 @@ Service:5678
 # already present: Administrator:
 # DPL 1169: Linksys WRT54GS V4 HTTP
 # already present: admin:admin
+# DPL 1170: Lanier LD335 HTTP
+supervisor:

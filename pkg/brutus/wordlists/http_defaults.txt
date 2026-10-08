@@ -1491,3 +1491,5 @@ admin:adslroot
 # already present: admin:admin
 # DPL 1136: Addon GWAR3000/ARM8100 HTTP
 # already present: admin:admin
+# DPL 1137: ZyXeL 660HW HTTP
+# already present: admin:

@@ -1063,3 +1063,5 @@ webadmin:1234
 # already present: root:changeme
 # DPL 0877: dlink adsl HTTP
 # already present: admin:admin
+# DPL 0878: Conexant Router HTTP
+# omitted: no username, so this is not a login pair

@@ -1437,3 +1437,5 @@ scout:scout
 # already present: admin:1234
 # DPL 1102: 2wire wifi routers n/a HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1103: Sphairon (Versatel WLAN-Router) Multi
+admin:passwort

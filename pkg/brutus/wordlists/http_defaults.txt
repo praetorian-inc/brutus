@@ -1613,3 +1613,5 @@ admin:imss7.0
 # omitted: no username, so this is not a login pair
 # DPL 1214: Ricoh Aficio 1013F HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1215: Polycom SoundPoint IP Phones HTTP
+Polycom:456

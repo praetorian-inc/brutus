@@ -497,3 +497,5 @@ PRODDTA:PRODDTA
 # omitted: no username, so this is not a login pair
 # DPL 0416: Kyocera Telnet Server IB-20/21 multi
 # already present: root:root
+# DPL 0417: Kyocera Intermate LAN FS Pro 10/100 K82_0371 HTTP
+# already present: admin:admin

@@ -328,3 +328,5 @@ user:
 # already present: admin:admin
 # DPL 0275: Dynalink RTA230 Multi
 # already present: admin:admin
+# DPL 0277: Edimax EW-7205APL Firmware release 2.40a-00 Multi
+guest:

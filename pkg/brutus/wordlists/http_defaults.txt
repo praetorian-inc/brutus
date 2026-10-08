@@ -287,3 +287,5 @@ User:
 # already present: admin:admin
 # DPL 0276: Edimax Broadband Router Hardware: Rev A. Boot Code: 1.0 Runtime Code 2.63 HTTP
 admin:1234
+# DPL 0277: Edimax EW-7205APL Firmware release 2.40a-00 Multi
+guest:

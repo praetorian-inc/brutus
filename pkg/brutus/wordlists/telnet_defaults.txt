@@ -706,3 +706,5 @@ adminstat:OCS
 adminview:OCS
 # DPL 0595: OpenConnect OC://WebConnect Pro Multi
 adminuser:OCS
+# DPL 0596: OpenConnect OC://WebConnect Pro Multi
+# already present: adminview:OCS

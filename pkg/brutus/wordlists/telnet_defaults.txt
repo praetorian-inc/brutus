@@ -942,3 +942,5 @@ target:password
 # omitted: no username, so this is not a login pair
 # DPL 0840: telindus telindus 2002 Telnet
 # already present: admin:admin
+# DPL 0842: D-Link Dsl-300g+ Teo Telnet
+# omitted: no username, so this is not a login pair

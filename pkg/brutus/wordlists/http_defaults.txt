@@ -445,3 +445,5 @@ MGR:HPOFFICE
 MGR:HPONLY
 # DPL 0375: Hewlett-Packard LaserJet Net Printers Ones with Jetdirect on them HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0378: Hewlett-Packard webmin 0.84 HTTP
+admin:hp.com

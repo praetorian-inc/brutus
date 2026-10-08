@@ -1179,3 +1179,5 @@ root:calvin
 # already present: admin:admin
 # DPL 0941: Cisco Aironet 1200 HTTP
 root:Cisco
+# DPL 0942: D-link Di-707p router HTTP
+# already present: admin:

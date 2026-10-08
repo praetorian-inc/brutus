@@ -1353,3 +1353,5 @@ admin:x-admin
 # already present: admin:admin
 # DPL 1047: Sercom IP806GA HTTP
 # already present: admin:admin
+# DPL 1048: Sercom IP806GB HTTP
+# already present: admin:admin

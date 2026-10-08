@@ -1208,3 +1208,5 @@ admin:0
 admin:adslroot
 # DPL 1130: Intracom jetSpeed 520/520i Multi
 # already present: admin:admin
+# DPL 1131: cisco 2600 router Telnet
+cisco:

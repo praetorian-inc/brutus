@@ -332,3 +332,5 @@ user:
 guest:
 # DPL 0278: Efficient Speedstream DSL Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0279: Efficient 5871 DSL Router v 5.3.3-0 Multi
+login:admin

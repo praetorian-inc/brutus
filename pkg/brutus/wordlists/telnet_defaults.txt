@@ -992,3 +992,5 @@ root:blender
 hsa:hsadb
 # DPL 0890: Cisco WLSE Multi
 # already present: root:blender
+# DPL 0891: Cisco WLSE Multi
+wlse:wlsedb

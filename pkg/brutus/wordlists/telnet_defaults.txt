@@ -1246,3 +1246,5 @@ iclock:timely
 # already present: Administrator:admin
 # DPL 1174: Zyxel ES-2108 Multi
 # already present: admin:1234
+# DPL 1175: D-Link WBR-1310 B-1 Multi
+# already present: admin:

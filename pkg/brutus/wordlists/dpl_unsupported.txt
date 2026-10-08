@@ -96,3 +96,5 @@
 # not sprayed: IP and Named Pipes
 # DPL 0211: Cisco CiscoWorks 2000
 # not sprayed: blank access type
+# DPL 0212: Cisco CiscoWorks 2000
+# not sprayed: blank access type

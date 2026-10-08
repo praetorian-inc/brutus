@@ -1,3 +1,8 @@
+# Lab: docker run -d --name iris --platform linux/arm64 -p 52773:52773 -p 1972:1972 intersystems/iris-community:latest-cd-linux-arm64
+# Login: POST /csp/sys/UtilHome.csp after GET of the same path. Keep the CSPSESSIONID cookie.
+# The IRISSessionToken from that GET is single-use. Shipped accounts: _SYSTEM:SYS and SuperUser:SYS.
+# Hit: password-change page contains IRISOldPassword. Miss: title stays "Login IRIS".
+# The older Cache pair system:sys does not log in. Password SYS is case-sensitive.
 id: iris
 name: InterSystems IRIS
 nerva: [intersystems-iris]

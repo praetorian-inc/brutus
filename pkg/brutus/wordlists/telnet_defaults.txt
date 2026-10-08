@@ -72,3 +72,5 @@ root:
 # already present: tech:tech
 # DPL 0030: 3com super Telnet
 # already present: admin:
+# DPL 0031: 3com cellplex 7000 Multi
+# already present: admin:admin

@@ -33,3 +33,5 @@ admin:comcomcom
 security:security
 # DPL 0022: 3COM CellPlex HTTP
 admin:synnet
+# DPL 0031: 3com cellplex 7000 Multi
+# already present: admin:admin

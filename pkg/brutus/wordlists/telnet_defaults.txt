@@ -1098,3 +1098,5 @@ admin:atlantis
 # already present: admin:admin
 # DPL 1000: Huawei MT880r Multi
 TMAR#HWMT8007079:
+# DPL 1002: Sagem F@st 1200 (Fast 1200) Telnet
+# already present: root:1234

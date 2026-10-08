@@ -1325,3 +1325,5 @@ SSA:SSA
 # already present: admin:
 # DPL 1025: Cisco CallManager HTTP
 # already present: admin:admin
+# DPL 1028: Netgear CG814CCR 2 Multi
+# already present: cusadmin:highspeed

@@ -1118,3 +1118,5 @@ superman:talent
 # already present: admin:admin
 # DPL 1022: SSA BPCS Up to 5.02 Multi
 SSA:SSA
+# DPL 1028: Netgear CG814CCR 2 Multi
+cusadmin:highspeed

@@ -1277,3 +1277,5 @@ admin:atlantis
 # already present: admin:admin
 # DPL 0999: IBM T42 HTTP
 # already present: Administrator:admin
+# DPL 1000: Huawei MT880r Multi
+TMAR#HWMT8007079:

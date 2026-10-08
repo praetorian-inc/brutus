@@ -964,3 +964,5 @@ admin:barricade
 # already present: admin:1234
 # DPL 0870: Milan mil-sm801p Multi
 # already present: root:root
+# DPL 0871: cisco 2600 Telnet
+# already present: Administrator:admin

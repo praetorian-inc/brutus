@@ -716,3 +716,5 @@ Manager:Manager
 sysadm:sysadm
 # DPL 0602: Osicom Osicom Plus T1/PLUS 56k Telnet
 write:private
+# DPL 0609: Osicom NETCommuter Remote Access Server Telnet
+# already present: sysadm:sysadm

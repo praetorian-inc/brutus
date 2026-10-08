@@ -426,3 +426,5 @@
 # not sprayed: Console
 # DPL 1035: netgear sc101 management software
 # not sprayed: management software
+# DPL 1036: Bluecoat ProxySG (all model) SGOS 3 / SGOS4 HTTPS (8082)
+# not sprayed: HTTPS (8082)

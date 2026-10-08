@@ -632,3 +632,5 @@ admin:noway
 # already present: setup:setup
 # DPL 0541: Netscreen Firewall multi
 netscreen:netscreen
+# DPL 0542: netscreen firewall Telnet
+# already present: Administrator:

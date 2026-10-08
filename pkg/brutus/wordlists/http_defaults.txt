@@ -589,3 +589,5 @@ SYSADM:sysadm
 super:5777364
 # DPL 0522: Netgear WG602 Firmware Version 1.7.14 HTTP
 superman:21241036
+# DPL 0523: Netgear WG602 Firmware Version 1.5.67 HTTP
+# already present: super:5777364

@@ -1263,3 +1263,5 @@ admin:w2402
 # omitted: no username, so this is not a login pair
 # DPL 0992: Terayon Unknown Comcast-supplied HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0993: Linksys Comcast Comcast-supplied HTTP
+comcast:1234

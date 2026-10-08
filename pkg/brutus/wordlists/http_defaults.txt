@@ -889,3 +889,5 @@ Any:12345
 # already present: admin:
 # DPL 0750: westell 2200 Multi
 # already present: admin:password
+# DPL 0751: Westell Versalink 327 Multi
+# already present: admin:

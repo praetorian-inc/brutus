@@ -267,3 +267,5 @@ User:
 # already present: user:
 # DPL 0266: D-Link DI-614+ any HTTP
 # already present: admin:
+# DPL 0267: D-Link DWL 2100AP Multi
+# already present: admin:

@@ -322,3 +322,5 @@ D-Link:D-Link
 # omitted: no username, so this is not a login pair
 # DPL 0265: D-Link DI-514 Multi
 user:
+# DPL 0267: D-Link DWL 2100AP Multi
+# already present: admin:

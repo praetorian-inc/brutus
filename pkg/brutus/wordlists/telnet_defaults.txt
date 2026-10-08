@@ -662,3 +662,5 @@ l3:l3
 ro:ro
 # DPL 0564: Nortel Accelar (Passport) 1000 series routing switches Multi
 rw:rw
+# DPL 0565: Nortel Accelar (Passport) 1000 series routing switches Multi
+rwa:rwa

@@ -1218,3 +1218,5 @@ cisco:
 # omitted: no username, so this is not a login pair
 # DPL 1149: netgear dg834 Multi
 # omitted: no username, so this is not a login pair
+# DPL 1150: Brother MFC-420CN Firmware Ver.C Multi
+# omitted: no username, so this is not a login pair

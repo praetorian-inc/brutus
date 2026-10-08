@@ -272,3 +272,5 @@ netrangr:attack
 Administrator:changeme
 # DPL 0202: Cisco Netranger/secure IDS 3.0(5)S17 Multi
 root:attack
+# DPL 0205: Cisco PIX firewall Telnet
+# omitted: no username, so this is not a login pair

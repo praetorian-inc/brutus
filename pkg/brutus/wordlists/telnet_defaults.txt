@@ -752,3 +752,5 @@ user:password
 radware:radware
 # DPL 0643: RM RM Connect Multi
 setup:changeme
+# DPL 0644: RM RM Connect Multi
+teacher:password

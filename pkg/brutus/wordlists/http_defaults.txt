@@ -841,3 +841,5 @@ aaa:often blank
 # omitted: no username, so this is not a login pair
 # DPL 0716: SpeedXess HASE-120 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0719: Symbol Spectrum series 4100-4121 HTTP
+# omitted: no username, so this is not a login pair

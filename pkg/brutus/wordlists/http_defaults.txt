@@ -1149,3 +1149,5 @@ cusadmin:highspeed
 Administrator:pilou
 # DPL 0926: corecess 3113 Multi
 # already present: admin:
+# DPL 0927: AXUS AXUS YOTTA Multi
+# omitted: no username, so this is not a login pair

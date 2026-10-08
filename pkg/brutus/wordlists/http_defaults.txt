@@ -161,3 +161,5 @@ manuf:xxyyzz
 craft:crftpw
 # DPL 0152: Axis All Axis Printserver All Multi
 root:pass
+# DPL 0153: Axis Webcams HTTP
+# already present: root:pass

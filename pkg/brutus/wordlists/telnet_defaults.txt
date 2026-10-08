@@ -918,3 +918,5 @@ dadmin:dadmin01
 # already present: manager:manager
 # DPL 0822: Sonic-X SonicAnime on Telnet
 # already present: root:admin
+# DPL 0824: Wanadoo Livebox Multi
+# already present: admin:admin

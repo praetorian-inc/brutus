@@ -979,3 +979,5 @@ dadmin:dadmin01
 # already present: admin:password
 # DPL 0823: Siemens SpeedStream 4100 HTTP
 admin:hagpolm1
+# DPL 0824: Wanadoo Livebox Multi
+# already present: admin:admin

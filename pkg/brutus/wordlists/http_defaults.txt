@@ -735,3 +735,5 @@ support:h179350
 # already present: admin:admin
 # DPL 0634: Radware Linkproof 3.73.03 Multi
 radware:radware
+# DPL 0638: RedHat Redhat 6.2 HTTP
+piranha:q

@@ -846,3 +846,5 @@ admin:extendnet
 # omitted: no username, so this is not a login pair
 # DPL 0736: Unisys ClearPath MCP Multi
 NAU:NAU
+# DPL 0737: Unisys ClearPath MCP Multi
+ADMINISTRATOR:ADMINISTRATOR

@@ -963,3 +963,5 @@ admin:isee
 system/manager:sys/change_on_install
 # DPL 0811: Infosmart SOHO router HTTP
 # already present: admin:0
+# DPL 0812: Pansonic KXTD1232 Multi
+# already present: admin:1234

@@ -72,3 +72,5 @@
 # not sprayed: blank access type
 # DPL 0179: Breezecom Breezecom Adapters 2.x
 # not sprayed: blank access type
+# DPL 0183: Brother NC-3100h
+# not sprayed: blank access type

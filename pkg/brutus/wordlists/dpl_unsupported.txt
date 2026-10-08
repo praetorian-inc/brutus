@@ -392,3 +392,5 @@
 # not sprayed: Console
 # DPL 0797: Logitech Logitech Mobile Headset Bluetooth
 # not sprayed: Bluetooth
+# DPL 0813: Areca RAID controllers Console
+# not sprayed: Console

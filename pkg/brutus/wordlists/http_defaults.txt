@@ -959,3 +959,5 @@ admin:isee
 # already present: admin:password
 # DPL 0808: Konica Minolta magicolor 2430DL All Multi
 # omitted: no username, so this is not a login pair
+# DPL 0810: Oracle Oracle RDBMS Any Multi
+system/manager:sys/change_on_install

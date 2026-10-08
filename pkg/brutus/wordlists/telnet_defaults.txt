@@ -908,3 +908,5 @@ sysadmin:password
 # omitted: no username, so this is not a login pair
 # DPL 0809: KTI KS-2260 Telnet
 superuser:123456
+# DPL 0810: Oracle Oracle RDBMS Any Multi
+system/manager:sys/change_on_install

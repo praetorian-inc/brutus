@@ -1142,3 +1142,5 @@ admin:Password
 # omitted: no username, so this is not a login pair
 # DPL 1060: Tandberg 6000MXP Multi
 Admin:
+# DPL 1061: hp 2300 Multi
+# already present: admin:admin

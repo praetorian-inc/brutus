@@ -1373,3 +1373,5 @@ admin:Sharp
 # already present: admin:1234
 # DPL 1060: Tandberg 6000MXP Multi
 Admin:
+# DPL 1061: hp 2300 Multi
+# already present: admin:admin

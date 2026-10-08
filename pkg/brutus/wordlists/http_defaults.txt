@@ -1477,3 +1477,5 @@ admin:pfsense
 root:0P3N
 # DPL 1127: Thomson Wireless Cable Gateway DCW725 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1128: Thomson SpeedTouch AP 180 HTTP
+# omitted: no username, so this is not a login pair

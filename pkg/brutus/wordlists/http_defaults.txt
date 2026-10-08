@@ -561,3 +561,5 @@ ami:
 MICRO:RSX
 # DPL 0501: Mitel 3300 ICP all HTTP
 system:password
+# DPL 0502: Mitel SX2000 all Multi
+# omitted: no username, so this is not a login pair

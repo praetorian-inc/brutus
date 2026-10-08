@@ -602,3 +602,5 @@ service:smile
 # already present: root:root
 # DPL 0498: Mikrotik Router OS all Telnet
 # already present: admin:
+# DPL 0502: Mitel SX2000 all Multi
+# omitted: no username, so this is not a login pair

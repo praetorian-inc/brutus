@@ -164,3 +164,5 @@
 # not sprayed: blank access type
 # DPL 0407: Intersystems Cache Post-RDMS Console
 # not sprayed: Console
+# DPL 0411: JD Edwards WorldVision/OneWorld All(?) Console
+# not sprayed: Console

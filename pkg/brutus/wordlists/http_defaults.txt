@@ -1473,3 +1473,5 @@ admin:pfsense
 # omitted: no username, so this is not a login pair
 # DPL 1125: Conceptronic C54BRS4 Multi
 # already present: admin:1234
+# DPL 1126: OPEN Networks 812L HTTP
+root:0P3N

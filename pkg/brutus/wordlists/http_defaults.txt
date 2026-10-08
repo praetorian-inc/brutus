@@ -1385,3 +1385,5 @@ Admin:
 # omitted: no username, so this is not a login pair
 # DPL 1066: Netgear FVS114 GR HTTP
 # already present: admin:password
+# DPL 1069: Siemens Speedstream SS2614 Hardware V. 01 HTTP
+# omitted: no username, so this is not a login pair

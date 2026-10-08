@@ -540,3 +540,5 @@ PRODDTA:PRODDTA
 # omitted: no username, so this is not a login pair
 # DPL 0422: Lantronix SCS1620 Multi
 sysadmin:PASS
+# DPL 0424: Lantronix SCS400 Multi
+# omitted: no username, so this is not a login pair

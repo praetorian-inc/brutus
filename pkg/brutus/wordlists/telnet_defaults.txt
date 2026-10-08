@@ -720,3 +720,5 @@ write:private
 # already present: sysadm:sysadm
 # DPL 0610: Osicom JETXPrint 1000E/B Telnet
 # already present: sysadm:sysadm
+# DPL 0611: Osicom JETXPrint 1000E/N Telnet
+# already present: sysadm:sysadm

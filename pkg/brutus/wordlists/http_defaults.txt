@@ -553,3 +553,5 @@ readwrite:lucenttech1
 Administrator:
 # DPL 0485: Marconi Fore ATM Switches Multi
 ami:
+# DPL 0486: maxdata ms2137 Multi
+# omitted: no username, so this is not a login pair

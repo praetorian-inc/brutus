@@ -336,3 +336,5 @@ guest:
 login:admin
 # DPL 0280: Efficient 5851 Telnet
 login:password
+# DPL 0283: Efficient Networks EN 5861 Telnet
+# already present: login:admin

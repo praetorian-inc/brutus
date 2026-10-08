@@ -162,3 +162,5 @@
 # not sprayed: blank access type
 # DPL 0401: Intel Shiva
 # not sprayed: blank access type
+# DPL 0407: Intersystems Cache Post-RDMS Console
+# not sprayed: Console

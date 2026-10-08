@@ -1238,3 +1238,5 @@ Service:5678
 iclock:timely
 # DPL 1166: D-Link G624T Multi
 # already present: admin:admin
+# DPL 1167: Ricoh Ricoh Aficio MP 3500 1.0 Multi
+# already present: admin:

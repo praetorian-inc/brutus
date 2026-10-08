@@ -1186,3 +1186,5 @@ admin:passwort
 # already present: root:admin
 # DPL 1111: Linksys rv082 Multi
 # already present: admin:
+# DPL 1112: AVAYA P333 Telnet
+Administrator:ggdaseuaimhrke

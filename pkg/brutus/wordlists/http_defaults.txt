@@ -919,3 +919,5 @@ admin:switch
 # already present: admin:admin
 # DPL 0783: ZyXEL Prestige HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0787: ZyXEL Prestige 652HW-31 ADSL Router HTTP
+# already present: admin:1234

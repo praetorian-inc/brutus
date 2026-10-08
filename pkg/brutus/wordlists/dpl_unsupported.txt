@@ -344,3 +344,5 @@
 # not sprayed: blank access type
 # DPL 0687: Siemens Nixdorf PC BIOS Console
 # not sprayed: Console
+# DPL 0688: Siemens Nixdorf BIOS Console
+# not sprayed: Console

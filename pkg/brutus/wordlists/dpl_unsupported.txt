@@ -262,3 +262,5 @@
 # not sprayed: blank access type
 # DPL 0553: Nimble PC BIOS Console
 # not sprayed: Console
+# DPL 0554: Nimble BIOS Console
+# not sprayed: Console

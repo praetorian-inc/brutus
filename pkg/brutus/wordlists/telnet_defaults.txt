@@ -44,3 +44,5 @@ adm:
 # already present: tech:tech
 # DPL 0013: 3COM OfficeConnect 812 ADSL Multi
 adminttd:adminttd
+# DPL 0014: 3COM Wireless AP ANY Multi
+admin:comcomcom

@@ -575,3 +575,5 @@ admin:motorola
 SYSADM:sysadm
 # DPL 0510: Mutare Software EVM Admin All HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0514: Netcomm NB1300 HTTP
+# already present: admin:password

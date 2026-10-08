@@ -24,3 +24,5 @@ zte:zte
 hscroot:abc123
 # DPL 0633: Radware Linkproof ssh
 lp:lp
+# DPL 0709: SOPHIA (Schweiz) AG Protector SSH
+# already present: root:root

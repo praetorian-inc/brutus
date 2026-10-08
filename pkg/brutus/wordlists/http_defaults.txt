@@ -1379,3 +1379,5 @@ Admin:
 # already present: admin:password
 # DPL 1063: D-Link DI-634M Multi
 # already present: admin:
+# DPL 1064: Silvercrest WR-6640Sg HTTP
+# already present: admin:admin

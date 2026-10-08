@@ -406,3 +406,5 @@
 # not sprayed: Console
 # DPL 0847: KTI KS2260 Console
 # not sprayed: Console
+# DPL 0858: LG Aria iPECS All Console
+# not sprayed: Console

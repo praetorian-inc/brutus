@@ -876,3 +876,5 @@ xd:xd
 admin:2222
 # DPL 0762: xerox xerox Multi
 # already present: admin:admin
+# DPL 0763: xerox xerox Multi
+# omitted: no username, so this is not a login pair

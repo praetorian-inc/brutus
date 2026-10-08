@@ -971,3 +971,5 @@ dadmin:dadmin01
 # already present: manager:manager
 # DPL 0816: Sun Cobalt HTTP
 # already present: admin:admin
+# DPL 0817: iblitzz BWA711/All Models All HTTP
+# already present: admin:admin

@@ -282,3 +282,5 @@
 # not sprayed: Console
 # DPL 0603: Osicom NETCommuter Telnet debug
 # not sprayed: debug
+# DPL 0604: Osicom NETCommuter Telnet echo
+# not sprayed: echo

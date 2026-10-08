@@ -457,3 +457,5 @@ admin:hp.com
 # omitted: no username, so this is not a login pair
 # DPL 0384: ibm a20m Multi
 # omitted: no username, so this is not a login pair
+# DPL 0385: IBM TotalStorage Enterprise Server Multi
+storwatch:specialist

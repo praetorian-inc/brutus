@@ -1321,3 +1321,5 @@ superman:talent
 SSA:SSA
 # DPL 1023: Minolta PagrPro QMS 4100GN PagePro HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1024: Secure Computing Webwasher all HTTP
+# already present: admin:

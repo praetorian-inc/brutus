@@ -46,3 +46,5 @@
 # not sprayed: Oracle
 # DPL 0140: Aspect ACD 8 Oracle
 # not sprayed: Oracle
+# DPL 0141: AVAYA g3R v6 Console
+# not sprayed: Console

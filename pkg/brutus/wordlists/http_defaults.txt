@@ -1113,3 +1113,5 @@ CSG:SESAME
 # already present: CSG:SESAME
 # DPL 0905: Westell Wirespeed wireless router Multi
 admin:sysAdmin
+# DPL 0907: CNET CNET 4PORT ADSL MODEM CNAD NF400 Multi
+# already present: admin:epicrouter

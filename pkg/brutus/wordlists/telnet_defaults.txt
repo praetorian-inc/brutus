@@ -1024,3 +1024,5 @@ CSG:SESAME
 admin:sysAdmin
 # DPL 0906: 3COM CoreBuilder 7000/6000/3500/2500 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0907: CNET CNET 4PORT ADSL MODEM CNAD NF400 Multi
+# already present: admin:epicrouter

@@ -818,3 +818,5 @@ Administrator:smcadmin
 aaa:often blank
 # DPL 0710: Speedstream 5861 SMT Router Multi
 # already present: admin:admin
+# DPL 0711: Speedstream 5871 IDSL Router Multi
+# already present: admin:admin

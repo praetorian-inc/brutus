@@ -1499,3 +1499,5 @@ admin:adslroot
 # already present: admin:
 # DPL 1140: Sitecom WL-0xx up to WL-17x all Multi
 # already present: admin:admin
+# DPL 1141: greatspeed DSL HTTP
+netadmin:nimdaten

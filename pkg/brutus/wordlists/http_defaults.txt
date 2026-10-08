@@ -833,3 +833,5 @@ aaa:often blank
 # already present: admin:admin
 # DPL 0711: Speedstream 5871 IDSL Router Multi
 # already present: admin:admin
+# DPL 0712: Speedstream Router 250 ssr250 Multi
+# already present: admin:admin

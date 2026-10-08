@@ -354,3 +354,5 @@
 # not sprayed: Console
 # DPL 0718: Sun JavaWebServer 1.x 2.x AdminSrv
 # not sprayed: AdminSrv
+# DPL 0731: Tiara 1400 3.x Console
+# not sprayed: Console

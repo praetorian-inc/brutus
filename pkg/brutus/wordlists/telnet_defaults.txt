@@ -160,3 +160,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0097: Alcatel OmniStack 6024 Telnet
 admin:switch
+# DPL 0098: Alcatel Omnistack/Omniswitch Telnet/Console
+diag:switch

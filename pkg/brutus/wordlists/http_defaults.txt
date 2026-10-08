@@ -859,3 +859,5 @@ aaa:often blank
 # already present: admin:admin
 # DPL 0729: Tellabs Titan 5500 FP 6.x Multi
 tellabs:tellabs#1
+# DPL 0730: Tellabs 7120 Multi
+root:admin_1

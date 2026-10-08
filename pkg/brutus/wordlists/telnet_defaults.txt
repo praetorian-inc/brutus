@@ -1276,3 +1276,5 @@ images:images
 # omitted: no username, so this is not a login pair
 # DPL 1204: Mikrotik Mikrotik Telnet
 # already present: admin:
+# DPL 1205: Zyxel Prestige 650HW31 31 Telnet
+192.168.1.1 60020:@dsl_xilno

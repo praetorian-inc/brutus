@@ -1124,3 +1124,5 @@ cusadmin:highspeed
 # omitted: no username, so this is not a login pair
 # DPL 1030: Signamax 065-7726S Multi
 # already present: admin:admin
+# DPL 1032: Zyxel Router 650-1 Telnet
+# omitted: no username, so this is not a login pair

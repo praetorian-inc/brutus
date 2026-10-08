@@ -300,3 +300,5 @@ davox:davox
 admin:my_DEMARC
 # DPL 0242: Digicorp Viper Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0243: Digicorp Viper Telnet
+# omitted: no username, so this is not a login pair

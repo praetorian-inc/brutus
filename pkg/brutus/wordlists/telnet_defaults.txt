@@ -598,3 +598,5 @@ MICRO:RSX
 service:smile
 # DPL 0494: Micronet Access Point SP912 Telnet
 # already present: root:default
+# DPL 0496: Microplex Print Server Telnet
+# already present: root:root

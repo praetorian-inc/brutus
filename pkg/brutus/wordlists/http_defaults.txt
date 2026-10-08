@@ -557,3 +557,5 @@ ami:
 # omitted: no username, so this is not a login pair
 # DPL 0487: medion Routers HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0489: Mentec Micro/RSX Multi
+MICRO:RSX

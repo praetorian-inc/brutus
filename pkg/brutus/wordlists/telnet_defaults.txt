@@ -592,3 +592,5 @@ super:super
 ami:
 # DPL 0486: maxdata ms2137 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0489: Mentec Micro/RSX Multi
+MICRO:RSX

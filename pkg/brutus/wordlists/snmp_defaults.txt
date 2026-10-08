@@ -36,3 +36,5 @@ TENmanUFactOryPOWER
 # already present: admin
 # DPL 0164: Belkin F5D6130 SNMP
 MiniAP
+# DPL 0168: BinTec Bianca/Brick XM-5.1 SNMP
+snmp-Trap

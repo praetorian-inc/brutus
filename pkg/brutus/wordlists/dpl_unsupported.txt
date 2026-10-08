@@ -342,3 +342,5 @@
 # not sprayed: blank access type
 # DPL 0686: Siemens ROLM PBX
 # not sprayed: blank access type
+# DPL 0687: Siemens Nixdorf PC BIOS Console
+# not sprayed: Console

@@ -572,3 +572,5 @@ sysadmin:PASS
 # already present: !root:
 # DPL 0445: Livingstone Portmaster 2R Telnet
 # already present: root:
+# DPL 0448: Lucent B-STDX9000 Multi
+(any 3 characters):cascade

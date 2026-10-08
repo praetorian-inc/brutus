@@ -537,3 +537,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0447: longshine isscfg HTTP
 admin:0
+# DPL 0448: Lucent B-STDX9000 Multi
+(any 3 characters):cascade

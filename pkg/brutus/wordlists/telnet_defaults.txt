@@ -746,3 +746,5 @@ user:password
 # omitted: no username, so this is not a login pair
 # DPL 0629: Polycom iPower 9000 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0630: Prestigio Nobile 156 Multi
+# omitted: no username, so this is not a login pair

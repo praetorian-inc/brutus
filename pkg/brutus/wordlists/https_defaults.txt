@@ -29,3 +29,5 @@ supervisor:PlsChgMe
 admin:Protector
 # DPL 0725: Teletronics WL-CPE-Router 03/05/02 HTTPS
 admin:1234
+# DPL 1039: Symbol CB3000 A1 HTTPS
+admin:symbol

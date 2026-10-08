@@ -814,3 +814,5 @@ Administrator:ganteng
 # already present: admin:
 # DPL 0700: SMC SMB2804WBR V2 Multi
 Administrator:smcadmin
+# DPL 0706: Solution 6 Viztopia Accounts Multi
+aaa:often blank

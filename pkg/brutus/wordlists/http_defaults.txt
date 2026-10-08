@@ -825,3 +825,5 @@ smc:smcadmin
 admin:smcadmin
 # DPL 0704: SMC 2804wr HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0706: Solution 6 Viztopia Accounts Multi
+aaa:often blank

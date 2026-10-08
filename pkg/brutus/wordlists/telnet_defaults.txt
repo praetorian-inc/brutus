@@ -1196,3 +1196,5 @@ root:ggdaseuaimhrke
 root:tslinux
 # DPL 1118: Citel Handset Gateway Telnet
 # omitted: no username, so this is not a login pair
+# DPL 1121: pfSense pfSense Firewall 1.0.1 Multi
+admin:pfsense

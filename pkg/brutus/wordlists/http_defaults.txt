@@ -1463,3 +1463,5 @@ citel:password
 # already present: admin:1234
 # DPL 1120: SysMaster M10 HTTP
 admin:12345
+# DPL 1121: pfSense pfSense Firewall 1.0.1 Multi
+admin:pfsense

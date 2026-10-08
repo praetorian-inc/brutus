@@ -821,3 +821,5 @@ Administrator:smcadmin
 admin:barricade
 # DPL 0702: SMC 7401BRA 2 HTTP
 smc:smcadmin
+# DPL 0703: SMC Barricade7204BRB HTTP
+admin:smcadmin

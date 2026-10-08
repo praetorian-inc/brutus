@@ -608,3 +608,5 @@ service:smile
 cablecom:router
 # DPL 0508: motorola vanguard Multi
 # omitted: no username, so this is not a login pair
+# DPL 0509: mro software maximo v4.1 Multi
+SYSADM:sysadm

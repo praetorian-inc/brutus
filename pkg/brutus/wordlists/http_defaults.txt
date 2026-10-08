@@ -1045,3 +1045,5 @@ webadmin:1234
 # omitted: no username, so this is not a login pair
 # DPL 0867: Network Everywhere NWR11B HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0868: Netgear MR314 Multi
+# already present: admin:1234

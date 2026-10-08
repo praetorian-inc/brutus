@@ -960,3 +960,5 @@ corecess:corecess
 admin:barricade
 # DPL 0864: Netgear Router/Modem Multi
 # already present: admin:password
+# DPL 0868: Netgear MR314 Multi
+# already present: admin:1234

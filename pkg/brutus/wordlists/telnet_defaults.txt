@@ -762,3 +762,5 @@ admin:rmnetlm
 admin2:changeme
 # DPL 0648: RM RM Connect Multi
 adminstrator:changeme
+# DPL 0649: RM RM Connect Multi
+deskalt:password

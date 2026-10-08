@@ -248,3 +248,5 @@
 # not sprayed: blank access type
 # DPL 0500: Mintel Mintel PBX
 # not sprayed: blank access type
+# DPL 0507: Motorola Motorola Cablerouter
+# not sprayed: blank access type

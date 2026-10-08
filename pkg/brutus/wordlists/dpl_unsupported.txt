@@ -378,3 +378,5 @@
 # not sprayed: Port 7000
 # DPL 0776: xyplex switch 3.2 Console
 # not sprayed: Console
+# DPL 0777: Xyplex Routers Port 7000
+# not sprayed: Port 7000

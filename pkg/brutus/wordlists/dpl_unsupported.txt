@@ -400,3 +400,5 @@
 # not sprayed: Console
 # DPL 0830: Tandberg Data DLT8000 Autoloader 10x Console
 # not sprayed: Console
+# DPL 0841: us robotic adsl gateway wireless router wireless router
+# not sprayed: wireless router

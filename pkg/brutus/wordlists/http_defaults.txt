@@ -1133,3 +1133,5 @@ admin:sysAdmin
 # omitted: no username, so this is not a login pair
 # DPL 0918: IBM T20 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0919: 3com officeconnect Multi
+# already present: admin:

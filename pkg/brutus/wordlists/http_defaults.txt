@@ -1397,3 +1397,5 @@ ADSL:expert03
 # already present: admin:changeme
 # DPL 1075: stratacom all all Multi
 stratacom:stratauser
+# DPL 1076: Toshiba E-Studio 3511c HTTP
+Admin:123456

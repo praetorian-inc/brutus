@@ -296,3 +296,5 @@
 # not sprayed: 1000
 # DPL 0615: Pacific Micro Data MAST 9500 Universal Disk Array ESM ver. 2.11 / 1 Console
 # not sprayed: Console
+# DPL 0620: PentaSafe VigilEnt Security Manager 3 VigilEnt Security Manager Console
+# not sprayed: VigilEnt Security Manager Console

@@ -203,3 +203,5 @@ cellit:cellit
 netrangr:attack
 # DPL 0201: Cisco BBSM Administrator 5.0 and 5.1 Multi
 Administrator:changeme
+# DPL 0202: Cisco Netranger/secure IDS 3.0(5)S17 Multi
+root:attack

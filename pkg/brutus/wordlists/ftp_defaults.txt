@@ -24,3 +24,5 @@ xbox:xbox
 user:pass
 # DPL 0756: Wyse rapport 4.4 FTP
 rapport:r@p8p0r+
+# DPL 0784: ZyXEL Prestige FTP
+root:1234

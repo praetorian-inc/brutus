@@ -1243,3 +1243,5 @@ Manager:friend
 # already present: admin:
 # DPL 0981: Netgear WGT634U HTTP
 # already present: admin:password
+# DPL 0982: D-Link DI-524 all HTTP
+# already present: user:

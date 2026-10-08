@@ -255,3 +255,5 @@ user:
 # omitted: no username, so this is not a login pair
 # DPL 0260: D-Link DI-604 1.62b+ HTTP
 # already present: admin:
+# DPL 0261: D-Link DI-624 all HTTP
+# already present: admin:

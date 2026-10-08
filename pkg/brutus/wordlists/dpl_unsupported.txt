@@ -352,3 +352,5 @@
 # not sprayed: and SOHO
 # DPL 0717: Spike CPE Console
 # not sprayed: Console
+# DPL 0718: Sun JavaWebServer 1.x 2.x AdminSrv
+# not sprayed: AdminSrv

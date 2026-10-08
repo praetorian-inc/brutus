@@ -271,3 +271,5 @@ User:
 # already present: admin:
 # DPL 0268: D-LINK DSL-G664T A1 HTTP
 # already present: admin:admin
+# DPL 0269: d-link 504g adsl router HTTP
+# already present: admin:admin

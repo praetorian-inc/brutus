@@ -297,3 +297,5 @@ admin:netadmin
 # already present: admin:
 # DPL 0290: ericsson md110 pabx up-to-bc9 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0291: ericsson ericsson acc Multi
+# omitted: no username, so this is not a login pair

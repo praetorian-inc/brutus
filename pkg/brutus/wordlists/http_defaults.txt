@@ -539,3 +539,5 @@ sysadmin:PASS
 admin:0
 # DPL 0448: Lucent B-STDX9000 Multi
 (any 3 characters):cascade
+# DPL 0451: Lucent CBX 500 Multi
+# already present: (any 3 characters):cascade

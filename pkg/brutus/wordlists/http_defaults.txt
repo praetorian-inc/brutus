@@ -1497,3 +1497,5 @@ admin:adslroot
 # already present: admin:password
 # DPL 1139: Apache Tomcat Web Server Administration Tool 5 HTTP
 # already present: admin:
+# DPL 1140: Sitecom WL-0xx up to WL-17x all Multi
+# already present: admin:admin

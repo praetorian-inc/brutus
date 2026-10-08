@@ -80,3 +80,5 @@ root:
 monitor:monitor
 # DPL 0034: 3COM SuperStack 3 4400-49XX Multi
 manager:manager
+# DPL 0035: 3com CellPlex 7000 Telnet
+# already present: root:

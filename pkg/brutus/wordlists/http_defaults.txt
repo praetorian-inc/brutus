@@ -559,3 +559,5 @@ ami:
 # omitted: no username, so this is not a login pair
 # DPL 0489: Mentec Micro/RSX Multi
 MICRO:RSX
+# DPL 0501: Mitel 3300 ICP all HTTP
+system:password

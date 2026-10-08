@@ -231,3 +231,5 @@ admin:my_DEMARC
 # already present: admin:admin
 # DPL 0248: D-Link DI-704 rev a Multi
 # omitted: no username, so this is not a login pair
+# DPL 0249: D-Link DI-804 v2.03 Multi
+# already present: admin:

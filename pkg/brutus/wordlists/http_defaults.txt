@@ -1025,3 +1025,5 @@ scmadmin:scmchangeme
 # already present: root:admin
 # DPL 0854: Xerox DocuCentre 425 HTTP
 admin:22222
+# DPL 0855: NOKIA 7360 Multi
+# omitted: no username, so this is not a login pair

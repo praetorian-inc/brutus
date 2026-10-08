@@ -1503,3 +1503,5 @@ admin:adslroot
 netadmin:nimdaten
 # DPL 1142: Nokia M1122 unknown Multi
 # omitted: no username, so this is not a login pair
+# DPL 1147: Edimax Edimax Fast Ethernet Switch HTTP
+# already present: admin:password

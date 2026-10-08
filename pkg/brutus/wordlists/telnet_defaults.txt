@@ -192,3 +192,5 @@ apc:apc
 # omitted: no username, so this is not a login pair
 # DPL 0129: ARtem ComPoint - CPD-XT-b CPD-XT-b Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0130: Asante IntraSwitch multi
+IntraSwitch:Asante

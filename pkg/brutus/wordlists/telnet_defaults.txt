@@ -1204,3 +1204,5 @@ admin:0
 # omitted: no username, so this is not a login pair
 # DPL 1125: Conceptronic C54BRS4 Multi
 # already present: admin:1234
+# DPL 1129: KASDA KD318-MUI kasda adsl router and modem Multi
+admin:adslroot

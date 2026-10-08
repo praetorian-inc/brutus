@@ -1479,3 +1479,5 @@ root:0P3N
 # omitted: no username, so this is not a login pair
 # DPL 1128: Thomson SpeedTouch AP 180 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1129: KASDA KD318-MUI kasda adsl router and modem Multi
+admin:adslroot

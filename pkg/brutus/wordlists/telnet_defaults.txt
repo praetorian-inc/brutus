@@ -844,3 +844,5 @@ admin:extendnet
 # already present: craft:
 # DPL 0734: TVT System Expresse G5 DS1 Module Multi
 # omitted: no username, so this is not a login pair
+# DPL 0736: Unisys ClearPath MCP Multi
+NAU:NAU

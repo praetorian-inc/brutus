@@ -446,3 +446,5 @@
 # not sprayed: HTTP + Telnet
 # DPL 1143: Nortel VPN Gateway Console
 # not sprayed: Console
+# DPL 1144: Fortinet Fortigate Console
+# not sprayed: Console

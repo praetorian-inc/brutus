@@ -6,3 +6,5 @@
 # not sprayed: Console
 # DPL 0054: 3com 3c16405 Console
 # not sprayed: Console
+# DPL 0060: 3com CB9000 / 4007 3 Console
+# not sprayed: Console

@@ -1337,3 +1337,5 @@ SSA:SSA
 admin:NetSurvibox
 # DPL 1037: SMC smc7904wbrb Multi
 # omitted: no username, so this is not a login pair
+# DPL 1038: SMC SMC7004VBR HTTP
+# omitted: no username, so this is not a login pair

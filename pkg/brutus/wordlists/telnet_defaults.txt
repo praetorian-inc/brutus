@@ -376,3 +376,5 @@ root:default
 MGR:HPP187
 # DPL 0317: Hewlett-Packard HP 2000/3000 MPE/xx Multi
 MGR:HPP189
+# DPL 0318: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+MGR:HPP196

@@ -1258,3 +1258,5 @@ admin:leviton
 admin:P@55w0rd!
 # DPL 1186: telecom home hauwei Multi
 # already present: operator:
+# DPL 1189: zyxel g-570s Multi
+# omitted: no username, so this is not a login pair

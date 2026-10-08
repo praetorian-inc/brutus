@@ -1573,3 +1573,5 @@ admin:leviton
 # already present: user:user
 # DPL 1188: motorola sgb900 HTTP
 # already present: admin:motorola
+# DPL 1189: zyxel g-570s Multi
+# omitted: no username, so this is not a login pair

@@ -126,3 +126,5 @@ manager:manager
 # omitted: no username, so this is not a login pair
 # DPL 0064: 3COM Office Connect ISDN Routers 5x0 Telnet?
 # omitted: no username, so this is not a login pair
+# DPL 0066: Accelerated Networks DSL CPE and DSLAM Telnet
+sysadm:anicust

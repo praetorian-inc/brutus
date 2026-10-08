@@ -588,3 +588,5 @@ readwrite:lucenttech1
 Administrator:
 # DPL 0462: LUCENT M770 Telnet
 super:super
+# DPL 0485: Marconi Fore ATM Switches Multi
+ami:

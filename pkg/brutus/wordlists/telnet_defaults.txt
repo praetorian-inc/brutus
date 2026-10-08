@@ -176,3 +176,5 @@ manager:friend
 # already present: root:root
 # DPL 0115: Ambit Cable Modem Multi
 # already present: root:root
+# DPL 0119: AOC zenworks 4.0 Multi
+# omitted: no username, so this is not a login pair

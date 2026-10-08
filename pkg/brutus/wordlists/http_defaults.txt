@@ -119,3 +119,5 @@ admin:linga
 # already present: root:root
 # DPL 0117: Amitech wireless router and access point 802.11g 802.11b any HTTP
 # already present: admin:admin
+# DPL 0119: AOC zenworks 4.0 Multi
+# omitted: no username, so this is not a login pair

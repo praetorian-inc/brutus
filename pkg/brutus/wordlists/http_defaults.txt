@@ -1317,3 +1317,5 @@ superman:talent
 # already present: admin:admin
 # DPL 1021: Netgear WG602 1.7.x HTTP
 # already present: admin:password
+# DPL 1022: SSA BPCS Up to 5.02 Multi
+SSA:SSA

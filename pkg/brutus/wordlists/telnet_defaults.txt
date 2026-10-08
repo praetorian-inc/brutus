@@ -1116,3 +1116,5 @@ superman:talent
 # already present: admin:admin
 # DPL 1019: Siemens SE560dsl Multi
 # already present: admin:admin
+# DPL 1022: SSA BPCS Up to 5.02 Multi
+SSA:SSA

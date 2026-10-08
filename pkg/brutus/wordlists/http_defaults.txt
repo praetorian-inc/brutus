@@ -43,3 +43,5 @@ monitor:monitor
 manager:manager
 # DPL 0036: 3com Netbuilder Multi
 # already present: admin:
+# DPL 0038: 3com OfficeConnect 812 ADSL 01.50-01 Multi
+# already present: admin:

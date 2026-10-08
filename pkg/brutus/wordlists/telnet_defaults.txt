@@ -1200,3 +1200,5 @@ root:tslinux
 admin:pfsense
 # DPL 1123: Planex BRL-04UR Multi
 admin:0
+# DPL 1124: maxdata 7000x Multi
+# omitted: no username, so this is not a login pair

@@ -317,3 +317,5 @@ operator:operator
 # already present: admin:
 # DPL 0301: F5 Bigip 540 Multi
 root:default
+# DPL 0302: F5-Networks BIGIP Multi
+# omitted: no username, so this is not a login pair

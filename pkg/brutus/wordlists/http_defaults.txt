@@ -595,3 +595,5 @@ superman:21241036
 # already present: admin:password
 # DPL 0525: Netgear FVS318 HTTP
 # already present: admin:password
+# DPL 0527: netgear FM114P Multi
+# omitted: no username, so this is not a login pair

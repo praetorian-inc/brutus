@@ -616,3 +616,5 @@ SYSADM:sysadm
 # omitted: no username, so this is not a login pair
 # DPL 0520: Netgear RP114 3.26 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0527: netgear FM114P Multi
+# omitted: no username, so this is not a login pair

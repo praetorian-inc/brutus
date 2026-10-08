@@ -947,3 +947,5 @@ admin:isee
 # already present: admin:admin
 # DPL 0802: Asus wl500 All HTTP
 # already present: admin:admin
+# DPL 0803: Asus wl300 All HTTP
+# already present: admin:admin

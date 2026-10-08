@@ -281,3 +281,5 @@ User:
 # already present: admin:
 # DPL 0273: D-Link DI-614+ HTTP
 # already present: admin:admin
+# DPL 0274: Draytek Vigor all HTTP
+# already present: admin:admin

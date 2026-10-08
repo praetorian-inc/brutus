@@ -240,3 +240,5 @@ Manager:
 # omitted: no username, so this is not a login pair
 # DPL 0167: Bintec Bianka Routers Multi
 admin:bintec
+# DPL 0169: BinTec x1200 37834 Multi
+# already present: admin:bintec

@@ -97,3 +97,5 @@ admin:secure
 # omitted: no username, so this is not a login pair
 # DPL 0101: Alcatel OXO 1.3 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0102: Allied Telesyn Multi
+manager:friend

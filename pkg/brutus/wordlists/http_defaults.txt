@@ -1593,3 +1593,5 @@ images:images
 # already present: admin:admin
 # DPL 1201: Colubris MSC HTTP
 # already present: admin:admin
+# DPL 1202: Netgear WGR614 v6 HTTP
+admin:draadloos

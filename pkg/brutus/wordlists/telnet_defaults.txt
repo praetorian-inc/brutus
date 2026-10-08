@@ -668,3 +668,5 @@ rwa:rwa
 admin:setup
 # DPL 0567: Nortel Baystack 350-24T Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0572: Nortel Meridian MAX Multi
+# already present: service:smile

@@ -655,3 +655,5 @@ rw:rw
 rwa:rwa
 # DPL 0566: Nortel Extranet Switches Multi
 admin:setup
+# DPL 0572: Nortel Meridian MAX Multi
+service:smile

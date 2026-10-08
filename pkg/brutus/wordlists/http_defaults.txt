@@ -681,3 +681,5 @@ ccrusr:ccrusr
 # omitted: no username, so this is not a login pair
 # DPL 0588: olitec sx 200 adsl modem router Multi
 admin:adslolitec
+# DPL 0589: Omnitronix Data-Link DL150 Multi
+# omitted: no username, so this is not a login pair

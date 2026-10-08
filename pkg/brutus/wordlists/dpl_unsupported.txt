@@ -398,3 +398,5 @@
 # not sprayed: Router
 # DPL 0820: Allied Telesyn AT8016F Console
 # not sprayed: Console
+# DPL 0830: Tandberg Data DLT8000 Autoloader 10x Console
+# not sprayed: Console

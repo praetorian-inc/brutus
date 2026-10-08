@@ -1359,3 +1359,5 @@ admin:x-admin
 admin:Password
 # DPL 1051: d-link ads500g HTTP
 # already present: admin:admin
+# DPL 1052: Konica Minolta magicolor 5430 DL HTTP
+admin:administrator

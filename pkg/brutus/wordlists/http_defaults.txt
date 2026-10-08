@@ -731,3 +731,5 @@ Polycom:SpIp
 # omitted: no username, so this is not a login pair
 # DPL 0631: Psion Teklogix 9150 HTTP
 support:h179350
+# DPL 0632: Pyramid Computer BenHur all HTTP
+# already present: admin:admin

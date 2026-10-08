@@ -44,3 +44,5 @@ public/private/secret
 cascade
 # DPL 0491: MERCURY 234234 234234 SNMP
 # already present: admin
+# DPL 0492: MERCURY KT133A/686B SNMP
+# already present: admin

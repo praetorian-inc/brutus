@@ -1242,3 +1242,5 @@ iclock:timely
 # already present: admin:
 # DPL 1168: infacta group mail Multi
 # already present: Administrator:
+# DPL 1171: 3COM OfficeConnect 812 ADSL Multi
+# already present: Administrator:admin

@@ -260,3 +260,5 @@
 # not sprayed: blank access type
 # DPL 0539: Netopia Netopia 9500
 # not sprayed: blank access type
+# DPL 0553: Nimble PC BIOS Console
+# not sprayed: Console

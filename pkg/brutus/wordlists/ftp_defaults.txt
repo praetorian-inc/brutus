@@ -20,3 +20,5 @@ anonymous:any@
 Anonymous:
 # DPL 0722: Team Xodus XeniumOS 2.3 FTP
 xbox:xbox
+# DPL 0749: Watchguard SOHO and SOHO6 all versions FTP
+user:pass

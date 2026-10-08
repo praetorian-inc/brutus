@@ -879,3 +879,5 @@ HTTP:HTTP
 root:admin
 # DPL 0740: US Robotics USR8550 3.0.5 Multi
 Any:12345
+# DPL 0741: US ROBOTICS ADSL Ethernet Modem HTTP
+# omitted: no username, so this is not a login pair

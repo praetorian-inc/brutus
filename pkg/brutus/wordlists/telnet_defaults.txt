@@ -172,3 +172,5 @@ manager:friend
 # already present: admin:
 # DPL 0113: AMBIT ADSL Telnet
 # already present: root:
+# DPL 0114: Ambit Cable Modem 60678eu 1.12 Multi
+# already present: root:root

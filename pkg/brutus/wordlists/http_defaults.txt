@@ -1015,3 +1015,5 @@ Administrator:password
 admin:articon
 # DPL 0849: Sorenson SR-200 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0850: D-Link DI-524 all HTTP
+# already present: admin:

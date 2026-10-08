@@ -643,3 +643,5 @@ disttech:4tas
 maint:maint
 # DPL 0559: Nortel Meridian Link Multi
 mlusr:mlusr
+# DPL 0561: Nortel Accelar (Passport) 1000 series routing switches Multi
+l2:l2

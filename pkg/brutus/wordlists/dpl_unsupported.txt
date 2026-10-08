@@ -160,3 +160,5 @@
 # not sprayed: Console
 # DPL 0400: Intel Shiva
 # not sprayed: blank access type
+# DPL 0401: Intel Shiva
+# not sprayed: blank access type

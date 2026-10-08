@@ -113,3 +113,5 @@ root:
 admin:linga
 # DPL 0114: Ambit Cable Modem 60678eu 1.12 Multi
 # already present: root:root
+# DPL 0115: Ambit Cable Modem Multi
+# already present: root:root

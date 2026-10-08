@@ -718,3 +718,5 @@ sysadm:sysadm
 write:private
 # DPL 0609: Osicom NETCommuter Remote Access Server Telnet
 # already present: sysadm:sysadm
+# DPL 0610: Osicom JETXPrint 1000E/B Telnet
+# already present: sysadm:sysadm

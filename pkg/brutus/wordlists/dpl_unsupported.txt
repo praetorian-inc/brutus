@@ -172,3 +172,5 @@
 # not sprayed: TCP 7000
 # DPL 0420: Lantronics Lantronics Terminal Server TCP 7000
 # not sprayed: TCP 7000
+# DPL 0421: Lantronix Lantronix Terminal TCP 7000
+# not sprayed: TCP 7000

@@ -508,3 +508,5 @@ storwatch:specialist
 vt100:public
 # DPL 0388: IBM 3534 F08 Fibre Switch Multi
 # already present: admin:password
+# DPL 0389: IBM switch 8275-217 Telnet
+# already present: admin:

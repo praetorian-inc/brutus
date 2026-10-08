@@ -242,3 +242,5 @@ Manager:
 admin:bintec
 # DPL 0169: BinTec x1200 37834 Multi
 # already present: admin:bintec
+# DPL 0170: BinTec x2300i 37834 Multi
+# already present: admin:bintec

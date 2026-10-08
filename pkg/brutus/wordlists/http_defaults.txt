@@ -1251,3 +1251,5 @@ Manager:friend
 Administrator:3ware
 # DPL 0985: Netgear FWG114P Multi
 # omitted: no username, so this is not a login pair
+# DPL 0987: Netgear GS724t V1.0.1_1104 HTTP
+# omitted: no username, so this is not a login pair

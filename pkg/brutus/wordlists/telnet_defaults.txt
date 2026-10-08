@@ -620,3 +620,5 @@ SYSADM:sysadm
 # omitted: no username, so this is not a login pair
 # DPL 0531: Netgear WGR614 v4 Multi
 # already present: admin:password
+# DPL 0534: Netopia Netopia 9500 Telnet
+netopia:netopia

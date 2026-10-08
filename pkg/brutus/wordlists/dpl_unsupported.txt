@@ -88,3 +88,5 @@
 # not sprayed: blank access type
 # DPL 0197: Cisco CNR All CNR GUI
 # not sprayed: CNR GUI
+# DPL 0199: Cisco BBSM 5.0 and 5.1 Telnet or Named Pipes
+# not sprayed: Telnet or Named Pipes

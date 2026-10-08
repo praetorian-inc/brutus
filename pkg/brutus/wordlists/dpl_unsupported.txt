@@ -186,3 +186,5 @@
 # not sprayed: debug mode
 # DPL 0453: Lucent GX 550 SNMP readwrite
 # not sprayed: SNMP readwrite
+# DPL 0458: Lucent Anymedia Console
+# not sprayed: Console

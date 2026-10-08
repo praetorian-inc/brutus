@@ -750,3 +750,5 @@ user:password
 # omitted: no username, so this is not a login pair
 # DPL 0634: Radware Linkproof 3.73.03 Multi
 radware:radware
+# DPL 0643: RM RM Connect Multi
+setup:changeme

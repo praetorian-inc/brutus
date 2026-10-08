@@ -741,3 +741,5 @@ piranha:q
 piranha:piranha
 # DPL 0642: Ricoh Aficio AP3800C HTTP
 sysadmin:password
+# DPL 0643: RM RM Connect Multi
+setup:changeme

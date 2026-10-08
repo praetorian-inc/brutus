@@ -599,3 +599,5 @@ superman:21241036
 # omitted: no username, so this is not a login pair
 # DPL 0528: NetGear WGT624 2 HTTP
 # already present: admin:password
+# DPL 0529: Netgear FR114P HTTP
+# already present: admin:password

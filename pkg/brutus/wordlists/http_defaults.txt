@@ -169,3 +169,5 @@ root:pass
 # omitted: no username, so this is not a login pair
 # DPL 0165: Belkin F5D7150 FB Multi
 # omitted: no username, so this is not a login pair
+# DPL 0166: Billion Bipac 5100 HTTP
+# already present: admin:admin

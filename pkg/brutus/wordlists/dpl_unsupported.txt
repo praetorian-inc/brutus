@@ -48,3 +48,5 @@
 # not sprayed: Oracle
 # DPL 0141: AVAYA g3R v6 Console
 # not sprayed: Console
+# DPL 0150: Avaya CMS Supervisor 11 Console
+# not sprayed: Console

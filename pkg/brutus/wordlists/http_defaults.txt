@@ -1395,3 +1395,5 @@ Admin:
 ADSL:expert03
 # DPL 1074: Shoretel ALL HTTP
 # already present: admin:changeme
+# DPL 1075: stratacom all all Multi
+stratacom:stratauser

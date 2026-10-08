@@ -1549,3 +1549,5 @@ supervisor:
 comcast:
 # DPL 1173: SMC SMC8013WG-CCR 2.11.19-1d HTTP
 mso:w0rkplac3rul3s
+# DPL 1174: Zyxel ES-2108 Multi
+# already present: admin:1234

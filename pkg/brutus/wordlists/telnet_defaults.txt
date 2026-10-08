@@ -1244,3 +1244,5 @@ iclock:timely
 # already present: Administrator:
 # DPL 1171: 3COM OfficeConnect 812 ADSL Multi
 # already present: Administrator:admin
+# DPL 1174: Zyxel ES-2108 Multi
+# already present: admin:1234

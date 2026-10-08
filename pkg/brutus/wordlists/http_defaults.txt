@@ -211,3 +211,5 @@ root:attack
 Cisco:Cisco
 # DPL 0215: COM3 OLe HTTP
 # already present: admin:admin
+# DPL 0223: Corecess Corecess 3112 HTTP
+Administrator:admin

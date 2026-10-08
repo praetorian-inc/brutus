@@ -358,3 +358,5 @@ supervisor:supervisor
 operator:operator
 # DPL 0300: Extreme Networks All Switches Multi
 # already present: admin:
+# DPL 0301: F5 Bigip 540 Multi
+root:default

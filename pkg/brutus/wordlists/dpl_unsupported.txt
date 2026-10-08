@@ -176,3 +176,5 @@
 # not sprayed: TCP 7000
 # DPL 0423: Lantronix SCS3200 EZWebCon downloaded from ftp.lantronix.com
 # not sprayed: EZWebCon downloaded from ftp.lantronix.com
+# DPL 0441: Linksys Linksys DSL
+# not sprayed: blank access type

@@ -350,3 +350,5 @@ login:password
 # omitted: no username, so this is not a login pair
 # DPL 0293: Ericsson ACC Tigris Platform All Multi
 public:
+# DPL 0297: EverFocus PowerPlex EDR1600 Multi
+# already present: admin:admin

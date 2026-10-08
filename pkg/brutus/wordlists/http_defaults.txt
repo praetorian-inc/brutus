@@ -307,3 +307,5 @@ admin:epicrouter
 # omitted: no username, so this is not a login pair
 # DPL 0296: E-Tech Router RTBR03 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0297: EverFocus PowerPlex EDR1600 Multi
+# already present: admin:admin

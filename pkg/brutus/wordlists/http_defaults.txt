@@ -59,3 +59,5 @@ Root:
 # already present: admin:
 # DPL 0048: 3COM 3C16450 Multi
 # already present: admin:
+# DPL 0049: 3COM 3C16406 Multi
+# already present: admin:

@@ -132,3 +132,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0069: accton t-online accton Multi
 # omitted: no username, so this is not a login pair
+# DPL 0072: ADC Kentrox Pacesetter Router Telnet
+# omitted: no username, so this is not a login pair

@@ -579,3 +579,5 @@ SYSADM:sysadm
 # already present: admin:password
 # DPL 0515: Netgea FR314 HTTP
 # already present: admin:password
+# DPL 0517: Netgear MR-314 3.26 HTTP
+# already present: admin:1234

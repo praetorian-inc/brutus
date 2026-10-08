@@ -199,3 +199,5 @@ root:Mau'dib
 cellit:cellit
 # DPL 0193: CipherTrust IronMail Any Multi
 # already present: admin:password
+# DPL 0198: Cisco Netranger/secure IDS Multi
+netrangr:attack

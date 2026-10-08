@@ -266,3 +266,5 @@ cellit:cellit
 # already present: admin:password
 # DPL 0196: cisco cva 122 Telnet
 # already present: admin:admin
+# DPL 0198: Cisco Netranger/secure IDS Multi
+netrangr:attack

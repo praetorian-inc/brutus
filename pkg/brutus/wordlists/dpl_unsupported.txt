@@ -362,3 +362,5 @@
 # not sprayed: Console
 # DPL 0752: Wyse Winterm 5440XL Console
 # not sprayed: Console
+# DPL 0754: Wyse Winterm 9455XL BIOS
+# not sprayed: BIOS

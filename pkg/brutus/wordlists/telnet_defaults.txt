@@ -340,3 +340,5 @@ login:password
 # already present: login:admin
 # DPL 0285: Elsa LANCom Office ISDN Router 800/1000/1100 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0287: Enterasys ANG-1105 unknown Telnet
+# omitted: no username, so this is not a login pair

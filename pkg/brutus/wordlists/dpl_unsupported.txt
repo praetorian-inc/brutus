@@ -286,3 +286,5 @@
 # not sprayed: echo
 # DPL 0605: Osicom NETCommuter Telnet guest
 # not sprayed: guest
+# DPL 0606: Osicom NETCommuter Telnet Manager
+# not sprayed: Manager

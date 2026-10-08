@@ -30,3 +30,5 @@ ILMI
 # already present: admin
 # DPL 0065: 3M VOL-0215 etc. SNMP
 volition
+# DPL 0121: APC USV Network Management Card SNMP
+TENmanUFactOryPOWER

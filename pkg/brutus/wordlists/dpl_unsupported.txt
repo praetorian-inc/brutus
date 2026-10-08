@@ -102,3 +102,5 @@
 # not sprayed: blank access type
 # DPL 0214: Cisco-Arrowpoint Arrowpoint
 # not sprayed: blank access type
+# DPL 0216: Compaq Insight Manager
+# not sprayed: blank access type

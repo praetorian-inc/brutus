@@ -329,3 +329,5 @@ root:default
 # already present: admin:admin
 # DPL 0316: Hewlett-Packard HP 2000/3000 MPE/xx Multi
 MGR:HPP187
+# DPL 0317: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+MGR:HPP189

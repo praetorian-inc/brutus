@@ -129,3 +129,5 @@ device:device
 # already present: apc:apc
 # DPL 0125: Apple AirPort Base Station (Graphite) 2 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0126: Apple Airport Base Station (Dual Ethernet) 2 Multi
+# omitted: no username, so this is not a login pair

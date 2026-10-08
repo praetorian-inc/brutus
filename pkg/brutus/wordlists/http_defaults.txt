@@ -569,3 +569,5 @@ admin:motorola
 # already present: admin:motorola
 # DPL 0506: Motorola SBG900 HTTP
 # already present: admin:motorola
+# DPL 0508: motorola vanguard Multi
+# omitted: no username, so this is not a login pair

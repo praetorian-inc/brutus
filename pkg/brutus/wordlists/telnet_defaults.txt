@@ -606,3 +606,5 @@ service:smile
 # omitted: no username, so this is not a login pair
 # DPL 0503: Motorola Cablerouter Telnet
 cablecom:router
+# DPL 0508: motorola vanguard Multi
+# omitted: no username, so this is not a login pair

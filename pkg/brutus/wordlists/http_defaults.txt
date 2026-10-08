@@ -471,3 +471,5 @@ superadmin:secret
 # already present: root:
 # DPL 0395: Intel Express 9520 Router Multi
 NICONEX:NICONEX
+# DPL 0396: Intel Express 520T Switch Multi
+setup:setup

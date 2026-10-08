@@ -221,3 +221,5 @@ root:davox
 # already present: admin:admin
 # DPL 0232: Davox Unison Multi
 davox:davox
+# DPL 0234: Deerfield MDaemon HTTP
+MDaemon:MServer

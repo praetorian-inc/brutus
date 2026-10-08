@@ -1409,3 +1409,5 @@ admin:1234admin
 CISCO15:otbu+1
 # DPL 1082: Telewell TW-EA501 v1 Multi
 # already present: admin:admin
+# DPL 1085: Dell 2161DS Console Switch HTTP
+# already present: Admin:

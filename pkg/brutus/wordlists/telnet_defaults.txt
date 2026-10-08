@@ -158,3 +158,5 @@ sysadm:anicust
 # omitted: no username, so this is not a login pair
 # DPL 0096: Alcatel Office 4200 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0097: Alcatel OmniStack 6024 Telnet
+admin:switch

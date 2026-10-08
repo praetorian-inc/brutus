@@ -132,3 +132,5 @@
 # not sprayed: blank access type
 # DPL 0244: Digicorp Router
 # not sprayed: blank access type
+# DPL 0245: Digicorp Router
+# not sprayed: blank access type

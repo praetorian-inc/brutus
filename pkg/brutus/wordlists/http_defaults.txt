@@ -973,3 +973,5 @@ dadmin:dadmin01
 # already present: admin:admin
 # DPL 0817: iblitzz BWA711/All Models All HTTP
 # already present: admin:admin
+# DPL 0818: Netgear dg834g HTTP
+# already present: admin:password

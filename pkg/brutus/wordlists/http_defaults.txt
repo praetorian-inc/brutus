@@ -465,3 +465,5 @@ vt100:public
 # already present: admin:password
 # DPL 0390: IBM Directory - Web Administration Tool 5.1 HTTP
 superadmin:secret
+# DPL 0392: IMAI Traffic Shaper TS-1012 HTTP
+# omitted: no username, so this is not a login pair

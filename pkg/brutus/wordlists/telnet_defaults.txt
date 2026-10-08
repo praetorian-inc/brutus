@@ -888,3 +888,5 @@ admin:2222
 # already present: diag:switch
 # DPL 0771: Xylan omniswitch Multi
 # already present: admin:switch
+# DPL 0785: ZyXEL Prestige Telnet
+# omitted: no username, so this is not a login pair

@@ -1206,3 +1206,5 @@ admin:0
 # already present: admin:1234
 # DPL 1129: KASDA KD318-MUI kasda adsl router and modem Multi
 admin:adslroot
+# DPL 1130: Intracom jetSpeed 520/520i Multi
+# already present: admin:admin

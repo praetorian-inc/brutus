@@ -166,3 +166,5 @@
 # not sprayed: Console
 # DPL 0411: JD Edwards WorldVision/OneWorld All(?) Console
 # not sprayed: Console
+# DPL 0413: JDS Microprocessing Hydra 3000 r2.02 Console
+# not sprayed: Console

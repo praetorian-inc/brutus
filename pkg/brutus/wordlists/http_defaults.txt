@@ -807,3 +807,5 @@ Administrator:ganteng
 # already present: admin:
 # DPL 0695: SMC Barricade 7004 AWBR Multi
 # already present: admin:
+# DPL 0696: SMC Router All HTTP
+# already present: admin:admin

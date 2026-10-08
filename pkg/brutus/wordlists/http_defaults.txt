@@ -819,3 +819,5 @@ Administrator:ganteng
 Administrator:smcadmin
 # DPL 0701: SMC 7401BRA 1 HTTP
 admin:barricade
+# DPL 0702: SMC 7401BRA 2 HTTP
+smc:smcadmin

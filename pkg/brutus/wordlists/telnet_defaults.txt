@@ -234,3 +234,5 @@ root:pass
 # already present: security:security
 # DPL 0159: Bay Networks Router Telnet
 User:
+# DPL 0160: Bay Networks Router Telnet
+Manager:

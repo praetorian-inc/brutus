@@ -1260,3 +1260,5 @@ admin:P@55w0rd!
 # already present: operator:
 # DPL 1189: zyxel g-570s Multi
 # omitted: no username, so this is not a login pair
+# DPL 1190: Beetel ADSL Modem 220X Multi
+# already present: admin:password

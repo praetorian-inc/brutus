@@ -624,3 +624,5 @@ SYSADM:sysadm
 netopia:netopia
 # DPL 0535: Netopia R910 Multi
 # already present: admin:
+# DPL 0536: Netopia 3351 Multi
+# omitted: no username, so this is not a login pair

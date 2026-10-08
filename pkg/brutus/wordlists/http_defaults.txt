@@ -1021,3 +1021,5 @@ admin:articon
 scmadmin:scmchangeme
 # DPL 0852: Zebra 10/100 Print Server Multi
 # already present: admin:1234
+# DPL 0853: apple airport5 1.0.09 Multi
+# already present: root:admin

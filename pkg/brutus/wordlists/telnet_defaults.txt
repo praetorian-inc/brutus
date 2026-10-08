@@ -946,3 +946,5 @@ target:password
 # omitted: no username, so this is not a login pair
 # DPL 0851: McAfee SCM 3100 4.1 Multi
 scmadmin:scmchangeme
+# DPL 0852: Zebra 10/100 Print Server Multi
+# already present: admin:1234

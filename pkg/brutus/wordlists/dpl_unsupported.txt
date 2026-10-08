@@ -76,3 +76,5 @@
 # not sprayed: blank access type
 # DPL 0184: Brother NC-4100h
 # not sprayed: blank access type
+# DPL 0187: Cabletron Netgear modem/router and SSR
+# not sprayed: blank access type

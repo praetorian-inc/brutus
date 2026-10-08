@@ -483,3 +483,5 @@ SYSDBA:masterkey
 intermec:intermec
 # DPL 0406: Intershop Intershop 4 HTTP
 operator:$chwarzepumpe
+# DPL 0408: intex organizer Multi
+# omitted: no username, so this is not a login pair

@@ -1117,3 +1117,5 @@ admin:sysAdmin
 # already present: admin:epicrouter
 # DPL 0908: SMC SMCWBR14-G SMCWBR14-G HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0909: asmack router ar804u HTTP
+# already present: admin:epicrouter

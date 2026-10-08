@@ -634,3 +634,5 @@ admin:noway
 netscreen:netscreen
 # DPL 0542: netscreen firewall Telnet
 # already present: Administrator:
+# DPL 0543: netscreen firewall Telnet
+# already present: admin:

@@ -40,3 +40,5 @@ adm:
 # omitted: no username, so this is not a login pair
 # DPL 0011: 3COM SuperStack II Switch 2200 Telnet
 # already present: debug:synnet
+# DPL 0012: 3COM SuperStack II Switch 2700 Telnet
+# already present: tech:tech

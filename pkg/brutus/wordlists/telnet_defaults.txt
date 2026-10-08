@@ -1058,3 +1058,5 @@ admin:sysAdmin
 # already present: admin:admin
 # DPL 0943: Linksys model WRT54GC compact wireless-G broadband router Multi
 # omitted: no username, so this is not a login pair
+# DPL 0948: LG LAM200E / LAM200R Multi
+# already present: admin:epicrouter

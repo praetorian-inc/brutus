@@ -126,3 +126,5 @@
 # not sprayed: blank access type
 # DPL 0239: Dictaphone ProLog
 # not sprayed: blank access type
+# DPL 0240: Dictaphone ProLog
+# not sprayed: blank access type

@@ -34,3 +34,5 @@
 # not sprayed: Permit config and console
 # DPL 0103: Allied Telesyn AT-8024(GB) Console
 # not sprayed: Console
+# DPL 0108: Alteon ACEDirector3 console
+# not sprayed: console

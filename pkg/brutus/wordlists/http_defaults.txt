@@ -507,3 +507,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0425: Lantronix SCS200 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0426: Lantronix SCS100 Multi
+# omitted: no username, so this is not a login pair

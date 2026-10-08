@@ -792,3 +792,5 @@ root:1234
 GEN1:gen1
 # DPL 0665: Server Technology Sentry Remote Power Manager Multi
 GEN2:gen2
+# DPL 0666: Server Technology Sentry Remote Power Manager Multi
+ADMN:admn

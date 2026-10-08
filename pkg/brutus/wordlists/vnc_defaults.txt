@@ -17,3 +17,5 @@
 :vncpass
 :qwerty
 :00000000
+# DPL 0753: Wyse Winterm 5440XL VNC
+VNC:winterm

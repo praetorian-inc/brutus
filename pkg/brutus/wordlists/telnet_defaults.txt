@@ -1232,3 +1232,5 @@ operator:1234
 Service:5678
 # DPL 1163: Sagem Livebox Multi
 # already present: admin:admin
+# DPL 1164: Inventel Livebox Multi
+# already present: admin:admin

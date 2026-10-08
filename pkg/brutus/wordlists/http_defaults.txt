@@ -1205,3 +1205,5 @@ USERID:PASSW0RD
 # already present: smc:smcadmin
 # DPL 0954: U.S. Robotics SureConnect 9003 ADSL Ethernet/USB Router Multi
 root:12345
+# DPL 0955: U.S. Robotics SureConnect 9105 ADSL 4-Port Router HTTP
+# already present: admin:admin

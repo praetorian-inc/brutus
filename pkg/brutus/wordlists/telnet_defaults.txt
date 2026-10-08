@@ -282,3 +282,5 @@ admin:default
 Administrator:admin
 # DPL 0209: Cisco AP1200 IOS Multi
 Cisco:Cisco
+# DPL 0210: cisco GSR Telnet
+# already present: admin:admin

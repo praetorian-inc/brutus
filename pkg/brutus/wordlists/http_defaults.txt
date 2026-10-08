@@ -1527,3 +1527,5 @@ operator:1234
 Service:5678
 # DPL 1160: Topcom Skyr@cer Pro AP 554 1.93 HTTP
 # already present: admin:admin
+# DPL 1161: Netgear FSM7326P 24+2 L3 mANAGED PoE Switch HTTP
+# already present: admin:

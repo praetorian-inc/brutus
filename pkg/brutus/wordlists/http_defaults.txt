@@ -1611,3 +1611,5 @@ admin:access
 admin:imss7.0
 # DPL 1213: Ricoh Aficio 1018d HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1214: Ricoh Aficio 1013F HTTP
+# omitted: no username, so this is not a login pair

@@ -1281,3 +1281,5 @@ admin:atlantis
 TMAR#HWMT8007079:
 # DPL 1001: OKI C5700 HTTP
 root:the 6 last digit of the MAC adress
+# DPL 1003: Minolta QMS Magicolor 3100 3.0.0 HTTP
+# already present: admin:

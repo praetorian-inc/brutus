@@ -931,3 +931,5 @@ admin:switch
 # omitted: no username, so this is not a login pair
 # DPL 0793: inchon inchon inchon Multi
 # already present: admin:admin
+# DPL 0794: Benq awl 700 wireless router 1.3.6 Beta-002 Multi
+# already present: admin:admin

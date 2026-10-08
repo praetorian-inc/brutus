@@ -438,3 +438,5 @@
 # not sprayed: Console
 # DPL 1087: Siemens Hipath 3300-3750 Custom program
 # not sprayed: Custom program
+# DPL 1093: Netgear WGT624 Serial console
+# not sprayed: Serial console

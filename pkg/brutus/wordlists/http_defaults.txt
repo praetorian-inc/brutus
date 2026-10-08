@@ -1519,3 +1519,5 @@ manage:!manage
 administrator:
 # DPL 1155: Spectra Logic 64000 Gator Multi
 # already present: operator:
+# DPL 1157: Huawei MT880 HTTP
+# already present: admin:admin

@@ -327,3 +327,5 @@ root:default
 # already present: Administrator:admin
 # DPL 0315: Hewlett Packard Power Manager 3 HTTP
 # already present: admin:admin
+# DPL 0316: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+MGR:HPP187

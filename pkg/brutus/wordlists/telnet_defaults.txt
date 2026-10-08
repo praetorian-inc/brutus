@@ -372,3 +372,5 @@ root:default
 # already present: admin:admin
 # DPL 0308: Fortinet Fortigate Telnet
 # already present: admin:
+# DPL 0316: Hewlett-Packard HP 2000/3000 MPE/xx Multi
+MGR:HPP187

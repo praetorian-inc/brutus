@@ -1371,3 +1371,5 @@ admin:Sharp
 # omitted: no username, so this is not a login pair
 # DPL 1059: wline w3000g HTTP
 # already present: admin:1234
+# DPL 1060: Tandberg 6000MXP Multi
+Admin:

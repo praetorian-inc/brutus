@@ -1433,3 +1433,5 @@ scout:scout
 # omitted: no username, so this is not a login pair
 # DPL 1100: Comtrend ct-536+ HTTP
 # already present: admin:admin
+# DPL 1101: Comtrend ct-536+ HTTP
+# already present: admin:1234

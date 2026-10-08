@@ -523,3 +523,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0434: Linksys EtherFast Cable/DSL ROuter Multi
 # already present: Administrator:admin
+# DPL 0435: Linksys Linksys Router DSL/Cable HTTP
+# omitted: no username, so this is not a login pair

@@ -220,3 +220,5 @@ manuf:xxyyzz
 # already present: manuf:xxyyzz
 # DPL 0149: Avaya definity up to rev. 6 any
 craft:crftpw
+# DPL 0151: Axis NETCAM 200/240 Telnet
+root:pass

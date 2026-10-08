@@ -246,3 +246,5 @@
 # not sprayed: Console/Multi
 # DPL 0499: Mintel Mintel PBX
 # not sprayed: blank access type
+# DPL 0500: Mintel Mintel PBX
+# not sprayed: blank access type

@@ -178,3 +178,5 @@ manager:friend
 # already present: root:root
 # DPL 0119: AOC zenworks 4.0 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0120: APC 9606 Smart Slot Telnet
+# omitted: no username, so this is not a login pair

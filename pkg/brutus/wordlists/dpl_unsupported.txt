@@ -274,3 +274,5 @@
 # not sprayed: Serial
 # DPL 0571: Nortel Meridian PBX Serial
 # not sprayed: Serial
+# DPL 0574: Nortel Matra 6501 PBX Console
+# not sprayed: Console

@@ -577,3 +577,5 @@ SYSADM:sysadm
 # omitted: no username, so this is not a login pair
 # DPL 0514: Netcomm NB1300 HTTP
 # already present: admin:password
+# DPL 0515: Netgea FR314 HTTP
+# already present: admin:password

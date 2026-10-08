@@ -264,3 +264,5 @@
 # not sprayed: Console
 # DPL 0554: Nimble BIOS Console
 # not sprayed: Console
+# DPL 0560: Nortel Remote Office 9150 Client
+# not sprayed: Client

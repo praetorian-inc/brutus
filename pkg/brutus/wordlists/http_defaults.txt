@@ -621,3 +621,5 @@ netscreen:netscreen
 # already present: Administrator:
 # DPL 0546: Netstar Netpilot Multi
 # already present: admin:password
+# DPL 0547: Network Appliance NetCache any Multi
+admin:NetCache

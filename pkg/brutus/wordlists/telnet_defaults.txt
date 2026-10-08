@@ -104,3 +104,5 @@ manager:manager
 # already present: admin:
 # DPL 0049: 3COM 3C16406 Multi
 # already present: admin:
+# DPL 0050: 3com OfficeConnect 812 ADSL 01.50-01 Multi
+# already present: admin:

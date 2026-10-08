@@ -566,3 +566,5 @@ sysadmin:PASS
 # omitted: no username, so this is not a login pair
 # DPL 0442: Livingston IRX Router Telnet
 !root:
+# DPL 0443: Livingston Livingston Portmaster 3 Telnet
+# already present: !root:

@@ -987,3 +987,5 @@ admin:smallbusiness
 Administrator:password
 # DPL 0827: BBR-4MG and BBR-4HG BUFFALO ALL HTTP
 # already present: root:
+# DPL 0829: creative 2015U Multi
+# omitted: no username, so this is not a login pair

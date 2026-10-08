@@ -924,3 +924,5 @@ dadmin:dadmin01
 Administrator:password
 # DPL 0828: Swissvoice IP 10S Telnet
 target:password
+# DPL 0829: creative 2015U Multi
+# omitted: no username, so this is not a login pair

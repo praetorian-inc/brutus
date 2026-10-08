@@ -68,3 +68,5 @@ root:
 # already present: tech:
 # DPL 0028: 3COM CellPlex 7000 Telnet
 # already present: admin:admin
+# DPL 0029: 3com CellPlex 7000 Telnet
+# already present: tech:tech

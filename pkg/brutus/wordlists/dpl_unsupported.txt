@@ -384,3 +384,5 @@
 # not sprayed: Port 7000
 # DPL 0779: Xyplex Terminal Server Port 7000
 # not sprayed: Port 7000
+# DPL 0782: ZOOM ZOOM ADSL Modem Console
+# not sprayed: Console

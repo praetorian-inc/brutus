@@ -152,3 +152,5 @@
 # not sprayed: Console
 # DPL 0313: Funk Software Steel Belted Radius 3.x Proprietary
 # not sprayed: Proprietary
+# DPL 0377: Hewlett-Packard LaserJet Net Printers Ones with Jetdirect on them 9100
+# not sprayed: 9100

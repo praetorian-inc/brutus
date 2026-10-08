@@ -1311,3 +1311,5 @@ superman:talent
 # already present: admin:1234
 # DPL 1017: Psionteklogix 9160 1 HTTP
 # already present: admin:admin
+# DPL 1019: Siemens SE560dsl Multi
+# already present: admin:admin

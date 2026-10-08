@@ -1114,3 +1114,5 @@ TMAR#HWMT8007079:
 superman:talent
 # DPL 1018: AirTies RT-210 AirTies RT-210 AirTies RT-210 Telnet
 # already present: admin:admin
+# DPL 1019: Siemens SE560dsl Multi
+# already present: admin:admin

@@ -1017,3 +1017,5 @@ admin:articon
 # omitted: no username, so this is not a login pair
 # DPL 0850: D-Link DI-524 all HTTP
 # already present: admin:
+# DPL 0851: McAfee SCM 3100 4.1 Multi
+scmadmin:scmchangeme

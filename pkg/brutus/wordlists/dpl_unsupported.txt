@@ -30,3 +30,5 @@
 # not sprayed: Port 2533
 # DPL 0095: Alcatel PBX 4400 Port 2533
 # not sprayed: Port 2533
+# DPL 0100: Alcatel Timestep VPN 1520 3.00.026 Permit config and console
+# not sprayed: Permit config and console

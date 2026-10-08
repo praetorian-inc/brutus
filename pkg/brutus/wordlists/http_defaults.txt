@@ -845,3 +845,5 @@ aaa:often blank
 # omitted: no username, so this is not a login pair
 # DPL 0720: TANDBERG TANDBERG 8000 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0721: T-Comfort Routers HTTP
+# already present: Administrator:

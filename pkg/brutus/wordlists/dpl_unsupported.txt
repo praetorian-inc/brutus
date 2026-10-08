@@ -408,3 +408,5 @@
 # not sprayed: Console
 # DPL 0858: LG Aria iPECS All Console
 # not sprayed: Console
+# DPL 0865: Nullsoft Shoutcast 01/09/05 PLS
+# not sprayed: PLS

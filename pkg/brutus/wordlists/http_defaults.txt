@@ -1569,3 +1569,5 @@ admin:leviton
 # omitted: no username, so this is not a login pair
 # DPL 1186: telecom home hauwei Multi
 # already present: operator:
+# DPL 1187: Davolink DV2020 HTTP
+# already present: user:user

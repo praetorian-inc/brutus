@@ -940,3 +940,5 @@ target:password
 # omitted: no username, so this is not a login pair
 # DPL 0839: Symbol AP-4131 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0840: telindus telindus 2002 Telnet
+# already present: admin:admin

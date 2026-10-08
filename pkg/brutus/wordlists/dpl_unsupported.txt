@@ -116,3 +116,5 @@
 # not sprayed: blank access type
 # DPL 0224: cyberguard all firewalls all console + passport1
 # not sprayed: console + passport1
+# DPL 0228: Datacom BSASX/101
+# not sprayed: blank access type

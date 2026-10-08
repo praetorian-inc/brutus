@@ -106,3 +106,5 @@
 # not sprayed: blank access type
 # DPL 0217: Compaq Insight Manager
 # not sprayed: blank access type
+# DPL 0218: Compaq Insight Manager
+# not sprayed: blank access type

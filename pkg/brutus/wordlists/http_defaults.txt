@@ -1307,3 +1307,5 @@ user:tivonpw
 superman:talent
 # DPL 1015: US Robotics USR9110 HTTP
 # already present: admin:
+# DPL 1016: CNET CSH-2400W unk HTTP
+# already present: admin:1234

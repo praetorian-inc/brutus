@@ -1287,3 +1287,5 @@ root:the 6 last digit of the MAC adress
 # already present: admin:password
 # DPL 1005: Juniper ISG2000 Multi
 # already present: netscreen:netscreen
+# DPL 1006: Linksys/ Cisco RTP300 w/2 phone ports 1 HTTP
+# already present: admin:admin

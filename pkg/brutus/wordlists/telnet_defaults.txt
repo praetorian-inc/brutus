@@ -60,3 +60,5 @@ security:security
 tech:
 # DPL 0024: 3COM SuperStack II Switch 2700 Telnet
 # already present: tech:tech
+# DPL 0025: 3COM CellPlex 7000 Telnet
+root:

@@ -1252,3 +1252,5 @@ iclock:timely
 admin:leviton
 # DPL 1180: Nortel Passport 2430 Telnet
 # already present: Manager:
+# DPL 1182: Xerox 6204 Multi
+# omitted: no username, so this is not a login pair

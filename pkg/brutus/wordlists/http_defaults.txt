@@ -1563,3 +1563,5 @@ admin:123456
 admin:leviton
 # DPL 1181: BUFFALO WLAR-L11-L / WLAR-L11G-L HTTP
 # already present: root:
+# DPL 1182: Xerox 6204 Multi
+# omitted: no username, so this is not a login pair

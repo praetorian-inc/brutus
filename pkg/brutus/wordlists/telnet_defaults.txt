@@ -98,3 +98,5 @@ manager:manager
 # already present: admin:admin
 # DPL 0044: 3com SS III Switch 4xxx (4900 - sure) Telnet
 # omitted: the list says this resets or initializes passwords
+# DPL 0047: 3com 3C16405 Multi
+# already present: admin:

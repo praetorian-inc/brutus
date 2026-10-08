@@ -285,3 +285,5 @@ User:
 # already present: admin:admin
 # DPL 0275: Dynalink RTA230 Multi
 # already present: admin:admin
+# DPL 0276: Edimax Broadband Router Hardware: Rev A. Boot Code: 1.0 Runtime Code 2.63 HTTP
+admin:1234

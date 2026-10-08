@@ -902,3 +902,5 @@ admin:2222
 admin:isee
 # DPL 0805: Ricoh Aficio 2228c Multi
 sysadmin:password
+# DPL 0807: Westell Wirespeed Multi
+# already present: admin:password

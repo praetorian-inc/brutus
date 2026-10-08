@@ -915,3 +915,5 @@ super:super
 # already present: super:super
 # DPL 0771: Xylan omniswitch Multi
 admin:switch
+# DPL 0780: Yakumo Routers HTTP
+# already present: admin:admin

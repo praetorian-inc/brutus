@@ -27,3 +27,5 @@ admin:Xpon@Olt9417#
 supervisor:PlsChgMe
 # DPL 0708: SOPHIA (Schweiz) AG Protector HTTPS
 admin:Protector
+# DPL 0725: Teletronics WL-CPE-Router 03/05/02 HTTPS
+admin:1234

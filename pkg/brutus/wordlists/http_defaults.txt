@@ -137,3 +137,5 @@ device:device
 IntraSwitch:Asante
 # DPL 0131: Asante IntraStack multi
 IntraStack:Asante
+# DPL 0133: Ascend Yurie Multi
+readonly:lucenttech2

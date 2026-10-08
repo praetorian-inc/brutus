@@ -198,3 +198,5 @@ IntraSwitch:Asante
 IntraStack:Asante
 # DPL 0132: Asante FM2008 Telnet
 superuser:
+# DPL 0133: Ascend Yurie Multi
+readonly:lucenttech2

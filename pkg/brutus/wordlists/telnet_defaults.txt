@@ -786,3 +786,5 @@ topicres:password
 # already present: admin:password
 # DPL 0660: sagem fast 1400w Multi
 root:1234
+# DPL 0661: samsung n620 Multi
+# omitted: no username, so this is not a login pair

@@ -604,3 +604,5 @@ service:smile
 # already present: admin:
 # DPL 0502: Mitel SX2000 all Multi
 # omitted: no username, so this is not a login pair
+# DPL 0503: Motorola Cablerouter Telnet
+cablecom:router

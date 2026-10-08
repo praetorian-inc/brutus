@@ -622,3 +622,5 @@ SYSADM:sysadm
 # already present: admin:password
 # DPL 0534: Netopia Netopia 9500 Telnet
 netopia:netopia
+# DPL 0535: Netopia R910 Multi
+# already present: admin:

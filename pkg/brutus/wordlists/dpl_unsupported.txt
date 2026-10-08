@@ -336,3 +336,5 @@
 # not sprayed: blank access type
 # DPL 0683: Siemens ROLM PBX
 # not sprayed: blank access type
+# DPL 0684: Siemens ROLM PBX
+# not sprayed: blank access type

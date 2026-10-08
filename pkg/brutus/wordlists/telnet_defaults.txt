@@ -858,3 +858,5 @@ Any:12345
 # already present: support:support
 # DPL 0743: us21100060 hp omibook 6100 Multi
 # omitted: no username, so this is not a login pair
+# DPL 0744: VASCO VACMAN Middleware 2.x Multi
+# already present: admin:

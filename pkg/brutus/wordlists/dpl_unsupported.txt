@@ -244,3 +244,5 @@
 # not sprayed: Console
 # DPL 0497: microRouter 900i Console/Multi
 # not sprayed: Console/Multi
+# DPL 0499: Mintel Mintel PBX
+# not sprayed: blank access type

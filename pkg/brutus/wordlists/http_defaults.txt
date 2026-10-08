@@ -1339,3 +1339,5 @@ admin:NetSurvibox
 # omitted: no username, so this is not a login pair
 # DPL 1038: SMC SMC7004VBR HTTP
 # omitted: no username, so this is not a login pair
+# DPL 1040: Xerox 240a HTTP
+admin:x-admin

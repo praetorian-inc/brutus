@@ -325,3 +325,5 @@ root:default
 # omitted: no username, so this is not a login pair
 # DPL 0314: GVC e800/rb4 HTTP
 # already present: Administrator:admin
+# DPL 0315: Hewlett Packard Power Manager 3 HTTP
+# already present: admin:admin

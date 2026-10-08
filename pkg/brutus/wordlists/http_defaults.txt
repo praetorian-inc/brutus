@@ -541,3 +541,5 @@ admin:0
 (any 3 characters):cascade
 # DPL 0451: Lucent CBX 500 Multi
 # already present: (any 3 characters):cascade
+# DPL 0454: Lucent MAX-TNT Multi
+admin:Ascend

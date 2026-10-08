@@ -997,3 +997,5 @@ Administrator:password
 # already present: Administrator:admin
 # DPL 0834: asus WL500g HTTP
 # already present: admin:admin
+# DPL 0835: Symbol AP-2412 Multi
+# omitted: no username, so this is not a login pair

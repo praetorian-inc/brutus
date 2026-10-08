@@ -930,3 +930,5 @@ target:password
 # already present: root:
 # DPL 0833: Phoenix v1.14 Phoenix v1.14 Multi
 # already present: Administrator:admin
+# DPL 0835: Symbol AP-2412 Multi
+# omitted: no username, so this is not a login pair

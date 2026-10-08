@@ -32,3 +32,5 @@ ILMI
 volition
 # DPL 0121: APC USV Network Management Card SNMP
 TENmanUFactOryPOWER
+# DPL 0148: AVAYA Cajun P33x firmware before 3.11.0 SNMP
+# already present: admin

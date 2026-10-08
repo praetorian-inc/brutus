@@ -302,3 +302,5 @@
 # not sprayed: Console
 # DPL 0635: Raidzone raid arrays
 # not sprayed: blank access type
+# DPL 0636: Ramp Networks WebRamp
+# not sprayed: blank access type

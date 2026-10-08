@@ -1141,3 +1141,5 @@ admin:sysAdmin
 # already present: admin:admin
 # DPL 0922: IBM IBM Multi
 # omitted: no username, so this is not a login pair
+# DPL 0923: Pentagram Cerberus ADSL modem + router HTTP
+# already present: admin:password

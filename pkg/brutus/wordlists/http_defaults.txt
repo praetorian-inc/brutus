@@ -259,3 +259,5 @@ user:
 # already present: admin:
 # DPL 0262: D-Link DI-624 all HTTP
 User:
+# DPL 0263: D-Link DI-604 2.02 HTTP
+# already present: admin:admin

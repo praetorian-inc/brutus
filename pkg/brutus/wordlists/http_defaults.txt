@@ -1561,3 +1561,5 @@ mso:w0rkplac3rul3s
 admin:123456
 # DPL 1179: Leviton 47611-GT5 Multi
 admin:leviton
+# DPL 1181: BUFFALO WLAR-L11-L / WLAR-L11G-L HTTP
+# already present: root:

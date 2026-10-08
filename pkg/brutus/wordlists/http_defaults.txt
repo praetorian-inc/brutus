@@ -463,3 +463,5 @@ storwatch:specialist
 vt100:public
 # DPL 0388: IBM 3534 F08 Fibre Switch Multi
 # already present: admin:password
+# DPL 0390: IBM Directory - Web Administration Tool 5.1 HTTP
+superadmin:secret

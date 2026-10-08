@@ -855,3 +855,5 @@ aaa:often blank
 # already present: admin:password
 # DPL 0727: Telindus 1124 HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0728: Telindus SHDSL1421 yes HTTP
+# already present: admin:admin

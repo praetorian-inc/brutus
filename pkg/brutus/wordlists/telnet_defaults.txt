@@ -264,3 +264,5 @@ root:Mau'dib
 cellit:cellit
 # DPL 0193: CipherTrust IronMail Any Multi
 # already present: admin:password
+# DPL 0196: cisco cva 122 Telnet
+# already present: admin:admin

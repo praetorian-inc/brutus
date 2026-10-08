@@ -565,3 +565,5 @@ system:password
 # omitted: no username, so this is not a login pair
 # DPL 0504: Motorola WR850G 4.03 HTTP
 admin:motorola
+# DPL 0505: Motorola Wireless Router WR850G HTTP
+# already present: admin:motorola

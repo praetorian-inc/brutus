@@ -758,3 +758,5 @@ teacher:password
 temp1:password
 # DPL 0646: RM RM Connect Multi
 admin:rmnetlm
+# DPL 0647: RM RM Connect Multi
+admin2:changeme

@@ -1415,3 +1415,5 @@ CISCO15:otbu+1
 # already present: Admin:
 # DPL 1088: Sparklan Wx-6215 D and G HTTP
 # already present: admin:admin
+# DPL 1089: Applied Innovations AIscout Multi
+scout:scout

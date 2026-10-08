@@ -1257,3 +1257,5 @@ Administrator:3ware
 # already present: root:root
 # DPL 0989: 3Com Shark Fin Comcast-supplied HTTP
 User:Password
+# DPL 0990: Scientific Atlanta DPX2100 Comcast-supplied HTTP
+admin:w2402

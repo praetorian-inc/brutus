@@ -1475,3 +1475,5 @@ admin:pfsense
 # already present: admin:1234
 # DPL 1126: OPEN Networks 812L HTTP
 root:0P3N
+# DPL 1127: Thomson Wireless Cable Gateway DCW725 HTTP
+# omitted: no username, so this is not a login pair

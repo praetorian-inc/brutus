@@ -1297,3 +1297,5 @@ user:tivonpw
 # already present: admin:1234
 # DPL 1010: Draytek Vigor 2900+ HTTP
 # already present: admin:admin
+# DPL 1011: smc smc 7904BRA Multi
+# omitted: no username, so this is not a login pair

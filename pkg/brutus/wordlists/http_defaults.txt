@@ -769,3 +769,5 @@ replicator:replicator
 RMUser1:password
 # DPL 0656: RM RM Connect Multi
 topicalt:password
+# DPL 0657: RM RM Connect Multi
+topicnorm:password

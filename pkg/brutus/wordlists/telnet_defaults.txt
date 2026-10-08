@@ -826,3 +826,5 @@ aaa:often blank
 # already present: admin:admin
 # DPL 0715: SpeedStream 5660 Telnet
 # omitted: no username, so this is not a login pair
+# DPL 0716: SpeedXess HASE-120 Multi
+# omitted: no username, so this is not a login pair

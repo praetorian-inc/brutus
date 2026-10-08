@@ -1221,3 +1221,5 @@ root:12345
 # already present: admin:password
 # DPL 0964: SMC SMCWBR14-G HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0965: Ricoh Aficio AP3800C 2.17 HTTP
+# omitted: no username, so this is not a login pair

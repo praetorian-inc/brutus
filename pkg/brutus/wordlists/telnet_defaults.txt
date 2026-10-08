@@ -760,3 +760,5 @@ temp1:password
 admin:rmnetlm
 # DPL 0647: RM RM Connect Multi
 admin2:changeme
+# DPL 0648: RM RM Connect Multi
+adminstrator:changeme

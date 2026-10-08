@@ -128,3 +128,5 @@ manager:manager
 # omitted: no username, so this is not a login pair
 # DPL 0066: Accelerated Networks DSL CPE and DSLAM Telnet
 sysadm:anicust
+# DPL 0068: accton t-online accton Multi
+# omitted: no username, so this is not a login pair

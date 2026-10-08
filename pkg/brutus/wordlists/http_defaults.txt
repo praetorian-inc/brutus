@@ -81,3 +81,5 @@ Root:
 # omitted: no username, so this is not a login pair
 # DPL 0067: ACCTON Wirelessrouter T-online HTTP
 # omitted: no username, so this is not a login pair
+# DPL 0068: accton t-online accton Multi
+# omitted: no username, so this is not a login pair

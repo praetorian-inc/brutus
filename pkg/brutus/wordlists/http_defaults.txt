@@ -1459,3 +1459,5 @@ isp:isp
 # already present: root:tslinux
 # DPL 1117: Citel Handset Gateway HTTP
 citel:password
+# DPL 1119: Grandstream GXP-2000 HTTP
+# already present: admin:1234

@@ -854,3 +854,5 @@ HTTP:HTTP
 root:admin
 # DPL 0740: US Robotics USR8550 3.0.5 Multi
 Any:12345
+# DPL 0742: US Robotics SureConnect ADSL SureConnect ADSL Telnet
+# already present: support:support

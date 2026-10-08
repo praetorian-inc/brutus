@@ -1089,3 +1089,5 @@ hsa:hsadb
 wlse:wlsedb
 # DPL 0892: Digicom Michelangelo Multi
 admin:michelangelo
+# DPL 0893: Digicom Michelangelo Multi
+# already present: user:password

@@ -1264,3 +1264,5 @@ admin:P@55w0rd!
 # already present: admin:password
 # DPL 1192: QLogic SANbox 5602 Fibre Channel Switch Multi
 # already present: admin:password
+# DPL 1193: QLogic SANbox 5602 Fibre Channel Switch Multi
+images:images

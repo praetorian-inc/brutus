@@ -1369,3 +1369,5 @@ admin:Sharp
 # already present: Administrator:admin
 # DPL 1058: cuproplus bus Multi
 # omitted: no username, so this is not a login pair
+# DPL 1059: wline w3000g HTTP
+# already present: admin:1234

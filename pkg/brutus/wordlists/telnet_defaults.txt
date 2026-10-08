@@ -206,3 +206,5 @@ readonly:lucenttech2
 root:ascend
 # DPL 0136: Ascom Ascotel PBX ALL Multi
 # omitted: no username, so this is not a login pair
+# DPL 0142: Avaya Definity G3Si Multi
+craft:

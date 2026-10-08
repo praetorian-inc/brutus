@@ -1327,3 +1327,5 @@ SSA:SSA
 # already present: admin:admin
 # DPL 1028: Netgear CG814CCR 2 Multi
 # already present: cusadmin:highspeed
+# DPL 1029: Brother NC-2100p Multi
+# omitted: no username, so this is not a login pair

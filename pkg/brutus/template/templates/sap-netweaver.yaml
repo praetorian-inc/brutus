@@ -1,0 +1,5 @@
+id: sap-netweaver
+name: SAP NetWeaver
+nerva: [sap-netweaver]
+method: basic
+path: /sap/bc/gui/sap/its/webgui

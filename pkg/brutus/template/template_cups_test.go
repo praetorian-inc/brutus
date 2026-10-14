@@ -24,7 +24,7 @@ import (
 
 // TestRunCUPS models olbat/cupsd. To troubleshoot against the real server:
 //
-//	docker run -d --name cups --platform linux/amd64 -p 631:631 olbat/cupsd
+//	docker run -d -p 631:631 olbat/cupsd
 //
 // GET /admin is open. GET /admin/conf challenges. print:print is 200. A wrong
 // password is 401. Upstream CUPS does not ship this password; the image does.

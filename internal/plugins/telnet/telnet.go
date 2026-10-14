@@ -243,8 +243,9 @@ func classifyTelnetResponse(response string) error {
 		return nil
 	}
 
-	// Ambiguous response treated as connection error
-	return fmt.Errorf("connection error: unexpected response")
+	// Non-empty reply that is not a shell is a failed login. busybox/telnetd
+	// reprints the banner without "incorrect"/"denied".
+	return nil
 }
 
 // isLoginPrompt checks if the text contains a login prompt.

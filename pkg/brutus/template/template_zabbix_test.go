@@ -24,7 +24,7 @@ import (
 
 // TestRunZabbix models the appliance login. To troubleshoot against the real app:
 //
-//	docker run -d --name zabbix --platform linux/amd64 -p 80:80 zabbix/zabbix-appliance
+//	docker run -d -p 80:80 zabbix/zabbix-appliance
 //
 // Wait until http://127.0.0.1/index.php shows the sign-in form. Admin:zabbix
 // redirects to zabbix.php?action=dashboard.view. The username is case-sensitive.

@@ -271,6 +271,11 @@ func TestClassifyTelnetResponse(t *testing.T) {
 			wantNil:  true,
 		},
 		{
+			name:     "auth failure - banner reprint without keywords",
+			response: "Welcome to telnetd\n",
+			wantNil:  true,
+		},
+		{
 			name:     "connection error - EOF",
 			response: "",
 			wantNil:  false,

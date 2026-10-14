@@ -27,8 +27,7 @@ import (
 // TestRunIRIS models the Community Edition portal. To troubleshoot against
 // the real app:
 //
-//	docker run -d --name iris --platform linux/arm64 \
-//	  -p 52773:52773 -p 1972:1972 \
+//	docker run -d -p 52773:52773 -p 1972:1972 \
 //	  intersystems/iris-community:latest-cd-linux-arm64
 //
 // Login is POST /csp/sys/UtilHome.csp. Keep the CSPSESSIONID cookie and the

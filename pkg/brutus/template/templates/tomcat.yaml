@@ -1,0 +1,9 @@
+id: tomcat-manager
+name: Apache Tomcat Manager
+nerva: [tomcat]
+method: basic
+path: /manager/html
+creds:
+  - "tomcat:tomcat"
+  - "admin:admin"
+  - "admin:"

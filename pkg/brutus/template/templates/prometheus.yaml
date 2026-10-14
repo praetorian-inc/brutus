@@ -1,0 +1,5 @@
+id: prometheus
+name: Prometheus
+nerva: [prometheus]
+method: basic
+path: /api/v1/status/buildinfo

@@ -1,0 +1,7 @@
+id: arangodb
+name: ArangoDB
+nerva: [arangodb]
+method: basic
+path: /_api/version
+creds:
+  - "root:"

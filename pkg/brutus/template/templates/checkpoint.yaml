@@ -1,0 +1,10 @@
+id: checkpoint
+name: Check Point Gaia
+nerva: [checkpoint-gateway]
+method: form
+path: /cgi-bin/home.tcl
+username_field: userName
+password_field: userPass
+success:
+  status: [200, 302]
+  body_absent: ["userpass", "invalid user name"]

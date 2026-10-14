@@ -1,0 +1,8 @@
+id: hp-chaisoe
+name: HP ChaiSOE
+nerva: [hp-chaisoe]
+method: basic
+path: /
+creds:
+  - "admin:"
+  - "admin:admin"

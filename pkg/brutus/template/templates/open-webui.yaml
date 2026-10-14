@@ -1,0 +1,11 @@
+id: open-webui
+name: Open WebUI
+nerva: [open_webui]
+method: json
+path: /api/v1/auths/signin
+username_field: email
+password_field: password
+success:
+  status: [200]
+  body: ["token"]
+  body_absent: ["invalid"]

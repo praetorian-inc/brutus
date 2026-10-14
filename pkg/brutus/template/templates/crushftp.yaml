@@ -1,0 +1,13 @@
+id: crushftp
+name: CrushFTP
+nerva: [crushftp]
+method: form
+path: /WebInterface/function/
+username_field: username
+password_field: password
+extra:
+  command: login
+success:
+  status: [200]
+  body: ["<response>success"]
+  body_absent: ["<response>failure", "invalid"]

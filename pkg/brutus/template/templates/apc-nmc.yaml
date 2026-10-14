@@ -1,0 +1,17 @@
+id: apc-nmc
+name: APC Network Management Card
+nerva: [apc-nmc]
+method: form
+path: /Forms/login1
+username_field: login_username
+password_field: login_password
+extra:
+  prefLanguage: "00000000"
+  submit: Log On
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: logon
+creds:
+  - "apc:apc"

@@ -1,0 +1,7 @@
+id: netgear
+name: NETGEAR Router
+nerva: [netgear-router]
+method: basic
+path: /
+creds:
+  - "admin:password"

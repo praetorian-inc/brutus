@@ -188,7 +188,7 @@ func (e *Enumerator) tryEstablishSession(ctx context.Context) (*session, bool, e
 	// pattern, so the join page returns the real CSRF-bearing HTML.
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
 
-	resp, err := e.httpClient.Do(req)
+	resp, err := e.client(ctx).Do(req)
 	if err != nil {
 		return nil, true, fmt.Errorf("github enum: join request failed: %w", err)
 	}
@@ -273,7 +273,7 @@ func (e *Enumerator) postValidity(ctx context.Context, sess *session, email stri
 			req.Header.Set("Cookie", sess.cookieHeader)
 		}
 
-		resp, err := e.httpClient.Do(req)
+		resp, err := e.client(ctx).Do(req)
 		if err != nil {
 			return false, fmt.Errorf("validity request failed: %w", err)
 		}

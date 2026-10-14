@@ -33,6 +33,6 @@ permissions:
 
 jobs:
   graph:
-    uses: praetorian-inc/public-workflows/.github/workflows/graphify-graph.yml@36b9d1f89065e6c57656f1e35b1fe79e8dcb9136  # v2.18.1
+    uses: praetorian-inc/public-workflows/.github/workflows/graphify-graph.yml@df013e925b83509fc81697e01e04142b54cffb26  # v2.20.5
     permissions:
       contents: read

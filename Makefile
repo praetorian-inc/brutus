@@ -87,9 +87,11 @@ test-integration:
 	SMB_TEST_HOST=localhost:445 SMB_TEST_USER=smbuser SMB_TEST_PASS=smbpass \
 	LDAP_TEST_HOST=localhost:389 LDAP_TEST_USER="cn=admin,dc=test,dc=local" LDAP_TEST_PASS=adminpass \
 	RDP_TEST_HOST=localhost:3389 RDP_TEST_USER=guest RDP_TEST_PASS=rdppass \
+	SSH_KEY_TEST_HOST=localhost:2223 SSH_KEY_TEST_USER=vagrant \
 	MYSQL_TEST_HOST=localhost:3306 MYSQL_TEST_USER=root MYSQL_TEST_PASS=rootpass \
 	POSTGRES_TEST_HOST=localhost:5432 POSTGRES_TEST_USER=postgres POSTGRES_TEST_PASS=postgrespass \
 	MSSQL_TEST_HOST=localhost:1433 MSSQL_TEST_USER=sa MSSQL_TEST_PASS='MssqlPass123!' \
+	ORACLE_TEST_HOST=localhost:1521 ORACLE_TEST_USER=system ORACLE_TEST_PASS=oraclepass \
 	MONGODB_TEST_HOST=localhost:27017 MONGODB_TEST_USER=mongouser MONGODB_TEST_PASS=mongopass \
 	REDIS_TEST_HOST=localhost:6379 REDIS_TEST_PASS=redispass \
 	NEO4J_TEST_HOST=localhost:7687 NEO4J_TEST_USER=neo4j NEO4J_TEST_PASS=neo4jpass \
@@ -100,6 +102,7 @@ test-integration:
 	SMTP_TEST_HOST=localhost:3025 SMTP_TEST_USER=testuser SMTP_TEST_PASS=testpass \
 	IMAP_TEST_HOST=localhost:3143 IMAP_TEST_USER=testuser IMAP_TEST_PASS=testpass \
 	POP3_TEST_HOST=localhost:3110 POP3_TEST_USER=testuser POP3_TEST_PASS=testpass \
+	AMQP_TEST_HOST=localhost:5672 AMQP_TEST_USER=amqpuser AMQP_TEST_PASS=amqppass \
 	SNMP_TEST_HOST=localhost:161 SNMP_TEST_COMMUNITY=public \
 	go test -tags=integration -coverprofile=coverage.out ./...
 

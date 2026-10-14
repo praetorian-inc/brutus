@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -310,4 +311,67 @@ func containsTripleQuotes(s string) bool {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || substr == "" ||
 		(s != "" && (s[:len(substr)] == substr || contains(s[1:], substr))))
+}
+
+func TestClient_ResearchCredentials_EmptyChoices(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"choices": []interface{}{}})
+	}))
+	defer server.Close()
+
+	client := &Client{APIKey: "test-key", Endpoint: server.URL}
+	creds, err := client.ResearchCredentials(context.Background(), "router", "TP-Link", "Archer")
+	if err != nil {
+		t.Fatalf("empty choices must not error: %v", err)
+	}
+	if len(creds) != 0 {
+		t.Fatalf("empty choices must return no credentials, got %v", creds)
+	}
+}
+
+func TestClient_Defaults(t *testing.T) {
+	c := &Client{}
+	if got := c.getModel(); got != DefaultModel {
+		t.Fatalf("getModel() = %q, want %q", got, DefaultModel)
+	}
+	if got := c.getEndpoint(); got != DefaultEndpoint {
+		t.Fatalf("getEndpoint() = %q, want %q", got, DefaultEndpoint)
+	}
+	if got := c.getTimeout(); got != DefaultTimeout {
+		t.Fatalf("getTimeout() = %v, want %v", got, DefaultTimeout)
+	}
+
+	c.Model = "custom-model"
+	c.Endpoint = "https://example.invalid"
+	c.Timeout = 5 * time.Second
+	if c.getModel() != "custom-model" {
+		t.Fatalf("getModel() did not honor override")
+	}
+	if c.getEndpoint() != "https://example.invalid" {
+		t.Fatalf("getEndpoint() did not honor override")
+	}
+	if c.getTimeout() != 5*time.Second {
+		t.Fatalf("getTimeout() did not honor override")
+	}
+}
+
+func TestFactory_OmitsEndpoint(t *testing.T) {
+	factory := brutus.GetAnalyzerFactory("perplexity")
+	if factory == nil {
+		t.Fatal("perplexity analyzer not registered")
+	}
+	analyzer := factory(&brutus.LLMConfig{Enabled: true, Provider: "perplexity", APIKey: "k", Model: "sonar"})
+	client, ok := analyzer.(*Client)
+	if !ok {
+		t.Fatalf("factory returned %T, want *Client", analyzer)
+	}
+	if client.Endpoint != "" {
+		t.Fatalf("factory must leave Endpoint empty so getEndpoint uses DefaultEndpoint, got %q", client.Endpoint)
+	}
+	if client.getEndpoint() != DefaultEndpoint {
+		t.Fatalf("getEndpoint() = %q, want %q", client.getEndpoint(), DefaultEndpoint)
+	}
+	if client.Model != "sonar" {
+		t.Fatalf("factory Model = %q, want sonar", client.Model)
+	}
 }

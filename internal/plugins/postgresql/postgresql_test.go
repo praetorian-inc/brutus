@@ -237,6 +237,12 @@ func TestPlugin_Test_ConnectionRefused(t *testing.T) {
 	assert.GreaterOrEqual(t, result.Duration, time.Duration(0))
 }
 
+func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
+	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 500*time.Millisecond, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Empty(t, r.Banner)
+}
+
 func TestPlugin_Test_InvalidTarget(t *testing.T) {
 	p := &Plugin{}
 	ctx := context.Background()
@@ -289,6 +295,14 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.False(t, result.Success, "Expected context cancellation failure")
 	assert.NotNil(t, result.Error, "Context cancellation should have non-nil error")
 	assert.Contains(t, result.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := (&Plugin{}).Test(ctx, "127.0.0.1:1", "postgres", "x", time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
 }
 
 func TestPlugin_Test_MissingPort(t *testing.T) {

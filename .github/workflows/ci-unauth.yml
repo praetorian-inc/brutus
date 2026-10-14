@@ -67,6 +67,32 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      # Memcached without SASL
+      memcached-noauth:
+        image: memcached:1.6-alpine
+        ports:
+          - 11211:11211
+
+      # MQTT with anonymous access (1.6 allows anonymous by default)
+      mqtt-noauth:
+        image: eclipse-mosquitto:1.6
+        ports:
+          - 1883:1883
+
+      # NATS without authentication
+      nats-noauth:
+        image: nats:2-alpine
+        ports:
+          - 4222:4222
+
+      # ZooKeeper with ruok four-letter word enabled
+      zookeeper-noauth:
+        image: zookeeper:3.8
+        env:
+          ZOO_4LW_COMMANDS_WHITELIST: ruok
+        ports:
+          - 2181:2181
+
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -94,6 +120,18 @@ jobs:
           echo "Waiting for Docker-in-Docker..."
           timeout 60 bash -c 'until curl -sf http://localhost:2375/version > /dev/null; do sleep 1; done'
 
+          echo "Waiting for Memcached..."
+          timeout 60 bash -c 'until nc -z localhost 11211; do sleep 1; done'
+
+          echo "Waiting for MQTT..."
+          timeout 60 bash -c 'until nc -z localhost 1883; do sleep 1; done'
+
+          echo "Waiting for NATS..."
+          timeout 60 bash -c 'until nc -z localhost 4222; do sleep 1; done'
+
+          echo "Waiting for ZooKeeper..."
+          timeout 90 bash -c 'until echo ruok | nc -w 1 localhost 2181 | grep -q imok; do sleep 2; done'
+
           echo "All services should be ready"
 
       - name: Build brutus
@@ -106,6 +144,10 @@ jobs:
           UNAUTH_REDIS_HOST: localhost:6379
           UNAUTH_ELASTICSEARCH_HOST: localhost:9200
           UNAUTH_DOCKER_HOST: localhost:2375
+          UNAUTH_MEMCACHED_HOST: localhost:11211
+          UNAUTH_MQTT_HOST: localhost:1883
+          UNAUTH_NATS_HOST: localhost:4222
+          UNAUTH_ZOOKEEPER_HOST: localhost:2181
 
       - name: Smoke test - PostgreSQL trust auth detection
         run: |
@@ -134,6 +176,34 @@ jobs:
           echo "--- Docker output ---"
           cat /tmp/docker.out
           grep -q '\[CRITICAL\]' /tmp/docker.out
+
+      - name: Smoke test - Memcached no-auth detection
+        run: |
+          ./brutus creds --target localhost:11211 --protocol memcached -p wrong 2>&1 | tee /tmp/memcached.out
+          echo "--- Memcached output ---"
+          cat /tmp/memcached.out
+          grep -q '\[CRITICAL\]' /tmp/memcached.out
+
+      - name: Smoke test - MQTT anonymous detection
+        run: |
+          ./brutus creds --target localhost:1883 --protocol mqtt -u nobody -p wrong 2>&1 | tee /tmp/mqtt.out
+          echo "--- MQTT output ---"
+          cat /tmp/mqtt.out
+          grep -q '\[CRITICAL\]' /tmp/mqtt.out
+
+      - name: Smoke test - NATS no-auth detection
+        run: |
+          ./brutus creds --target localhost:4222 --protocol nats -u nobody -p wrong 2>&1 | tee /tmp/nats.out
+          echo "--- NATS output ---"
+          cat /tmp/nats.out
+          grep -q '\[CRITICAL\]' /tmp/nats.out
+
+      - name: Smoke test - ZooKeeper no-auth detection
+        run: |
+          ./brutus creds --target localhost:2181 --protocol zookeeper -u nobody -p wrong 2>&1 | tee /tmp/zk.out
+          echo "--- ZooKeeper output ---"
+          cat /tmp/zk.out
+          grep -q '\[CRITICAL\]' /tmp/zk.out
 
       - name: Smoke test - JSON output format
         run: |

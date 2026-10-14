@@ -3,10 +3,13 @@ package zookeeper
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
@@ -16,12 +19,108 @@ func TestPlugin_Name(t *testing.T) {
 }
 
 func TestPlugin_Test_ConnectionRefused(t *testing.T) {
-	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:1", "zk", "zk", 2*time.Second, brutus.PluginConfig{})
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:1", "u", "p", 2*time.Second, brutus.PluginConfig{})
+	assert.Equal(t, "zookeeper", r.Protocol)
+	assert.False(t, r.Success)
+	require.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:2181", "zk", "zk", 2*time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
+func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := (&Plugin{}).Test(ctx, "127.0.0.1:1", "zk", "zk", 2*time.Second, brutus.PluginConfig{})
 	assert.False(t, r.Success)
 	assert.NotNil(t, r.Error)
 }
 
 func TestClassifyError(t *testing.T) {
-	assert.Nil(t, classifyError(errors.New("zk: client authentication failed")))
-	assert.NotNil(t, classifyError(errors.New("connection refused")))
+	tests := []struct {
+		name     string
+		errStr   string
+		wantAuth bool
+	}{
+		{name: "authentication failed", errStr: "authentication failed", wantAuth: true},
+		{name: "not authenticated", errStr: "not authenticated", wantAuth: true},
+		{name: "authfailed", errStr: "authfailed", wantAuth: true},
+		{name: "session expired", errStr: "session expired", wantAuth: true},
+		{name: "zk client authentication failed", errStr: "zk: client authentication failed", wantAuth: true},
+		{name: "zk not authenticated", errStr: "zk: not authenticated", wantAuth: true},
+		{name: "connection refused", errStr: "connection refused", wantAuth: false},
+		{name: "no route to host", errStr: "no route to host", wantAuth: false},
+		{name: "deadline exceeded", errStr: "context deadline exceeded", wantAuth: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classifyError(errors.New(tt.errStr))
+			if tt.wantAuth {
+				assert.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			assert.Contains(t, got.Error(), "connection error")
+		})
+	}
+}
+
+func TestPlugin_CheckUnauth_ClosedPort(t *testing.T) {
+	r := (&Plugin{}).CheckUnauth(context.Background(), "127.0.0.1:1", 2*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Equal(t, "(unauthenticated)", r.Username)
+}
+
+func TestPlugin_Test_UnbracketedIPv6(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "::1", "u", "p", 200*time.Millisecond, brutus.PluginConfig{})
+	assert.NotNil(t, r)
+	if r.Error != nil {
+		assert.NotContains(t, r.Error.Error(), "too many colons")
+	}
+}
+
+func TestInit(t *testing.T) {
+	p, err := brutus.GetPlugin("zookeeper")
+	require.NoError(t, err)
+	assert.Equal(t, "zookeeper", p.Name())
+}
+
+func TestPlugin_CheckUnauth_Open(t *testing.T) {
+	addr := mockRuok(t, "imok")
+	r := (&Plugin{}).CheckUnauth(context.Background(), addr, 2*time.Second, brutus.PluginConfig{})
+	assert.True(t, r.Success)
+	assert.Contains(t, r.Banner, "CRITICAL")
+}
+
+func TestPlugin_CheckUnauth_NotImok(t *testing.T) {
+	addr := mockRuok(t, "thisisnotzk")
+	r := (&Plugin{}).CheckUnauth(context.Background(), addr, 2*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+}
+
+func mockRuok(t *testing.T, reply string) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		_ = conn.SetDeadline(time.Now().Add(2 * time.Second))
+		buf := make([]byte, 4)
+		if _, err := io.ReadFull(conn, buf); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, reply)
+	}()
+	return ln.Addr().String()
 }

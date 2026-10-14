@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,6 +95,47 @@ func TestPlugin_Test_ConnectionError(t *testing.T) {
 	assert.Contains(t, result.Error.Error(), "connection error")
 }
 
+func TestPlugin_Test_MockValidCredentials(t *testing.T) {
+	addr := mockElasticRoot(t)
+	r := (&Plugin{}).Test(context.Background(), addr, "admin", "secret", 2*time.Second, brutus.PluginConfig{})
+	assert.True(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func TestPlugin_Test_MockInvalidCredentials(t *testing.T) {
+	addr := mockElasticRoot(t)
+	r := (&Plugin{}).Test(context.Background(), addr, "admin", "wrong", 2*time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.Nil(t, r.Error)
+}
+
+func mockElasticRoot(t *testing.T) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "admin" || pass != "secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"cluster_name":"test"}`))
+	}))
+	t.Cleanup(srv.Close)
+	return strings.TrimPrefix(srv.URL, "http://")
+}
+
+func TestPlugin_Test_InvalidProxy(t *testing.T) {
+	r := (&Plugin{}).Test(context.Background(), "127.0.0.1:9200", "elastic", "password", time.Second,
+		brutus.PluginConfig{ProxyURL: "ftp://proxy.example"})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
+	assert.Contains(t, r.Error.Error(), "connection error")
+}
+
 func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	if elasticsearchTestHost == "" {
 		t.Skip("Integration test - requires Elasticsearch server (set ELASTICSEARCH_TEST_HOST)")
@@ -110,6 +152,14 @@ func TestPlugin_Test_ContextCancellation(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.False(t, result.Success)
 	assert.NotNil(t, result.Error)
+}
+
+func TestPlugin_Test_CanceledContextNoServer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	r := (&Plugin{}).Test(ctx, "127.0.0.1:1", "elastic", "x", time.Second, brutus.PluginConfig{})
+	assert.False(t, r.Success)
+	assert.NotNil(t, r.Error)
 }
 
 func TestPlugin_Test_Timeout(t *testing.T) {

@@ -1,0 +1,5 @@
+id: backstage
+name: Backstage
+nerva: [backstage]
+method: basic
+path: /.backstage/health/v1/readiness

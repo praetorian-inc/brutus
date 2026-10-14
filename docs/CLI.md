@@ -3,7 +3,7 @@
 # brutus CLI reference
 
 Every command, alias and flag below is derived from the cobra command tree, not from prose.
-Schema version 1, surface hash `sha256:1d4cc140290018ebec0060e5db81bb43f05ff38068f9deacee1592ed70cadfa2`.
+Schema version 1, surface hash `sha256:7a476a8856cb24d984e63421e8ccf84806e67b111a6e2ffc9ba2ebed8e2e31d8`.
 
 Regenerate with `make cli-docs` after adding, removing or renaming a command or a flag.
 
@@ -43,6 +43,9 @@ Regenerate with `make cli-docs` after adding, removing or renaming a command or 
 | [`brutus logon`](#brutus-logon) | *(none)* | Detect Windows logon-screen backdoors (runs both sticky keys and utilman) |
 | [`brutus snmp`](#brutus-snmp) | `community` | Test SNMP community strings against targets |
 | [`brutus stickykeys`](#brutus-stickykeys) | *(none)* | Detect the Windows sticky-keys (sethc.exe) logon backdoor only |
+| [`brutus template`](#brutus-template) | *(none)* | Run product-specific default-credential templates |
+| [`brutus template list`](#brutus-template-list) | *(none)* | List embedded and extra templates |
+| [`brutus template run`](#brutus-template-run) | *(none)* | Run templates selected by technology |
 | [`brutus utilman`](#brutus-utilman) | *(none)* | Detect the Windows utilman (Ease of Access) logon backdoor only |
 | [`brutus web`](#brutus-web) | `http`, `panels` | Audit HTTP/web panel credentials (AI-powered or credential list) |
 
@@ -1730,6 +1733,96 @@ brutus stickykeys --target 10.0.0.50:3389
 # Vision API confirmation (more accurate)
 brutus stickykeys --target 10.0.0.50:3389 --experimental-ai
 ```
+
+## `brutus template`
+
+Run product-specific default-credential templates
+
+- Usage: `brutus template`
+- Aliases: *(none)*
+- Requires a subcommand
+
+### Inherited flags
+
+| Flag | Short | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--jitter` |  | duration | `0s` | Random delay variance for rate limiting |
+| `--json` |  | bool | `false` | JSON output format |
+| `--no-color` |  | bool | `false` | Disable colored output |
+| `--output` | `-o` | string |  | Output file for JSON results (implies --json) |
+| `--proxy` |  | string |  | Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080 |
+| `--proxy-user` |  | string |  | Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history. |
+| `--quiet` | `-q` | bool | `false` | Quiet mode - only show successful credentials |
+| `--rate-limit` |  | float64 | `0` | Max requests per second (0 = unlimited) |
+| `--threads` | `-t` | int | `10` | Number of concurrent threads |
+| `--timeout` |  | duration | `10s` | Per-target timeout |
+| `--verbose` | `-v` | bool | `false` | Verbose mode - show detailed progress to stderr |
+
+### Examples
+
+```bash
+brutus template list
+
+brutus template run --target https://10.0.0.5 --tech fortinet-fortigate
+
+nerva --json -t 10.0.0.0/24 | brutus template run --nerva-file -
+```
+
+## `brutus template list`
+
+List embedded and extra templates
+
+- Usage: `brutus template list`
+- Aliases: *(none)*
+
+### Inherited flags
+
+| Flag | Short | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--jitter` |  | duration | `0s` | Random delay variance for rate limiting |
+| `--json` |  | bool | `false` | JSON output format |
+| `--no-color` |  | bool | `false` | Disable colored output |
+| `--output` | `-o` | string |  | Output file for JSON results (implies --json) |
+| `--proxy` |  | string |  | Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080 |
+| `--proxy-user` |  | string |  | Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history. |
+| `--quiet` | `-q` | bool | `false` | Quiet mode - only show successful credentials |
+| `--rate-limit` |  | float64 | `0` | Max requests per second (0 = unlimited) |
+| `--threads` | `-t` | int | `10` | Number of concurrent threads |
+| `--timeout` |  | duration | `10s` | Per-target timeout |
+| `--verbose` | `-v` | bool | `false` | Verbose mode - show detailed progress to stderr |
+
+## `brutus template run`
+
+Run templates selected by technology
+
+- Usage: `brutus template run`
+- Aliases: *(none)*
+
+### Flags
+
+| Flag | Short | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--credentials` | `-c` | string |  | Comma-separated user:pass pairs, used instead of template defaults |
+| `--nerva-file` |  | string |  | Nerva JSON or JSONL file, or - for stdin |
+| `--target` |  | string |  | Base URL (scheme://host[:port]) when not reading Nerva JSON |
+| `--tech` |  | stringSlice | `[]` | Nerva technology name (repeatable). Required with --target |
+| `--template-dir` |  | string |  | Directory of extra YAML templates; same id replaces embedded |
+
+### Inherited flags
+
+| Flag | Short | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--jitter` |  | duration | `0s` | Random delay variance for rate limiting |
+| `--json` |  | bool | `false` | JSON output format |
+| `--no-color` |  | bool | `false` | Disable colored output |
+| `--output` | `-o` | string |  | Output file for JSON results (implies --json) |
+| `--proxy` |  | string |  | Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080 |
+| `--proxy-user` |  | string |  | Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history. |
+| `--quiet` | `-q` | bool | `false` | Quiet mode - only show successful credentials |
+| `--rate-limit` |  | float64 | `0` | Max requests per second (0 = unlimited) |
+| `--threads` | `-t` | int | `10` | Number of concurrent threads |
+| `--timeout` |  | duration | `10s` | Per-target timeout |
+| `--verbose` | `-v` | bool | `false` | Verbose mode - show detailed progress to stderr |
 
 ## `brutus utilman`
 

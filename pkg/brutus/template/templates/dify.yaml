@@ -1,0 +1,11 @@
+id: dify
+name: Dify
+nerva: [dify, dify-html]
+method: json
+path: /console/api/login
+username_field: email
+password_field: password
+success:
+  status: [200]
+  body: ["access_token"]
+  body_absent: ["invalid"]

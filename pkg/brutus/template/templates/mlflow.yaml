@@ -1,0 +1,5 @@
+id: mlflow
+name: MLflow
+nerva: [mlflow]
+method: basic
+path: /api/2.0/mlflow/experiments/search

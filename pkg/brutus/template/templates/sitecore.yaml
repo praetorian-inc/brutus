@@ -1,0 +1,20 @@
+id: sitecore
+name: Sitecore
+nerva: [sitecore]
+method: form
+path: /sitecore/login
+username_field: UserName
+password_field: Password
+prefetch:
+  path: /sitecore/login
+  extract:
+    viewstate: 'name="__VIEWSTATE" value="([^"]+)"'
+extra:
+  __VIEWSTATE: "{{viewstate}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /sitecore
+  header_absent: /sitecore/login
+creds:
+  - "admin:b"

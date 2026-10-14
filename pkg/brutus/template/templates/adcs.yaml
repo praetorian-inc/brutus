@@ -1,0 +1,5 @@
+id: adcs
+name: Active Directory Certificate Services
+nerva: [adcs-web-enrollment]
+method: basic
+path: /certsrv/

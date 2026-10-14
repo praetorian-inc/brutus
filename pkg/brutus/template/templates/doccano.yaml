@@ -1,0 +1,11 @@
+id: doccano
+name: Doccano
+nerva: [doccano]
+method: json
+path: /v1/auth-token
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ["token"]
+  body_absent: ["non_field_errors", "invalid"]

@@ -1,0 +1,17 @@
+id: jenkins-login
+name: Jenkins
+nerva: [jenkins]
+method: form
+path: /j_spring_security_check
+username_field: j_username
+password_field: j_password
+extra:
+  from: /
+success:
+  status: [302]
+  header: Location
+  header_has: "/"
+  header_absent: loginError
+creds:
+  - "admin:admin"
+  - "jenkins:jenkins"

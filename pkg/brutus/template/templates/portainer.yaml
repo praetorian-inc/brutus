@@ -1,0 +1,11 @@
+id: portainer
+name: Portainer
+nerva: [portainer]
+method: json
+path: /api/auth
+username_field: Username
+password_field: Password
+success:
+  status: [200]
+  body: ["jwt"]
+  body_absent: ["invalid credentials"]

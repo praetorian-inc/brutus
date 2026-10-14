@@ -1,0 +1,19 @@
+id: pgadmin
+name: pgAdmin
+nerva: [pgadmin, pgadmin-login]
+method: form
+path: /login
+username_field: email
+password_field: password
+prefetch:
+  path: /login
+  extract:
+    csrf_token: 'name="csrf_token" value="([^"]+)"'
+extra:
+  csrf_token: "{{csrf_token}}"
+  language: en
+success:
+  status: [302]
+  header: Location
+  header_has: /browser
+  header_absent: login

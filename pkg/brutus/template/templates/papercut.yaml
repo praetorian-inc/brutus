@@ -1,0 +1,14 @@
+id: papercut
+name: PaperCut
+nerva: [papercut]
+method: form
+path: /app
+username_field: inputUsername
+password_field: inputPassword
+extra:
+  service: page/Login
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /app
+  header_absent: Login

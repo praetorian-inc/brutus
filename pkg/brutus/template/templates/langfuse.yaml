@@ -1,0 +1,19 @@
+id: langfuse
+name: Langfuse
+nerva: [langfuse, langfuse-html]
+method: form
+path: /api/auth/callback/credentials
+username_field: email
+password_field: password
+prefetch:
+  path: /api/auth/csrf
+  extract:
+    csrf: '"csrfToken":"([^"]+)"'
+extra:
+  csrfToken: "{{csrf}}"
+  callbackUrl: /
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: error

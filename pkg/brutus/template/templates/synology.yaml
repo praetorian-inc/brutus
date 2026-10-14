@@ -1,0 +1,17 @@
+id: synology
+name: Synology DSM
+nerva: [synology-dsm]
+method: form
+path: /webapi/auth.cgi
+username_field: account
+password_field: passwd
+extra:
+  api: SYNO.API.Auth
+  version: "6"
+  method: login
+  session: webui
+  format: sid
+success:
+  status: [200]
+  body: ['"success":true', "sid"]
+  body_absent: ['"success":false']

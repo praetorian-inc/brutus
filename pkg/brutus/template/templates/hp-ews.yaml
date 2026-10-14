@@ -1,0 +1,8 @@
+id: hp-ews
+name: HP Embedded Web Server
+nerva: [hp-ews]
+method: basic
+path: /
+creds:
+  - "admin:"
+  - "admin:admin"

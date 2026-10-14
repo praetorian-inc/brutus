@@ -1,0 +1,7 @@
+id: dahua
+name: Dahua
+nerva: [dahua]
+method: basic
+path: /cgi-bin/magicBox.cgi?action=getDeviceType
+creds:
+  - "admin:admin"

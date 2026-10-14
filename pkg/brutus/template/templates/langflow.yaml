@@ -1,0 +1,11 @@
+id: langflow
+name: Langflow
+nerva: [langflow, langflow-html]
+method: json
+path: /api/v1/login
+username_field: username
+password_field: password
+success:
+  status: [200]
+  body: ["access_token"]
+  body_absent: ["invalid"]

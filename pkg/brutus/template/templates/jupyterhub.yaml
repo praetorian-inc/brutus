@@ -1,0 +1,18 @@
+id: jupyterhub
+name: JupyterHub
+nerva: [jupyterhub]
+method: form
+path: /hub/login
+username_field: username
+password_field: password
+prefetch:
+  path: /hub/login
+  extract:
+    xsrf: 'name="_xsrf" value="([^"]+)"'
+extra:
+  _xsrf: "{{xsrf}}"
+success:
+  status: [302, 303]
+  header: Location
+  header_has: /
+  header_absent: /hub/login

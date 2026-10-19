@@ -27,7 +27,7 @@ import (
 )
 
 // errNoSubcommand is returned when the root command is invoked without a subcommand.
-var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, snmp, badkeys, logon, enum)")
+var errNoSubcommand = fmt.Errorf("a subcommand is required (creds, web, snmp, badkeys, logon, enum, winrm)")
 
 var rootCmd = &cobra.Command{
 	Use:   "brutus",
@@ -42,6 +42,7 @@ Subcommands:
   badkeys  Test known weak/compromised SSH keys against targets
   logon    Detect Windows logon-screen backdoors (sticky keys, utilman)
   enum     Enumerate email accounts against SaaS services (M365, Google, etc.)
+  winrm    Spray one WinRM credential across hosts (lockout-safe access map)
 
 All subcommands accept targets via stdin (one per line, formats can be mixed):
   Nerva JSON:  {"ip":"10.0.0.1","port":22,"protocol":"ssh"}
@@ -63,7 +64,7 @@ func init() {
 	// Target-input and scan-tuning flags are scan-only; register them on the
 	// target-based scan commands rather than rootCmd so the enum subtree
 	// (emails/domains) does not inherit them.
-	for _, c := range []*cobra.Command{credsCmd, webCmd, snmpCmd, badkeysCmd, logonCmd, stickykeysCmd, utilmanCmd} {
+	for _, c := range []*cobra.Command{credsCmd, webCmd, snmpCmd, badkeysCmd, logonCmd, stickykeysCmd, utilmanCmd, winrmCmd} {
 		registerScanTargetFlags(c)
 		registerScanTuningFlags(c)
 	}
@@ -87,6 +88,7 @@ func init() {
 	rootCmd.AddCommand(stickykeysCmd)
 	rootCmd.AddCommand(utilmanCmd)
 	rootCmd.AddCommand(enumCmd)
+	rootCmd.AddCommand(winrmCmd)
 }
 
 // runRoot handles the root command (no subcommand). It only supports --version;

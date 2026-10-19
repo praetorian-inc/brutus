@@ -169,6 +169,7 @@ brutus stickykeys # Detect the Windows sticky-keys (sethc.exe) logon backdoor on
 brutus template   # Run product-specific default-credential templates
 brutus utilman    # Detect the Windows utilman (Ease of Access) logon backdoor only
 brutus web        # Audit HTTP/web panel credentials (AI-powered or credential list)
+brutus winrm      # Spray one WinRM credential across hosts (lockout-safe access map)
 ```
 <!-- END generated: cli-subcommands -->
 

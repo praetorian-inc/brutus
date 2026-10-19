@@ -94,7 +94,7 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 		return enc
 	}
 
-	client, err := winrm.NewClientWithParameters(endpoint, username, password, params)
+	client, err := winrm.NewClientWithParameters(endpoint, username, ntlmSecret(password, nil), params)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "surfaceHash": "sha256:7927c144597fcecdb4a976eb2709cd08bdcaf186a531b7d449346ec065122d3c",
+  "surfaceHash": "sha256:5d0911e74e1be5680ac0466a7de3b8f86af9ae4dd0bd85604cc3d0d8a3f1d91c",
   "commands": [
     {
       "path": "brutus",
@@ -4592,7 +4592,7 @@
       "use": "winrm",
       "short": "Spray one WinRM credential across hosts (lockout-safe access map)",
       "runnable": true,
-      "example": "  # One host\n  brutus winrm --target 10.0.0.5 -u CORP\\\\bob -p 'hunter2'\n\n  # Many hosts\n  brutus winrm --targets-file hosts.txt -u CORP\\\\bob -p 'hunter2'\n\n  # HTTPS\n  brutus winrm --targets-file hosts.txt -u bob -p 'hunter2' --https",
+      "example": "  # One host\n  brutus winrm --target 10.0.0.5 -u CORP\\\\bob -p 'hunter2'\n\n  # Pass-the-hash\n  brutus winrm --targets-file hosts.txt -u CORP\\\\bob --hash 32hexdigits\n\n  # Many hosts\n  brutus winrm --targets-file hosts.txt -u CORP\\\\bob -p 'hunter2'\n\n  # HTTPS\n  brutus winrm --targets-file hosts.txt -u bob -p 'hunter2' --https",
       "flags": [
         {
           "name": "connect-timeout",
@@ -4605,6 +4605,11 @@
           "type": "duration",
           "default": "200ms",
           "usage": "Pause after each host attempt"
+        },
+        {
+          "name": "hash",
+          "type": "string",
+          "usage": "NT hash (32 hex digits or LM:NT); implies NTLM pass-the-hash"
         },
         {
           "name": "https",

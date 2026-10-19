@@ -3,7 +3,7 @@
 # brutus CLI reference
 
 Every command, alias and flag below is derived from the cobra command tree, not from prose.
-Schema version 1, surface hash `sha256:7927c144597fcecdb4a976eb2709cd08bdcaf186a531b7d449346ec065122d3c`.
+Schema version 1, surface hash `sha256:5d0911e74e1be5680ac0466a7de3b8f86af9ae4dd0bd85604cc3d0d8a3f1d91c`.
 
 Regenerate with `make cli-docs` after adding, removing or renaming a command or a flag.
 
@@ -1964,6 +1964,7 @@ Spray one WinRM credential across hosts (lockout-safe access map)
 | --- | --- | --- | --- | --- |
 | `--connect-timeout` |  | duration | `3s` | TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets. |
 | `--delay` |  | duration | `200ms` | Pause after each host attempt |
+| `--hash` |  | string |  | NT hash (32 hex digits or LM:NT); implies NTLM pass-the-hash |
 | `--https` |  | bool | `false` | Use HTTPS WinRM (port 5986) |
 | `--masscan-file` |  | string |  | Masscan JSON file (-oJ output) to import targets from |
 | `--mode` | `-m` | string | `default` | Aggressiveness tier: cautious, default, aggressive |
@@ -1996,6 +1997,9 @@ Spray one WinRM credential across hosts (lockout-safe access map)
 ```bash
 # One host
 brutus winrm --target 10.0.0.5 -u CORP\\bob -p 'hunter2'
+
+# Pass-the-hash
+brutus winrm --targets-file hosts.txt -u CORP\\bob --hash 32hexdigits
 
 # Many hosts
 brutus winrm --targets-file hosts.txt -u CORP\\bob -p 'hunter2'

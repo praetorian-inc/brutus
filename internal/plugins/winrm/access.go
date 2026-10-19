@@ -137,12 +137,12 @@ func (p *Plugin) encryptedClient(host string, port int, username, password strin
 // ProbeAccess tries to open a WinRM shell. Success means this account can use
 // WinRM on the host (Remote Management Users / Administrators, not LATFP-filtered).
 // HTTP 401 is a wrong password. A SOAP AccessDenied after NTLM is valid creds
-// without shell rights.
-func (p *Plugin) ProbeAccess(ctx context.Context, target, username, password string, timeout time.Duration) AccessReport {
+// without shell rights. hash, when 16 bytes, is used instead of password (PTH).
+func (p *Plugin) ProbeAccess(ctx context.Context, target, username, password string, hash []byte, timeout time.Duration) AccessReport {
 	host, port := parseTarget(target, p.UseHTTPS)
 	reportHost := net.JoinHostPort(host, strconv.Itoa(port))
 
-	client, err := p.encryptedClient(host, port, username, password, timeout)
+	client, err := p.encryptedClient(host, port, username, ntlmSecret(password, hash), timeout)
 	if err != nil {
 		kind, detail := classifyAccessError(err)
 		return AccessReport{Host: reportHost, Kind: kind, Detail: detail}

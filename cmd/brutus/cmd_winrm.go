@@ -33,6 +33,7 @@ import (
 var (
 	flagWinRMUser    string
 	flagWinRMPass    string
+	flagWinRMHash    string
 	flagWinRMHTTPS   bool
 	flagWinRMDelay   time.Duration
 	flagWinRMWorkers int
@@ -51,13 +52,17 @@ Verdicts:
   allowed          NTLM succeeded and a WinRM shell was created
   denied           NTLM succeeded but the shell was refused (not in Remote
                    Management Users, or a UAC-filtered local admin)
-  bad credentials  HTTP 401 — wrong password; the spray aborts so badPwdCount
-                   stops incrementing
+  bad credentials  HTTP 401 — wrong password or hash; the spray aborts so
+                   badPwdCount stops incrementing
   unreachable      no WinRM listener / timeout
 
-A denied host does not increment badPwdCount. Use --https for winrms (5986).`,
+A denied host does not increment badPwdCount. Use --https for winrms (5986).
+--hash is pass-the-hash (32 hex digits or LM:NT); do not pass --password with it.`,
 	Example: `  # One host
   brutus winrm --target 10.0.0.5 -u CORP\\bob -p 'hunter2'
+
+  # Pass-the-hash
+  brutus winrm --targets-file hosts.txt -u CORP\\bob --hash 32hexdigits
 
   # Many hosts
   brutus winrm --targets-file hosts.txt -u CORP\\bob -p 'hunter2'
@@ -71,6 +76,7 @@ func init() {
 	f := winrmCmd.Flags()
 	f.StringVarP(&flagWinRMUser, "username", "u", "", "Username (DOMAIN\\user or user)")
 	f.StringVarP(&flagWinRMPass, "password", "p", "", "Password")
+	f.StringVar(&flagWinRMHash, "hash", "", "NT hash (32 hex digits or LM:NT); implies NTLM pass-the-hash")
 	f.BoolVar(&flagWinRMHTTPS, "https", false, "Use HTTPS WinRM (port 5986)")
 	f.DurationVar(&flagWinRMDelay, "delay", 200*time.Millisecond, "Pause after each host attempt")
 	f.IntVar(&flagWinRMWorkers, "workers", 4, "Concurrent probes (aborts on bad credentials)")
@@ -80,8 +86,18 @@ func runWinRM(_ *cobra.Command, _ []string) error {
 	if flagWinRMUser == "" {
 		return fmt.Errorf("--username is required")
 	}
-	if flagWinRMPass == "" {
-		return fmt.Errorf("--password is required")
+	var ntHash []byte
+	if flagWinRMHash != "" {
+		var err error
+		ntHash, err = winrm.ParseNTHash(flagWinRMHash)
+		if err != nil {
+			return err
+		}
+		if flagWinRMPass != "" {
+			return fmt.Errorf("--hash and --password cannot both be set")
+		}
+	} else if flagWinRMPass == "" {
+		return fmt.Errorf("--password or --hash is required")
 	}
 	hosts, err := collectWinRMHosts()
 	if err != nil {
@@ -108,6 +124,7 @@ func runWinRM(_ *cobra.Command, _ []string) error {
 		Hosts:    hosts,
 		Username: flagWinRMUser,
 		Password: flagWinRMPass,
+		Hash:     ntHash,
 		Timeout:  flagTimeout,
 		Delay:    flagWinRMDelay,
 		Workers:  workers,

@@ -30,6 +30,7 @@ type SprayConfig struct {
 	Hosts    []string
 	Username string
 	Password string
+	Hash     []byte
 	Timeout  time.Duration
 	Delay    time.Duration
 	Workers  int
@@ -77,7 +78,7 @@ func Spray(ctx context.Context, cfg SprayConfig) ([]AccessReport, error) {
 			if ctx.Err() != nil {
 				return
 			}
-			rep := p.ProbeAccess(ctx, host, cfg.Username, cfg.Password, timeout)
+			rep := p.ProbeAccess(ctx, host, cfg.Username, cfg.Password, cfg.Hash, timeout)
 			mu.Lock()
 			out = append(out, rep)
 			if cfg.Each != nil {

@@ -114,3 +114,6 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 )
+
+// Patched ntowfV1 so WinRM can pass a 16-byte NT hash (see third_party/ntlmssp).
+replace github.com/bodgit/ntlmssp => ./third_party/ntlmssp

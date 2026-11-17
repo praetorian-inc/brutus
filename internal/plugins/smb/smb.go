@@ -16,12 +16,13 @@ package smb
 
 import (
 	"context"
+	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/hirochachacha/go-smb2"
 
+	"github.com/praetorian-inc/brutus/internal/winlocal"
 	"github.com/praetorian-inc/brutus/pkg/brutus"
 )
 
@@ -62,8 +63,22 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	defer func() { result.Duration = time.Since(start) }()
 
 	host, port := brutus.ParseTarget(target, "445")
+	addr := net.JoinHostPort(host, port)
 
-	conn, err := brutus.DialWithProxy(ctx, "tcp", net.JoinHostPort(host, port), timeout, pluginCfg.ProxyURL)
+	// Unqualified names are local SAM logins. Leaving Domain empty makes
+	// go-smb2 fill it with the challenge TargetName, which is the AD domain
+	// on a member and locks that account across every host in the spray.
+	domain, user, err := ntlmDomain(ctx, addr, username, timeout, pluginCfg.ProxyURL)
+	if err != nil {
+		result.Error = brutus.WrapConnError(err)
+		return result
+	}
+	if domain == "" {
+		result.Error = brutus.WrapConnError(fmt.Errorf("local auth: empty NTLM domain"))
+		return result
+	}
+
+	conn, err := brutus.DialWithProxy(ctx, "tcp", addr, timeout, pluginCfg.ProxyURL)
 	if err != nil {
 		result.Error = brutus.WrapConnError(err)
 		return result
@@ -74,8 +89,6 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 	// covers the TCP dial, so without this a server that stalls the handshake
 	// hangs the worker.
 	_ = conn.SetDeadline(time.Now().Add(timeout))
-
-	domain, user := parseDomainUsername(username)
 
 	d := &smb2.Dialer{
 		Initiator: &smb2.NTLMInitiator{
@@ -104,16 +117,14 @@ func (p *Plugin) Test(ctx context.Context, target, username, password string,
 }
 
 // parseDomainUsername splits username into domain and username.
-// Supports formats: DOMAIN\username or just username.
-// Returns empty string for domain if not specified.
+// An unqualified name or ".\user" has an empty domain: ntlmDomain fills that
+// with the target computer name. DOMAIN\user is an explicit domain login.
 func parseDomainUsername(username string) (domain, user string) {
-	// Check for DOMAIN\username format
-	if strings.Contains(username, "\\") {
-		parts := strings.SplitN(username, "\\", 2)
-		return parts[0], parts[1]
+	id := winlocal.Parse(username)
+	if id.Local {
+		return "", id.User
 	}
-	// No domain specified
-	return "", username
+	return id.Domain, id.User
 }
 
 var classifyError = brutus.NewClassifier(smbAuthIndicators)

@@ -8,7 +8,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.12.3
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
-	github.com/go-ldap/ldap/v3 v3.4.14
+	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/go-zookeeper/zk v1.0.4
 	github.com/gocql/gocql v1.7.0

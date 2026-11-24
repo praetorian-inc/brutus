@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "surfaceHash": "sha256:7a476a8856cb24d984e63421e8ccf84806e67b111a6e2ffc9ba2ebed8e2e31d8",
+  "surfaceHash": "sha256:5d0911e74e1be5680ac0466a7de3b8f86af9ae4dd0bd85604cc3d0d8a3f1d91c",
   "commands": [
     {
       "path": "brutus",
@@ -4584,6 +4584,167 @@
           "type": "bool",
           "default": "false",
           "usage": "Require strict TLS certificate verification"
+        }
+      ]
+    },
+    {
+      "path": "brutus winrm",
+      "use": "winrm",
+      "short": "Spray one WinRM credential across hosts (lockout-safe access map)",
+      "runnable": true,
+      "example": "  # One host\n  brutus winrm --target 10.0.0.5 -u CORP\\\\bob -p 'hunter2'\n\n  # Pass-the-hash\n  brutus winrm --targets-file hosts.txt -u CORP\\\\bob --hash 32hexdigits\n\n  # Many hosts\n  brutus winrm --targets-file hosts.txt -u CORP\\\\bob -p 'hunter2'\n\n  # HTTPS\n  brutus winrm --targets-file hosts.txt -u bob -p 'hunter2' --https",
+      "flags": [
+        {
+          "name": "connect-timeout",
+          "type": "duration",
+          "default": "3s",
+          "usage": "TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets."
+        },
+        {
+          "name": "delay",
+          "type": "duration",
+          "default": "200ms",
+          "usage": "Pause after each host attempt"
+        },
+        {
+          "name": "hash",
+          "type": "string",
+          "usage": "NT hash (32 hex digits or LM:NT); implies NTLM pass-the-hash"
+        },
+        {
+          "name": "https",
+          "type": "bool",
+          "default": "false",
+          "usage": "Use HTTPS WinRM (port 5986)"
+        },
+        {
+          "name": "jitter",
+          "type": "duration",
+          "default": "0s",
+          "usage": "Random delay variance for rate limiting",
+          "inherited": true
+        },
+        {
+          "name": "json",
+          "type": "bool",
+          "default": "false",
+          "usage": "JSON output format",
+          "inherited": true
+        },
+        {
+          "name": "masscan-file",
+          "type": "string",
+          "usage": "Masscan JSON file (-oJ output) to import targets from"
+        },
+        {
+          "name": "mode",
+          "shorthand": "m",
+          "type": "string",
+          "default": "default",
+          "usage": "Aggressiveness tier: cautious, default, aggressive"
+        },
+        {
+          "name": "nmap-file",
+          "type": "string",
+          "usage": "Nmap XML file (-oX output) to import targets from"
+        },
+        {
+          "name": "no-color",
+          "type": "bool",
+          "default": "false",
+          "usage": "Disable colored output",
+          "inherited": true
+        },
+        {
+          "name": "output",
+          "shorthand": "o",
+          "type": "string",
+          "usage": "Output file for JSON results (implies --json)",
+          "inherited": true
+        },
+        {
+          "name": "password",
+          "shorthand": "p",
+          "type": "string",
+          "usage": "Password"
+        },
+        {
+          "name": "proxy",
+          "type": "string",
+          "usage": "Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080",
+          "inherited": true
+        },
+        {
+          "name": "proxy-user",
+          "type": "string",
+          "usage": "Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history.",
+          "inherited": true
+        },
+        {
+          "name": "quiet",
+          "shorthand": "q",
+          "type": "bool",
+          "default": "false",
+          "usage": "Quiet mode - only show successful credentials",
+          "inherited": true
+        },
+        {
+          "name": "rate-limit",
+          "type": "float64",
+          "default": "0",
+          "usage": "Max requests per second (0 = unlimited)",
+          "inherited": true
+        },
+        {
+          "name": "retries",
+          "type": "int",
+          "default": "2",
+          "usage": "Max retries on connection error (0 = disabled)"
+        },
+        {
+          "name": "target",
+          "type": "string",
+          "usage": "Target host:port"
+        },
+        {
+          "name": "targets-file",
+          "type": "string",
+          "usage": "File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set)"
+        },
+        {
+          "name": "threads",
+          "shorthand": "t",
+          "type": "int",
+          "default": "10",
+          "usage": "Number of concurrent threads",
+          "inherited": true
+        },
+        {
+          "name": "timeout",
+          "type": "duration",
+          "default": "10s",
+          "usage": "Per-target timeout",
+          "inherited": true
+        },
+        {
+          "name": "username",
+          "shorthand": "u",
+          "type": "string",
+          "usage": "Username (DOMAIN\\user or user)"
+        },
+        {
+          "name": "verbose",
+          "shorthand": "v",
+          "type": "bool",
+          "default": "false",
+          "usage": "Verbose mode - show detailed progress to stderr",
+          "inherited": true
+        },
+        {
+          "name": "workers",
+          "type": "int",
+          "default": "4",
+          "usage": "Concurrent probes (aborts on bad credentials)"
         }
       ]
     }

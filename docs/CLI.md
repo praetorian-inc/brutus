@@ -3,7 +3,7 @@
 # brutus CLI reference
 
 Every command, alias and flag below is derived from the cobra command tree, not from prose.
-Schema version 1, surface hash `sha256:7a476a8856cb24d984e63421e8ccf84806e67b111a6e2ffc9ba2ebed8e2e31d8`.
+Schema version 1, surface hash `sha256:5d0911e74e1be5680ac0466a7de3b8f86af9ae4dd0bd85604cc3d0d8a3f1d91c`.
 
 Regenerate with `make cli-docs` after adding, removing or renaming a command or a flag.
 
@@ -48,6 +48,7 @@ Regenerate with `make cli-docs` after adding, removing or renaming a command or 
 | [`brutus template run`](#brutus-template-run) | *(none)* | Run templates selected by technology |
 | [`brutus utilman`](#brutus-utilman) | *(none)* | Detect the Windows utilman (Ease of Access) logon backdoor only |
 | [`brutus web`](#brutus-web) | `http`, `panels` | Audit HTTP/web panel credentials (AI-powered or credential list) |
+| [`brutus winrm`](#brutus-winrm) | *(none)* | Spray one WinRM credential across hosts (lockout-safe access map) |
 
 ## `brutus`
 
@@ -1948,4 +1949,61 @@ brutus web --target 192.168.1.1:8080 --experimental-ai --browser-visible
 
 # Import targets from nmap XML scan
 brutus web --nmap-file scan.xml --experimental-ai
+```
+
+## `brutus winrm`
+
+Spray one WinRM credential across hosts (lockout-safe access map)
+
+- Usage: `brutus winrm`
+- Aliases: *(none)*
+
+### Flags
+
+| Flag | Short | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--connect-timeout` |  | duration | `3s` | TCP connect timeout for scan dials (separate from --scan-timeout, which is the per-host settle deadline). A reachable host completes the handshake in ~1 RTT, so the short default only accelerates dead-host rejection; raise it for high-latency target sets. |
+| `--delay` |  | duration | `200ms` | Pause after each host attempt |
+| `--hash` |  | string |  | NT hash (32 hex digits or LM:NT); implies NTLM pass-the-hash |
+| `--https` |  | bool | `false` | Use HTTPS WinRM (port 5986) |
+| `--masscan-file` |  | string |  | Masscan JSON file (-oJ output) to import targets from |
+| `--mode` | `-m` | string | `default` | Aggressiveness tier: cautious, default, aggressive |
+| `--nmap-file` |  | string |  | Nmap XML file (-oX output) to import targets from |
+| `--password` | `-p` | string |  | Password |
+| `--retries` |  | int | `2` | Max retries on connection error (0 = disabled) |
+| `--target` |  | string |  | Target host:port |
+| `--targets-file` |  | string |  | File of targets to test, one host:port per line (fingerprints with Nerva unless --protocol is set) |
+| `--username` | `-u` | string |  | Username (DOMAIN\user or user) |
+| `--workers` |  | int | `4` | Concurrent probes (aborts on bad credentials) |
+
+### Inherited flags
+
+| Flag | Short | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `--jitter` |  | duration | `0s` | Random delay variance for rate limiting |
+| `--json` |  | bool | `false` | JSON output format |
+| `--no-color` |  | bool | `false` | Disable colored output |
+| `--output` | `-o` | string |  | Output file for JSON results (implies --json) |
+| `--proxy` |  | string |  | Proxy URL. HTTP enum sources accept http, https, socks5, socks5h (a bare host:port defaults to http, like curl); raw-TCP scan plugins support socks5/socks5h only. Examples: --proxy http://host:8080, --proxy socks5://127.0.0.1:1080 |
+| `--proxy-user` |  | string |  | Proxy credentials as user:pass (curl-style); takes precedence over credentials embedded in --proxy. Note: visible in process args/shell history. |
+| `--quiet` | `-q` | bool | `false` | Quiet mode - only show successful credentials |
+| `--rate-limit` |  | float64 | `0` | Max requests per second (0 = unlimited) |
+| `--threads` | `-t` | int | `10` | Number of concurrent threads |
+| `--timeout` |  | duration | `10s` | Per-target timeout |
+| `--verbose` | `-v` | bool | `false` | Verbose mode - show detailed progress to stderr |
+
+### Examples
+
+```bash
+# One host
+brutus winrm --target 10.0.0.5 -u CORP\\bob -p 'hunter2'
+
+# Pass-the-hash
+brutus winrm --targets-file hosts.txt -u CORP\\bob --hash 32hexdigits
+
+# Many hosts
+brutus winrm --targets-file hosts.txt -u CORP\\bob -p 'hunter2'
+
+# HTTPS
+brutus winrm --targets-file hosts.txt -u bob -p 'hunter2' --https
 ```
